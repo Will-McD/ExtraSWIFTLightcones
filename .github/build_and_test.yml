@@ -1,0 +1,60 @@
+#
+# Build ExtraSWIFTLightcones and run tests.
+#
+name: Build and test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # full history so setuptools-scm can find version tags
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install MPI (needed to build mpi4py)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libopenmpi-dev openmpi-bin
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8
+
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    - name: Install module
+      run: |
+        pip install -e ".[test]"
+
+    - name: Check the package imports
+      run: |
+        python -c "import extra_swift_lightcones.snapshot_lightcone, extra_swift_lightcones.snapshot_orientation, extra_swift_lightcones.snapshot_units"
+
+    - name: Test with pytest
+      run: |
+        pytest -v tests/
