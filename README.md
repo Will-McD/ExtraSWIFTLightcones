@@ -2,6 +2,8 @@
 
 This module is designed to provide additional tools for post-processing and visualizing [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) lightcones that works in tandem with [LightconeIO]([https://github.com/jchelly/LightconeIO](https://lightconeio.readthedocs.io/en/latest/#)). 
 
+Further information about the FLAMINGO lightcones: https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html
+
 ## Installation
 
 
