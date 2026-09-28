@@ -4,24 +4,20 @@ import numpy as np
 import healpy as hp
 import unyt
 import math
-import lightcone_io.healpix_maps as hm
 import lightcone_io.particle_reader as pr
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from lightcone_io.property_to_field_names import property_to_field, field_to_property
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.colors as col
 import matplotlib.patheffects as path_effects
-import matplotlib.ticker as ticker
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from matplotlib.patches import Polygon, Rectangle, ConnectionPatch
+from matplotlib.patches import Polygon
 import swiftsimio as sw
 from swiftsimio.objects import cosmo_array
 import collections
 import inspect
 
 
-# rounding functions for plotting 
+# simple rounding functions
 
 def round_down_10(x):
     return int(math.floor(x / 10) * 10)
@@ -37,7 +33,11 @@ def orderOfMagnitude(number):
     return math.floor(math.log(number, 10))
 
 
+
 class BeamProjection:
+    """
+    Class for making simple projects of past lightcone beams. 
+    """
     def __init__(self, vector, angular_diameter, redshift_range, cosmology=None, slice_thickness=None):
         """
         :param vector: direction vector as an array of 3 floats
@@ -377,7 +377,6 @@ class BeamProjection:
                     unit_str=assign_units[idx]
             
             preffered_units[prop] = unit_str
-
 
         MockTotal = collections.namedtuple("MockTotal", mock_fields)
         
