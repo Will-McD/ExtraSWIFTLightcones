@@ -37,11 +37,9 @@ def orderOfMagnitude(number):
     return math.floor(math.log(number, 10))
 
 
-
 class BeamProjection:
     def __init__(self, vector, angular_diameter, redshift_range, cosmology=None, slice_thickness=None):
         """
-
         :param vector: direction vector as an array of 3 floats
         :type  vector: numpy.ndarray
         :param radius: angular diameter in degrees
@@ -608,7 +606,7 @@ class BeamProjection:
     def filter_kwargs(self, func, kwargs):
         params = inspect.signature(func).parameters
         return {k: v for k, v in kwargs.items() if k in params}
-    
+
     def split_beam_plot(self, numb_wedges, projection_data, colour_maps, 
             axs=None, filename=None,
             angular_diameter=None, cosmology=None, redshift_range=None, axes_extent=None, update_badcol=True, figsize=(7,7), titles=None, **kwargs):
@@ -950,11 +948,9 @@ class BeamProjection:
         
         self.grid_line_kwargs.update(**(grid_line_kwargs or {}))
 
-
     def add_beam_axes(self, ax, redshift_major_ticks, redshift_minor_ticks, beam_radius_deg, 
         beam_ang_offset=0., 
         rmin=None, rmax=None,  
-        #comoving_distance_major_ticks=np.linspace(0.2, 10, 50), comoving_distance_minor_ticks=np.linspace(0.1, 9.9, 50), comoving_distance_ticks_order_of_mag=None,
         comoving_distance_major_ticks=None, comoving_distance_minor_ticks=None,
         dtheta_major_ticks_deg=5, dtheta_minor_ticks_deg=1, theta_ticks_abs=True, major_tick_length=3.5, minor_tick_length=None,
         redshift_label_offset=(0,0,0), comoving_label_offset=(0,0,0), tick_label_offset=(0,0,0,0),
@@ -1421,7 +1417,6 @@ class BeamProjection:
                     **self.minor_tick_kwargs,
                     zorder=axes_top_level
                 )
-
 
     @staticmethod
     def arc_xy(comoving_dist, theta_degree, n=360):
