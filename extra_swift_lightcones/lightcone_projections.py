@@ -1,63 +1,67 @@
 #!/bin/env python
-import sys
 import numpy as np
-import healpy as hp
 import unyt
-import math
+import collections
 import lightcone_io.particle_reader as pr
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from .property_to_field_names import property_to_field, field_to_property
 from .snapshot_units import apply_expected_units
-import matplotlib.pyplot as plt
-import matplotlib.colors as col
-import matplotlib.patheffects as path_effects
-from matplotlib.patches import Polygon
+from . import beam_plot
+from .beam_plot import BeamPlot, round_down_10, round_up_10, orderOfMagnitude
 import swiftsimio as sw
 from swiftsimio.objects import cosmo_array
-import collections
-import inspect
 
 
-# simple rounding functions
 
-def round_down_10(x):
+# particle types that can be placed in the slice
+PARTICLE_TYPES = ("Gas", "DM")
+
+# properties always read into the slice
+SLICE_REQUIRED_PROPERTIES = {
+    "Gas": ["Coordinates", "ExpansionFactors", "SmoothingLengths"],
+    "DM": ["Coordinates", "ExpansionFactors"],
+}
+
+# properties always added to the mock snapshot, DM smoothing lengths are generated rather than read
+MOCK_REQUIRED_PROPERTIES = {
+    "Gas": ["Coordinates", "SmoothingLengths"],
+    "DM": ["Coordinates", "Masses", "SmoothingLengths"],
+}
+GENERATED_MOCK_PROPERTIES = {
+    "Gas": [],
+    "DM": ["SmoothingLengths"],
+}
+
+# mock snapshot attribute holding each particle type
+MOCK_PARTICLE_TYPE = {
+    "Gas": "lightcone_gas",
+    "DM": "lightcone_dm",
+}
+
+# fixed units of properties in the mock snapshot
+MOCK_UNITS = {
+    "Coordinates": "Mpc",
+    "SmoothingLengths": "Mpc",
+    "Masses": "Msun",
+}
+
+def check_ptype(ptype):
     """
-    Round down to the nearest multiple of 10.
+    Raise ValueError if the particle type is not "Gas" or "DM".
 
-    :param  x:  value to round
-    :type   x:  float
+    :param  ptype:  particle type
+    :type   ptype:  str
     """
-    return int(math.floor(x / 10) * 10)
-
-def round_up_10(x):
-    """
-    Round up to the nearest multiple of 10.
-
-    :param  x:  value to round
-    :type   x:  float
-    """
-    import math
-    if x == 0:
-        return 0
-    power = 10 ** (int(math.floor(math.log10(abs(x)))) - 1)
-    return math.ceil(x / power) * power
-
-def orderOfMagnitude(number):
-    """
-    Order of magnitude (base 10) of a number.
-
-    :param  number: positive number
-    :type   number: float
-    """
-    return math.floor(math.log(number, 10))
+    if ptype not in PARTICLE_TYPES:
+        raise ValueError(f"unknown ptype {ptype!r} not added yet, must be one of {PARTICLE_TYPES}")
 
 
-
+# beam projection functions 
 class BeamProjection:
     """
     Class for making simple projects of past lightcone beams. 
     """
-    def __init__(self, vector, angular_diameter, redshift_range, cosmology=None, slice_thickness=None):
+    def _init_(self, vector, angular_diameter, redshift_range, cosmology=None, slice_thickness=None, store_snapshot_filename=None):
         """
         Define the beam and the slice through it to project.
 
@@ -72,43 +76,69 @@ class BeamProjection:
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
         :type   slice_thickness:    int, float or unyt.unyt_quantity (units of Mpc or equivalent)
         """
-        self.__beam_vec = tuple(vector)
-        self.__diameter_deg=angular_diameter
-        self.__radius = np.deg2rad(angular_diameter/2)
-        self.__redshift_range=tuple(redshift_range)
-
-        self.slice_thickness=apply_expected_units(slice_thickness, unyt.Mpc) # size on z-axis
+        self._beam_vec = tuple(vector)
+        self._diameter_deg = angular_diameter
+        self._radius = np.deg2rad(angular_diameter/2)
+        self._redshift_range = tuple(redshift_range)
+        
+        self.slice_thickness = None if slice_thickness is None else apply_expected_units(slice_thickness, unyt.Mpc) # size on z-axis
         
         # try apply cosmology 
         if isinstance(cosmology, str):
             cosmology = Snapshot_Cosmology_For_Lightcone(cosmology).COSMO
+
         self.cosmology = cosmology
 
-        self.__make_empty_flags()
+        self._make_empty_flags()
+        
+        if store_snapshot_filename is not None:
+             self._snapshot_filename=store_snapshot_filename
 
-    def __make_empty_flags(self,):
+    def _make_empty_flags(self,):
         """
         Reset the slice properties, plot boundaries and snapshot filename.
         """
         # slice properties 
-        
-        self.in_slice_boolean={"Gas":None,"DM":None} #track particles being added to the mask 
-        self.__gas_properties_added=None # track names of particle properties added to the slice. 
-        self.__dm_properties_added=None # track names of particle properties added to the slice. 
-        
+        self.particle_data = {ptype: None for ptype in PARTICLE_TYPES}    # particle data in the slice
+        self.in_slice_boolean = {ptype: None for ptype in PARTICLE_TYPES} # track particles being added to the mask
+        self._properties_added = {ptype: None for ptype in PARTICLE_TYPES} # track names of particle properties added to the slice
+
         # boundaries of the plot in coordinate space
-        self.__xmin = None
-        self.__xmax = None
-        self.__ymin = None
-        self.__ymax = None
-        self.__zmin = None
-        self.__zmax = None
+        self._xmin = None
+        self._xmax = None
+        self._ymin = None
+        self._ymax = None
+        self._zmin = None
+        self._zmax = None
         
+        self._projection_region = None
         self.axes_extent = None
 
         # snapshot filename used for mock data and cosmology
-        self.__snapshot_filename = None
+        self._snapshot_filename = None
+    
+    @property
+    def gas_particle_data(self):
+        """
+        Gas particle data in the slice.
+        """
+        return self.particle_data["Gas"]
 
+    @gas_particle_data.setter
+    def gas_particle_data(self, value):
+        self.particle_data["Gas"] = value
+
+    @property
+    def dm_particle_data(self):
+        """
+        DM particle data in the slice.
+        """
+        return self.particle_data["DM"]
+
+    @dm_particle_data.setter
+    def dm_particle_data(self, value):
+        self.particle_data["DM"] = value
+    
     def update_lc_particles(self, particle_data, particle_properties, slice_thickness, ptype):
         """
         Rotate the particles and keep only those in the slice.
@@ -124,24 +154,22 @@ class BeamProjection:
         :param  ptype:                  particle type, "Gas" or "DM"
         :type   ptype:                  str
         """
-        input_coords = particle_data["Coordinates"][:]
-        # rotate the particles coordinates to produce consitant plots 
-        rotated_coords = self.rotate_lc_coordinates(input_coords)
-        del input_coords
-        # make a mask that is True when particle is in the selected slice
-        self.in_slice_boolean[ptype] = self.identify_particles_in_slice(rotated_coords, 1./particle_data["ExpansionFactors"].value - 1., slice_thickness)
-        # update with 'in slice' mask 
-        slice_particle_data={}
-        slice_particle_data["Coordinates"]=rotated_coords[self.in_slice_boolean[ptype]]
-        # keep particles and properties that are in the slice
-        for k in particle_data.keys(): #for k in particle_properties:
-            if k=="Coordinates":
-                continue
-            if k in particle_properties:
-                slice_particle_data[k]=particle_data[k][self.in_slice_boolean[ptype]]
 
-        nr_parts = len(particle_data["ExpansionFactors"])
-        print("\n{n_all} particles in slice".format(n_all=nr_parts), flush=True)
+        # rotate the particles coordinates to produce consistent plots
+        rotated_coords = self.rotate_lc_coordinates(particle_data["Coordinates"][:])
+
+        # make a mask that is True when particle is in the selected slice
+        in_slice = self.identify_particles_in_slice(rotated_coords, 1./particle_data["ExpansionFactors"].value - 1., slice_thickness)
+        self.in_slice_boolean[ptype] = in_slice
+
+        # update with 'in slice' mask         
+        slice_particle_data = {"Coordinates": rotated_coords[in_slice]}
+        
+        # keep particles and properties that are in the slice
+        for k in particle_data.keys():
+            if k != "Coordinates" and k in particle_properties:
+                slice_particle_data[k] = particle_data[k][in_slice]
+        
         return slice_particle_data
 
     def rotate_lc_coordinates(self, coordinates):
@@ -152,13 +180,11 @@ class BeamProjection:
         :param  coordinates:    particle coordinates, shape (N, 3)
         :type   coordinates:    unyt.unyt_array
         """
-        if self.__beam_vec !=(1,0,0):
-            rot_matrix = self.rotation_matrix_from_vectors(v_to=np.array([1., 0., 0.]))
-            rotated_coordinates = coordinates @ rot_matrix.T
-            return rotated_coordinates
-        else:
+        if self._beam_vec==(1,0,0):
             return coordinates
-        
+        rot_matrix = self.rotation_matrix_from_vectors(v_to=np.array([1., 0., 0.]))
+            return coordinates @ rot_matrix.T
+
     def identify_particles_in_slice(self, coordinates, redshift, slice_thickness=10*unyt.Mpc):
         """
         Define simple mask for all particles within slice, in terms of redshift and coordinates.
@@ -172,10 +198,14 @@ class BeamProjection:
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
         :type   slice_thickness:    int, float or unyt.unyt_quantity (units of Mpc or equivalent)
         """
-        dz=apply_expected_units(slice_thickness, unyt.Mpc)
-        slice_midpoint = 0.5 * (np.max(coordinates[:,-1].to_value("Mpc")) + np.min(coordinates[:,-1].to_value("Mpc")))
-        coords_boolean = (coordinates[:,-1].to_value("Mpc") >= slice_midpoint - dz.to_value("Mpc")/2) & (coordinates[:,-1].to_value("Mpc") <= slice_midpoint + dz.to_value("Mpc")/2)
-        redshift_boolean = (redshift >= self.__redshift_range[0]) & (redshift <= self.__redshift_range[-1]) 
+
+        dz = apply_expected_units(slice_thickness, unyt.Mpc).to_value("Mpc")
+        z_coords = coordinates[:,-1].to_value("Mpc")
+        slice_midpoint = 0.5 * (np.max(z_coords) + np.min(z_coords))
+
+        coords_boolean = (z_coords >= slice_midpoint - dz/2) & (z_coords <= slice_midpoint + dz/2)
+        redshift_boolean = (redshift >= self._redshift_range[0]) & (redshift <= self._redshift_range[-1])
+
         return redshift_boolean & coords_boolean
 
     def add_property_to_slice(self, dset_name, dset, ptype):
@@ -189,31 +219,20 @@ class BeamProjection:
         :param  ptype:      particle type, "Gas" or "DM"
         :type   ptype:      str
         """
-        if self.in_slice_boolean[ptype] is not None:
-            if ptype == "Gas":
-                if self.gas_particle_data is None:
-                    print(f"No Gas particles in slice, cannot add {dset_name}")
-                else:
-                    if dset_name in self.gas_particle_data:
-                        print(f"replacing {dset_name} in existing data")
-                        del self.gas_particle_data[dset_name]
-                    self.gas_particle_data[dset_name] = dset[self.in_slice_boolean[ptype]]
-                    self.__gas_properties_added.append(dset_name)
-            elif ptype == "DM":
-                if self.dm_particle_data is None:
-                    print(f"No DM particles in slice, cannot add {dset_name}")
-                else:
-                    if dset_name in self.dm_particle_data:
-                        print(f"replacing {dset_name} in existing data")
-                        del self.dm_particle_data[dset_name]
-                    self.dm_particle_data[dset_name] = dset[self.in_slice_boolean[ptype]]
-                    self.__dm_properties_added.append(dset_name)
         
-        elif len(dset) != len(self.in_slice_boolean[ptype]):
-            print(f"incorrect size of dataset")
-
-        else:
+        #check ptype is ok.
+        check_ptype(ptype)
+        
+        if self.in_slice_boolean[ptype] is None or self.particle_data[ptype] is None:
             print(f"No {ptype} particles in slice, cannot add {dset_name}")
+        
+        if len(dset) != len(self.in_slice_boolean[ptype]):
+            print("incorrect size of dataset")
+            return
+        if dset_name in self.particle_data[ptype]:
+            print(f"replacing {dset_name} in existing data")
+        self.particle_data[ptype][dset_name] = dset[self.in_slice_boolean[ptype]]
+        self._properties_added[ptype].append(dset_name)
 
     def place_particles_in_slice(self, gas_particle_data,  gas_property_names, slice_thickness=None, dm_particle_data=None, dm_property_names=None, xy_buffer=10.):
         """
@@ -221,7 +240,7 @@ class BeamProjection:
 
         :param  gas_particle_data:  gas particle data or a path to the particle lightcone
         :type   gas_particle_data:  lightcone_io.IndexedLightconeParticleType for 'Gas' or a str
-        :param  gas_property_names: properties of gas particles to add to the slice. If None then essential properties are assumed 
+        :param  gas_property_names: properties of gas particles to add to the slice. If None then essential properties are assumed
                                         ["Coordinates", "ExpansionFactors","SmoothingLengths"]
         :type   gas_property_names: list
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
@@ -234,112 +253,88 @@ class BeamProjection:
         :param  xy_buffer:          distance [Mpc] between the min and max position of a particle and the boundary of the slice.
         :type   xy_buffer:          float or int
         """ 
+
         # update units for the size of the slice 
         if slice_thickness is None:
-            slice_thickness=apply_expected_units(self.slice_thickness, unyt.Mpc)
-        else:
-            slice_thickness=apply_expected_units(slice_thickness, unyt.Mpc)
+            if self.slice_thickness is None:
+                raise ValueError("slice_thickness must be given here or when creating the BeamProjection")
         
-        if gas_particle_data is not None:
+            slice_thickness = self.slice_thickness
+        slice_thickness = apply_expected_units(slice_thickness, unyt.Mpc)
+
+        for ptype, data, property_names in (("Gas", gas_particle_data, gas_property_names), ("DM", dm_particle_data, dm_property_names)):
+            if data is None:
+                self.particle_data[ptype] = None
+                continue
             # add required properties where needed
-            required_properties = ["Coordinates", "ExpansionFactors","SmoothingLengths"]
-            if gas_property_names is None:
-                slice_gas_properties=required_properties
+            slice_properties = list(property_names) if property_names is not None else []
+            for required_prop in SLICE_REQUIRED_PROPERTIES[ptype]:
+                if required_prop not in slice_properties:
+                    slice_properties.append(required_prop)
+            self._properties_added[ptype] = slice_properties
+
+            if isinstance(data, str):
+                data = self._read_lightcone_particles(data, ptype, slice_properties)
             else:
-                slice_gas_properties=[prop for prop in gas_property_names]
-                for required_prop in required_properties:
-                    if required_prop not in slice_gas_properties:
-                        slice_gas_properties.append(required_prop)
-                
-            self.__gas_properties_added = gas_property_names
+                for prop in slice_properties: # sanity check properties against provided data
+                    if prop not in data:
+                        raise ValueError(f"{prop} not in {ptype} particle data")
 
-            # check if particle data has to be loaded
-            if isinstance(gas_particle_data, str)==False:
-                # sanity check properties against provided data
-                for prop in self.__gas_properties_added:
-                    if prop not in gas_particle_data:
-                        raise ValueError(f"{prop} not in Gas particle data")
-            
-            elif isinstance(gas_particle_data, str):
-                print(f"\nLoading gas particle data ....")
-                # Open the lightcone
-                lightcone = pr.IndexedLightcone(gas_particle_data)
-                # read particle data from lightcone
-                gas_particle_data = lightcone['Gas'].read(
-                    property_names=self.__gas_properties_added,
-                    redshift_range=self.__redshift_range,
-                    vector=self.__beam_vec, radius=self.__radius
-                )
-                nr_parts = len(gas_particle_data["ExpansionFactors"])
-                print("\nread in {n_all} Gas particles".format(n_all=nr_parts))
-            
-            self.gas_particle_data = self.update_lc_particles(gas_particle_data, self.__gas_properties_added, slice_thickness, "Gas")
-            
-            #set limits of of the beam 
-            self.__lightcone_limits(self.gas_particle_data["Coordinates"], axis_boundaries_buffer=xy_buffer) 
+            self.particle_data[ptype] = self.update_lc_particles(data, slice_properties, slice_thickness, ptype)
 
-        else:
-            self.gas_particle_data=None
+            # set limits of the beam from the gas, or from the DM if they are not already set
+            if ptype == "Gas" or self.axes_extent is None:
+                self._lightcone_limits(self.particle_data[ptype]["Coordinates"], axis_boundaries_buffer=xy_buffer)
         
-        if dm_particle_data is not None: 
-            
-            # add required properties where needed
-            required_properties = ["Coordinates", "ExpansionFactors"]
-            if dm_property_names is None:
-                slice_dm_properties=required_properties
-            else:
-                slice_dm_properties=[prop for prop in dm_property_names]
-                for required_prop in required_properties:
-                    if required_prop not in slice_dm_properties:
-                        slice_dm_properties.append(required_prop)
+    def _read_lightcone_particles(self, lightcone_filename, ptype, property_names):
+        """
+        Read the particles in the beam from a particle lightcone.
 
-            self.__dm_properties_added=slice_dm_properties
-            # check if particle data has to be loaded
-            if isinstance(dm_particle_data, str)==False:
-                # sanity check properties against provided data
-                for prop in self.__dm_properties_added:
-                    if prop not in dm_particle_data:
-                        raise ValueError(f"{prop} not in DM particle data")
-            
-            elif isinstance(dm_particle_data, str):
-                print(f"\nLoading DM particle data ....")
-                # Open the lightcone
-                lightcone = pr.IndexedLightcone(dm_particle_data)
-                # read particle data from lightcone
-                dm_particle_data = lightcone['DM'].read(
-                    property_names=self.__dm_properties_added,
-                    redshift_range=self.__redshift_range,
-                    vector=self.__beam_vec, radius=self.__radius
-                )
-            dm_nr_parts = len(dm_particle_data["ExpansionFactors"])
-            print("\nread in {n_all} DM particles".format(n_all=dm_nr_parts))
-            self.dm_particle_data = self.update_lc_particles(dm_particle_data, self.__dm_properties_added, slice_thickness, "DM")
-            if self.axes_extent is None:
-                self.__lightcone_limits(self.dm_particle_data["Coordinates"], axis_boundaries_buffer=xy_buffer) 
-        else:
-            self.dm_particle_data=None
+        Returns a dict of the particle properties.
 
-    def __lightcone_limits(self, coordinates, axis_boundaries_buffer=10):
-        self.__xmin = np.amin(coordinates[:,0])
-        self.__xmax = np.amax(coordinates[:,0])
-        self.__ymin = np.amin(coordinates[:,1])
-        self.__ymax = np.amax(coordinates[:,1])
-        self.__zmin = np.amin(coordinates[:,1])
-        self.__zmax = np.amax(coordinates[:,1])
+        :param  lightcone_filename: path to the particle lightcone
+        :type   lightcone_filename: str
+        :param  ptype:              particle type, "Gas" or "DM"
+        :type   ptype:              str
+        :param  property_names:     properties to read
+        :type   property_names:     list
+        """
+        print(f"\nLoading {ptype} particle data ....")
+        lightcone = pr.IndexedLightcone(lightcone_filename)
+        particle_data = lightcone[ptype].read(
+            property_names=property_names,
+            redshift_range=self._redshift_range,
+            vector=self._beam_vec, radius=self._radius
+        )
+        print("\nread in {n_all} {ptype} particles".format(n_all=len(particle_data["ExpansionFactors"]), ptype=ptype))
+        return particle_data
 
-        self.axes_extent = [
-            self.__xmin.to_value("Mpc")+axis_boundaries_buffer/2,
-            self.__xmax.to_value("Mpc")+axis_boundaries_buffer/2,
-            self.__ymin.to_value("Mpc"),
-            self.__ymax.to_value("Mpc")
+    def _lightcone_limits(self, coordinates, axis_boundaries_buffer=10):
+        self._xmin = np.amin(coordinates[:,0])
+        self._xmax = np.amax(coordinates[:,0])
+        self._ymin = np.amin(coordinates[:,1])
+        self._ymax = np.amax(coordinates[:,1])
+        self._zmin = np.amin(coordinates[:,2])
+        self._zmax = np.amax(coordinates[:,2])
+        
+        # ensure that the projected region  == the extent of the projected image
+
+        self._projection_region = [
+            self._xmin.to_value("Mpc")-axis_boundaries_buffer,
+            self._xmax.to_value("Mpc")+axis_boundaries_buffer,
+            self._ymin.to_value("Mpc")-axis_boundaries_buffer,
+            self._ymax.to_value("Mpc")+axis_boundaries_buffer,
         ]
+        self.axes_extent = list(self._projection_region)
         self.axis_buffer=axis_boundaries_buffer
 
-    def project_properties(self, project_particle_properties, snapshot_filename=None, resolution=1024, assign_units=None, ptype="Gas"):
+    def project_properties(self, project_particle_properties, snapshot_filename=None, resolution=1024, assign_units=None, ptype="Gas", periodic=True, parallel=False, weight=None):
+        
         """
-        Project the selected properties for a given particle type.
+        Project the selected properties for a given particle type. Without a weight these projections are surface densities. 
 
         Returns a list of 2D histograms, one per property, for a given particle type. 
+        
 
         :param  project_particle_properties:    properties to project
         :type   project_particle_properties:    list
@@ -351,68 +346,177 @@ class BeamProjection:
         :type   assign_units:                   list
         :param  ptype:                          particle type, "Gas" or "DM"
         :type   ptype:                          str
+        :param  weight:                         property to weight by, e.g. "Masses" for mass weighted projections. 
+                                                    If None, project surface densities
+        :type   weight:                         str
+        :param  periodic:                       If True, treat the snapshot box as periodic when projecting. Periodic copies 
+                                                    of the particles appear if the projected region is larger than the box
+        :type   periodic:                       boolean
+        :param  parallel:                       If True, use parallel backend of swiftsimio with projections. 
+        :type   parallel:                       boolean
         """
-        # export to snapshot datatype to project with swiftsimio
-        use_lc_properties = [prop for prop in project_particle_properties]
 
+        # check ptype is ok. 
+        check_ptype(ptype)
+        
         if self.cosmology is None:
             self.cosmology=Snapshot_Cosmology_For_Lightcone(snapshot_filename).COSMO
-            # update snapshot name stored if used for cosmology 
-            self.__snapshot_filename = snapshot_filename
+            
+            # update snapshot name stored if used for cosmology
+            self._snapshot_filename = snapshot_filename
         
-        mock_snap_data, preffered_units = self.make_mock_snapshot(use_lc_properties, snapshot_filename, resolution=1024, assign_units=None, ptype=ptype)
+        # update snapshot filename if a new one is passed 
+        if snapshot_filename is not None:
+            if snapshot_filename != self._snapshot_filename:
+                self._snapshot_filename = snapshot_filename
+
+        if weight is None:
+            return self._project(list(project_particle_properties), self._snapshot_filename, resolution, assign_units, ptype, periodic, parallel)
+
+        particle_data = self.particle_data[ptype]
+        if particle_data is None or weight not in particle_data:
+            raise ValueError(f"{weight} values not in slice")
+
+        # add each property multiplied by the weight to the slice, removed again after projecting
+        weighted_names = [f"{prop}Times{weight}" for prop in project_particle_properties]
+        for prop, weighted_name in zip(project_particle_properties, weighted_names):
+            if prop not in particle_data:
+                raise ValueError(f"{prop} values not in slice")
+            if weighted_name in particle_data:
+                raise ValueError(f"{weighted_name} is already in the slice, it is needed to weight {prop} by {weight}")
+        for prop, weighted_name in zip(project_particle_properties, weighted_names):
+            particle_data[weighted_name] = particle_data[prop] * particle_data[weight]
+        properties_added = self._properties_added[ptype]
+        self._properties_added[ptype] = properties_added + weighted_names
+        try:
+            *weighted_projections, weight_projection = self._project(weighted_names + [weight], self._snapshot_filename, resolution, None, ptype, periodic,parallel)
+        finally:
+            for weighted_name in weighted_names:
+                del particle_data[weighted_name]
+            self._properties_added[ptype] = properties_added
+
+        # weighted mean, sum(q*w)/sum(w), in the units of q
+        no_weight = weight_projection.value == 0
+        projection_outputs = []
+        for idx, (prop, weighted_projection) in enumerate(zip(project_particle_properties, weighted_projections)):
+            with np.errstate(divide="ignore", invalid="ignore"):
+                mean = weighted_projection / weight_projection
+            mean[no_weight] = 0
+            units = particle_data[prop].units if assign_units is None else assign_units[idx]
+            projection_outputs.append(mean.to(units))
+
+        return projection_outputs
+
+    def _project(self, particle_properties, snapshot_filename, resolution, assign_units, ptype, periodic, parallel):
+        """
+        Project the surface density of each property.
+
+        Returns a list of 2D histograms, one per property.
+
+        :param  particle_properties:    properties to project
+        :type   particle_properties:    list
+        :param  snapshot_filename:      path to a snapshot, used for its metadata
+        :type   snapshot_filename:      str
+        :param  resolution:             number of pixels along each axis of the projection
+        :type   resolution:             int
+        :param  assign_units:           units of each property. If None, use the units of the slice data
+        :type   assign_units:           list
+        :param  ptype:                  particle type, "Gas" or "DM"
+        :type   ptype:                  str
+        :param  periodic:               If True, treat the snapshot box as periodic when projecting
+        :type   periodic:               boolean
+        """
+        # export to snapshot datatype to project with swiftsimio
         
+        mock_snap_data, preferred_units = self.make_mock_snapshot(list(particle_properties), self._snapshot_filename, resolution=resolution, assign_units=assign_units, ptype=ptype)
+
+        mock_particles = getattr(mock_snap_data, MOCK_PARTICLE_TYPE[ptype])
         
         #create region to project over
         plot_region= cosmo_array(
-                [
-                    self.__xmin.to_value("Mpc")-self.axis_buffer, self.__xmax.to_value("Mpc")+self.axis_buffer/2, 
-                    self.__ymin.to_value("Mpc")-self.axis_buffer/2, self.__ymax.to_value("Mpc")+self.axis_buffer/2
-                    ],
+                self._projection_region, # if problems with alignment of frame and projection add a buffer to either increase or decrease this region
                 unyt.Mpc,
                 comoving=True,
-                scale_factor=1.,  # a=0.5, i.e. z=1
+                scale_factor=1.,
                 scale_exponent=1,  # distances scale as a**1, so the scale exponent is 1
             )
         
         projection_outputs=[]
-        if ptype=="Gas":
-            for prop in project_particle_properties:
-                field_name = property_to_field[prop] if prop in property_to_field else prop # allow for custom properties 
-                print(f"Projecting:\t{prop} [{field_name}]")
-                proj = sw.visualisation.projection.project_pixel_grid(
-                    mock_snap_data.lightcone_gas,
-                    resolution=resolution,
-                    project=field_name,
-                    parallel=False,
-                    periodic=True,
-                    region=plot_region,
-                    )
-
-                projection_outputs.append(proj)
-        
-        elif ptype=="DM":
-            for prop in project_particle_properties:
-                field_name = property_to_field[prop]
-                print(f"Projecting:\t{prop} [{field_name}]")
-                proj = sw.visualisation.projection.project_pixel_grid(
-                    mock_snap_data.lightcone_dm,
-                    resolution=resolution,
-                    project=field_name,
-                    parallel=False,
-                    periodic=True,
-                    region=plot_region,
-                    )
-
-                projection_outputs.append(proj)
+        for prop in particle_properties:
+            field_name = property_to_field.get(prop, prop) # allow for custom properties 
+            print(f"Projecting:\t{prop} [{field_name}]")
+            proj = sw.visualisation.projection.project_pixel_grid(
+                mock_particles,
+                resolution=resolution,
+                project=field_name,
+                parallel=parallel,
+                periodic=periodic,
+                region=plot_region,
+                )
+            projection_outputs.append(proj)
 
         return projection_outputs
 
-    def add_lc_gas_to_snap(self, snap, particle_properties, assign_units):
+    def _add_lightcone_particles_to_snap(self, snap, particle_properties, assign_units, ptype):
         """
         Add the gas particles in the slice to a snapshot template as mock snapshot data, snap.lightcone_gas
 
         Returns a tuple, (snapshot, preferred units of each property).
+
+        :param  snap:                   snapshot data
+        :type   snap:                   swiftsimio.reader.SWIFTDataset
+        :param  particle_properties:    properties to add. Note, required properties are appended to this list
+        :type   particle_properties:    list
+        :param  assign_units:           units of each property. If None, use the units of the slice data
+        :type   assign_units:           list
+        :param  ptype:                  particle type, "Gas" or "DM"
+        :type   ptype:                  str
+        """
+
+        mock_name = MOCK_PARTICLE_TYPE[ptype]
+        
+        if hasattr(snap, mock_name):
+            raise ValueError(f"Snapshot already has mock snapshot {ptype} particles!!!")
+        
+        particle_data = self.particle_data[ptype]
+        
+        # define mock fields
+        mock_fields=["metadata"] + [property_to_field.get(prop, prop) for prop in particle_properties]
+
+        # add required fields
+        for required_prop in MOCK_REQUIRED_PROPERTIES[ptype]:
+            if required_prop not in particle_properties and property_to_field[required_prop] not in mock_fields:
+                mock_fields.append(property_to_field[required_prop])
+                particle_properties.append(required_prop)
+
+        # determine the preferred units of each property 
+        preferred_units={}
+        for idx, prop in enumerate(particle_properties):
+
+            if prop in MOCK_UNITS:
+                preferred_units[prop] = MOCK_UNITS[prop]
+            elif assign_units is None:
+                preferred_units[prop] = str(particle_data[prop].units.expr)
+            else:
+                preferred_units[prop] = assign_units[idx]
+        
+        mock_values = {"metadata": snap.metadata}
+        for field_name in mock_fields[1:]:
+            prop_name = field_to_property.get(field_name, field_name)
+            if prop_name in GENERATED_MOCK_PROPERTIES[ptype]:
+                mock_values[field_name] = self._generate_smoothing_lengths(particle_data["Coordinates"], snap.metadata.boxsize)
+
+        
+        MockTotal = collections.namedtuple("MockTotal", mock_fields)
+        setattr(snap, mock_name, MockTotal(**mock_values))
+        return snap, preferred_units
+
+
+    def add_lc_gas_to_snap(self, snap, particle_properties, assign_units):
+        """
+        Add the gas particles in the slice to a snapshot as mock snapshot data, snap.lightcone_gas.
+
+        Returns a tuple of (snapshot, preferred units of each property).
 
         :param  snap:                   snapshot data
         :type   snap:                   swiftsimio.reader.SWIFTDataset
@@ -421,69 +525,7 @@ class BeamProjection:
         :param  assign_units:           units of each property. If None, use the units of the slice data
         :type   assign_units:           list
         """
-        if hasattr(snap, "lightcone_gas"):
-            raise ValueError("Snapshot already has mock snapshot gas particles!!!")
-
-        # define mock fields
-        mock_fields=["metadata"] 
-        # re-name for swiftsim_io
-        for prop in particle_properties:
-            if prop in property_to_field:
-                mock_fields.append(property_to_field[prop])
-            else:
-                mock_fields.append(prop)
-        
-        # add required fields
-        for i, required_prop in enumerate(["Coordinates","SmoothingLengths"]): 
-            if required_prop not in particle_properties and property_to_field[required_prop] not in mock_fields:
-                mock_fields.append(property_to_field[required_prop])
-                particle_properties.append(required_prop)
-
-        # determine the preferred units of each property 
-        preffered_units={}
-        for idx, prop in enumerate(particle_properties):
-
-            if prop == "Coordinates":
-                unit_str = "Mpc" 
-            elif prop== "SmoothingLengths":
-                unit_str="Mpc"
-            elif prop == "Masses":
-                unit_str="Msun"
-            else:
-                print(prop)
-                if assign_units is None:
-                    print()
-                    unit_str = str(self.gas_particle_data[prop].units.expr)
-                else:
-                    unit_str=assign_units[idx]
-            
-            preffered_units[prop] = unit_str
-
-        MockTotal = collections.namedtuple("MockTotal", mock_fields)
-        
-        lc_coordinates = self.__lc2cosmoarray(self.gas_particle_data, "Coordinates", "Mpc")
-        #lc_masses = self.__lc2cosmoarray(self.gas_particle_data, "Masses", "Msun")
-        lc_smoothing_lengths = self.__lc2cosmoarray(self.gas_particle_data, "SmoothingLengths", "Mpc")
-
-        mock_values = {
-            "metadata":snap.metadata,
-            "coordinates":lc_coordinates,
-            #"masses":lc_masses,
-            "smoothing_lengths":lc_smoothing_lengths,
-        }
-        
-        for idx, field_name in enumerate(mock_fields):
-            if field_name in ["metadata", "coordinates", "smoothing_lengths"]:
-                continue 
-            #print(idx, field_name, field_to_property[field_name])
-            prop_name=field_to_property[field_name] if field_name in field_to_property else field_name
-            mock_values[field_name] = self.__lc2cosmoarray(self.gas_particle_data, prop_name, preffered_units[prop_name])
-        
-        snap.lightcone_gas =  MockTotal(**mock_values)
-        
-        del particle_properties
-        
-        return snap, preffered_units
+        return self._add_lightcone_particles_to_snap(snap, particle_properties, assign_units, "Gas")
 
     def add_lc_dm_to_snap(self, snap, particle_properties, assign_units):
         """
@@ -499,116 +541,54 @@ class BeamProjection:
         :param  assign_units:           units of each property. If None, use the units of the slice data
         :type   assign_units:           list
         """
-        if hasattr(snap, "lightcone_dm"):
-            raise ValueError("Snapshot already has mock snapshot DM particles!!!")
+        return self._add_lightcone_particles_to_snap(snap, particle_properties, assign_units, "DM")
 
 
-        # define mock fields
-        mock_fields=["metadata"] 
-        # re-name for swiftsim_io
-        for prop in particle_properties:
-            if prop in property_to_field:
-                mock_fields.append(property_to_field[prop])
-            else:
-                mock_fields.append(prop)
-        
-        # add required fields
-        for i, required_prop in enumerate(["Coordinates","Masses","SmoothingLengths"]): 
-            if required_prop not in particle_properties and property_to_field[required_prop] not in mock_fields:
-                mock_fields.append(property_to_field[required_prop])
-                particle_properties.append(required_prop)
+    @staticmethod
+    def _generate_smoothing_lengths(coordinates, snapshot_boxsize):
+        """
+        Generate smoothing lengths for particles that do not have them. The particles are shifted so
+        they are inside a box, which is the snapshot box unless the particles extend beyond it.
 
+        Returns the smoothing lengths as a cosmo_array.
+        :param  coordinates:        particle coordinates, shape (N, 3)
+        :type   coordinates:        unyt.unyt_array
+        :param  snapshot_boxsize:   side lengths of the snapshot box
+        :type   snaps
+        """
 
-        preffered_units={}
+        # 1) shift position of particles so they are inside the snapshot box 
+        # 2) generate smoothing lengths
 
-        for idx, prop in enumerate(particle_properties):
-            
-            if prop == "Coordinates":
-                unit_str = "Mpc" 
-            elif prop== "SmoothingLengths":
-                unit_str="Mpc"
-            elif prop == "Masses":
-                unit_str="Msun"
-            else:
-                print(prop)
-                if assign_units is None:
-                    print()
-                    unit_str = str(self.dm_particle_data[prop].units.expr)
-                else:
-                    unit_str=assign_units[idx]
-            
-            preffered_units[prop] = unit_str
-
-        lc_coordinates = self.__lc2cosmoarray(self.dm_particle_data, "Coordinates", "Mpc")
-        lc_masses = self.__lc2cosmoarray(self.dm_particle_data, "Masses", "Msun")
-
-        # compute smoothing lengths for dm particles. 
-        # 1) shift position of particles so they are inside the snapshot box and 2) generate smoothing lengths
-        shifted_coords=unyt.unyt_array(np.zeros_like(self.dm_particle_data["Coordinates"]), units=unyt.Mpc)
+        shifted_coords=unyt.unyt_array(np.zeros_like(coordinates), units=unyt.Mpc)
         ax_sidelengths=unyt.unyt_array(np.zeros(3, dtype=float), units=unyt.Mpc)
         for i in range(3):
-            ax_min=np.min(self.dm_particle_data["Coordinates"][:, i].to_value("Mpc"))
-            if  ax_min< 0: # shift partciles on axes to only have positive values
-                shifted_coords[:, i]+=self.dm_particle_data["Coordinates"][:, i].to_value("Mpc") - ax_min
-                #print(x.min(), x.max())
+            ax_coords = coordinates[:, i].to_value("Mpc")
+            ax_min = np.min(ax_coords)
+            if ax_min < 0: # shift particles on axes to only have positive values
+                shifted_coords[:, i] += ax_coords - ax_min
             else:
-                shifted_coords[:, i]+=self.dm_particle_data["Coordinates"][:, i].to_value("Mpc")
+                shifted_coords[:, i] += ax_coords
 
-            if np.max(shifted_coords[:, i].to_value("Mpc")) < snap.metadata.boxsize[i].to_value("Mpc"):
-                ax_sidelengths[i] =snap.metadata.boxsize[i].to_value("Mpc")
+            if np.max(shifted_coords[:, i].to_value("Mpc")) < snapshot_boxsize[i].to_value("Mpc"):
+                ax_sidelengths[i] = snapshot_boxsize[i].to_value("Mpc")
             else:
                 ax_sidelengths[i] = round_up_10(np.max(shifted_coords[:, i].to_value("Mpc"))+0.1) # new box sidelengths go from 0-> max part location in lc
 
+        def comoving_lengths(values):
+            return cosmo_array(values, unyt.Mpc, comoving=True, scale_factor=1., scale_exponent=1)
 
-        # shifted coordinates 
-        lc_coordinates_shifted = cosmo_array(
-            shifted_coords.to_value("Mpc"),
-            unyt.Mpc,
-            comoving=True,
-            scale_factor=1.,  # a=0.5, i.e. z=1
-            scale_exponent=1,  # distances scale as a**1, so the scale exponent is 1
-        )
-        # define box sidelength for the lightcone 
-        lc_sidelength = cosmo_array(
-            ax_sidelengths.to_value("Mpc"),
-            unyt.Mpc,
-            comoving=True,
-            scale_factor=1.,  # a=0.5, i.e. z=1
-            scale_exponent=1,  # distances scale as a**1, so the scale exponent is 1
-        )
-
-        lc_smoothing_lengths = sw.visualisation.generate_smoothing_lengths(
-           lc_coordinates_shifted,
-           lc_sidelength,
+        return sw.visualisation.generate_smoothing_lengths(
+           comoving_lengths(shifted_coords.to_value("Mpc")),
+           comoving_lengths(ax_sidelengths.to_value("Mpc")),
            kernel_gamma=1.8,
-           neighbours=32, #57
+           neighbours=32,
            speedup_fac=2,
            dimension=3,
-       )
+        )
 
-        #lc_smoothing_lengths = self.__lc2cosmoarray(self.dm_particle_data, "SmoothingLengths", "Mpc")
 
-        MockTotal = collections.namedtuple("MockTotal", mock_fields)
-        
-        mock_values = {
-            "metadata":snap.metadata,
-            "coordinates":lc_coordinates,
-            "masses":lc_masses,
-            "smoothing_lengths":lc_smoothing_lengths,
-        }
-        
-        for idx, field_name in enumerate(mock_fields):
-            if field_name in ["metadata", "coordinates", "masses", "smoothing_lengths"]:
-                continue 
-            #print(idx, field_name, field_to_property[field_name])
-            prop_name=field_to_property[field_name]
-            mock_values[field_name] = self.__lc2cosmoarray(self.dm_particle_data, prop_name, preffered_units[prop_name])
-        
-        snap.lightcone_dm =  MockTotal(**mock_values)
-        
-        return snap, preffered_units
-
-    def make_mock_snapshot(self, particle_properties, snapshot_filename, resolution=1024, assign_units=None, ptype="Gas"):
+    def make_mock_snapshot(self, particle_properties, snapshot_filename, assign_units=None, ptype="Gas"):
         """
         Load a small region of a snapshot and add the slice particles to it, so they can be projected with swiftsimio.
 
@@ -618,28 +598,19 @@ class BeamProjection:
         :type   particle_properties:    list
         :param  snapshot_filename:      path to the snapshot
         :type   snapshot_filename:      str
-        :param  resolution:             number of pixels along each axis of the projection (unused)
-        :type   resolution:             int
         :param  assign_units:           units of each property. If None, use the units of the slice data
         :type   assign_units:           list
         :param  ptype:                  particle type, "Gas" or "DM"
         :type   ptype:                  str
         """
+        
+        # check ptype is ok. 
+        check_ptype(ptype)
+
         # sanity check properties
         for prop in particle_properties:
-
-            if ptype=="Gas":
-                if prop not in self.__gas_properties_added:
-                    raise ValueError(f"{prop} values not in slice")
-                else:
-                    continue 
-            elif ptype=="DM":
-                if prop!="SmoothingLengths" and prop not in self.__dm_properties_added:
-                    raise ValueError(f"{prop} values not in slice")
-                else:
-                    continue 
-            else:
-                raise ValueError("unknown ptype")
+            if prop not in self._properties_added[ptype] and prop not in GENERATED_MOCK_PROPERTIES[ptype]:
+                raise ValueError(f"{prop} values not in slice")
 
         # load a spatially constrained subset of snapshot particles to then replace with lightcone data
         mask = sw.mask(snapshot_filename)
@@ -649,18 +620,12 @@ class BeamProjection:
         # Spatially constrain and load the snapshot
         mask.constrain_spatial(load_region)
         snap = sw.load(snapshot_filename, mask=mask)
-
-        # create mock snapshot gas particle data from the lightcone particles 
-        if ptype=="Gas":
-            snap, preffered_units = self.add_lc_gas_to_snap(snap, particle_properties, assign_units)
-
-        elif ptype=="DM":
-            snap, preffered_units = self.add_lc_dm_to_snap(snap, particle_properties, assign_units)
-
-        return snap, preffered_units
+        
+        return self._add_lightcone_particles_to_snap(snap, particle_properties, assign_units, ptype)
+    
 
     @staticmethod
-    def __lc2cosmoarray(particle_data, property_name, property_units):
+    def _lc2cosmoarray(particle_data, property_name, property_units):
         """
         Convert a lightcone property to a comoving swiftsimio cosmo_array.
 
@@ -685,7 +650,7 @@ class BeamProjection:
         :param  v_to:   vector to rotate onto
         :type   v_to:   numpy.ndarray
         """
-        v_from=np.array([self.__beam_vec[0], self.__beam_vec[1], self.__beam_vec[2]])
+        v_from=np.array([self._beam_vec[0], self._beam_vec[1], self._beam_vec[2]])
         a = np.asarray(v_from, dtype=float)
         b = np.asarray(v_to, dtype=float)
 
@@ -719,1074 +684,104 @@ class BeamProjection:
                       [v[2], 0, -v[0]],
                       [-v[1], v[0], 0]])
 
-        R = np.eye(3) + K + K @ K * ((1 - c) / s**2)
+        return np.eye(3) + K + K @ K * ((1 - c) / s**2)
 
-        return R
-
-    def filter_kwargs(self, func, kwargs):
+    def beam_plot(self):
         """
-        Keep only the keyword arguments accepted by a function.
-        
-        Returns input dictionary with only approved keywords. 
-        
-        :param  func:   function to filter the keyword arguments for
-        :type   func:   function
-        :param  kwargs: keyword arguments
-        :type   kwargs: dict
+        Plotter for this beam, using the current cosmology, angular diameter, redshift range and axes extent.
         """
-        params = inspect.signature(func).parameters
-        return {k: v for k, v in kwargs.items() if k in params}
+        return BeamPlot(self.cosmology, self._diameter_deg, self._redshift_range, self.axes_extent)
 
-    def split_beam_plot(self, numb_wedges, projection_data, colour_maps, 
+
+    def split_beam_plot(self, numb_wedges, projection_data, colour_maps,
             axs=None, filename=None,
-            angular_diameter=None, cosmology=None, redshift_range=None, axes_extent=None, update_badcol=True, figsize=(7,7), titles=None, **kwargs):
+            angular_diameter=None, cosmology=None, redshift_range=None, axes_extent=None, update_badcol=True, figsize=(7,7), titles=None, norms=None, **kwargs):
         
         """
         Create plot of the whole beam, split into seperate wedges. 
 
         Returns list of each projected wedge.  
 
+
         :param  numb_wedges:        number of wedges or different projections to show in the beam
         :type   numb_wedges:        int
-        :param  projection_data:    nested list containing different segments of the beam the 2D array to plot and 
+        :param  projection_data:    nested list containing different segments of the beam the 2D array to plot and
                                         a tuple with the min and max values shown in the img [2D array, (min, max)]
         :type   projection_data:    list
         :param  colour_maps:        list of colour maps for each segment of the beam
-        :type   colour_maps:        list  
-        :param  axs:                Default=None, If None create a new axes for the plot, otherwise plot onto the axes given 
+        :type   colour_maps:        list
+        :param  axs:                Default=None, If None create a new axes for the plot, otherwise plot onto the axes given
         :type   axs:                matplotlib.axes._axes.Axes
-        :param  filename:           None, if given, write plot to this file 
+        :param  filename:           None, if given, write plot to this file
         :type   filename:           str
         :param  angular_diameter:   total angular diameter of beam in degrees
         :type   angular_diameter:   float
         :param  cosmology:          the simulation's cosmology model
         :type   cosmology:          astropy cosmology object, astropy.cosmology.flrw.w0wacdm.w0waCDM
         :param  redshift_range:     maximum and minimum redshift of the beam shown
-        :type   redshift_range:     list, np.ndarray or tuple 
-        :param  axes_extent:        Extent of the plot's axes, in coordinate space. 
-                                        If None, then use the extent defined by the coordinates of the particles added to the slice. 
+        :type   redshift_range:     list, np.ndarray or tuple
+        :param  axes_extent:        Extent of the plot's axes, in coordinate space.
+                                        If None, then use the extent defined by the coordinates of the particles added to the slice.
         :type   axes_extent:        list
-        :param  update_badcol:      If true, modify all colour maps so that the minimum, nan and None values are set to black 
+        :param  update_badcol:      If true, modify all colour maps so that the minimum, nan and None values are set to black
         :type   update_badcol:      boolean
         :param  figsize:            size of the figure, used if axs is None
         :type   figsize:            tuple
         :param  titles:             title of each wedge
         :type   titles:             list
-        :param  kwargs:             All additional arguments to be passed onto the add_wedge and add_beam_axes functions. 
+        :param  norms:              colour normalisation of each wedge: "log", "linear" or a matplotlib.colors.Normalize. 
+                                        If None, all are "log"
+        :type   norms:              list
+        :param  kwargs:             All additional arguments to be passed onto the add_wedge and add_beam_axes functions.
         :type   kwargs:             dict
         """
 
         # update slice information and call predefined values where needed
-        if redshift_range is None:
-            if self.__redshift_range is None:
-                raise ValueError("Redshift range is not defined")
-        else:
-            self.__redshift_range = redshift_range
+        if redshift_range is not None:
+            self._redshift_range = tuple(redshift_range)
+        elif self._redshift_range is None:
+            raise ValueError("Redshift range is not defined")
         
-        if axes_extent is None:
-            if self.axes_extent is None:
-                raise ValueError("Axes range is not defined")
-        else:
+        # check plots extent definition
+        if axes_extent is not None:
             self.axes_extent = axes_extent
+        elif self.axes_extent is None:
+            raise ValueError("Axes range is not defined")
 
-        if angular_diameter is None:
-            if self.__diameter_deg is None:
-                raise ValueError("angular diameter is not defined")
-        else:
-            self.__diameter_deg = angular_diameter
+        # check diameter definition
+        if angular_diameter is not None:
+            self._diameter_deg = angular_diameter
+        elif self._diameter_deg is None:
+            raise ValueError("angular diameter is not defined")
 
-        if cosmology is None:
-            if self.cosmology is None:
-                if self.__snapshot_filename is None:
-                    raise ValueError("Cosmology is not defined")
-                else:
-                    self.cosmology=Snapshot_Cosmology_For_Lightcone(self.__snapshot_filename).COSMO
-        else:
-            self.cosmology=cosmology
+        #check cosmology object is present
+        if cosmology is not None:
+            self.cosmology = cosmology
+        elif self.cosmology is None:
+            if self._snapshot_filename is None:
+                raise ValueError("Cosmology is not defined")
+            self.cosmology = Snapshot_Cosmology_For_Lightcone(self._snapshot_filename).COSMO
 
-        #define wedge angles
-        beam_ang_offset_deg = 0. #01
-        beam_radius_deg=(self.__diameter_deg-beam_ang_offset_deg)/2
-        wedge_diameter_deg= (self.__diameter_deg-beam_ang_offset_deg)/numb_wedges # angular diameter of one wedge
-        print(f"beam angular diameter:\t{self.__diameter_deg:.2f} [deg]", flush=True)
-        print(f"wedge angular diameter:\t{wedge_diameter_deg:.2f} [deg]", flush=True)
+        # return plot 
+        return self.beam_plot().split_beam_plot(numb_wedges, projection_data, colour_maps,axs=axs, filename=filename, update_badcol=update_badcol, figsize=figsize, titles=titles, norms=norms, **kwargs)
 
-        # create redshift ticks for the range given 
-        all_redshift_major_ticks=np.arange(0.05, 5.0, 0.05)
-        all_redshift_minor_ticks=np.arange(0.01, 5.0, 0.01)
+    def add_wedge(self, ax, *args, **kwargs):
 
-        # refine range of redshift ticks for the redshift range given 
-        if self.__redshift_range[0] < 0.01:
-            self.__redshift_range[0]=0.01
-        redshift_axis_ticks=np.concatenate((all_redshift_major_ticks[(all_redshift_major_ticks>self.__redshift_range[0])&(all_redshift_major_ticks<self.__redshift_range[-1])], [self.__redshift_range[-1]]))
-        redshift_axis_minor_ticks=np.concatenate((all_redshift_minor_ticks[(all_redshift_minor_ticks>self.__redshift_range[0])&(all_redshift_minor_ticks<self.__redshift_range[-1])], [self.__redshift_range[-1]]))
-
-        # define inner and outer radius
-        rmax=self.cosmology.comoving_distance(redshift_axis_ticks[-1]).to_value("Mpc")
-        rmin=self.cosmology.comoving_distance(redshift_axis_minor_ticks[0]).to_value("Mpc")
-
-        wedge_imgs=[[] for i in range(numb_wedges)]
-
-        # if not adding to other plot, then create empty subplot
-        
-        if axs is None:
-            return_ax = False
-            return_fig = True
-            fig, axs = plt.subplots(nrows=1, ncols=1, figsize=figsize, gridspec_kw={'height_ratios': [1], 'width_ratios': [1], 'hspace': 0, 'wspace': 0})
-        else:
-            return_ax = True
-            return_fig = False
-
-        axs.margins(0)
-        axs.set_aspect("equal")
-        axs.axis("off")
-
-        if titles is not None:
-            assert len(titles) == numb_wedges
-            
-        # seperate kwargs for image function and axes function 
-        img_kwargs = self.filter_kwargs(self.add_wedge, kwargs)
-        axes_kwargs = self.filter_kwargs(self.add_beam_axes, kwargs)
-
-        # iterate through the different split beams and add to plot
-        for wedge_idx in range(numb_wedges):
-            
-            wedge_cmap = plt.colormaps[colour_maps[wedge_idx]].copy()
-            
-            if update_badcol==True:
-                # update colour maps to ensure bad colour = 'black'
-                wedge_cmap.set_bad("black", alpha=1.)  
-                wedge_cmap.set_under("black")
-            
-            if titles is not None:
-                wedge_title = titles[wedge_idx]
-
-            # read in pixel range 
-            cmap_pix_range=projection_data[wedge_idx][1]
-            
-            # add wedge
-            wedge_imgs[wedge_idx], ax  = self.add_wedge(
-                axs, wedge_idx, projection_data[wedge_idx][0], 
-                wedge_cmap, cmap_pix_range[0], cmap_pix_range[1], 
-                beam_radius_deg, wedge_diameter_deg, 
-                rmin, rmax, title=wedge_title,
-                img_zorder=-1, 
-                **img_kwargs
-                )
-        
-        # add axes to the outer edge of the whole beam 
-        self.add_beam_axes(axs, redshift_axis_ticks, redshift_axis_minor_ticks, beam_radius_deg, 
-            beam_ang_offset=beam_ang_offset_deg, 
-            rmin=rmin, rmax=rmax, 
-            **axes_kwargs
-            )
-        
-        if filename is not None:
-            plt.savefig(f"{filename}", dpi=300, bbox_inches='tight')
-
-            plt.close()
-            return wedge_imgs
-        if return_ax:
-            return axs, wedge_imgs
-        elif return_fig:
-            return fig, wedge_imgs
-
-    def __define_wedge_params(self, wedge_kwargs=None):
         """
-        Set the default keyword arguments of the wedge outline, updated by any given.
-
-        :param  wedge_kwargs:   keyword arguments to control the wedge outline
-        :type   wedge_kwargs:   dict
+        Add a wedge onto the plot, drawn with the stored axes extent.
         """
-        self.wedge_kwargs={
-            "alpha":1.0,
-            "lw":0.8,
-            "ls":"-",
-            "edgecolor":"k",
-            "facecolor":"none",
-            "path_effects":None,
-            "zorder":10,
-        }
-        
-        self.wedge_kwargs.update(**(wedge_kwargs or {}))
-        # if colour is given, assume its the edge colour and update
-        if "color" in self.wedge_kwargs:
-            specified_colour = self.wedge_kwargs["color"]
-            self.wedge_kwargs.pop("color")
-            self.wedge_kwargs["edgecolor"]=specified_colour
+        return self.beam_plot().add_wedge(ax, *args, **kwargs)
 
-    def __define_title_params(self, title_kwargs=None):
+    def add_beam_axes(self, ax, *args, **kwargs):
         """
-        Set the default keyword arguments of the wedge titles, updated by any given.
-
-        :param  title_kwargs:   keyword arguments to control the text of the wedge titles
-        :type   title_kwargs:   dict
+        Add axes, labels and ticks to the split beam plot, using the stored cosmology. 
         """
-        self.title_kwargs={
-            "color":"white",
-            "alpha":1.0,
-            "fontsize":10,
-            "va":"center",
-            "ha":"left",
-            "path_effects":[path_effects.withStroke(linewidth=1., foreground="black"), path_effects.Normal()],
-            "rotation_mode":"anchor",
-        }
-        
-        self.title_kwargs.update(**(title_kwargs or {}))
-        if "rotation" in self.title_kwargs:
-            self.title_kwargs.pop("rotation")
-        if "zorder" in self.title_kwargs:
-            self.title_kwargs.pop("zorder")
-
-    def add_wedge(self, ax, wedge_idx, data_2D, cmap, pix_min, pix_max, beam_max_ang_radius_deg, wedge_ang_diameter_deg, rmin, rmax, 
-        title=None, img_zorder=10, wedge_kwargs=None, title_kwargs=None):
-        """
-        Add each smaller beam or wedge together into one larger plot. 
-
-        Returns the updated projected image and the axes. 
-
-        :param  ax:                         axes to plot onto
-        :type   ax:                         matplotlib.axes._axes.Axes
-        :param  wedge_idx:                  order that the wedge is added to the plot. 
-        :type   wedge_idx:                  int
-        :param  data_2D:                    2D histogram to plot 
-        :type   data_2D:                    np.ndarray
-        :param  cmap:                       colour map
-        :type   cmap:                       str or matplotlib colour map type object
-        :param  pix_min:                    minimum pixel value shown 
-        :type   pix_min:                    float
-        :param  pix_max:                    maximum pixel value shown 
-        :type   pix_max:                    float
-        :param  beam_max_ang_radius_deg:    maximum angular radius [deg] of the beam (slice) as a whole
-        :type   beam_max_ang_radius_deg:    float
-        :param  wedge_ang_diameter_deg:     angular diameter [deg] of each wedge that the beam is split into
-        :type   wedge_ang_diameter_deg:     float
-        :param  rmin:                       minimum comoving distance
-        :type   rmin:                       float
-        :param  rmax:                       maximum comoving distance
-        :type   rmax:                       float
-        :param  title:                      title of the wedge, placed on the inner arc
-        :type   title:                      str
-        :param  img_zorder:                 zorder of the image
-        :type   img_zorder:                 int
-        :param  wedge_kwargs:               keyword arguments to control the wedge outline
-        :type   wedge_kwargs:               dict
-        :param  title_kwargs:               keyword arguments to control the text of the wedge title
-        :type   title_kwargs:               dict
-        """
-        self.__define_wedge_params(wedge_kwargs)
-        self.__define_title_params(title_kwargs)
-        
-        theta0 = np.deg2rad(beam_max_ang_radius_deg - np.abs(wedge_idx*wedge_ang_diameter_deg))
-        theta1 = np.deg2rad(beam_max_ang_radius_deg - np.abs((1+wedge_idx)*wedge_ang_diameter_deg))
-
-        print(f"\twedge {wedge_idx}, theta 0 -> theta 1 = {np.rad2deg(theta0)} ->  {np.rad2deg(theta1)}")
-
-        r = np.linspace(0, rmax, 200)
-
-        # strait lines of wedge
-        xi_left  = r * np.cos(theta0)
-        yi_left  = r * np.sin(theta0)
-        xi_right = r * np.cos(theta1)
-        yi_right = r * np.sin(theta1)
-
-        # outer arc coords
-        theta_arc = np.linspace(theta0, theta1, 720)
-        xi_arc = rmax * np.cos(theta_arc)
-        yi_arc = rmax * np.sin(theta_arc)
-        # inner arc coords
-        xi_inner = rmin * np.cos(theta_arc)
-        yi_inner = rmin * np.sin(theta_arc)
-
-
-        # lines to go around the edge of the wedge
-        outer_arc=np.c_[
-            xi_arc, yi_arc
-        ]
-        inner_arc=np.c_[
-            xi_inner, yi_inner
-        ]
-        left_edge = np.c_[
-            np.linspace(rmin*np.cos(theta0), rmax*np.cos(theta0), 50),
-            np.linspace(rmin*np.sin(theta0), rmax*np.sin(theta0), 50),
-        ]
-        right_edge = np.c_[
-            np.linspace(rmax*np.cos(theta1), rmin*np.cos(theta1), 50),
-            np.linspace(rmax*np.sin(theta1), rmin*np.sin(theta1), 50),
-        ]
-
-
-        # draw outline of the wedge
-        verts = np.vstack([
-            np.c_[xi_inner, yi_inner],              # inner arc
-            np.c_[xi_arc, yi_arc][::-1],            # outer arc
-        ])
-
-        # plot img of beam wedge 
-        img = ax.imshow(
-            data_2D.T, 
-            norm=col.LogNorm(vmin=pix_min, vmax=pix_max), cmap=cmap, 
-            origin="lower", extent=self.axes_extent, zorder=img_zorder,
-            interpolation='quadric',
-        )
-        
-        # add wedge to image
-        wedge = Polygon(verts, closed=True, **self.wedge_kwargs)
-        ax.add_patch(wedge)
-        
-        # clip to wedge
-        img.set_clip_path(wedge)
-
-        if title is not None:
-            theta_mid = 0.5 * (theta0 + theta1)
-
-            # Position text on the inner arc
-            r_text = rmin
-
-            x = r_text * np.cos(theta_mid)
-            y = r_text * np.sin(theta_mid)
-
-            ax.text(
-                x,
-                y,
-                title,
-                **self.title_kwargs,
-                rotation = np.rad2deg(theta_mid),
-                zorder=self.wedge_kwargs["zorder"] + 1,
-            )
-
-        return img, ax
-        
-    def __define_tick_params(self, major_tick_kwargs=None, minor_tick_kwargs=None, tick_label_kwargs=None):
-        """
-        Set the default keyword arguments of the ticks and tick labels, updated by any given.
-        
-        :param  major_tick_kwargs:  keyword arguments to control the major tick lines 
-        :type   major_tick_kwargs:  dict
-        :param  minor_tick_kwargs:  keyword arguments to control the minor tick lines 
-        :type   minor_tick_kwargs:  dict
-        :param  tick_label_kwargs:  keyword arguments to control the text of the labels on the major ticks
-        :type   tick_label_kwargs:  dict
-        """
-
-        self.major_tick_kwargs={"color":"black","lw":0.8,"alpha":1,}
-        self.major_tick_kwargs.update(**(major_tick_kwargs or {}))
-        self.minor_tick_kwargs={
-            "color":self.major_tick_kwargs["color"],
-            "lw":self.major_tick_kwargs["lw"]*0.55,
-            "alpha":self.major_tick_kwargs["alpha"],
-        }
-        self.minor_tick_kwargs.update(**(minor_tick_kwargs or {}))
-        self.tick_label_kwargs={
-            "color":"black",
-            "alpha":1,
-            "fontsize":8,
-            "va":"center" , 
-            "ha":"right", 
-            #"ha":"right",
-            'rotation':0,
-            'rotation_mode':"anchor",
-        }
-        self.tick_label_kwargs.update(**(tick_label_kwargs or {}))
-    
-    def __define_label_params(self, axes_label_kwargs=None):
-        """
-        Set the default keyword arguments of the axes labels, updated by any given.
-
-        :param  axes_label_kwargs:  keyword arguments to control the text of the axes labels
-        :type   axes_label_kwargs:  dict
-        """
-        self.axes_label_kwargs={
-            "color":"black",
-            "fontsize":10,
-            "weight":"bold",
-            "ha":"center",
-            "va":"center",
-            "rotation_mode":"anchor",
-            #"rotation":0,
-        }
-        
-        self.axes_label_kwargs.update(**(axes_label_kwargs or {}))
-
-    def __define_grid_params(self, grid_line_kwargs=None):
-        """
-        Set the default keyword arguments of the grid lines, updated by any given.
-
-        :param  grid_line_kwargs:   keyword arguments to control the grid lines
-        :type   grid_line_kwargs:   dict
-        """
-        self.grid_line_kwargs={
-            "color":"silver",
-            "lw":0.8,
-            "alpha":1.0,
-            'ls':'--'
-        }
-        
-        self.grid_line_kwargs.update(**(grid_line_kwargs or {}))
-
-    def add_beam_axes(self, ax, redshift_major_ticks, redshift_minor_ticks, beam_radius_deg, 
-        beam_ang_offset=0., 
-        rmin=None, rmax=None,  
-        comoving_distance_major_ticks=None, comoving_distance_minor_ticks=None,
-        dtheta_major_ticks_deg=5, dtheta_minor_ticks_deg=1, theta_ticks_abs=True, major_tick_length=3.5, minor_tick_length=None,
-        redshift_label_offset=(0,0,0), comoving_label_offset=(0,0,0), tick_label_offset=(0,0,0,0),
-        comoving_dist_axes_label=r"$\mathrm{comoving~distance}~[{\mathrm{Mpc}}]$", redshift_axes_label=r"$\mathrm{redshift},~z$",
-        overlay_grid=(True, True, True), wedge_titles=[],
-        major_tick_kwargs=None,minor_tick_kwargs=None,tick_label_kwargs=None, axes_label_kwargs=None, grid_line_kwargs=None,
-        ):
-        """
-        Add axes, labels and ticks to the split beam plot.
-
-        :param  ax:                     axes to plot onto
-        :type   ax:                     matplotlib.axes._axes.Axes
-        :param  redshift_major_ticks:  location of the major ticks on the redshift axes 
-        :type   redshift_major_ticks:  np.ndarray
-        :param  redshift_minor_ticks:  location of the minor ticks on the redshift axes 
-        :type   redshift_minor_ticks:  np.ndarray
-        :param  beam_radius_deg:    maximum angular radius [deg] of the beam (slice) as a whole
-        :type   beam_radius_deg:    float
-        :param  beam_ang_offset:    decrease the maximum angular radius [deg] shown
-        :type   beam_ang_offset:    float
-        :param  rmin:   minimum comoving distance [Mpc] of the plot
-        :type   rmin:   float
-        :param  rmax:   maximum comoving distance [Mpc] on the plot
-        :type   rmax:   float
-        :param  comoving_distance_major_ticks:  location of the major ticks on the comoving radius axes 
-        :type   comoving_distance_major_ticks:  np.ndarray
-        :param  comoving_distance_minor_ticks:  location of the minor ticks on the comoving radius axes
-        :type   comoving_distance_minor_ticks:  np.ndarray
-        :param  dtheta_major_ticks_deg:  spacing [deg] between the major ticks on the angular radius axes
-        :type   dtheta_major_ticks_deg:  float
-        :param  dtheta_minor_ticks_deg:  spacing [deg] between the minor ticks on the angular radius axes. 
-                                            If 'auto', choose the spacing from the major ticks
-        :type   dtheta_minor_ticks_deg:  float or str
-        :param  theta_ticks_abs:  If true, label the angular radius ticks with absolute values
-        :type   theta_ticks_abs:  boolean
-        :param  major_tick_length:  length of major ticks
-        :type   major_tick_length:  float
-        :param  minor_tick_length:  length of minor ticks
-        :type   minor_tick_length:  float
-        :param  comoving_dist_axes_label:  label placed on the comoving radius axes
-        :type   comoving_dist_axes_label:  str
-        :param  redshift_axes_label:  label placed on the redshift axes
-        :type   redshift_axes_label:  str
-        :param  redshift_label_offset:  additional offset (in coordinate space) added to the redshift axes 
-                                            label along the x,y axes & its rotation  (x,y,theta).
-        :type   redshift_label_offset:  tuple
-        :param  comoving_label_offset:  additional offset (in coordinate space) added to the comoving radius axes 
-                                            label along the x,y axes & its rotation  (x,y,theta).
-        :type   comoving_label_offset:  tuple
-        :param  tick_label_offset:  additional offset (in coordinate space) added to the tick labels on the redshift 
-                                        and comoving radius axes (x_redshift,y_redshift, x_radius,y_radius).
-        :type   tick_label_offset:  tuple
-        :param  overlay_grid:   If true overlay a grid line at each major tick from the given axes (redshift, comoving radius, angular radius)
-        :type   overlay_grid:   tuple    (boolean, boolean, boolean)
-        :param  wedge_titles:   title of each wedge (unused)
-        :type   wedge_titles:   list
-        :param  major_tick_kwargs:    keyword arguments to control the major tick lines 
-        :type   major_tick_kwargs:    dict
-        :param  minor_tick_kwargs:    keyword arguments to control the minor tick lines 
-        :type   minor_tick_kwargs:    dict
-        :param  tick_label_kwargs:    keyword arguments to control the text of the labels on the major ticks
-        :type   tick_label_kwargs:    dict
-        :param  axes_label_kwargs:    keyword arguments to control the text of the axes labels
-        :type   axes_label_kwargs:    dict
-        :param  grid_line_kwargs:    keyword arguments to control the grid lines
-        :type   grid_line_kwargs:    dict
-        """
-        ax.figure.canvas.draw() # require ax to be drawn so transformation from pixels to axes coords are stable
-
-        # define basic properties of ticks and labels 
-        self.__define_tick_params(major_tick_kwargs, minor_tick_kwargs, tick_label_kwargs)
-        self.__define_label_params(axes_label_kwargs)
-        self.__define_grid_params(axes_label_kwargs)
-
-        # tick properties
-        tick_len = major_tick_length  #12
-        minor_tick_len=tick_len*0.55
-        tick_fontsize=self.tick_label_kwargs["fontsize"] #needed for placing labels
-        
-        # handle rotation of tick labels 
-        if 'rotation' in self.tick_label_kwargs:
-            if self.tick_label_kwargs['rotation']=="auto":
-                auto_rot_tick_label=True
-                self.tick_label_kwargs.pop('rotation')
-            else:
-                auto_rot_tick_label=False
-        
-        # fontsize for axes labels and ticks
-        label_fontsize=self.axes_label_kwargs["fontsize"] #needed for placing labels
-
-        # zorder
-        axes_top_level=20
-        axes_low_level=10
-        axes_overlay_level=30
-
-        # define wedge angles
-        theta_max = np.deg2rad(beam_radius_deg)  # max theta from 0
-
-        # comoving distances from redshifts
-        comoving_distances=self.cosmology.comoving_distance(redshift_major_ticks).to_value("Mpc")
-        comoving_tick_range = [np.min(comoving_distances), np.max(comoving_distances)]
-
-        if redshift_minor_ticks is not None:
-            minor_comoving_distances=self.cosmology.comoving_distance(redshift_minor_ticks).to_value("Mpc")
-            
-            if np.min(minor_comoving_distances) < comoving_tick_range[0]:
-                comoving_tick_range[0] = np.min(minor_comoving_distances)
-            if np.max(minor_comoving_distances) > comoving_tick_range[1]:
-                comoving_tick_range[1] = np.max(minor_comoving_distances)
-
-        #image coordinate max and min radius 
-        if rmax is None:
-            rmax =comoving_distances[-1]+1
-        ## set inner arc radius
-        if rmin is  None:
-            rmin=0
-
-        r = np.linspace(0, rmax, 200)
-        
-        ##### x,y coords for whole beam & arc #####
-
-        #edges
-        x_left  = r * np.cos(theta_max)
-        y_left  = r * np.sin(theta_max)
-        x_right = r * np.cos(-theta_max)
-        y_right = r * np.sin(-theta_max)
-
-        # outer arc
-        theta_arc = np.linspace(-theta_max, theta_max, 720)
-        x_arc = rmax * np.cos(theta_arc)
-        y_arc = rmax * np.sin(theta_arc)
-
-        # set axes locations
-        x_mid_l = (0.5 * (rmax-rmin) + rmin) * np.cos(theta_max)
-        x_mid_r = (0.5 * (rmax-rmin) + rmin) * np.cos(-theta_max)
-        y_mid_l = (0.5 * (rmax-rmin) + rmin) * np.sin(theta_max)
-        y_mid_r = (0.5 * (rmax-rmin) + rmin) * np.sin(-theta_max)
-
-
-        # add auto rotation to label and then remove after it is written 
-        if auto_rot_tick_label:
-            label_rotation =np.rad2deg(theta_max)
-            if label_rotation>90:
-                label_rotation -= 180
-            elif label_rotation< -90:
-                label_rotation += 180
-            self.tick_label_kwargs['rotation']=label_rotation
-        
-        offset_direction=-1
-        
-        for ii, rr in enumerate(comoving_distances[:-1]):
-            x0 = rr * np.cos(theta_max)
-            y0 = rr * np.sin(theta_max)
-
-            # points in deraction of the tick
-            dx = -np.sin(theta_max)
-            dy = np.cos(theta_max)
-
-            tx_in, ty_in = self.offset_point_from_tick(ax, x0, y0, dx, dy, -tick_len)
-            tx_out, ty_out = self.offset_point_from_tick(ax, x0, y0, dx, dy, tick_len)
-
-            # plot tick
-            ax.plot(
-                [tx_in, tx_out],
-                [ty_in, ty_out],
-                **self.major_tick_kwargs,
-                zorder=axes_top_level
-            )
-            
-            # redshift tick labels
-            lx, ly = self.offset_point_from_tick(ax, x0, y0, dx, dy, -1*offset_direction * (0.5*tick_fontsize + 1.*tick_len))
-        
-            ax.text(
-                lx+tick_label_offset[0], ly+tick_label_offset[0],
-                f"{redshift_major_ticks[ii]:.2f}", 
-                **self.tick_label_kwargs,
-                zorder=axes_top_level)
-            
-            # draw grid  
-            if overlay_grid[0]:
-                x,y = self.arc_xy(rr, beam_radius_deg)
-                ax.plot(x, y,**self.grid_line_kwargs,zorder=axes_low_level)
-                
-        if auto_rot_tick_label:
-            self.tick_label_kwargs.pop('rotation')
-
-        if redshift_minor_ticks is not None:
-
-            for ii, rr in enumerate(minor_comoving_distances[:-1]):
-                x0 = rr * np.cos(theta_max)
-                y0 = rr * np.sin(theta_max)
-
-                # small perpendicular tick
-                dx = -np.sin(theta_max)
-                dy = np.cos(theta_max)
-
-
-                tx_in, ty_in = self.offset_point_from_tick(ax, x0, y0, dx, dy, -minor_tick_len)
-                tx_out, ty_out = self.offset_point_from_tick(ax, x0, y0, dx, dy, minor_tick_len)
-
-                ax.plot(
-                    [tx_in, tx_out],
-                    [ty_in, ty_out],
-                    **self.minor_tick_kwargs,
-                    zorder=axes_top_level
-                )
-
-        # redshift axes label 
-        p1 = (rmin * np.cos(theta_max), rmin * np.sin(theta_max)) 
-        p2 = (rmax * np.cos(theta_max), rmax * np.sin(theta_max)) 
-        px_offset = (label_fontsize/2  +  3*tick_fontsize + 2)
-        label_x, label_y = self.labels_loc(ax, p1, p2, offset=px_offset, dpi=None, tick_length=1.75*tick_len)
-
-        label_rotation =np.rad2deg(theta_max)
-        if label_rotation>90:
-            label_rotation -= 180
-        elif label_rotation< -90:
-            label_rotation += 180
-        
-        ax.text(
-                label_x+redshift_label_offset[0], label_y+redshift_label_offset[1],
-                redshift_axes_label,
-                rotation=label_rotation + redshift_label_offset[2],
-                **self.axes_label_kwargs,
-            )
-
-
-        # include comoving distance axes and ticks 
-
-        if comoving_distance_major_ticks is None:
-            # order of magnitude of most distant comoving tick 
-            order_of_mag = orderOfMagnitude(comoving_tick_range[-1])
-            major_tick_spacing = round_down_10(self.minor_tick_spacer((comoving_tick_range[-1]-comoving_tick_range[0]), 10, 2))
-            if major_tick_spacing>0:
-                start_val = int(comoving_tick_range[0] / (1*10**(orderOfMagnitude(comoving_tick_range[0]))))
-                comoving_distance_major_ticks = np.arange(0, 2*10**(order_of_mag+1), major_tick_spacing)
-            else:
-                comoving_distance_major_ticks = None
-                
-        if comoving_distance_minor_ticks is None:
-            if comoving_distance_major_ticks is None:
-                major_tick_spacing = comoving_tick_range[-1]-comoving_tick_range[0]
-            else:
-                major_tick_spacing = comoving_distance_major_ticks[1]-comoving_distance_major_ticks[0]
-            order_of_mag = orderOfMagnitude(comoving_tick_range[-1])
-            minor_tick_spacing = self.minor_tick_spacer(major_tick_spacing, 5, 1)
-            comoving_distance_minor_ticks = np.arange(0, 2*10**(order_of_mag+1), minor_tick_spacing)
-        
-        # clip tick locations 
-        if comoving_distance_major_ticks is not None:
-            comoving_distance_major_ticks = comoving_distance_major_ticks[(comoving_distance_major_ticks>=comoving_tick_range[0]) & (comoving_distance_major_ticks<=comoving_tick_range[-1])]
-        if comoving_distance_minor_ticks is not None:
-            comoving_distance_minor_ticks = comoving_distance_minor_ticks[(comoving_distance_minor_ticks>=comoving_tick_range[0]) & (comoving_distance_minor_ticks<=comoving_tick_range[-1])]
-
-
-        # add auto rotation to label and then remove after it is written 
-        if auto_rot_tick_label:
-            label_rotation =np.rad2deg(-theta_max)
-            if label_rotation>90:
-                label_rotation += 180
-            elif label_rotation< -90:
-                label_rotation -= 180
-            self.tick_label_kwargs['rotation']=label_rotation
-
-
-        offset_direction=-1
-
-        if comoving_distance_major_ticks is not None:
-            for ii, rr in enumerate(comoving_distance_major_ticks):
-
-                x0 = rr * np.cos(-theta_max)
-                y0 = rr * np.sin(-theta_max)
-
-                # small perpendicular tick
-                dx = -np.sin(-theta_max)
-                dy = np.cos(-theta_max)
-
-                tx_in, ty_in = self.offset_point_from_tick(ax, x0, y0, dx, dy, -1 * offset_direction * tick_len)
-                tx_out, ty_out = self.offset_point_from_tick(ax, x0, y0, dx, dy, offset_direction * tick_len)
-
-                ax.plot(
-                    [tx_in, tx_out],
-                    [ty_in, ty_out],
-                    **self.major_tick_kwargs,
-                    zorder=axes_top_level
-                )
-                
-
-                lx, ly = self.offset_point_from_tick(ax, x0, y0, dx, dy, offset_direction * (0.5*tick_fontsize + 1.*tick_len))
-                ax.text(
-                    lx+tick_label_offset[2], ly+tick_label_offset[3],
-                    f"{math.floor(rr):d}", 
-                    **self.tick_label_kwargs,
-                    zorder=axes_top_level)
-                
-                # draw grid  
-                if overlay_grid[1]:
-                    x,y = self.arc_xy(rr, beam_radius_deg)
-                    ax.plot(x, y,**self.grid_line_kwargs,zorder=axes_low_level)
-
-
-        if comoving_distance_minor_ticks is not None:
-            for ii, rr in enumerate(comoving_distance_minor_ticks):
-                x0 = rr * np.cos(-theta_max)
-                y0 = rr * np.sin(-theta_max)
-
-                # small perpendicular tick
-                nx = -np.sin(-theta_max)
-                ny = np.cos(-theta_max)
-
-                tx_in, ty_in = self.offset_point_from_tick(ax, x0, y0, nx, ny, -minor_tick_len)
-                tx_out, ty_out = self.offset_point_from_tick(ax, x0, y0, nx, ny, minor_tick_len)
-
-                ax.plot(
-                    [tx_in, tx_out],
-                    [ty_in, ty_out],
-                    **self.minor_tick_kwargs,
-                    zorder=axes_top_level
-                )
-        if auto_rot_tick_label:
-            self.tick_label_kwargs.pop('rotation')
-        
-        if comoving_distance_major_ticks is not None: # do not show a label if there are no major ticks
-            # comoving distance axes labels
-            p1 = (rmin * np.cos(-theta_max), rmin * np.sin(-theta_max)) 
-            p2 = (rmax * np.cos(-theta_max), rmax * np.sin(-theta_max))
-            px_offset = (label_fontsize/2  +  3*tick_fontsize + 2) # offset > fontsize/2 + tick fontsize + extra space
-            label_x, label_y = self.labels_loc(ax, p1, p2, offset=-px_offset, dpi=None, tick_length=-1.75*tick_len)
-
-            # rotate to keep inline with 
-            label_rotation =np.rad2deg(-theta_max)
-            if label_rotation>90:
-                label_rotation += 180
-            elif label_rotation< -90:
-                label_rotation -= 180
-
-            ax.text(
-                    label_x+comoving_label_offset[0], label_y+comoving_label_offset[1],
-                    comoving_dist_axes_label,
-                    rotation=label_rotation+comoving_label_offset[2],
-                    **self.axes_label_kwargs,
-                )
-
-        # add arc annotation for angle
-
-        tick_str_format="{tick_val:.1f}°"
-
-        if dtheta_major_ticks_deg is None:
-            dtheta=None
-        else:
-            dtheta=dtheta_major_ticks_deg
-
-        if (dtheta_minor_ticks_deg is None):
-            dtheta_minor = None
-        elif dtheta_minor_ticks_deg == "auto":
-            dtheta_minor = self.minor_tick_spacer
-        else:
-            dtheta_minor=dtheta_minor_ticks_deg
-
-        # automatically adjust cadance of ticks if angle is very large
-        if (beam_radius_deg > 45) and (dtheta<=5):
-            #print(beam_radius_deg*2, beam_radius_deg%30)
-            if (beam_radius_deg > 90) and ((beam_radius_deg*2)%30==0):
-                dtheta=30 # always prefer 30degree over other seperations 
-            else:
-                dtheta_test = self.minor_tick_spacer(beam_radius_deg*2, 10, 5)
-                if dtheta_test < 10:
-                    dtheta=10
-                else:
-                    dtheta = round_down_10(dtheta_test)
-
-            dtheta_minor = self.minor_tick_spacer(dtheta)
-
-        # do not include minor ticks if they are greater than major ticks in distance
-        if dtheta_minor >= dtheta:
-            dtheta_minor=None
-
-        #angle_ticks = np.arange(-1*(beam_radius_deg+beam_ang_offset/2), (beam_radius_deg+beam_ang_offset/2)+dtheta, dtheta)
-        if dtheta is None:
-            angle_ticks =None
-        else:
-            radius_ticks = np.arange(0, (beam_radius_deg+beam_ang_offset/2)+dtheta, dtheta)
-            radius_ticks = radius_ticks[radius_ticks<=beam_radius_deg]
-            angle_ticks  = np.concatenate((-1*radius_ticks[::-1], radius_ticks[1:]))
-
-        if dtheta_minor is None:
-            angle_minor_ticks=None
-        else:
-            radius_minor_ticks = np.arange(0+dtheta_minor, (beam_radius_deg+beam_ang_offset/2)+dtheta_minor, dtheta_minor)
-            radius_minor_ticks = radius_minor_ticks[radius_minor_ticks<=beam_radius_deg]
-            angle_minor_ticks  = np.concatenate((-1*radius_minor_ticks[::-1], radius_minor_ticks))
-
-        if angle_ticks is not None:
-            self.tick_label_kwargs["va"]="center" # need to update for ang ticks
-            self.tick_label_kwargs["ha"]="center" # need to update for ang ticks
-            if 'rotation' in self.tick_label_kwargs:
-                self.tick_label_kwargs.pop('rotation')
-
-            for a in angle_ticks:
-                if np.abs(a) > beam_radius_deg:
-                    continue 
-                elif np.abs(a) == beam_radius_deg:
-                    a= a/np.abs(a) * beam_radius_deg
-
-                th = np.deg2rad(a)
-
-                # tick on arc
-                x0 = rmax * np.cos(th)
-                y0 = rmax * np.sin(th)
-
-                nx, ny = -np.cos(th), -np.sin(th)
-
-                tx_in, ty_in = self.offset_point_from_tick(ax, x0, y0, -nx, -ny, -tick_len)
-                tx_out, ty_out = self.offset_point_from_tick(ax, x0, y0, -nx, -ny, tick_len)
-                ax.plot(
-                    [tx_in, tx_out],
-                    [ty_in, ty_out],
-                    **self.major_tick_kwargs,
-                    zorder=axes_top_level
-                )
-                if overlay_grid[2] and np.abs(a)+1 < beam_radius_deg:
-
-                    ax.plot(
-                        [rmin * np.cos(th), tx_in],
-                        [rmin * np.sin(th), ty_in],
-                        **self.grid_line_kwargs,
-                        zorder=axes_low_level
-                    )
-
-                # rotation parallel to the tick mark
-                rot = a
-                #a = a if theta_label_deg else a * np.pi/180
-                theta_tick_val = np.abs(a) if theta_ticks_abs else a
-
-                # label slightly outside arc
-                label_pad = 1 #1.5 * tick_len
-                font_offset =  1.5*tick_fontsize if len(str(theta_tick_val)) <=4 else 1.75*tick_fontsize
-
-                lx, ly = self.offset_point_from_tick(ax, x0, y0, -nx, -ny, font_offset + 1*tick_len)
-
-                ax.text(
-                    lx, ly, # + tick_len, 
-                    tick_str_format.format(tick_val=theta_tick_val), 
-                    rotation=rot, 
-                    **self.tick_label_kwargs
-                    )
-
-        if angle_minor_ticks is not None:
-            for a in angle_minor_ticks:
-
-                if np.abs(a) > beam_radius_deg:
-                    continue 
-                elif np.abs(a) == beam_radius_deg:
-                    a= a/np.abs(a) * beam_radius_deg
-
-                th = np.deg2rad(a)
-
-                # tick on arc
-                x0 = rmax * np.cos(th)
-                y0 = rmax * np.sin(th)
-
-                # inward normal direction (radial inward)
-                nx, ny = -np.cos(th), -np.sin(th)
-
-                tx_in, ty_in = self.offset_point_from_tick(ax, x0, y0, -nx, -ny, -minor_tick_len)
-                tx_out, ty_out = self.offset_point_from_tick(ax, x0, y0, -nx, -ny, minor_tick_len)
-
-                ax.plot(
-                    [tx_in, tx_out],
-                    [ty_in, ty_out],
-                    **self.minor_tick_kwargs,
-                    zorder=axes_top_level
-                )
-
-    @staticmethod
-    def arc_xy(comoving_dist, theta_degree, n=360):
-        """
-        Get points on the arc of the beam.
-
-        Returns a tuple of (x, y) coordinates.
-
-        :param  comoving_dist:  comoving distance [Mpc], radius of the arc
-        :type   comoving_dist:  float
-        :param  theta_degree:   angular radius [deg] of the arc. If None, draw a full circle
-        :type   theta_degree:   float
-        :param  n:              number of points on the arc
-        :type   n:              int
-        """
-        #if theta_degree is None:
-        if theta_degree is not None:
-            theta_rad = (np.deg2rad(-theta_degree), np.deg2rad(theta_degree))
-        elif theta_degree is None:
-            theta_rad = (0, 2*np.pi)
-        arc_rad = np.linspace(theta_rad[0], theta_rad[1], n)
-        a = comoving_dist * np.cos(arc_rad)
-        b = comoving_dist * np.sin(arc_rad)
-        return a, b
-
-    @staticmethod
-    def minor_tick_spacer(major_spacing, max_numb_of_minor_ticks=5, min_numb_of_minor_ticks=2):
-        """
-        Return minor tick spacing for preferred number of minor ticks between major ticks.
-
-        :param  major_spacing:              spacing between the major ticks
-        :type   major_spacing:              float
-        :param  max_numb_of_minor_ticks:    maximum number of minor ticks between major ticks
-        :type   max_numb_of_minor_ticks:    int
-        :param  min_numb_of_minor_ticks:    minimum number of minor ticks between major ticks
-        :type   min_numb_of_minor_ticks:    int
-        """
-        n_minor_divisions = np.arange(min_numb_of_minor_ticks+1, max_numb_of_minor_ticks+2, 1)[::-1]
-        for divisions in n_minor_divisions:  # 5,4,3,2 minor ticks
-            minor = major_spacing / divisions
-            exponent = np.floor(np.log10(abs(minor)))
-            mantissa = minor / 10**exponent
-            if np.isclose(mantissa, (1, 2, 2.5, 5, 10, 30)).any():
-                return minor
-        # if all else fails return 2 minor ticks
-        return major_spacing / 3
-
-    @staticmethod
-    def labels_loc(ax, p1, p2, offset=12, dpi=None, tick_length=1):
-        """
-        Determine the position and rotation angle of the axes labels based on 2 points along the axes
-        
-        Returns the (x, y) position of the label in data coordinates.
-
-        :param  ax:             axes of the plot
-        :type   ax:             matplotlib.axes._axes.Axes
-        :param  p1:             first point along the axes, in data coordinates
-        :type   p1:             tuple
-        :param  p2:             second point along the axes, in data coordinates
-        :type   p2:             tuple
-        :param  offset:         distance [points] of the label from the axes
-        :type   offset:         float
-        :param  dpi:            dots per inch. If None, use the figure dpi
-        :type   dpi:            float
-        :param  tick_length:    additional distance [points] of the label from the axes, to clear the ticks
-        :type   tick_length:    float
-        """
-
-        # Offset in display coordinates (points -> pixels)
-        if dpi is None:
-            dpi = ax.figure.dpi
-            
-        offset_px = (tick_length+offset) * dpi / 72
-
-        # Transform to display coordinates
-        #p1 = (rmin * np.cos(-theta_max), rmin * np.sin(-theta_max))
-        #p2 = (rmax * np.cos(-theta_max), rmax * np.sin(-theta_max))
-        #p1 = (x_right[0], y_right[0]) #np.linspace(rmin, rmax, 200) * np.cos(-theta_max)
-        #p2 = (x_right[-1], y_right[-1]) #np.linspace(rmin, rmax, 200) * np.sin(-theta_max)
-
-        # points in display coords
-        t = ax.transData.transform
-        x1, y1 = t(p1)
-        x2, y2 = t(p2)
-        
-        # change in positon 
-        dx = x2 - x1
-        dy = y2 - y1
-        
-        # norm
-        length = np.hypot(dx, dy)
-        nx = -dy / length
-        ny = dx / length
-
-        x_disp = (x1+x2) / 2 + nx * offset_px
-        y_disp = (y1+y2) / 2 + ny * offset_px
-
-        # Back to data coordinates
-        x_data, y_data = ax.transData.inverted().transform((x_disp, y_disp))
-
-        return x_data, y_data
-
-    @staticmethod
-    def offset_point_from_tick(ax, x, y, ux, uy, offset):
-        """
-        Use display coordinates to move tick label away 
-        from the tick by shifting it in the direction (ux,uy).
-
-        Returns the new (x, y) position in data coordinates.
-
-        :param  ax:     axes of the plot
-        :type   ax:     matplotlib.axes._axes.Axes
-        :param  x:      x position of the tick, in data coordinates
-        :type   x:      float
-        :param  y:      y position of the tick, in data coordinates
-        :type   y:      float
-        :param  ux:     x component of the direction to shift in
-        :type   ux:     float
-        :param  uy:     y component of the direction to shift in
-        :type   uy:     float
-        :param  offset: distance [points] to shift by
-        :type   offset: float
-        """
-
-        # Tick endpoint in display coordinates
-        x_disp, y_disp = ax.transData.transform((x, y))
-
-        # radial direction in display coordinates
-        x2_disp, y2_disp = ax.transData.transform((x + ux, y + uy))
-
-        dx = x2_disp - x_disp
-        dy = y2_disp - y_disp
-        #print(f"\t norm: {np.hypot(dx, dy)}")
-        norm = np.hypot(dx, dy)
-        dx /= norm
-        dy /= norm
-
-        # points -> pixels
-        offset_pixels = offset * ax.figure.dpi / 72
-
-        # apply offset
-        x_new_disp = x_disp + dx * offset_pixels
-        y_new_disp = y_disp + dy * offset_pixels
-
-        # back to data coordinates
-        return ax.transData.inverted().transform(
-            (x_new_disp, y_new_disp)
-        )
-
-    @staticmethod
-    def points_to_data(ax, x, y, dx, dy, offset):
-        """
-        Use display coordinates to move points on a plot.
-
-        Returns the (dx, dy) shift in data coordinates.
-
-        :param  ax:     axes of the plot
-        :type   ax:     matplotlib.axes._axes.Axes
-        :param  x:      x position of the point, in data coordinates
-        :type   x:      float
-        :param  y:      y position of the point, in data coordinates
-        :type   y:      float
-        :param  dx:     x component of the direction to move in
-        :type   dx:     float
-        :param  dy:     y component of the direction to move in
-        :type   dy:     float
-        :param  offset: distance [points] to move by
-        :type   offset: float
-        """
-        # norm
-        L = np.hypot(dx, dy)
-        dx /= L
-        dy /= L
-
-        # transform points -> display coords
-        x0, y0 = ax.transData.transform((x, y))
-
-        # determine offset with pixel per sqr inch 
-        offset_px = offset * ax.figure.dpi / 72 # 1 point = dpi / 72 pixels
-
-        # change position in display coords
-        x1 = x0 + offset_px * dx
-        y1 = y0 + offset_px * dy
-
-        # display coords -> data coords
-        xd, yd = ax.transData.inverted().transform((x1, y1))
-
-        return xd - x, yd - y
-
-
+        return self.beam_plot().add_beam_axes(ax, *args, **kwargs)
+   
+    # plotting helpers kept as methods for existing code
+    filter_kwargs = staticmethod(beam_plotting.filter_kwargs)
+    arc_xy = staticmethod(beam_plotting.arc_xy)
+    minor_tick_spacer = staticmethod(beam_plotting.minor_tick_spacer)
+    labels_loc = staticmethod(beam_plotting.labels_loc)
+    offset_point_from_tick = staticmethod(beam_plotting.offset_point_from_tick)
+    points_to_data = staticmethod(beam_plotting.points_to_data)

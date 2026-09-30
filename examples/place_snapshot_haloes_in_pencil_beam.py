@@ -53,26 +53,27 @@ def plot_halos_in_beam_3panel(angular_radius_deg, z_min, z_max, cosmo,
                                halo_coords, beam_vector=(0.0, 0.0, 1.0),
                                figsize=(7, 7), show=False):
     """
-    Minimal 3-panel (x-y, x-z, y-z) scatter of placed halo centres
-    against the beam's analytic wedge/disk geometry -- a trimmed-down
-    version of plot_test_points_in_beam.py's
-    plot_lightcone_projection_3panel, kept to just what's needed to
-    sanity-check that place_halos_in_shell's output actually lands
-    inside the requested shell/cone (no inside/outside/edge
-    classification, no contours -- halo_coords are assumed to already be
-    place_halos_in_shell's own output, so by construction every point is
-    "inside").
+    Scatter plot of halo centres placed into the beam, projected onto the 
+    x-y, x-z, y-z planes. 
 
-    Parameters
-    ----------
-    angular_radius_deg, z_min, z_max : the shell/cone passed to
-        place_halos_in_shell.
-    cosmo : object with a .z2r(z) method returning a comoving distance.
-    halo_coords : ndarray, shape (N, 3)
-        Lightcone/HaloCentre.to_value("Mpc") from place_halos_in_shell.
-    beam_vector : array-like, shape (3,)
-        Assumed (0, 0, 1) for the drawn wedge geometry to line up with
-        the (z, x)/(z, y) panels, exactly as in plot_test_points_in_beam.py.
+    Returns the figure.
+
+    :param  angular_radius_deg: angular radius [deg] of the cone passed to place_halos_in_shell
+    :type   angular_radius_deg: float
+    :param  z_min:              minimum redshift of the shell passed to place_halos_in_shell
+    :type   z_min:              float
+    :param  z_max:              maximum redshift of the shell passed to place_halos_in_shell
+    :type   z_max:              float
+    :param  cosmo:              object with a .z2r(z) method returning a comoving distance
+    :type   cosmo:              object
+    :param  halo_coords:        Lightcone/HaloCentre.to_value("Mpc") from place_halos_in_shell, shape (N, 3)
+    :type   halo_coords:        np.ndarray
+    :param  beam_vector:        assumed (0, 0, 1) for the drawn wedge geometry to line up with the (z, x)/(z, y) panels
+    :type   beam_vector:        array-like, shape (3,)
+    :param  figsize:            size of the figure
+    :type   figsize:            tuple
+    :param  show:               If True, show the figure
+    :type   show:               boolean
     """
     half_angle = np.deg2rad(angular_radius_deg)
     chi_near = cosmo.z2r(z_min).to_value("Mpc")

@@ -1,5 +1,4 @@
 #!/bin/env python
-import sys
 
 """
 Dictionaries to tranfer between swimsimio naming conventions and lightcone naming conventions. 

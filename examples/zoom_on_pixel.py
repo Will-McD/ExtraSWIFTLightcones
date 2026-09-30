@@ -61,11 +61,14 @@ def plot_settings():
 
 def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False):
     """
-        Return an array of the healpixmap lightcone shell number corresponding to the input redshifts. 
-        
-        input_redshifts     : redshift to assign a shell number to
-        redshift_filename   : path/to/file/with/shell/redshift/ranges.txt
-        return_bounds       : if true, return the minimum and maximum redshifts per shell
+    Return an array of the healpix map lightcone shell number corresponding to the input redshifts. 
+
+    :param  input_redshifts:    redshifts to assign a shell number to
+    :type   input_redshifts:    np.ndarray
+    :param  redshift_filename:  path/to/file/with/shell/redshift/ranges.txt
+    :type   redshift_filename:  str
+    :param  return_bounds:      If True, also return the minimum and maximum redshifts per shell
+    :type   return_bounds:      boolean
     """
     input_redshifts = np.asarray(input_redshifts)
     redshifts = np.loadtxt(redshift_filename, delimiter=",")
@@ -90,19 +93,24 @@ def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False)
 
 def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, return_empty_map=False):
     """
-        Retrieve selected pixels from a map to make a zoomed in 
-        gnomview plot of a region on the sky.
+    Retrieve selected pixels from a map to make a zoomed in 
+    gnomview plot of a region on the sky.
 
-        filename:           path to hdf5 file of the map or lightcone_io healpixmap shell object
-        centre_pix_idx:     index of the pixel to centre the map on.
-        pixel_idx:          the indices of the pixels to include in the map.
-        nside:              the nside resolution of the map. 
-        map_name:           name of the maps dataset within the file
-        return_empty_map    if False, only return selected pixels. Otherwise return all-sky map with
-                                all pixels not selected =0
+    Returns a tuple of (map of the selected pixels, value of the centre pixel).
 
-        Returns:
-            An empty map aside from the selected pixels. 
+    :param  filename:           path to hdf5 file of the map or lightcone_io healpix map shell object
+    :type   filename:           str or lightcone_io.healpix_maps.Shell
+    :param  centre_pixel_idx:   index of the pixel to centre the map on
+    :type   centre_pixel_idx:   int
+    :param  pixel_idx:          the indices of the pixels to include in the map
+    :type   pixel_idx:          list or np.ndarray
+    :param  nside:              the nside resolution of the map
+    :type   nside:              int
+    :param  map_name:           name of the map's dataset within the file
+    :type   map_name:           str
+    :param  return_empty_map:   If False, only return selected pixels. Otherwise return all-sky map with 
+                                    all pixels not selected = 0
+    :type   return_empty_map:   boolean
     """
     
     if isinstance(pixel_idx, list):
@@ -153,8 +161,11 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
 
 def no_frac_latex(unit_obj):
     """
-    Return a string for the latex expression for a unyt object for a single line plot axis label.  
-        i.e. replace '\frac{}{}' with '/'
+    Return a string for the latex expression for a unyt object for a single line plot axis label, 
+    i.e. replace '\frac{}{}' with '/'.
+
+    :param  unit_obj:   units to write as latex
+    :type   unit_obj:   unyt.Unit
     """
     # latex expression from unyt object
     latex_expression = unit_obj.latex_repr
@@ -175,27 +186,44 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
                         highlight_centre_pixel=None,
                         ):
     """
-        Make a gnomview plot of a disk centered on a given pixel. 
-        
-        filename:               path to hdf5 file of the map or lightcone_io healpixmap shell object
-        centre_pix_idx:         index of the pixel to centre the map on
-        map_names:              names of the maps to include in the plot
-        output_filename:        path to output plot. 
-        f_pixels:               function to apply to selected pixels 
-        r_npix:                 radius of the disk in number of pixels. 
-        show_plot:              if True show the matplotlib plot object
-        axes_idx:               dictionary of map names and the subplots row and column indices
-        colormap:               name of the colour map to use. 
-        bad_colours:            name of the colour be be assigned to bad value or missing pixels
-        length_scale:           a unyt.quantity object with the scale to be displayed on the image. 
-                                    If None then no scale is included
-        inclusive:              if True, when querying the map include pixels who overlap search 
-                                    radius othereise, if False, include pixels whose centres are 
-                                    in the search radius. 
-        cmap_norm:              array of matplotlib normalisation methods for each map. 
-                                    If None, assume 'log' for each map.
-        highlight_centre_pixel: tuple with marker colour, shape, size(or scale) and linewidth 
-                                    used to highlight the coords of the centre pixel. 
+    Make a gnomview plot of a disk centered on a given pixel. 
+
+    :param  filename:               path to hdf5 file of the map or lightcone_io healpix map shell object
+    :type   filename:               str or lightcone_io.healpix_maps.Shell
+    :param  nside:                  the nside resolution of the map
+    :type   nside:                  int
+    :param  centre_pix_idx:         index of the pixel to centre the map on
+    :type   centre_pix_idx:         int
+    :param  map_names:              names of the maps to include in the plot
+    :type   map_names:              list
+    :param  axes_idx:               map names and the subplot's row and column indices
+    :type   axes_idx:               dict
+    :param  output_filename:        path to output plot
+    :type   output_filename:        str
+    :param  r_npix:                 radius of the disk in number of pixels
+    :type   r_npix:                 int
+    :param  f_pixels:               function to apply to selected pixels 
+    :type   f_pixels:               function
+    :param  show_plot:              If True, show the matplotlib plot object
+    :type   show_plot:              boolean
+    :param  colormap:               name of the colour map to use, or one per map
+    :type   colormap:               str or list
+    :param  bad_colours:            name of the colour to be assigned to bad value or missing pixels
+    :type   bad_colours:            str
+    :param  text_colour:            colour of the text on the image
+    :type   text_colour:            str
+    :param  length_scale:           the scale to be displayed on the image. If None, then no scale is included
+    :type   length_scale:           unyt.unyt_quantity
+    :param  scale_colour:           colour of the scale bar
+    :type   scale_colour:           str
+    :param  inclusive:              If True, when querying the map include pixels which overlap the search 
+                                        radius, otherwise, if False, include pixels whose centres are in the search radius
+    :type   inclusive:              boolean
+    :param  cmap_norm:              matplotlib normalisation methods for each map. If None, assume 'log' for each map
+    :type   cmap_norm:              list
+    :param  highlight_centre_pixel: marker colour, shape, size (or scale) and linewidth used to highlight the 
+                                        coords of the centre pixel
+    :type   highlight_centre_pixel: tuple
     """
     plot_settings()
 

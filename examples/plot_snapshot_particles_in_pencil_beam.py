@@ -68,18 +68,27 @@ def message(m):
 
 def in_lightcone(coords, angular_radius_deg, z_min, z_max, cosmo, buffer_length=None, buffer_shape="cube", beam_vector=(0.0, 0.0, 1.0)):
     """
-    Determine which points fall inside the lightcone shell defined by a minimum multipole ell_min and a
+    Determine which points fall inside the lightcone shell defined by an angular radius and a
     redshift range [z_min, z_max].
-    Parameters
-    ----------
-    coords : ndarray, shape (N, 3)
-        Cartesian comoving coordinates in Mpc, columns (x, y, z_axis).
-    z_min, z_max : float
-        Redshift bounds of the lightcone slice.
-    Returns
-    -------
-    mask : ndarray of bool, shape (N,)
-        True for points inside the lightcone wedge.
+
+    Returns a boolean mask, shape (N,), True for points inside the lightcone wedge.
+
+    :param  coords:             Cartesian comoving coordinates [Mpc], shape (N, 3)
+    :type   coords:             np.ndarray
+    :param  angular_radius_deg: angular radius [deg] of the cone
+    :type   angular_radius_deg: float
+    :param  z_min:              minimum redshift of the lightcone slice
+    :type   z_min:              float
+    :param  z_max:              maximum redshift of the lightcone slice
+    :type   z_max:              float
+    :param  cosmo:              object with a .z2r(z) method returning a comoving distance
+    :type   cosmo:              object
+    :param  buffer_length:      size [Mpc] of the buffer about each coordinate. If None, no buffer
+    :type   buffer_length:      float
+    :param  buffer_shape:       'cube', buffer_length is a cube sidelength. 'sphere', buffer_length is a sphere radius
+    :type   buffer_shape:       str
+    :param  beam_vector:        direction of the beam
+    :type   beam_vector:        array-like, shape (3,)
     """
     coords = np.asarray(coords)
     if coords.ndim != 2 or coords.shape[1] != 3: # test for coords shape
@@ -147,92 +156,78 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
                                       contours=False, contour_bins=40,
                                       contour_levels=4, contour_min_points=10):
     """
-    Plot the lightcone's geometry across three stacked panels (one per
-    row): projections onto the x-y, x-z, and y-z planes.
+    Returns the three axes used for plotting (ax_xy, ax_xz, ax_yz).
 
-    The x-z and y-z panels both use the beam's line-of-sight coordinate
-    (z) as their horizontal axis and share that x-axis (only labeled on
-    the bottom panel). The x-y panel is perpendicular to the beam axis
-    and shows the wedge's projected on-sky footprint as a filled disk.
-
-    Each panel is labeled in its top-left corner with its projection
-    plane and the redshift range, and all three panels share a single
-    combined legend below the figure.
-
-    Test points are classified once (inside/outside/edge of the full 3D
-    lightcone) and displayed in all three panels using category-specific
-    rules:
-      - "edge"    : always individual scatter points, regardless of
-                    `contours`.
-      - "inside"  : density contours when `contours=True` (falling back
-                    to scatter if there are too few points for a
-                    meaningful contour); plain scatter when
-                    `contours=False`.
-      - "outside" : density contours when `contours=True` AND the group
-                    is large enough (>= contour_min_points); otherwise
-                    scatter.
-
-    Parameters
-    ----------
-    angular_radius_deg : float
-    z_min, z_max : float
-    cosmo : object with a .z2r(z) method returning a comoving distance
-        (an astropy-Quantity-like object supporting .to_value("Mpc")).
-    test_coords : ndarray, shape (N, 3), optional
-        Cartesian comoving coordinates (Mpc) of test points, columns (x, y, z).
-    test_coords_buffer : float, optional
-        Buffer length passed through to `in_lightcone`.
-    tol : float
-        Relative/absolute tolerance used to detect points exactly on the
-        lightcone's boundary.
-    beam_vector : array-like, shape (3,)
-        Beam pointing direction passed through to `in_lightcone`. The
-        analytic wedge geometry drawn in each panel assumes this is
-        (0, 0, 1) -- point classification itself still uses the general
-        beam_vector, but the drawn arcs/circles will not match the true
-        geometry for a tilted beam.
-    axes : array-like of 3 matplotlib.axes.Axes, optional
-        If given, must have length 3: (ax_xy, ax_xz, ax_yz). The x-z/y-z
-        sharex linkage is only set up when this function creates its own
-        axes (axes=None); if you pass your own axes, set up sharex
-        between them yourself beforehand if desired.
-    figsize : tuple
-        Figure size, used only when `axes` is None.
-    show : bool
-    contours : bool
-        If False (default), test points are drawn as individual scatter
-        markers for every category. If True, "inside" and (for large
-        enough groups) "outside" are instead drawn as smoothed density
-        contour lines -- see the category rules above. "edge" is always
-        scattered regardless of this flag.
-    contour_bins : int
-        Number of bins per axis for the 2D histogram underlying the
-        contours. Only used when contours=True.
-    contour_levels : int
-        Number of contour levels drawn per category. Only used when
-        contours=True.
-    contour_min_points : int
-        Minimum number of points a category needs (in a given panel) to
-        be contoured rather than scattered. Only used when contours=True.
-
-    Returns
-    -------
-    ax_xy, ax_xz, ax_yz : the three axes used for plotting.
+    :param  angular_radius_deg: angular radius [deg] of the cone
+    :type   angular_radius_deg: float
+    :param  z_min:              minimum redshift of the lightcone slice
+    :type   z_min:              float
+    :param  z_max:              maximum redshift of the lightcone slice
+    :type   z_max:              float
+    :param  cosmo:              object with a .z2r(z) method returning a comoving distance 
+                                    (an astropy-Quantity-like object supporting .to_value("Mpc"))
+    :type   cosmo:              object
+    :param  test_coords:        Cartesian comoving coordinates [Mpc] of test points, shape (N, 3)
+    :type   test_coords:        np.ndarray
+    :param  test_coords_buffer: buffer length passed through to in_lightcone
+    :type   test_coords_buffer: float
+    :param  tol:                relative/absolute tolerance used to detect points exactly on the lightcone's boundary
+    :type   tol:                float
+    :param  beam_vector:        beam pointing direction passed through to in_lightcone. The analytic wedge 
+                                    geometry drawn in each panel assumes this is (0, 0, 1). Point classification 
+                                    itself still uses the general beam_vector, but the drawn arcs/circles will 
+                                    not match the true geometry for a tilted beam.
+    :type   beam_vector:        array-like, shape (3,)
+    :param  axes:               if given, must have length 3: (ax_xy, ax_xz, ax_yz). The x-z/y-z sharex linkage 
+                                    is only set up when this function creates its own axes (axes=None). If you 
+                                    pass your own axes, set up sharex between them yourself beforehand if desired.
+    :type   axes:               array-like of 3 matplotlib.axes.Axes
+    :param  figsize:            figure size, used only when axes is None
+    :type   figsize:            tuple
+    :param  show:               If True, show the figure
+    :type   show:               boolean
+    :param  contours:           If False, test points are drawn as individual scatter markers for every category. 
+                                    If True, "inside" and (for large enough groups) "outside" are instead drawn 
+                                    as smoothed density contour lines, see the category rules above. "edge" is 
+                                    always scattered regardless of this flag.
+    :type   contours:           boolean
+    :param  contour_bins:       number of bins per axis for the 2D histogram underlying the contours. 
+                                    Only used when contours=True
+    :type   contour_bins:       int
+    :param  contour_levels:     number of contour levels drawn per category. Only used when contours=True
+    :type   contour_levels:     int
+    :param  contour_min_points: minimum number of points a category needs (in a given panel) to be contoured 
+                                    rather than scattered. Only used when contours=True
+    :type   contour_min_points: int
     """
 
     def classify_points(coords, angular_radius_deg, z_min, z_max, cosmo, coords_buffer,
                          buffer_shape="sphere",
                          tol=1e-6, beam_vector=(0.0, 0.0, 1.0)):
         """
-        Classify Cartesian comoving points (N, 3) relative to the 3D
-        lightcone defined by ell_min, z_min, z_max, using `in_lightcone`
-        for the inside/outside test and a tolerance-based check for exact
-        boundary membership.
+        Classify Cartesian comoving points relative to the 3D
+        lightcone as being "inside", "outside" or on the "edge" of the lightcone
 
-        Returns
-        -------
-        status : ndarray of str, shape (N,), values in
-                  {"inside", "outside", "edge"}
+        Returns an array of str, shape (N,), with values in {"inside", "outside", "edge"}.
+
+        :param  coords:             Cartesian comoving coordinates [Mpc], shape (N, 3)
+        :type   coords:             np.ndarray
+        :param  angular_radius_deg: angular radius [deg] of the cone. If >= 180, only the radial range is tested
+        :type   angular_radius_deg: float
+        :param  z_min:              minimum redshift of the lightcone slice
+        :type   z_min:              float
+        :param  z_max:              maximum redshift of the lightcone slice
+        :type   z_max:              float
+        :param  cosmo:              object with a .z2r(z) method returning a comoving distance
+        :type   cosmo:              object
+        :param  coords_buffer:      buffer length passed through to in_lightcone
+        :type   coords_buffer:      float
+        :param  buffer_shape:       'cube' or 'sphere', passed through to in_lightcone
+        :type   buffer_shape:       str
+        :param  tol:                relative/absolute tolerance used to detect points exactly on the boundary
+        :type   tol:                float
+        :param  beam_vector:        direction of the beam
+        :type   beam_vector:        array-like, shape (3,)
         """
         coords = np.asarray(coords, dtype=float)
 
@@ -313,8 +308,10 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
                            zorder=zorder, label=label, **kwargs)
 
         def contour_category(label, color):
-            """Returns True if a contour was actually drawn, False if it
-            fell back (too few points, or a degenerate/empty histogram)."""
+            """
+            Returns True if a contour was actually drawn, False if it
+            fell back (too few points, or a degenerate/empty histogram).
+            """
             mask = status == label
             n_pts = np.count_nonzero(mask)
             if n_pts < contour_min_points:
@@ -355,8 +352,10 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
     def draw_axial_slice(ax, chi_near, chi_far, half_angle, vert_coords_idx,
                           horiz_label, vert_label, panel_label, test_coords, status,
                           z_min, z_max, show_xlabel=True):
-        """Draw a wedge cross-section panel containing the beam axis
-        (used for the x-z and y-z panels)."""
+        """
+        Draw a wedge cross-section panel containing the beam axis
+        (used for the x-z and y-z panels).
+        """
         theta = np.linspace(-half_angle, half_angle, 200)
 
         near_arc_horiz = chi_near * np.cos(theta)
@@ -411,8 +410,10 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
 
     def draw_perpendicular_disk(ax, chi_near, chi_far, half_angle, test_coords, status,
                                  z_min, z_max):
-        """Draw the on-sky projected footprint (x-y panel, perpendicular
-        to the beam axis)."""
+        """
+        Draw the on-sky projected footprint (x-y panel, perpendicular
+        to the beam axis).
+        """
         r_far = chi_far * np.sin(half_angle)
         r_near = chi_near * np.sin(half_angle)
 
