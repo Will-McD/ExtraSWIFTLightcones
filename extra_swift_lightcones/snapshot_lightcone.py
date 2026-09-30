@@ -18,9 +18,6 @@ from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from lightcone_io.particle_reader import merge_cells
 import lightcone_io.halo_catalogue as hc
 
-#import snapshot_orientation as box_structure
-#import snapshot_units as sw_units
-#import swift_snapshot_redshift_conversion as nz
 from . import snapshot_orientation as box_structure
 from . import snapshot_units as sw_units
 from . import  swift_snapshot_redshift_conversion as nz
@@ -33,6 +30,9 @@ except ImportError:
     _HAVE_NUMBA = False
 
 def seperator_str(n=35,line_seperator="~"):
+    """
+    Make fancy line seperation
+    """
     sep_str=line_seperator * n
     return "\n"+sep_str
 
@@ -78,7 +78,7 @@ SnapshotReadRecord = namedtuple("SnapshotReadRecord", ["snap_nr", "tile", "z_upd
 
 # numba optimised function for flagging cells and particles in a wedge 
 if _HAVE_NUMBA:
-    #print(f"defining numba enhanced functions")
+    
     # setting parallel=False when using MPI parallel processing
     @njit(parallel=False, fastmath=True, cache=True)
     def _classify_wedge_numba(coords, axis, chi_inner, chi_outer, half_angle,
@@ -158,7 +158,7 @@ class SnapshotLightcone():
     the SnapshotBeam and SnapshotAllSky sub classes. 
     """
 
-    def __init__(self, boxsize_resolution, simulation_name, beam_vector, orientation_seed=0):
+    def __init__(self, boxsize_resolution, simulation_name, beam_vector, simulation_base_dir_format="/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}",  orientation_seed=0):
         """
             Define the lightcones cosmology, units and vector + radius (where applicable)
         """
@@ -166,7 +166,7 @@ class SnapshotLightcone():
         # simulation values
         self.box_res=boxsize_resolution
         self.sim_name=simulation_name
-        simulation_dir="/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}".format(box_res=self.box_res, sim_name=self.sim_name)
+        simulation_dir=simulation_base_dir_format.format(box_res=self.box_res, sim_name=self.sim_name)
         self.snapshot_format = simulation_dir+'/snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5'
 
         # define the cosmology from the snapshots
@@ -1733,6 +1733,7 @@ class SnapshotBeam(SnapshotLightcone):
             ])
 
         return offset
+
 
 
 class SnapshotAllSky(SnapshotLightcone):

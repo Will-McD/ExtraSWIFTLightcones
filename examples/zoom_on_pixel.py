@@ -12,16 +12,18 @@ import matplotlib.patheffects as pe
 import matplotlib as mpl
 import cmasher as cmr
 from lightcone_io.units import units_from_attributes
-from extra_swift_lightcones import get_related_ipix
+from extra_swift_lightcones.healpix_map_utils import get_related_ipix
+from extra_swift_lightcones import swift_snapshot_redshift_conversion as nz
+from pathlib import Path
+import hdfstream
 
 """
-Example script for reading and plotting only a section of pixels from the healpix map.
+Example script for reading and plotting only a section of pixels from a healpix map.
 Here we will select a small region centred on a halo in the lightcone by reading a 
 subset of pixels from the larger map, that are in a disk about the 
 pixel the halos centre of mass is found in and then making an image 
 using a Gnomonic projection. 
 """
-
 
 def plot_settings():
     """
@@ -34,11 +36,11 @@ def plot_settings():
     plt.rcParams["font.family"] = "STIXGeneral"
     plt.rcParams["mathtext.fontset"] = "stix"
     plt.rcParams["text.usetex"] = False
-    #plt.rcParams["legend.labelspacing"]=0.4
     plt.rcParams["legend.labelspacing"]=0.25
     plt.rcParams["legend.columnspacing"]=0.75
     plt.rcParams["legend.borderpad"]=0.3
     plt.rcParams["legend.borderaxespad"]=0.7
+    plt.rcParams["legend.fontsize"]=10
     # Figure layour settings
     plt.rcParams["figure.constrained_layout.use"] =True
     plt.rcParams["figure.constrained_layout.h_pad"] =0.005
@@ -50,6 +52,12 @@ def plot_settings():
     mpl.rcParams['figure.labelsize']=10
     mpl.rcParams['xtick.labelsize']=10
     mpl.rcParams['ytick.labelsize']=10
+    # axes tick settings
+    plt.rcParams["xtick.direction"] ='in'
+    plt.rcParams["ytick.direction"] ='in'
+    plt.rcParams["xtick.top"]=True
+    plt.rcParams["ytick.right"]= True
+
 
 def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False):
     """
@@ -316,7 +324,6 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
             gnom_x, gnom_y = gnom_obj.ang2xy(theta, phi,lonlat=True) #positions in the gnomietric plane
             ax.scatter(gnom_x, gnom_y, edgecolor=highlight_centre_pixel[0], facecolor="none", marker=highlight_centre_pixel[1], linewidth=highlight_centre_pixel[3], s=highlight_centre_pixel[2])
 
-
         # remove ticks
         img.axes.get_xaxis().set_visible(False)
         img.axes.get_yaxis().set_visible(False)
@@ -380,138 +387,100 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
     plt.close()
 
 
-# Use lightcone0 of L1_m9 fiducial model 
-BoxsizeResolution = "L1000N1800"
-SimName="HYDRO_FIDUCIAL"
+if __name__ == "__main__":
 
-# Find a halo on the sky at low redshift
-lightcone_nr=0
-snapshot_number=76 # snapshot redshift, z=0.05
-base_dir = "/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}".format(box_res=BoxsizeResolution, sim_name=SimName)
-haloes_filename= base_dir+"/sorted_hbt_lightcone_halos/lightcone{lc_nr}/lightcone_halos_{snapshot_number:04d}.hdf5".format(lc_nr=lightcone_nr, snapshot_number=snapshot_number)
-soap_filename = base_dir+"/SOAP-HBT/halo_properties_{snapshot_number:04d}.hdf5".format(snapshot_number=snapshot_number)
+    # Use lightcone0 of L1_m9 fiducial model 
+    boxsize_resolution="L1000N1800"
+    sim_name="HYDRO_FIDUCIAL"
 
-# Read both soap and halo catalogue together 
-halos = hr.HaloLightconeFile(filename=haloes_filename, soap_filename=soap_filename)
+    # Find a halo on the sky at low redshift
+    lightcone_nr=0
+    snapshot_number=75 # snapshot redshift, z=0.05
 
-# List of halo properties to read
-properties = ("Lightcone/HaloCentre", "Lightcone/Redshift", "SO/200_crit/TotalMass")
+    # output nside
+    output_nside=4096
 
-# to speed up the example we will only look at haloes within a small area on the sky
-# Line of sight vector specifying a point on the sky
-vector = (1.0, 0.0, 0.0)
-# Angular radius around this point (in radians)
-radius = np.radians(20.0)
+    # define output directory
+    output_dir="./example_outputs/zoom_on_pix_{nside}".format(nside=output_nside)
+    # ensure output directory exists
+    directory_path = Path(output_dir)
+    directory_path.mkdir(parents=True, exist_ok=True)
 
-# Read the data
-halo_props = halos.read_halos_in_radius(vector, radius, properties)
+    # output filename
+    output_filename = output_dir+'/lightcone{lightcone_nr}.snapshot_{snap_nr}.png'.format(lightcone_nr=lightcone_nr, snap_nr=snapshot_number)
 
-# select a halo with M200c close to 10^14 Msun
-haloes_M200c = np.log10(halo_props['SO/200_crit/TotalMass'].to_value('Msun'))
-target_log_M200c = 14
-selected_halo_idx = np.argmin(np.abs(target_log_M200c - haloes_M200c))
-#print(f"{halo_props['SO/200_crit/TotalMass'][selected_halo_idx].to("Msun"):.2e}")
+    # make path to healpix lightcone maps
+    root = hdfstream.open("cosma", "/")
 
-#determine lightcone shell of selected halo
-shell_redshifts = "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/shell_redshifts_z3.txt"
+    # Location of the lightcone output relative to the directory we opened
+    basedir="FLAMINGO/L1_m9/L1_m9"
 
-shell_numbers = assign_shell_number([halo_props['Lightcone/Redshift'][selected_halo_idx].value], shell_redshifts, return_bounds=False)
-shell_nr = shell_numbers[0]
+    # Specify which observer's lightcone to read
+    basename="lightcone{lightcone_nr}".format(lightcone_nr=lightcone_nr)
 
-# Read out information about the halo
-info_str="\nM200c:\t\t{m200:.2e}\nRedshift:\t{z}\nShell numb:\t{shell_numb:d}\n".format(m200=halo_props['SO/200_crit/TotalMass'][selected_halo_idx].to('Msun'), z=halo_props['Lightcone/Redshift'][selected_halo_idx].value, shell_numb=shell_nr)
-print(info_str)
-
-# Find pixel in Nside 4096 healpix maps associated with tracer particle for the selcted halo 
-ipix_4096 = hp.vec2pix(
-    4096, 
-    halo_props["Lightcone/HaloCentre"][selected_halo_idx][0].to_value("Mpc"),
-    halo_props["Lightcone/HaloCentre"][selected_halo_idx][1].to_value("Mpc"),
-    halo_props["Lightcone/HaloCentre"][selected_halo_idx][2].to_value("Mpc"),
-)
-
-
-# Plot a a disk with radius of 25 pixels, centred the selected pixel.
-r_pixels = 25
-lc_base_dir = base_dir+'/{lc_dir}'
-shell_4096 = hm.Shell(lc_base_dir.format(lc_dir="neutrino_corrected_maps_downsampled_4096"), '/lightcone{lc_nr}'.format(lc_nr=lightcone_nr), shell_nr)
-
-# Show all X-ray bands for intrinsic observations 
-map_names=[
-    'XrayErositaHighIntrinsicEnergies', 
-    'XrayErositaLowIntrinsicEnergies', 
-    'XrayROSATIntrinsicEnergies', 
-    'XrayErositaHighIntrinsicPhotons', 
-    'XrayErositaLowIntrinsicPhotons', 
-    'XrayROSATIntrinsicPhotons'
-]
-output_filename="./xray_example_zoom_4096.png"
-plot_zoom_on_pixel(shell_4096, 4096, ipix_4096, map_names, 
-                        axes_idx=None, output_filename=output_filename, r_npix=r_pixels, f_pixels=None, show_plot=False, 
-                        colormap="cubehelix", bad_colours="grey",
-                        length_scale=10*unyt.arcmin,
-                        highlight_centre_pixel=("cyan", "o", 30, 1.), # highlight the centre pixel with a cyan ring. 
-                        )
+    haloes_filename = basedir+"/halo_lightcone/lightcone{lc_nr}/lightcone_halos_{snapshot_number:04d}.hdf5".format(lc_nr=lightcone_nr, snapshot_number=snapshot_number)
+    soap_filename = basedir+"/SOAP-HBT/halo_properties_{snapshot_number:04d}.hdf5".format(snapshot_number=snapshot_number)
     
 
-# Repeat for a higher nside map
-ipix_16384 = hp.vec2pix(
-    16384, 
-    halo_props["Lightcone/HaloCentre"][selected_halo_idx][0].to_value("Mpc"),
-    halo_props["Lightcone/HaloCentre"][selected_halo_idx][1].to_value("Mpc"),
-    halo_props["Lightcone/HaloCentre"][selected_halo_idx][2].to_value("Mpc"),
-)
+    # Read both soap and halo catalogue together 
+    halos = hr.HaloLightconeFile(filename=haloes_filename, soap_filename=soap_filename, remote_dir=root)
 
-# Confirm that the new pixel ID is a child pixel of the selected 4096 map's centre pixel
-low_nside=4096
-high_nside=16384
-level_diff =int(hp.nside2order(high_nside) - hp.nside2order(low_nside))
-child_ipix_16384 = get_related_ipix(ipix=ipix_4096, nside=low_nside, levels=level_diff)
-assert ipix_16384 in child_ipix_16384
+    # List of halo properties to read
+    properties = ("Lightcone/HaloCentre", "Lightcone/Redshift", "SO/200_crit/TotalMass")
 
-# Create plot with higher Nside map. 
-shell_16384 = hm.Shell(lc_base_dir.format(lc_dir="neutrino_corrected_maps"), '/lightcone{lc_nr}'.format(lc_nr=lightcone_nr), shell_nr)
+    # to speed up the example we will only look at haloes within a small area on the sky
+    # Line of sight vector specifying a point on the sky
+    vector = (1.0, 0.0, 0.0)
+    # Angular radius around this point (in radians)
+    radius = np.radians(20.0)
 
-output_filename="./xray_example_zoom_16384.png"
-plot_zoom_on_pixel(shell_16384, 16384, ipix_16384, map_names, 
-                        axes_idx=None, output_filename=output_filename, r_npix=r_pixels*4, f_pixels=None, show_plot=False, 
-                        colormap="cubehelix", bad_colours="grey",
-                        length_scale=10*unyt.arcmin,
-                        highlight_centre_pixel=("cyan", "o", 30, 1.), # highlight the centre pixel with a cyan ring. 
-                        )
+    # Read the halo lightcone
+    halo_props = halos.read_halos_in_radius(vector, radius, properties)
 
+    # select a halo with M200c close to 10^14 Msun
+    haloes_M200c = np.log10(halo_props['SO/200_crit/TotalMass'].to_value('Msun'))
+    target_log_M200c = 14
+    selected_halo_idx = np.argmin(np.abs(target_log_M200c - haloes_M200c))
 
-# Reapeat, but compare an X-ray map to other maps of gas properties & the (unsmoothed) dark matter mass map
-map_names=[
-    'XrayErositaLowIntrinsicEnergies', 
-    'DopplerB',
-    'SmoothedGasMass', 
-    'ComptonY', 
-    'DM',
-    'DarkMatterMass'
-]
-colour_maps=["cubehelix", "cmr.eclipse", "cmr.ember" ,"plasma", "cmr.lilac", "cmr.cosmic"]
+    #determine lightcone shell of selected halo
+    shell_numbers = assign_shell_number([halo_props['Lightcone/Redshift'][selected_halo_idx].value], nz.flamingo_shell_redshift_file('L1'), return_bounds=False)
+    shell_nr = shell_numbers[0]
 
-# Include a function to remove pixels below the 10th percentile. 
-def selection_function(x):
-    p001 = np.percentile(np.abs(x), [10])[0]
-    m=np.abs(x)<p001
-    x[m]=0.
-    return x
+    # Read out information about the halo
+    info_str="\nM200c:\t\t{m200:.2e}\nRedshift:\t{z}\nShell numb:\t{shell_numb:d}\n".format(m200=halo_props['SO/200_crit/TotalMass'][selected_halo_idx].to('Msun'), z=halo_props['Lightcone/Redshift'][selected_halo_idx].value, shell_numb=shell_nr)
+    print(info_str)
 
-output_filename="./multi_properties_example_zoom_4096.png"
-plot_zoom_on_pixel(shell_4096, 4096, ipix_4096, map_names, 
-                        axes_idx=None, output_filename=output_filename, r_npix=25, f_pixels=selection_function, show_plot=False, 
-                        colormap=colour_maps, bad_colours="grey",
-                        length_scale=10*unyt.arcmin,
-                        highlight_centre_pixel=("cyan", "o", 30, 1.), # highlight the centre pixel with a cyan ring. 
-                        )
+    # Find pixel in Nside 4096 healpix maps associated with tracer particle for the selcted halo 
+    ipix_4096 = hp.vec2pix(
+        4096, 
+        halo_props["Lightcone/HaloCentre"][selected_halo_idx][0].to_value("Mpc"),
+        halo_props["Lightcone/HaloCentre"][selected_halo_idx][1].to_value("Mpc"),
+        halo_props["Lightcone/HaloCentre"][selected_halo_idx][2].to_value("Mpc"),
+    )
+
+    # Plot a a disk with radius of 100 pixels, centred the selected pixel.
+    r_pixels = 25
+
+    # Show all X-ray bands for intrinsic observations 
+    map_names=[
+        'XrayErositaLowIntrinsicPhotons_Recomp', 
+        'DopplerB',
+        'StarFormationRate', 
+        'SmoothedGasMass', 
+        'DM',
+        'DarkMatterMass'
+    ]
+    colour_maps=["cubehelix", "cmr.eclipse", "cmr.ember" ,"plasma", "cmr.lilac", "cmr.cosmic"]
 
 
-output_filename="./multi_properties_example_zoom_16384.png"
-plot_zoom_on_pixel(shell_16384, 16384, ipix_16384, map_names, 
-                        axes_idx=None, output_filename=output_filename, r_npix=r_pixels*4, f_pixels=selection_function, show_plot=False, 
-                        colormap=colour_maps, bad_colours="grey",
-                        length_scale=10*unyt.arcmin,
-                        highlight_centre_pixel=("cyan", "o", 30, 1.), # highlight the centre pixel with a cyan ring. 
-                        )
+    # Open the lightcone shell of healpix maps
+    shell_4096 = hm.Shell(basedir+"/healpix_maps/nside_{nside}".format(nside=output_nside), "lightcone{lc_nr}".format(lc_nr=lightcone_nr), shell_nr=shell_nr, remote_dir=root)
+
+    plot_zoom_on_pixel(shell_4096, 4096, ipix_4096, map_names, 
+                            axes_idx=None, output_filename=output_filename, r_npix=r_pixels, f_pixels=None, show_plot=False, 
+                            colormap=colour_maps, bad_colours="grey",
+                            length_scale=10*unyt.arcmin,
+                            highlight_centre_pixel=("cyan", "o", 30, 1.), # highlight the centre pixel with a cyan ring. 
+                            )
+    
+

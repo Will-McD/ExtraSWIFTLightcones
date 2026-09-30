@@ -6,7 +6,8 @@ import unyt
 import math
 import lightcone_io.particle_reader as pr
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
-from lightcone_io.property_to_field_names import property_to_field, field_to_property
+#from lightcone_io.property_to_field_names import property_to_field, field_to_property
+from .property_to_field_names import property_to_field, field_to_property
 import matplotlib.pyplot as plt
 import matplotlib.colors as col
 import matplotlib.patheffects as path_effects

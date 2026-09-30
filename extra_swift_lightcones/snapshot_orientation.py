@@ -13,7 +13,9 @@ def _build_rotation_matrix(rot_angles, order="xyz", degrees=False):
     """
     Build 3x3 rotation matrix
 
-    order: the order of axes that coordinates are rotated about 
+    order:      the order of axes that coordinates are rotated about 
+    rot_angles: (angle_x, angle_y, angle_z), radians unless degrees=True.
+    degrees:    Boolean, if true then angles are given in degrees
 
     """
 
@@ -50,11 +52,9 @@ def _build_rotation_matrix(rot_angles, order="xyz", degrees=False):
 
 
 if _HAVE_NUMBA:
-
-    # setting parallel=False when using MPI parallel processing
     
     # simple rotation, no periodic shift of coordinates
-    @njit(parallel=False, fastmath=True, cache=True)
+    @njit(parallel=True, fastmath=True, cache=True)
     def _apply_rotation_numba(coords, R, out):
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[0, 1], R[0, 2]
@@ -72,7 +72,7 @@ if _HAVE_NUMBA:
     # rotation that includes a periodic shift of coordinates
     # 1. apply periodic shift, i.e. new coordinates
     # 2. rotate shifted coordinates
-    @njit(parallel=False, fastmath=True, cache=True)
+    @njit(parallel=True, fastmath=True, cache=True)
     def _apply_rotation_periodic_numba(coords, R, shift, L, out):
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[0, 1], R[0, 2]
@@ -97,7 +97,7 @@ if _HAVE_NUMBA:
 
     # inverse of _apply_rotation_periodic_numba, recovers the original
     # coordinates 
-    @njit(parallel=False, fastmath=True, cache=True)
+    @njit(parallel=True, fastmath=True, cache=True)
     def _apply_rotation_periodic_numba_inverse(coords, R, shift, L, out):
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[1, 0], R[2, 0]

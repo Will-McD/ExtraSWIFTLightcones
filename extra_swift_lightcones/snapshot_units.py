@@ -35,10 +35,9 @@ def snapshot_unit_metadata(snap):
         Extract the plain-float metadata needed to build a snapshot's unit
         registry: physical constants, cosmology, and the Units/InternalCodeUnits
         CGS conversion factors.
-        Returned as plain dicts of Python floats/strings (no unyt objects) so
-        this can be broadcast between MPI ranks (e.g. via comm.allgather)
-        without depending on a unyt UnitRegistry pickling correctly -- see
-        unit_registry_from_metadata and SnapshotBeam.__fill_missing_particle_data.
+        
+        Return
+        Plain dicts of Python floats/strings (no unyt objects)
     """
     physical_constants_cgs = {name: float(value[0]) for name, value in snap["PhysicalConstants/CGS"].attrs.items()}
     cosmology = {name: float(value[0]) for name, value in snap["Cosmology"].attrs.items()}

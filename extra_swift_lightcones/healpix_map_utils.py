@@ -6,11 +6,15 @@ import healpy as hp
 import h5py
 import unyt
 import lightcone_io.healpix_maps as hm
+from . import snapshot_units as sw_units
+from .swift_snapshot_redshift_conversion import flamingo_shell_redshift_file
+
 import math
 
 """
 Utility functions for working with healpix maps. 
 """
+
 
 def get_related_ipix(ipix, nside, levels, ordering="ring"):
 
@@ -202,20 +206,46 @@ def rotate_map_fast(base_map, theta, phi, nside, ell_max=None, map_rotator_objec
     return map_rot, map_rotator_object
 
 
-def write_rotated_lightcone_chunks(base_dir, basename, theta_arr_deg, phi_arr_deg, output_format, output_nside, input_nside, shell_range=None, unit_conversion_func=None, rotate_nside=None, ell_max=None, save_chunks=False):
+
+_UNSET = object()
+def write_rotated_lightcone_chunks(
+                                    basedir, basename, map_names, 
+                                    theta_arr_deg, phi_arr_deg, 
+                                    output_filename, 
+                                    output_nside, input_nside, 
+                                    remote_dir=None, 
+                                    shell_range=None, 
+                                    unit_conversion_func=None,
+                                    rotate_nside=None, ell_max=None, 
+                                    save_chunks=False,
+                                    hdf5_dset_kwargs=_UNSET
+                                    ):
     """
         For a given set of rotation angles per shell, sum all shells along the line of sight that share the same rotation angles. 
         
         Params:
+            map_names:              List of map names, qunatities, datasets to sum and rotate in chunks, e.g. "TotalMass"
             theta_arr_deg:          array of theta (co-latitude) values per shell [deg]
             phi_arr_deg:            array of phi (longitude) values per shell [deg]
-            shell_range:            tuple containing the minium and maximum shells to consider
+            remote_dir:             For reading healpix maps from a remote directory as done with lightcone_io
+            shell_range:            tuple containing the shell number of the minium and maximum shell to consider
             unit_conversion_func:   Optional function for additional unit conversion prior to rotating maps.
             save_chunks:            Boolean, if true write each individual chunk to the output file. 
     """
 
+    if hdf5_dset_kwargs is _UNSET:
+        hdf5_dset_kwargs={
+                "compression": "gzip",
+                "compression_opts": 9,
+                "shuffle": True,
+            }
+    elif hdf5_dset_kwargs is None:
+        hdf5_dset_kwargs={}
+    
+    
     from lightcone_io.downsample_maps import get_power
-    def write_dataset(outfile, name, data):
+
+    def write_dataset(outfile, name, data, dset_dtype=np.float64):
         """
         writes dataset with gzip=9 and shuffle=True.
         """
@@ -224,25 +254,23 @@ def write_rotated_lightcone_chunks(base_dir, basename, theta_arr_deg, phi_arr_de
         outfile.create_dataset(
             name,
             data=data,
-            dtype=np.float64,
-            compression="gzip",
-            compression_opts=9,
-            shuffle=True
+            dtype=dset_dtype,
+            **hdf5_dset_kwargs
         )
     
     # Open the lightcone map shell array
-    shell_arr = hm.ShellArray(basedir, basename)
+    shell_arr = hm.ShellArray(basedir, basename, remote_dir=remote_dir)
 
-    if nr_shells is None:
+    if shell_range is None:
         numb_shells=shell_arr.nr_shells
         shell_numbers = np.arange(0, numb_shells+1)
     else:
         shell_numbers = np.arange(shell_range[0], shell_range[1]+1)
         numb_shells=len(shell_numbers)
-
+    
     # update rotation angles 
-    theta_arr_deg = apply_expected_units(theta_arr_deg, "degree")[shell_numbers]
-    phi_arr_deg = apply_expected_units(phi_arr_deg, "degree")[shell_numbers]
+    theta_arr_deg = sw_units.apply_expected_units(theta_arr_deg, "degree")[shell_numbers]
+    phi_arr_deg = sw_units.apply_expected_units(phi_arr_deg, "degree")[shell_numbers]
     
     theta_unique, indices_theta = np.unique(theta_arr_deg, return_index = True)
     phi_unique, indices_phi = np.unique(phi_arr_deg, return_index = True)
@@ -251,17 +279,34 @@ def write_rotated_lightcone_chunks(base_dir, basename, theta_arr_deg, phi_arr_de
     phi_rot = phi_unique[np.argsort(indices_phi)]
     nrot = len(theta_rot)
 
-    out_npix=hp.nside2npix(output_nside)
     if input_nside==16384:
         input_nside=8192
-    in_npix=hp.nside2npix(input_nside)
-
     if rotate_nside is None:
         rotate_nside=input_nside
+    
+    in_npix=hp.nside2npix(rotate_nside)
+    out_npix=hp.nside2npix(output_nside)
+    
+    # load all redshifts for any FLAMINGO lightcone
+    redshifts=np.loadtxt(flamingo_shell_redshift_file('L2p8'), delimiter=",")[shell_numbers, :]
+    #redshifts = np.loadtxt("/cosma8/data/dp004/flamingo/Runs/L2800N5040/HYDRO_FIDUCIAL/shell_redshifts.txt", delimiter=",")[shell_numbers, :]
+    
+    update_str=f"total number of rotations:\t{nrot}"+f"\ntotal range of shell numbers:\t{shell_numbers[0]}, {shell_numbers[-1]}\n" +f"total redshift range:\t{redshifts[0, 0]:.3f}, {redshifts[-1, 1]:.3f}"
+    print(update_str)
 
-
+    
     with h5py.File(output_filename, 'w') as outfile:
+        print(f"write to file: {output_filename}\n")
         
+        # add metadata attrs to output file
+        metadata = outfile.create_group("metadata")
+        metadata.attrs["lightcone"] =[basename]
+        metadata.attrs["angles"] = np.vstack((theta_rot, phi_rot)).T
+        metadata.attrs["nside_rotate"] =[rotate_nside]
+        metadata.attrs["nside"] =[output_nside]
+        metadata.attrs["redshift"] = redshifts
+        metadata.attrs["shell_numbers"] = shell_numbers
+
         # runnning total
         integrated_map_stack = {str(map_quantity):np.zeros(out_npix, dtype=float) for map_quantity in map_names}
 
@@ -271,46 +316,60 @@ def write_rotated_lightcone_chunks(base_dir, basename, theta_arr_deg, phi_arr_de
 
             # runnning chunk total, reset once per rotation group
             chunk_map_stack = {str(map_quantity):np.zeros(in_npix, dtype=float) for map_quantity in map_names}
-
+            
             # give update
-            print(f"{chunk_nr+1}/{nrot}:", (arg_min, arg_max), flush=True)
+            print(f"chunk {chunk_nr+1}/{nrot}, shells {arg_min + shell_numbers[0]}-{arg_max -1 + shell_numbers[0]}")
 
             # combine shells, rotate and then downsample
             if save_chunks:
                 chunk_group = outfile.create_group(f"chunk_{chunk_nr}")
+                
+                # add attrs to chunk group
+                for z_range_idx in range(arg_min, arg_max):
+                    zmin = redshifts[z_range_idx, 0]
+                    zmax = redshifts[z_range_idx, 1]
+                    
+                    chunk_group.attrs["redshift_range"] = (zmin, zmax)
+                    chunk_group.attrs["shell_numbers"] = np.arange(arg_min, arg_max) + shell_numbers[0]
+                    metadata.attrs["nside_rotate"] =[rotate_nside]
+                    chunk_group.attrs["nside"] =[output_nside]
+                    chunk_group.attrs["chunk_nr"] =[chunk_nr]
+                    chunk_group.attrs["lightcone"] =[basename]
+                    chunk_group.attrs["chunk_rotation_angles"] = (theta_rot[chunk_nr], phi_rot[chunk_nr])
 
             for shell_nr in range(arg_min, arg_max):
-            
+                
+                shell_nr += shell_numbers[0] # account for non-zero starting shell 
                 shell = shell_arr[shell_nr]   # access shell level data
-
 
                 for k, map_quantity in enumerate(map_names):
                     #check map is available in shell
                     if map_quantity not in shell.map_names:
                         raise ValueError(f"{map_quantity} not found in shell\nAvailable maps: {shell.map_names}")
                     downsample_power = get_power(map_quantity)
-                    map_units_str = shell[map_quantity].units.to_string()
-                    input_nside
-                    if unit_conversion_func is None:
-                        data = shell[map_quantity][...].to_value(map_units).astype(shell[map_quantity].dtype)
-                    else:
-                        data = unit_conversion_func(shell[map_quantity][...]).astype(shell[map_quantity].dtype)
+                    map_unit = shell[map_quantity].units
                     
-                    if np.npix2nside(len(data))==16384:
+                    if unit_conversion_func is None:
+                        data = shell[map_quantity][...].to_value(map_unit).astype(shell[map_quantity].dtype)
+                    else:
+                        data = unit_conversion_func(shell[map_quantity][...].astype(shell[map_quantity].dtype))
+                    
+                    if hp.npix2nside(len(data)) != rotate_nside:
+                        print(f"\tdownsampling {map_quantity} from nside {hp.npix2nside(len(data))} -> {rotate_nside}")
                         data=hp.ud_grade(data, nside_out=rotate_nside, power=downsample_power)
                     
-                    map_chunk[map_quantity] += data
+                    chunk_map_stack[map_quantity] += data
 
             for map_quantity in map_names:
                 if chunk_nr == 0:
-                    map_rot = map_chunk[map_quantity]
+                    map_rot = chunk_map_stack[map_quantity]
                 else:
-                    print(f"\trotating chunk {chunk_nr}, map: {map_quantity}\n\t\tcurrent theta, phi: {theta_rot[chunk_nr]}, {phi_rot[chunk_nr]}")
+                    print(f"\trotating chunk {chunk_nr}, map: {map_quantity}\n\t\ttheta, phi: {theta_rot[chunk_nr]:.3f}, {phi_rot[chunk_nr]:.3f}")
                     #check for pixel weights
                     if healpy_pixel_weights_available(nside=rotate_nside):
-                        map_rot, __ = rotate_map_fast(map_chunk[map_quantity], theta_rot[chunk_nr], phi_rot[chunk_nr], nside=output_nside, ell_max=ell_max, map_rotator_object=None)
+                        map_rot, __ = rotate_map_fast(chunk_map_stack[map_quantity], theta_rot[chunk_nr], phi_rot[chunk_nr], nside=output_nside, ell_max=ell_max, map_rotator_object=None)
                     else:
-                        map_rot, __ = rotate_map(map_chunk[map_quantity], theta_rot[chunk_nr], phi_rot[chunk_nr], ell_max=ell_max, map_rotator_object=None)
+                        map_rot, __ = rotate_map(chunk_map_stack[map_quantity], theta_rot[chunk_nr], phi_rot[chunk_nr], ell_max=ell_max, map_rotator_object=None)
                 
                 if rotate_nside != output_nside:
                     print(f"\tdownsampling {map_quantity} from nside {rotate_nside} -> {output_nside}")
@@ -322,12 +381,12 @@ def write_rotated_lightcone_chunks(base_dir, basename, theta_arr_deg, phi_arr_de
                     write_dataset(chunk_group, map_quantity, map_rot)
                 
                 integrated_map_stack[map_quantity] += map_rot
-                print(f"\tupdated running total: \t{np.sum(integrated_map_stack[map_quantity]):.4e}\n", flush=True)
+                print(f"\tupdated running total: \t{np.sum(integrated_map_stack[map_quantity]):.4e}")
                 
-
         for map_quantity in map_names:
-            write_dataset(outfile, map_quantity, integrated_map_stack[map_quantity])
-            print(f"{map_quantity} final total:\t{np.sum(integrated_map_stack[map_quantity]):.4e}", flush=True)
+            print(f"\nwriting dataset {map_quantity}")
+            write_dataset(outfile, map_quantity, integrated_map_stack[map_quantity], dset_dtype=integrated_map_stack[map_quantity].dtype)
+            print(f"{map_quantity} final total:\t{np.sum(integrated_map_stack[map_quantity]):.4e}")
             del integrated_map_stack[map_quantity]
 
 

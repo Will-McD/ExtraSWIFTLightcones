@@ -1,6 +1,8 @@
 #!/bin/env python
-
+import os
 import numpy as np
+import re
+
 
 def flamingo_snapshot_redshift(boxsize_resolution):    
     if (boxsize_resolution=="L1000N1800") or (boxsize_resolution=="L1000N0900"):
@@ -55,6 +57,7 @@ def snapshot_number_in_range(
     else:
         if boxsize_resolution is None:
             raise ValueError("No FLAMINGO boxsize_resolution passed")
+    
         snapshot_numbers, redshift = flamingo_snapshot_redshift(boxsize_resolution)
 
     # assign redshift range to each snapshot
@@ -157,3 +160,56 @@ def snapshot_redshift_range(snapshot_number, boxsize_resolution=None, use_colibr
 
     return edges[snapshot_number + 1], edges[snapshot_number]
 
+
+# access the flamingo shell redshifts if downloaded and placed in virtual environment from ./venv_scripts/shell_redshifts.sh
+_REDSHIFT_FILES = {
+    "L1":   ("L1_REDSHIFTS_FILENAME",   "L1_shell_redshifts_z3.txt"),
+    "L2p8": ("L2P8_REDSHIFTS_FILENAME", "L2p8_shell_redshifts_z5.txt"),
+}
+
+def flamingo_shell_redshift_file(box):
+    """
+    Return the path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or 2800 Mpc ("L2p8") box sidelength simulations .
+    Checks, in order:
+      1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
+      2. <repo>/data/redshifts/<file> (only when called from inside the package,
+         e.g. an editable install)
+    Raises FileNotFoundError if neither exists.
+    """
+    if box not in _REDSHIFT_FILES:
+        raise ValueError(f"box must be one of {list(_REDSHIFT_FILES)}, got {box!r}")
+    env_name, filename = _REDSHIFT_FILES[box]
+    #
+    candidates = [os.environ.get(env_name)]
+    #
+    # interactive session work around, _file__ only exists when this code lives in a .py
+    module_file = globals().get("__file__")
+    if module_file is not None:
+        package_dir = os.path.dirname(os.path.abspath(module_file))
+        candidates.append(os.path.join(package_dir, "..", "data", "redshifts", filename))
+    #
+    for path in candidates:
+        if path and os.path.isfile(path):
+            return os.path.abspath(path)
+    #
+    raise FileNotFoundError(
+        f"FLAMINGO shell redshifts for {box} not found (looked in: "
+        f"{[p for p in candidates if p]}). Set {env_name} or run "
+        "additional_scripts/flamingo_shell_redshifts.sh"
+    )
+
+
+_BOX_RES_PATTERN = re.compile(r"(?:^|/)(L(\d+)N(\d+))(?=/|$)")
+
+def flamingo_box_resolution(path):
+    """
+    Returns the box size / resolution of a FLAMINGO simultion from a path to the simuations data.
+
+    e.g. "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/data/products.." -> "L1000N1800"
+
+    Raises ValueError if none (or more than one different one) is found.
+    """
+    matches = {m.group(1) for m in _BOX_RES_PATTERN.finditer(str(path))}
+    if len(matches) != 1:
+        raise ValueError(f"Expected exactly one FLAMINGO box/resolution label (e.g. L1000N1800) in {path!r}, found {sorted(matches) or 'none'}")
+    return matches.pop()

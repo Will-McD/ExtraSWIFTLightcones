@@ -17,4 +17,5 @@ __pycache__/
 # Run logs and example outputs
 logs/
 example_outputs/
-data/healpy-data
+data/
+

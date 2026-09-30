@@ -40,6 +40,9 @@ Homepage = "https://github.com/Will-McD/ExtraSWIFTLightcones"
 Repository = "https://github.com/Will-McD/ExtraSWIFTLightcones.git"
 Issues = "https://github.com/Will-McD/ExtraSWIFTLightcones/issues"
 
+[project.scripts]
+extra_swift_lightcones-configure = "extra_swift_lightcones.config:cli_configure"
+
 [tool.setuptools]
 packages = ["extra_swift_lightcones"]
 

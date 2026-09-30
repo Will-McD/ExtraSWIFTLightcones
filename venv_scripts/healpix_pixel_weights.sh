@@ -33,6 +33,6 @@ bash download_weights_8192.sh
 # Make activating the venv export HEALPY_PIXEL_WEIGHTS (only add the line once)
 activate_script="${venv_name}/bin/activate"
 if ! grep -q "HEALPY_PIXEL_WEIGHTS" "${activate_script}"; then
-    echo "" >> "${activate_script}"
+    #echo "" >> "${activate_script}"
     echo "export HEALPY_PIXEL_WEIGHTS=\"${dest_dir}\"" >> "${activate_script}"
 fi
