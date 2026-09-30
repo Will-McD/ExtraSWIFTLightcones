@@ -6,8 +6,8 @@ import unyt
 import math
 import lightcone_io.particle_reader as pr
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
-#from lightcone_io.property_to_field_names import property_to_field, field_to_property
 from .property_to_field_names import property_to_field, field_to_property
+from .snapshot_units import apply_expected_units
 import matplotlib.pyplot as plt
 import matplotlib.colors as col
 import matplotlib.patheffects as path_effects
@@ -21,9 +21,21 @@ import inspect
 # simple rounding functions
 
 def round_down_10(x):
+    """
+    Round down to the nearest multiple of 10.
+
+    :param  x:  value to round
+    :type   x:  float
+    """
     return int(math.floor(x / 10) * 10)
 
 def round_up_10(x):
+    """
+    Round up to the nearest multiple of 10.
+
+    :param  x:  value to round
+    :type   x:  float
+    """
     import math
     if x == 0:
         return 0
@@ -31,6 +43,12 @@ def round_up_10(x):
     return math.ceil(x / power) * power
 
 def orderOfMagnitude(number):
+    """
+    Order of magnitude (base 10) of a number.
+
+    :param  number: positive number
+    :type   number: float
+    """
     return math.floor(math.log(number, 10))
 
 
@@ -41,14 +59,18 @@ class BeamProjection:
     """
     def __init__(self, vector, angular_diameter, redshift_range, cosmology=None, slice_thickness=None):
         """
-        :param vector: direction vector as an array of 3 floats
-        :type  vector: numpy.ndarray
-        :param radius: angular diameter in degrees
-        :type  radius: float
-        :param redshift_range: redshift range to read
-        :type  redshift_range: sequence of two floats [z_min, z_max]
-        :param  cosmology: cosmology object of the simluation 
-        :type   cosmology: astropy cosmology object or str
+        Define the beam and the slice through it to project.
+
+        :param  vector:             direction vector as an array of 3 floats
+        :type   vector:             numpy.ndarray
+        :param  angular_diameter:   angular diameter in degrees
+        :type   angular_diameter:   float
+        :param  redshift_range:     redshift range to read
+        :type   redshift_range:     sequence of two floats [z_min, z_max]
+        :param  cosmology:          cosmology object of the simulation, or a path to a snapshot to read it from
+        :type   cosmology:          astropy cosmology object or str
+        :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
+        :type   slice_thickness:    int, float or unyt.unyt_quantity (units of Mpc or equivalent)
         """
         self.__beam_vec = tuple(vector)
         self.__diameter_deg=angular_diameter
@@ -65,6 +87,9 @@ class BeamProjection:
         self.__make_empty_flags()
 
     def __make_empty_flags(self,):
+        """
+        Reset the slice properties, plot boundaries and snapshot filename.
+        """
         # slice properties 
         
         self.in_slice_boolean={"Gas":None,"DM":None} #track particles being added to the mask 
@@ -85,6 +110,20 @@ class BeamProjection:
         self.__snapshot_filename = None
 
     def update_lc_particles(self, particle_data, particle_properties, slice_thickness, ptype):
+        """
+        Rotate the particles and keep only those in the slice.
+
+        Returns a dict of the particle properties in the slice.
+
+        :param  particle_data:          particle data read from the lightcone
+        :type   particle_data:          dict
+        :param  particle_properties:    properties of the particles to keep
+        :type   particle_properties:    list
+        :param  slice_thickness:        thickness of the slice [Mpc], length along the z-axis, of particles
+        :type   slice_thickness:        unyt.unyt_quantity (units of Mpc or equivalent)
+        :param  ptype:                  particle type, "Gas" or "DM"
+        :type   ptype:                  str
+        """
         input_coords = particle_data["Coordinates"][:]
         # rotate the particles coordinates to produce consitant plots 
         rotated_coords = self.rotate_lc_coordinates(input_coords)
@@ -106,8 +145,12 @@ class BeamProjection:
         return slice_particle_data
 
     def rotate_lc_coordinates(self, coordinates):
+
         """
-        Rotate particle coordinates so they are aligned with the vector (1,0,0)
+        Returns particle coordinates rotated so they are aligned with the vector (1,0,0).
+        
+        :param  coordinates:    particle coordinates, shape (N, 3)
+        :type   coordinates:    unyt.unyt_array
         """
         if self.__beam_vec !=(1,0,0):
             rot_matrix = self.rotation_matrix_from_vectors(v_to=np.array([1., 0., 0.]))
@@ -118,7 +161,16 @@ class BeamProjection:
         
     def identify_particles_in_slice(self, coordinates, redshift, slice_thickness=10*unyt.Mpc):
         """
-        Define simple mask for all partcles within slice, in terms of redshift and coordinates
+        Define simple mask for all particles within slice, in terms of redshift and coordinates.
+        
+        Returns a boolean array, True if particle is in slice. 
+        
+        :param  coordinates:        rotated particle coordinates, shape (N, 3)
+        :type   coordinates:        unyt.unyt_array
+        :param  redshift:           redshift of each particle
+        :type   redshift:           np.ndarray
+        :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
+        :type   slice_thickness:    int, float or unyt.unyt_quantity (units of Mpc or equivalent)
         """
         dz=apply_expected_units(slice_thickness, unyt.Mpc)
         slice_midpoint = 0.5 * (np.max(coordinates[:,-1].to_value("Mpc")) + np.min(coordinates[:,-1].to_value("Mpc")))
@@ -128,7 +180,14 @@ class BeamProjection:
 
     def add_property_to_slice(self, dset_name, dset, ptype):
         """
-        Add additional properties to the slice particle data
+        Add additional properties to the slice particle data.
+
+        :param  dset_name:  name of the property
+        :type   dset_name:  str
+        :param  dset:       values of the property for all particles read, before selecting the slice
+        :type   dset:       unyt.unyt_array or np.ndarray
+        :param  ptype:      particle type, "Gas" or "DM"
+        :type   ptype:      str
         """
         if self.in_slice_boolean[ptype] is not None:
             if ptype == "Gas":
@@ -157,7 +216,6 @@ class BeamProjection:
             print(f"No {ptype} particles in slice, cannot add {dset_name}")
 
     def place_particles_in_slice(self, gas_particle_data,  gas_property_names, slice_thickness=None, dm_particle_data=None, dm_property_names=None, xy_buffer=10.):
-    
         """
         Add particles in the slice to the lightcone
 
@@ -176,7 +234,6 @@ class BeamProjection:
         :param  xy_buffer:          distance [Mpc] between the min and max position of a particle and the boundary of the slice.
         :type   xy_buffer:          float or int
         """ 
-        
         # update units for the size of the slice 
         if slice_thickness is None:
             slice_thickness=apply_expected_units(self.slice_thickness, unyt.Mpc)
@@ -280,9 +337,21 @@ class BeamProjection:
 
     def project_properties(self, project_particle_properties, snapshot_filename=None, resolution=1024, assign_units=None, ptype="Gas"):
         """
-        Returns a 2D histogram of the selected properties for a given particle type
-        """
+        Project the selected properties for a given particle type.
 
+        Returns a list of 2D histograms, one per property, for a given particle type. 
+
+        :param  project_particle_properties:    properties to project
+        :type   project_particle_properties:    list
+        :param  snapshot_filename:              path to a snapshot, used for its metadata and cosmology
+        :type   snapshot_filename:              str
+        :param  resolution:                     number of pixels along each axis of the projection
+        :type   resolution:                     int
+        :param  assign_units:                   units of each property. If None, use the units of the slice data
+        :type   assign_units:                   list
+        :param  ptype:                          particle type, "Gas" or "DM"
+        :type   ptype:                          str
+        """
         # export to snapshot datatype to project with swiftsimio
         use_lc_properties = [prop for prop in project_particle_properties]
 
@@ -340,7 +409,18 @@ class BeamProjection:
         return projection_outputs
 
     def add_lc_gas_to_snap(self, snap, particle_properties, assign_units):
- 
+        """
+        Add the gas particles in the slice to a snapshot template as mock snapshot data, snap.lightcone_gas
+
+        Returns a tuple, (snapshot, preferred units of each property).
+
+        :param  snap:                   snapshot data
+        :type   snap:                   swiftsimio.reader.SWIFTDataset
+        :param  particle_properties:    properties to add
+        :type   particle_properties:    list
+        :param  assign_units:           units of each property. If None, use the units of the slice data
+        :type   assign_units:           list
+        """
         if hasattr(snap, "lightcone_gas"):
             raise ValueError("Snapshot already has mock snapshot gas particles!!!")
 
@@ -406,7 +486,19 @@ class BeamProjection:
         return snap, preffered_units
 
     def add_lc_dm_to_snap(self, snap, particle_properties, assign_units):
- 
+        """
+        Add dark matter particles in the slice to a snapshot template as mock snapshot data, snap.lightcone_dm
+        Smoothing lengths are generated for the DM particles.
+
+        Returns a tuple of (snapshot, preferred units of each property).
+
+        :param  snap:                   snapshot data
+        :type   snap:                   swiftsimio.reader.SWIFTDataset
+        :param  particle_properties:    properties to add
+        :type   particle_properties:    list
+        :param  assign_units:           units of each property. If None, use the units of the slice data
+        :type   assign_units:           list
+        """
         if hasattr(snap, "lightcone_dm"):
             raise ValueError("Snapshot already has mock snapshot DM particles!!!")
 
@@ -517,7 +609,22 @@ class BeamProjection:
         return snap, preffered_units
 
     def make_mock_snapshot(self, particle_properties, snapshot_filename, resolution=1024, assign_units=None, ptype="Gas"):
-        
+        """
+        Load a small region of a snapshot and add the slice particles to it, so they can be projected with swiftsimio.
+
+        Returns a tuple (snapshot, preferred units of each property)
+
+        :param  particle_properties:    properties to add
+        :type   particle_properties:    list
+        :param  snapshot_filename:      path to the snapshot
+        :type   snapshot_filename:      str
+        :param  resolution:             number of pixels along each axis of the projection (unused)
+        :type   resolution:             int
+        :param  assign_units:           units of each property. If None, use the units of the slice data
+        :type   assign_units:           list
+        :param  ptype:                  particle type, "Gas" or "DM"
+        :type   ptype:                  str
+        """
         # sanity check properties
         for prop in particle_properties:
 
@@ -554,6 +661,16 @@ class BeamProjection:
 
     @staticmethod
     def __lc2cosmoarray(particle_data, property_name, property_units):
+        """
+        Convert a lightcone property to a comoving swiftsimio cosmo_array.
+
+        :param  particle_data:  particle data
+        :type   particle_data:  dict
+        :param  property_name:  name of the property
+        :type   property_name:  str
+        :param  property_units: units to convert the property to
+        :type   property_units: str
+        """
         return cosmo_array(
             particle_data[property_name].to_value(property_units),
             particle_data[property_name].to(property_units).units,
@@ -563,7 +680,10 @@ class BeamProjection:
 
     def rotation_matrix_from_vectors(self, v_to=np.array([1., 0., 0.])):
         """
-        Rotation matrix that rotates v_from onto v_to.
+        Returns a rotation matrix which rotates the beam vector onto v_to.
+
+        :param  v_to:   vector to rotate onto
+        :type   v_to:   numpy.ndarray
         """
         v_from=np.array([self.__beam_vec[0], self.__beam_vec[1], self.__beam_vec[2]])
         a = np.asarray(v_from, dtype=float)
@@ -604,6 +724,16 @@ class BeamProjection:
         return R
 
     def filter_kwargs(self, func, kwargs):
+        """
+        Keep only the keyword arguments accepted by a function.
+        
+        Returns input dictionary with only approved keywords. 
+        
+        :param  func:   function to filter the keyword arguments for
+        :type   func:   function
+        :param  kwargs: keyword arguments
+        :type   kwargs: dict
+        """
         params = inspect.signature(func).parameters
         return {k: v for k, v in kwargs.items() if k in params}
 
@@ -618,7 +748,7 @@ class BeamProjection:
 
         :param  numb_wedges:        number of wedges or different projections to show in the beam
         :type   numb_wedges:        int
-        :param  projection_data:    nested list containing different segements of the beam the 2D array to plot and 
+        :param  projection_data:    nested list containing different segments of the beam the 2D array to plot and 
                                         a tuple with the min and max values shown in the img [2D array, (min, max)]
         :type   projection_data:    list
         :param  colour_maps:        list of colour maps for each segment of the beam
@@ -629,15 +759,21 @@ class BeamProjection:
         :type   filename:           str
         :param  angular_diameter:   total angular diameter of beam in degrees
         :type   angular_diameter:   float
-        :param  cosmology:          the simualtions cosmology model
-        :type   cosmology:          astropy comsology object, astropy.cosmology.flrw.w0wacdm.w0waCDM
+        :param  cosmology:          the simulation's cosmology model
+        :type   cosmology:          astropy cosmology object, astropy.cosmology.flrw.w0wacdm.w0waCDM
         :param  redshift_range:     maximum and minimum redshift of the beam shown
         :type   redshift_range:     list, np.ndarray or tuple 
+        :param  axes_extent:        Extent of the plot's axes, in coordinate space. 
+                                        If None, then use the extent defined by the coordinates of the particles added to the slice. 
+        :type   axes_extent:        list
         :param  update_badcol:      If true, modify all colour maps so that the minimum, nan and None values are set to black 
         :type   update_badcol:      boolean
-        :param  axes_extent:        Extent of the plots axes, in coordinate space. 
-                                    If None, then use the extent defined by the coordinates of the particles added to the slice. 
+        :param  figsize:            size of the figure, used if axs is None
+        :type   figsize:            tuple
+        :param  titles:             title of each wedge
+        :type   titles:             list
         :param  kwargs:             All additional arguments to be passed onto the add_wedge and add_beam_axes functions. 
+        :type   kwargs:             dict
         """
 
         # update slice information and call predefined values where needed
@@ -756,7 +892,12 @@ class BeamProjection:
             return fig, wedge_imgs
 
     def __define_wedge_params(self, wedge_kwargs=None):
-        
+        """
+        Set the default keyword arguments of the wedge outline, updated by any given.
+
+        :param  wedge_kwargs:   keyword arguments to control the wedge outline
+        :type   wedge_kwargs:   dict
+        """
         self.wedge_kwargs={
             "alpha":1.0,
             "lw":0.8,
@@ -775,7 +916,12 @@ class BeamProjection:
             self.wedge_kwargs["edgecolor"]=specified_colour
 
     def __define_title_params(self, title_kwargs=None):
-        
+        """
+        Set the default keyword arguments of the wedge titles, updated by any given.
+
+        :param  title_kwargs:   keyword arguments to control the text of the wedge titles
+        :type   title_kwargs:   dict
+        """
         self.title_kwargs={
             "color":"white",
             "alpha":1.0,
@@ -795,28 +941,39 @@ class BeamProjection:
     def add_wedge(self, ax, wedge_idx, data_2D, cmap, pix_min, pix_max, beam_max_ang_radius_deg, wedge_ang_diameter_deg, rmin, rmax, 
         title=None, img_zorder=10, wedge_kwargs=None, title_kwargs=None):
         """
-        Add each smaller beam or wedge onto the plot. Returns the upadted projected image. 
+        Add each smaller beam or wedge together into one larger plot. 
 
-        :param  wedge_idx:  order that the wedge is added to the plot. 
-        :type   wedge_idx:  int
-        :param  data_2D:    2D histogram to plot 
-        :type   data_2D:    
-        :param cmap:  colour map
-        :type  cmap:  str or matplotlib colour map type object
-        :param  pix_min:    minimum pixel value shown 
-        :type   pix_min:    float
-        :param  pix_max:    maximum pixel value shown 
-        :type   pix_max:    float
+        Returns the updated projected image and the axes. 
+
+        :param  ax:                         axes to plot onto
+        :type   ax:                         matplotlib.axes._axes.Axes
+        :param  wedge_idx:                  order that the wedge is added to the plot. 
+        :type   wedge_idx:                  int
+        :param  data_2D:                    2D histogram to plot 
+        :type   data_2D:                    np.ndarray
+        :param  cmap:                       colour map
+        :type   cmap:                       str or matplotlib colour map type object
+        :param  pix_min:                    minimum pixel value shown 
+        :type   pix_min:                    float
+        :param  pix_max:                    maximum pixel value shown 
+        :type   pix_max:                    float
         :param  beam_max_ang_radius_deg:    maximum angular radius [deg] of the beam (slice) as a whole
         :type   beam_max_ang_radius_deg:    float
-        :param  wedge_ang_diameter_deg:    angular diameter [deg] of each wedge that the beam is split into
-        :type   wedge_ang_diameter_deg:    float
-        :param  rmin:   minimum comoving distance
-        :type   rmin:   float
-        :param  rmax:   maximum comoving distance
-        :type   rmax:   float
+        :param  wedge_ang_diameter_deg:     angular diameter [deg] of each wedge that the beam is split into
+        :type   wedge_ang_diameter_deg:     float
+        :param  rmin:                       minimum comoving distance
+        :type   rmin:                       float
+        :param  rmax:                       maximum comoving distance
+        :type   rmax:                       float
+        :param  title:                      title of the wedge, placed on the inner arc
+        :type   title:                      str
+        :param  img_zorder:                 zorder of the image
+        :type   img_zorder:                 int
+        :param  wedge_kwargs:               keyword arguments to control the wedge outline
+        :type   wedge_kwargs:               dict
+        :param  title_kwargs:               keyword arguments to control the text of the wedge title
+        :type   title_kwargs:               dict
         """
-
         self.__define_wedge_params(wedge_kwargs)
         self.__define_title_params(title_kwargs)
         
@@ -901,11 +1058,18 @@ class BeamProjection:
         return img, ax
         
     def __define_tick_params(self, major_tick_kwargs=None, minor_tick_kwargs=None, tick_label_kwargs=None):
-        self.major_tick_kwargs={
-            "color":"black",
-            "lw":0.8,
-            "alpha":1,
-        }
+        """
+        Set the default keyword arguments of the ticks and tick labels, updated by any given.
+        
+        :param  major_tick_kwargs:  keyword arguments to control the major tick lines 
+        :type   major_tick_kwargs:  dict
+        :param  minor_tick_kwargs:  keyword arguments to control the minor tick lines 
+        :type   minor_tick_kwargs:  dict
+        :param  tick_label_kwargs:  keyword arguments to control the text of the labels on the major ticks
+        :type   tick_label_kwargs:  dict
+        """
+
+        self.major_tick_kwargs={"color":"black","lw":0.8,"alpha":1,}
         self.major_tick_kwargs.update(**(major_tick_kwargs or {}))
         self.minor_tick_kwargs={
             "color":self.major_tick_kwargs["color"],
@@ -926,6 +1090,12 @@ class BeamProjection:
         self.tick_label_kwargs.update(**(tick_label_kwargs or {}))
     
     def __define_label_params(self, axes_label_kwargs=None):
+        """
+        Set the default keyword arguments of the axes labels, updated by any given.
+
+        :param  axes_label_kwargs:  keyword arguments to control the text of the axes labels
+        :type   axes_label_kwargs:  dict
+        """
         self.axes_label_kwargs={
             "color":"black",
             "fontsize":10,
@@ -939,6 +1109,12 @@ class BeamProjection:
         self.axes_label_kwargs.update(**(axes_label_kwargs or {}))
 
     def __define_grid_params(self, grid_line_kwargs=None):
+        """
+        Set the default keyword arguments of the grid lines, updated by any given.
+
+        :param  grid_line_kwargs:   keyword arguments to control the grid lines
+        :type   grid_line_kwargs:   dict
+        """
         self.grid_line_kwargs={
             "color":"silver",
             "lw":0.8,
@@ -961,6 +1137,8 @@ class BeamProjection:
         """
         Add axes, labels and ticks to the split beam plot.
 
+        :param  ax:                     axes to plot onto
+        :type   ax:                     matplotlib.axes._axes.Axes
         :param  redshift_major_ticks:  location of the major ticks on the redshift axes 
         :type   redshift_major_ticks:  np.ndarray
         :param  redshift_minor_ticks:  location of the minor ticks on the redshift axes 
@@ -978,9 +1156,12 @@ class BeamProjection:
         :param  comoving_distance_minor_ticks:  location of the minor ticks on the comoving radius axes
         :type   comoving_distance_minor_ticks:  np.ndarray
         :param  dtheta_major_ticks_deg:  spacing [deg] between the major ticks on the angular radius axes
-        :type   dtheta_major_ticks_deg:  np.ndarray
-        :param  dtheta_minor_ticks_deg:  spacing [deg] between the minor ticks on the angular radius axes
-        :type   dtheta_minor_ticks_deg:  np.ndarray
+        :type   dtheta_major_ticks_deg:  float
+        :param  dtheta_minor_ticks_deg:  spacing [deg] between the minor ticks on the angular radius axes. 
+                                            If 'auto', choose the spacing from the major ticks
+        :type   dtheta_minor_ticks_deg:  float or str
+        :param  theta_ticks_abs:  If true, label the angular radius ticks with absolute values
+        :type   theta_ticks_abs:  boolean
         :param  major_tick_length:  length of major ticks
         :type   major_tick_length:  float
         :param  minor_tick_length:  length of minor ticks
@@ -1000,12 +1181,14 @@ class BeamProjection:
         :type   tick_label_offset:  tuple
         :param  overlay_grid:   If true overlay a grid line at each major tick from the given axes (redshift, comoving radius, angular radius)
         :type   overlay_grid:   tuple    (boolean, boolean, boolean)
+        :param  wedge_titles:   title of each wedge (unused)
+        :type   wedge_titles:   list
         :param  major_tick_kwargs:    keyword arguments to control the major tick lines 
         :type   major_tick_kwargs:    dict
         :param  minor_tick_kwargs:    keyword arguments to control the minor tick lines 
         :type   minor_tick_kwargs:    dict
         :param  tick_label_kwargs:    keyword arguments to control the text of the labels on the major ticks
-        :type   minor_tick_kwargs:    dict
+        :type   tick_label_kwargs:    dict
         :param  axes_label_kwargs:    keyword arguments to control the text of the axes labels
         :type   axes_label_kwargs:    dict
         :param  grid_line_kwargs:    keyword arguments to control the grid lines
@@ -1421,7 +1604,16 @@ class BeamProjection:
     @staticmethod
     def arc_xy(comoving_dist, theta_degree, n=360):
         """
-        Get point on the arc of the beam
+        Get points on the arc of the beam.
+
+        Returns a tuple of (x, y) coordinates.
+
+        :param  comoving_dist:  comoving distance [Mpc], radius of the arc
+        :type   comoving_dist:  float
+        :param  theta_degree:   angular radius [deg] of the arc. If None, draw a full circle
+        :type   theta_degree:   float
+        :param  n:              number of points on the arc
+        :type   n:              int
         """
         #if theta_degree is None:
         if theta_degree is not None:
@@ -1437,6 +1629,13 @@ class BeamProjection:
     def minor_tick_spacer(major_spacing, max_numb_of_minor_ticks=5, min_numb_of_minor_ticks=2):
         """
         Return minor tick spacing for preferred number of minor ticks between major ticks.
+
+        :param  major_spacing:              spacing between the major ticks
+        :type   major_spacing:              float
+        :param  max_numb_of_minor_ticks:    maximum number of minor ticks between major ticks
+        :type   max_numb_of_minor_ticks:    int
+        :param  min_numb_of_minor_ticks:    minimum number of minor ticks between major ticks
+        :type   min_numb_of_minor_ticks:    int
         """
         n_minor_divisions = np.arange(min_numb_of_minor_ticks+1, max_numb_of_minor_ticks+2, 1)[::-1]
         for divisions in n_minor_divisions:  # 5,4,3,2 minor ticks
@@ -1451,8 +1650,22 @@ class BeamProjection:
     @staticmethod
     def labels_loc(ax, p1, p2, offset=12, dpi=None, tick_length=1):
         """
-        Determine the position and rotation angle of the axes labels
-        based on 2 points along the axes
+        Determine the position and rotation angle of the axes labels based on 2 points along the axes
+        
+        Returns the (x, y) position of the label in data coordinates.
+
+        :param  ax:             axes of the plot
+        :type   ax:             matplotlib.axes._axes.Axes
+        :param  p1:             first point along the axes, in data coordinates
+        :type   p1:             tuple
+        :param  p2:             second point along the axes, in data coordinates
+        :type   p2:             tuple
+        :param  offset:         distance [points] of the label from the axes
+        :type   offset:         float
+        :param  dpi:            dots per inch. If None, use the figure dpi
+        :type   dpi:            float
+        :param  tick_length:    additional distance [points] of the label from the axes, to clear the ticks
+        :type   tick_length:    float
         """
 
         # Offset in display coordinates (points -> pixels)
@@ -1493,7 +1706,22 @@ class BeamProjection:
     def offset_point_from_tick(ax, x, y, ux, uy, offset):
         """
         Use display coordinates to move tick label away 
-        from the tick by shifting it the direction (ux,uy)
+        from the tick by shifting it in the direction (ux,uy).
+
+        Returns the new (x, y) position in data coordinates.
+
+        :param  ax:     axes of the plot
+        :type   ax:     matplotlib.axes._axes.Axes
+        :param  x:      x position of the tick, in data coordinates
+        :type   x:      float
+        :param  y:      y position of the tick, in data coordinates
+        :type   y:      float
+        :param  ux:     x component of the direction to shift in
+        :type   ux:     float
+        :param  uy:     y component of the direction to shift in
+        :type   uy:     float
+        :param  offset: distance [points] to shift by
+        :type   offset: float
         """
 
         # Tick endpoint in display coordinates
@@ -1524,7 +1752,22 @@ class BeamProjection:
     @staticmethod
     def points_to_data(ax, x, y, dx, dy, offset):
         """
-        Use display coordinates to move points on a plot
+        Use display coordinates to move points on a plot.
+
+        Returns the (dx, dy) shift in data coordinates.
+
+        :param  ax:     axes of the plot
+        :type   ax:     matplotlib.axes._axes.Axes
+        :param  x:      x position of the point, in data coordinates
+        :type   x:      float
+        :param  y:      y position of the point, in data coordinates
+        :type   y:      float
+        :param  dx:     x component of the direction to move in
+        :type   dx:     float
+        :param  dy:     y component of the direction to move in
+        :type   dy:     float
+        :param  offset: distance [points] to move by
+        :type   offset: float
         """
         # norm
         L = np.hypot(dx, dy)
