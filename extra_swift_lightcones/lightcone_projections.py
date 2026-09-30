@@ -90,7 +90,7 @@ class BeamProjection:
         self.cosmology = cosmology
 
         self._make_empty_flags()
-        
+
         if store_snapshot_filename is not None:
              self._snapshot_filename=store_snapshot_filename
 
@@ -183,7 +183,7 @@ class BeamProjection:
         if self._beam_vec==(1,0,0):
             return coordinates
         rot_matrix = self.rotation_matrix_from_vectors(v_to=np.array([1., 0., 0.]))
-            return coordinates @ rot_matrix.T
+        return coordinates @ rot_matrix.T
 
     def identify_particles_in_slice(self, coordinates, redshift, slice_thickness=10*unyt.Mpc):
         """
