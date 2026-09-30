@@ -8,6 +8,7 @@ import lightcone_io.particle_reader as pr
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 #from lightcone_io.property_to_field_names import property_to_field, field_to_property
 from .property_to_field_names import property_to_field, field_to_property
+from .snapshot_units import apply_expected_units
 import matplotlib.pyplot as plt
 import matplotlib.colors as col
 import matplotlib.patheffects as path_effects
@@ -16,7 +17,6 @@ import swiftsimio as sw
 from swiftsimio.objects import cosmo_array
 import collections
 import inspect
-
 
 # simple rounding functions
 
@@ -39,7 +39,7 @@ class BeamProjection:
     """
     Class for making simple projects of past lightcone beams. 
     """
-    def __init__(self, vector, angular_diameter, redshift_range, cosmology=None, slice_thickness=None):
+    def __init__(self, vector, angular_diameter, redshift_range, cosmology=None, slice_thickness=None, snapshot_filename=None):
         """
         :param vector: direction vector as an array of 3 floats
         :type  vector: numpy.ndarray
@@ -61,8 +61,11 @@ class BeamProjection:
         if isinstance(cosmology, str):
             cosmology = Snapshot_Cosmology_For_Lightcone(cosmology).COSMO
         self.cosmology = cosmology
+       
 
         self.__make_empty_flags()
+        if snapshot_filename is not None:
+            self.__snapshot_filename=snapshot_filename
 
     def __make_empty_flags(self,):
         # slice properties 
@@ -291,7 +294,12 @@ class BeamProjection:
             # update snapshot name stored if used for cosmology 
             self.__snapshot_filename = snapshot_filename
         
-        mock_snap_data, preffered_units = self.make_mock_snapshot(use_lc_properties, snapshot_filename, resolution=1024, assign_units=None, ptype=ptype)
+        # update snapshot filename if a new one is passed 
+        if snapshot_filename is not None:
+            if snapshot_filename != self._snapshot_filename:
+                self._snapshot_filename = snapshot_filename
+
+        mock_snap_data, preffered_units = self.make_mock_snapshot(use_lc_properties, self.__snapshot_filename, assign_units=None, ptype=ptype)
         
         
         #create region to project over
@@ -516,7 +524,7 @@ class BeamProjection:
         
         return snap, preffered_units
 
-    def make_mock_snapshot(self, particle_properties, snapshot_filename, resolution=1024, assign_units=None, ptype="Gas"):
+    def make_mock_snapshot(self, particle_properties, snapshot_filename, assign_units=None, ptype="Gas"):
         
         # sanity check properties
         for prop in particle_properties:

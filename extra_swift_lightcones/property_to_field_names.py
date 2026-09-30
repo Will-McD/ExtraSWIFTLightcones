@@ -5,8 +5,6 @@ import sys
 Dictionaries to tranfer between swimsimio naming conventions and lightcone naming conventions. 
 """
 
-
-
 property_to_field = {
     "ComptonYParameters":"compton_y_parameters",
     "Coordinates":"coordinates",

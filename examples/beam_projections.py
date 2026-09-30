@@ -11,6 +11,7 @@ import unyt
 import lightcone_io.particle_reader as pr
 #from lightcone_io.lightcone_vis_tools import BeamProjection
 from extra_swift_lightcones.lightcone_projections import BeamProjection
+from extra_swift_lightcones.snapshot_units import apply_expected_units
 import cmasher as cmr
 from pathlib import Path
 
@@ -22,40 +23,16 @@ This script contains 2 example projections of a past lightcones beam.
 """
 
 
-def example_fig1(particle_lightcone, gas_property_names, dm_property_names):
+def example_fig1(BP, particle_lightcone, gas_particle_data, gas_property_names, dm_particle_data):
     # project a slice through a beam to show the surface mass density within the lightcone
 
-    gas_particle_data = lightcone["Gas"].read(
-        property_names=gas_property_names,
-        redshift_range=redshift_range,
-        vector=vector,
-        radius=radius
-    )
-
-    dm_particle_data = lightcone["DM"].read(
-        property_names=("Coordinates","Masses", "ExpansionFactors"),
-        redshift_range=redshift_range,
-        vector=vector, 
-        radius=radius
-    )
-
-    # define a slice through the same beam  
-    slice_z_width= 10 * unyt.Mpc # how thick the slice is 
-
-    BP=BeamProjection(
-        vector=vector, 
-        angular_diameter=np.rad2deg(2*radius), 
-        redshift_range=redshift_range, 
-        slice_thickness=slice_z_width, 
-        cosmology=snapshot_filename
-        )
 
     # add particle data to the slice 
     BP.place_particles_in_slice(gas_particle_data, gas_property_names, dm_particle_data=dm_particle_data, dm_property_names=dm_property_names)
 
     #project the gas and dm slices 
-    gas_projections = BP.project_properties(["Masses"], snapshot_filename, ptype="Gas", assign_units=["Msun"])
-    cdm_projections = BP.project_properties(["Masses"], snapshot_filename, ptype="DM", assign_units=["Msun"])
+    gas_projections = BP.project_properties(["Masses"], ptype="Gas", assign_units=["Msun"], resolution=1024)
+    cdm_projections = BP.project_properties(["Masses"], ptype="DM", assign_units=["Msun"], resolution=1024)
 
     # projections come out in the same order they are entered
     gas_surface_density=gas_projections[0].to_value("Msun/Mpc**2")
@@ -80,7 +57,7 @@ def example_fig1(particle_lightcone, gas_property_names, dm_property_names):
         "cubehelix",
         "cmr.eclipse"
     ]
-    output_filename = "./example_outputs/beam_projection/split_beam_surface_density_example.png",
+    output_filename = "./example_outputs/beam_projection/split_beam_surface_density_example.pdf"
     wedge_imgs = BP.split_beam_plot(
         numb_wedges, projection_data, colour_maps, filename=output_filename, 
         minor_tick_kwargs={"color":"k", "lw":0.6}, tick_label_kwargs={"rotation":"auto"}, overlay_grid=(True, False, False),
@@ -91,8 +68,17 @@ def example_fig1(particle_lightcone, gas_property_names, dm_property_names):
     print(f"Example image 1 saved as: {output_filename}")
 
 
-def example_fig2(particle_lightcone, gas_property_names):
+def example_fig2(BP, particle_lightcone, gas_particle_data, gas_property_names):
     # Repeat example 1 but now with custom datasets to show mass and redshift dependance
+    
+    # add particle data to the slice 
+    BP.place_particles_in_slice(gas_particle_data, gas_property_names)
+
+    #project the gas and dm slices 
+    gas_projections = BP.project_properties(["Masses"], ptype="Gas", assign_units=["Msun"], resolution=1024)
+
+    # projections come out in the same order they are entered
+    gas_surface_density=gas_projections[0].to_value("Msun/Mpc**2")
 
     # mass weighted temperature
     mass_weighted_temp = gas_particle_data["Temperatures"] * gas_particle_data["Masses"]
@@ -106,7 +92,7 @@ def example_fig2(particle_lightcone, gas_property_names):
     BP.add_property_to_slice(dset_name="MassWeightedTemp", dset=mass_weighted_temp, ptype="Gas")
     BP.add_property_to_slice(dset_name="RedshiftWeightedTemp", dset=z_weighted_temp, ptype="Gas")
 
-    temp_projections = BP.project_properties(['Temperatures',"MassWeightedTemp", "RedshiftWeightedTemp"], snapshot_filename, ptype="Gas", assign_units=["K", "K*Msun", "K*Msun"])
+    temp_projections = BP.project_properties(['Temperatures',"MassWeightedTemp", "RedshiftWeightedTemp"], ptype="Gas", assign_units=["K", "K*Msun", "K*Msun"], resolution=1024)
 
     # projections come out in the same order they are entered
     Temp_surface_density=temp_projections[0].to_value("K/Mpc**2")
@@ -134,7 +120,7 @@ def example_fig2(particle_lightcone, gas_property_names):
         "magma"
     ]
     
-    output_filename = "./example_outputs/beam_projection/split_beam_temp_example.png",
+    output_filename = "./example_outputs/beam_projection/split_beam_temp_example.pdf"
 
     wedge_imgs = BP.split_beam_plot(
         numb_wedges, projection_data, colour_maps, filename=output_filename,
@@ -160,6 +146,7 @@ if __name__ == "__main__":
 
     # define snapshot filename, we will get information about the simuations cosmology from this later 
     snapshot_filename = "{base_name}/snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.hdf5".format(base_name=base_dir,  snap_nr=77)
+    snapshot_dir = "{base_name}/snapshots".format(base_name=base_dir)
 
     # Specify one file from the spatially indexed lightcone particle data
     lightcone_nr=0
@@ -176,13 +163,41 @@ if __name__ == "__main__":
     # load particle information for both gas and dark matter particles in the beam
     gas_property_names = ["Coordinates","Masses", "ExpansionFactors","SmoothingLengths","Temperatures"]
     dm_property_names = ["Coordinates","Masses", "ExpansionFactors"]
+    
+    # define a slice through the same beam  
+    slice_z_width= 10 * unyt.Mpc # how thick the slice is 
+    
+    print(snapshot_dir)
+    
+    BP=BeamProjection(
+        vector=vector, 
+        angular_diameter=np.rad2deg(2*radius), 
+        redshift_range=redshift_range, 
+        slice_thickness=slice_z_width, 
+        cosmology=snapshot_dir,
+        snapshot_filename=snapshot_filename
+        )
+
+    gas_particle_data = lightcone["Gas"].read(
+        property_names=gas_property_names,
+        redshift_range=redshift_range,
+        vector=vector,
+        radius=radius
+    )
+
+    dm_particle_data = lightcone["DM"].read(
+        property_names=("Coordinates","Masses", "ExpansionFactors"),
+        redshift_range=redshift_range,
+        vector=vector, 
+        radius=radius
+    )
 
     # Example 1 
     # project a slice through a beam to show the surface mass density within the lightcone
-    example_fig1(particle_lightcone, gas_property_names, dm_property_names)
+    example_fig1(BP, lightcone, gas_particle_data, gas_property_names, dm_particle_data)
 
 
     #Example 2 
     # Repeat the above example but now with custom datasets to show mass and redshift dependance
-    example_fig2(particle_lightcone, gas_property_names)
+    example_fig2(BP, lightcone, gas_particle_data, gas_property_names, )
 
