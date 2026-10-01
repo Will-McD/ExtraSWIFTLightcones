@@ -34,6 +34,7 @@ classifiers = [
 [project.optional-dependencies]
 test = ["pytest"]
 examples = ["cmasher", "hdfstream","tqdm",]
+all = ["ExtraSWIFTLightcones[test,examples]"]
 
 [project.urls]
 Homepage = "https://github.com/Will-McD/ExtraSWIFTLightcones"
