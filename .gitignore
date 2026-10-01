@@ -19,3 +19,4 @@ logs/
 example_outputs/
 data/
 tests/snapshot_lightcone_test.py
+tests/snapshot_tracer_particle.py
