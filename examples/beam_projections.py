@@ -9,7 +9,6 @@ import math
 import argparse
 import unyt
 import lightcone_io.particle_reader as pr
-#from lightcone_io.lightcone_vis_tools import BeamProjection
 from extra_swift_lightcones.lightcone_projections import BeamProjection
 from extra_swift_lightcones.snapshot_units import apply_expected_units
 import cmasher as cmr
@@ -57,7 +56,7 @@ def example_fig1(BP, particle_lightcone, gas_particle_data, gas_property_names, 
         "cubehelix",
         "cmr.eclipse"
     ]
-    output_filename = "./example_outputs/beam_projection/split_beam_surface_density_example.pdf"
+    output_filename = "./example_outputs/beam_projection/split_beam_surface_density_example.png"
     wedge_imgs = BP.split_beam_plot(
         numb_wedges, projection_data, colour_maps, filename=output_filename, 
         minor_tick_kwargs={"color":"k", "lw":0.6}, tick_label_kwargs={"rotation":"auto"}, overlay_grid=(True, False, False),
@@ -120,7 +119,7 @@ def example_fig2(BP, particle_lightcone, gas_particle_data, gas_property_names):
         "magma"
     ]
     
-    output_filename = "./example_outputs/beam_projection/split_beam_temp_example.pdf"
+    output_filename = "./example_outputs/beam_projection/split_beam_temp_example.png"
 
     wedge_imgs = BP.split_beam_plot(
         numb_wedges, projection_data, colour_maps, filename=output_filename,
@@ -174,8 +173,8 @@ if __name__ == "__main__":
         angular_diameter=np.rad2deg(2*radius), 
         redshift_range=redshift_range, 
         slice_thickness=slice_z_width, 
-        cosmology=snapshot_dir,
-        snapshot_filename=snapshot_filename
+        cosmology=snapshot_dir, # can pass snapshot base directory instead of cosmology object. 
+        store_snapshot_filename=snapshot_filename # store for later to generate metadata and mock snapshot objects. 
         )
 
     gas_particle_data = lightcone["Gas"].read(
@@ -199,5 +198,5 @@ if __name__ == "__main__":
 
     #Example 2 
     # Repeat the above example but now with custom datasets to show mass and redshift dependance
-    example_fig2(BP, lightcone, gas_particle_data, gas_property_names, )
+    example_fig2(BP, lightcone, gas_particle_data, gas_property_names)
 
