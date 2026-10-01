@@ -7,11 +7,9 @@ import urllib.request
 """
 Set up the data files ExtraSWIFTLightcones needs in the Python environment it is installed in.
 
-After installing the package with pip, run
+After installing the package with pip, run: extra_swift_lightcones-configure
 
-    extra_swift_lightcones-configure
-
-to download the FLAMINGO lightcone shell redshift files into <environment>/share/extra_swift_lightcones/redshifts
+To download the FLAMINGO lightcone shell redshift files into <environment>/share/extra_swift_lightcones/redshifts
 and export their paths (L1_REDSHIFTS_FILENAME and L2P8_REDSHIFTS_FILENAME) whenever the environment is activated.
 """
 

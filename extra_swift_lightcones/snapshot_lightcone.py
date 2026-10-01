@@ -1698,10 +1698,11 @@ class SnapshotLightcone():
             # range that snapshot (all its tiles alike) was assigned
             tiles_by_snap = {}
             snap_z_range = {}
+            tile_z_range = {}
+
             for record in self.last_snapshot_read:
                 tiles_by_snap.setdefault(record.snap_nr, []).append(record.tile)
                 #snap_z_range.setdefault(record.snap_nr, record.z_updated)
-                
                 tile_z_range[(record.snap_nr, record.tile)] = record.z_updated
                 z_lo, z_hi = snap_z_range.get(record.snap_nr, record.z_updated)
                 snap_z_range[record.snap_nr] = (min(z_lo, record.z_updated[0]), max(z_hi, record.z_updated[1]))
@@ -1835,6 +1836,8 @@ class SnapshotLightcone():
                 continue
 
             self._log(f"\nReading SOAP halos for snapshot {snap_nr}\n", level=2)
+            nr_kept_before = sum(len(a) for a in kept_snap_nr)
+            
             halo_data = halo_cat.read(snap_nr, to_read)
             halo_index = halo_data["InputHalos/HaloCatalogueIndex"].value.astype(int)
             if halo_index.shape[0] == 0:
