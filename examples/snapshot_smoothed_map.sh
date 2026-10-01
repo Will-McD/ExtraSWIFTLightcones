@@ -35,7 +35,7 @@ output_dir=./example_outputs/smoothed_maps/${box_res}/${sim_name}
 
 mkdir -p "${output_dir}"
 
-mpirun -np 12 -- python3 -m mpi4py ./examples/make_smoothed_map_from_snapshot.py \
+mpirun -np 12 -- python3 -m mpi4py ./examples/snapshot_smoothed_map.py \
     --box_res="${box_res}" \
     --sim_name="${sim_name}" \
     --zmin=${zmin} \

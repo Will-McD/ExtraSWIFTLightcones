@@ -2,7 +2,6 @@
 import numpy as np
 import unyt
 import h5py
-import argparse
 from collections import namedtuple
 from scipy.interpolate import CubicSpline
 from scipy.optimize import brentq
@@ -1837,7 +1836,7 @@ class SnapshotLightcone():
 
             self._log(f"\nReading SOAP halos for snapshot {snap_nr}\n", level=2)
             nr_kept_before = sum(len(a) for a in kept_snap_nr)
-            
+
             halo_data = halo_cat.read(snap_nr, to_read)
             halo_index = halo_data["InputHalos/HaloCatalogueIndex"].value.astype(int)
             if halo_index.shape[0] == 0:

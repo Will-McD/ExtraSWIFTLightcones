@@ -82,17 +82,17 @@ class BeamProjection:
         
         self.slice_thickness = None if slice_thickness is None else apply_expected_units(slice_thickness, unyt.Mpc) # size on z-axis
         
+        self._make_empty_flags()
+
+
+        if store_snapshot_filename is not None:
+            self._snapshot_filename=store_snapshot_filename
+        
         # try apply cosmology 
         if isinstance(cosmology, str):
             cosmology = Snapshot_Cosmology_For_Lightcone(cosmology).COSMO
 
         self.cosmology = cosmology
-       
-
-        self._make_empty_flags()
-
-        if store_snapshot_filename is not None:
-            self._snapshot_filename=store_snapshot_filename
 
     def _make_empty_flags(self,):
         """
@@ -225,7 +225,7 @@ class BeamProjection:
         
         if self.in_slice_boolean[ptype] is None or self.particle_data[ptype] is None:
             print(f"No {ptype} particles in slice, cannot add {dset_name}")
-        
+            return
         if len(dset) != len(self.in_slice_boolean[ptype]):
             print("incorrect size of dataset")
             return
@@ -369,6 +369,9 @@ class BeamProjection:
         if snapshot_filename is not None:
             if snapshot_filename != self._snapshot_filename:
                 self._snapshot_filename = snapshot_filename
+        
+        if self._snapshot_filename is None:
+            raise ValueError("'snapshot_filename' must be passed or already given as 'store_snapshot_filename' when creating the BeamProjection")
 
         if weight is None:
             return self._project(list(project_particle_properties), self._snapshot_filename, resolution, assign_units, ptype, periodic, parallel)

@@ -3,7 +3,6 @@ import numpy as np
 import unyt
 import lightcone_io.particle_reader as pr
 from extra_swift_lightcones.lightcone_projections import BeamProjection
-from extra_swift_lightcones.snapshot_units import apply_expected_units
 import cmasher as cmr # noqa: F401 registers the "cmr.*" colour maps used by name
 from pathlib import Path
 

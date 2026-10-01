@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import re
+from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_redshifts, environment_data_dir
 
 
 def flamingo_snapshot_redshift(boxsize_resolution):   
@@ -204,12 +205,6 @@ def snapshot_redshift_range(snapshot_number, boxsize_resolution=None, use_colibr
     return edges[snapshot_number + 1], edges[snapshot_number]
 
 
-# access the flamingo shell redshifts if downloaded and placed in virtual environment from ./venv_scripts/shell_redshifts.sh
-_REDSHIFT_FILES = {
-    "L1":   ("L1_REDSHIFTS_FILENAME",   "L1_shell_redshifts_z3.txt"),
-    "L2p8": ("L2P8_REDSHIFTS_FILENAME", "L2p8_shell_redshifts_z5.txt"),
-}
-
 
 # FLAMINGO shell redshift files, downloaded into the Python environment by extra_swift_lightcones-configure
 def flamingo_shell_redshift_file(box, download=True):
@@ -261,40 +256,6 @@ def flamingo_shell_redshift_file(box, download=True):
         f"FLAMINGO shell redshifts for {box} not found (looked in: "
         f"{[p for p in candidates if p]}).{download_error} Run extra_swift_lightcones-configure "
         f"on a machine with internet access, or set {env_name} to the path of the file"
-    )
-
-def flamingo_shell_redshift_file(box):
-    """
-    Returns the absolute path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or 2800 Mpc ("L2p8") box sidelength simulations.
-    Checks, in order:
-        1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
-        2. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
-    
-    Raises FileNotFoundError if neither exists.
-
-    :param  box:    simulation box, "L1" or "L2p8"
-    :type   box:    str
-    """
-    if box not in _REDSHIFT_FILES:
-        raise ValueError(f"box must be one of {list(_REDSHIFT_FILES)}, got {box!r}")
-    env_name, filename = _REDSHIFT_FILES[box]
-    #
-    candidates = [os.environ.get(env_name)]
-    #
-    # interactive session work around, _file__ only exists when this code lives in a .py
-    module_file = globals().get("__file__")
-    if module_file is not None:
-        package_dir = os.path.dirname(os.path.abspath(module_file))
-        candidates.append(os.path.join(package_dir, "..", "data", "redshifts", filename))
-    #
-    for path in candidates:
-        if path and os.path.isfile(path):
-            return os.path.abspath(path)
-    #
-    raise FileNotFoundError(
-        f"FLAMINGO shell redshifts for {box} not found (looked in: "
-        f"{[p for p in candidates if p]}). Set {env_name} or run "
-        "additional_scripts/flamingo_shell_redshifts.sh"
     )
 
 

@@ -45,7 +45,7 @@ nshell=2
 # binning method
 bin_method="both"
 
-mpirun -- python3 -m mpi4py ./examples/M500crit_binary_mask.py "${halo_lc_dir}" "${soap_dir}" "${mask_filename}" "${output_dir}" ${SLURM_ARRAY_TASK_ID} \
+mpirun -- python3 -m mpi4py ./examples/lightcone_halo_M500c_binary_masks.py "${halo_lc_dir}" "${soap_dir}" "${mask_filename}" "${output_dir}" ${SLURM_ARRAY_TASK_ID} \
     --nside=${nside} \
     --nshell=${nshell} \
     --bin_method="${bin_method}" \
