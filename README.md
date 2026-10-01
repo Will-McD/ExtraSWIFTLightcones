@@ -1,6 +1,6 @@
 # ExtraSWIFTLightcones
 
-This module provides additional tools for the post-processing and visualisation of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) lightcones. Specifically, this module provides the tools to generate new lightcones from the swift snapshots or  to either [LightconeIO]([https://github.com/jchelly/LightconeIO](https://lightconeio.readthedocs.io/en/latest/#)) and [SWIFTsimIO](https://swiftsimio.readthedocs.io/en/latest/), therefore it requires the both the aforementioned packages 
+This module provides additional tools for the post-processing and visualisation of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) lightcones. This module provides the tools to generate new lightcones from the SWIFT snapshots, and, project, plot and post process lightcones. It builds on [LightconeIO]([https://github.com/jchelly/LightconeIO](https://lightconeio.readthedocs.io/en/latest/#)) and [SWIFTsimIO](https://swiftsimio.readthedocs.io/en/latest/), which it requires.
 
 Further information about the FLAMINGO lightcones: https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html
 
@@ -10,7 +10,7 @@ Both download the FLAMINGO lightcone shell redshift files into the environment a
 
 ### New virtual environment
 
-From anywhere, make a virtual environment with ExtraSWIFTLightcones (in editable mode), the dependencies of the package, [examples](./examples) and tests, and the shell redshift files
+From anywhere, make a virtual environment with ExtraSWIFTLightcones (in editable mode), the dependencies of the package, [examples](./examples) and tests, and the shell redshift files:
 
 ```
 git clone https://github.com/Will-McD/ExtraSWIFTLightcones.git
@@ -20,14 +20,14 @@ source /path/to/environment/bin/activate
 
 If no path is given the environment is made in `ExtraSWIFTLightcones/extra_swift_lightcones_env`.
 
-On COSMA, build the virtual environment with the pre-built wheels of mpi4py and h5py for COSMA's MPI and parallel HDF5 instead 
+On COSMA, build the virtual environment with the pre-built wheels of mpi4py and h5py for COSMA's MPI and parallel HDF5 instead:
 
 ```
 bash ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh /path/to/environment
 ```
 ### Existing environment
 
-With your environment (venv or conda) activated, install the package and its requirements, then download the shell redshift files 
+With your environment (venv or conda) activated, install the package and its requirements, then download the shell redshift files:
 
 ```
 cd ExtraSWIFTLightcones
@@ -39,21 +39,25 @@ extra_swift_lightcones-configure
 
 Use `pip install -e .` for an editable install while developing.
 
-`extra_swift_lightcones-configure` downloads the shell redshift files to `<environment>/share/extra_swift_lightcones/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). Re-activate the environment to set them. Running it again is safe, use `--force` to download the files again, `--dest_dir` to download them somewhere else and `--no_activate` to leave the activate script unchanged. 
+`extra_swift_lightcones-configure` downloads the shell redshift files to `<environment>/share/extra_swift_lightcones/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). 
+Re-activate the environment to set them. 
+Note, to downlaod the shell redshift .txt files else where use `--dest_dir` and `--no_activate` to leave the activate script unchanged.
 
-pip itself can't run a step after installing a package, so if `extra_swift_lightcones-configure` isn't run the files are downloaded the first time they are needed instead. Compute nodes often have no internet access, so run it on a login node before submitting jobs.
+If `extra_swift_lightcones-configure` isn't run the lightcone shell redshifts are downloaded the first time they are needed instead.
+
 
 ### MPI support
 
-To install mpi4py with MPI support requires mpi4py and an MPI enabled build of h5py. This is necessary for the full use of the SnapshotLightcone class, BeamProjection class and generating binary masks of haloes (mask_halos.py). 
+MPI support is not required to generate new lightcones from snapshots with the `SnapshotLightcone` classes, however it is necessary for the full, more efficent, use of the `SnapshotLightcone` classes, the `BeamProjection` class and for generating binary masks of haloes (`mask_haloes.py`).
 
+MPI support requires mpi4py and an MPI enabled build of h5py. 
 The mpi4py package installed from PyPI needs an MPI library at run time. If your system has none (e.g. on a laptop), install one into the environment with `pip install mpich` (or `pip install openmpi`). `extra_swift_lightcones-configure` doesn't need MPI.
 
-See instructions for installing lightconeIO with MPI support: [LightconeIO with MPI support](https://lightconeio.readthedocs.io/en/latest/installation.html#with-mpi-support)
+See the instructions for installing LightconeIO with MPI support: [LightconeIO with MPI support](https://lightconeio.readthedocs.io/en/latest/installation.html#with-mpi-support)
 
 ### Additional Data 
 
-To add the shell redshift files to another existing environment 
+To add the shell redshift files to another existing environment:
 
 ```
 bash ExtraSWIFTLightcones/venv_scripts/shell_redshifts.sh /path/to/environment
@@ -69,32 +73,192 @@ bash venv_scripts/healpix_pixel_weights.sh
 
 ## Generating Lightcones from SWIFT Snapshots
 
-The `SnapshotLightcone` class is used to create particle lightcones from SWIFT snapshots. The output data is structured the same as given by `lightcone_io.ParticleLightcone` class objects. 
-The `SnapshotLightcone` builds new unique lightcones by slicing together snapshots boxes. An observer is positioned with the snapshot box and the snapshot particle data used to populate the lightcone is determined purley via the comoving distance from the observer. 
 
-These snapshot lightcones can be built in two different ways given by the `SnapshotBeam` class and `SnapshotAllSky` class. The former is used to produce a beam with an angular radius of 60 degrees, whislt the latter produces a lightcone for the full celestial sphere. 
+The `SnapshotLightcone` classes build new lightcones from SWIFT snapshots by tiling periodic copies of the snapshot box around an observer, who sits at the centre of the first box. We refer to these periodic replicas as tiles. 
+As the observers past lightcone propergates through the lattice of tiles, the lightcone is filled with particles (and/or haloes) from the snapshot closest in redshift, as chosen by the comoving distance from the observer.
+The snapshot particles (and haloes) placed in the lightcone (`place_snapshot_particles_in_shell`) are returned with the same strucure, for each particle type, as given by `lightcone_io.ParticleLightcone` class objects. The returned snapshot-lightcone particles always have the following properties: 
+- `Coordinates`:        the lightcone-frame x,y,z coordinates of the particles
+- `ExpansionFactors`:   the particles scale factor ($`\frac{1}{z+1}`$) at their comoving distance from the observer
+- `SnapshotNumber`:     the number of the snapshot the particle belongs too.
+
+The reading and placing of particles into the lightcone is done first at the cell-level of the SWIFT snapshots. The cells from a given snapshot that overlap with the lightcones footprint (including a $`1/2`$ cell length buffer) are flagged, then only the particles within the flagged cells are read from the corresponding SWIFT snapshot .hdf5 files. 
+Note, passing an MPI communicator (`comm`) reads the snapshot files in parallel.
+To limit memory use, the files containg particles within the lightcones footprint can also be gathered and read from one at a time to place particles in the lightcone (`gather_files` and `place_file_in_shell`).  
+Haloes from SOAP catalogues can be placed in the same lightcone (`place_halos_in_shell`), and points can be mapped between the snapshot and the lightcone (`Snapshot2Lightcone` and `Lightcone2Snapshot`).
+
+### Snapshot-to-lightcone methods
+
+There are two subclasses of snapshot lightcones
+
+- `SnapshotBeam` builds a beam about a line of sight (`beam_vector`, a unit vector), with an angular radius up to 60 degrees. Box tiles are added along the line of sight as the lightcone extends past each tile, and transverse to the line-of-sight once the beam surpases the width of a tile.
+- `SnapshotAllSky` builds a lightcone over the full sky, adding shells of box tiles around the observer's box as the lightcone extends: a single box, then a 3×3×3 cube of boxes, then 5×5×5, and so on.
+
+The box tiles sit on the lattice of whole box sidelengths, so they fill the lightcone exactly once in any direction.
+
+#### Place snapshot particles into a past lightcone
+
+For example, to place the gas and dark matter particles of an all-sky shell, reading the snapshot files in parallel with MPI:
+
+```python
+from mpi4py import MPI
+from extra_swift_lightcones import SnapshotAllSky
+
+SAllSky = SnapshotAllSky(
+    boxsize_resolution="L1000N1800",
+    simulation_name="HYDRO_FIDUCIAL",
+    orientation_seed=0,          # reproduces the same box orientations
+    orientation_lock="cube",     # None, "cube" or "sphere", see below
+)
+shell_particles = SAllSky.place_snapshot_particles_in_shell(
+    lightcone_redshift_range=(0.05, 0.1),
+    property_names=["Masses", "Temperatures"],
+    particle_types=["PartType0", "PartType1"],
+    comm=MPI.COMM_WORLD,         # leave out to read in serial
+)
+
+gas = shell_particles["PartType0"]
+gas["Coordinates"]       # lightcone positions, with the observer at the origin
+gas["ExpansionFactors"]  # expansion factor at each particle's distance from the observer
+gas["SnapshotNumber"]    # snapshot each particle was taken from
+```
+
+`Coordinates` and `ParticleIDs` (plus `SmoothingLengths` for particles other than dark matter) are always read. To limit memory use in serial, the files can be placed one at a time instead:
+
+```python
+numb_files, _ = SAllSky.gather_files("PartType1", shell_z=(0.05, 0.1))
+for file_number in range(numb_files):
+    file_particles = SAllSky.place_file_in_shell(file_number, "PartType1", ["Masses"])  # {} if none are kept
+```
+
+`SnapshotBeam` is used in the same way, with a `beam_vector` when it is created and the beam's angular radius (`ang_radius_deg`) passed to each of these methods.
 
 
-`SnapshotBeam` constructs a lightcone by continously adding snapshot boxes along the beams line of sight, where for every time the observers past lightcone surpases one snapshot sidelength, new snapshot boxes are added along the line of sight to extened the lightcone. 
+### Orientation of the snapshot box tiles
 
-`SnapshotAllSky` constructs a lightcone by continously adding additional layers or shells of snapshot boxes about the observer every time the observers past lightcone surpases one snapshot sidelength. e.g. starting from one snapshot box the next layer will be a 3x3 cube, followed by a 5x5 cube and so on. 
+To avoid exact copies of the same structure along a line of sight, each box tile is re-oriented at the level of the SWIFT cells. In order:
 
-### Orientation and structure of additional snapshot layers.
-In both methods for each additional layer of snapshots added we re-orientate (or restructure) the snapshot at the SWIFT cell level to avoid exact replications of the same structure along a given line of sight. This restructuring is done by: 
-    1. Applying a random periodic shift, along each axis, to the snapshot cells (and all particles within each cell), essentially giving the snapshot a 'new' structure. The shift is the size of either 0, 4, 8 or 16 cells. 
-    2. Randomly mirroring the new snapshots coordinates about each axis
-    3. Randomly rotating the snapshot by -90, 0, 90 or 180 degrees about each axis
+1. a periodic shift of the cells (and all the particles in them) along each axis, of 0, ±4, ±8 or ±16 cells, giving the box a 'new' structure,
+2. a reflection (or mirroring) about each axis,
+3. a rotation about each axis by a multiple of 90 degrees.
 
-We control how these re-oritentations are applied per snapshot side length with the `orientation_lock` parameters when initialising each method.  
-`orientation_lock='none'`:      Every new snapshot box added has its own unique orientation, this creates discontinuties across all faces of each snapshot box added into the lightcone. Computationally the fastest but creates the most discontinuties, it is the best method for small lightcone beams or all-sky lightcones. 
+The total number of unqiue orientations or snapshot box structures is $`N_{\mathrm{shifts}}^3 \times 48`$, where $`N_{\mathrm{shifts}}`$ is the number of unique periodic shifts. 
+For a SWIFT simulation with a cosmological volume subdivided into $`32\times32\times32`$ cells, there are a 16464 possible unique tiles. 
 
-`orientation_lock='sphere'`:    Apply the same orientation in sphereical layers ($`n`$), where each layer is computed as $`(n−½)L ≤ r < (n+½)L`$. A box crossing a spherical layer is used twice, once with each layer's orientation, and each copy keeps only the particles on its own side. The advantage is that each layer sits within it's own redshift range, but is computationally more expensive and can create instances of the same objects within a given snapshot appearing twice.  
+Which shift, reflection and rotation a tile gets is set by its position and the random number seed `orientation_seed`, so a lightcone can be reproduced exactly.
+[`show_snapshot_box_reorientation.py`](./examples/show_snapshot_box_reorientation.py) builds a diagram of how the cells of a box are moved by each step:
 
-`orientation_lock='cube'`:      Apply the same orientation in cubic layers ($`n`$), where each layer is computed as $`max(|r_x|, |r_y|, |r_z|) = n`$. Hence every layer is along a snapshots box face and no boxes are ever split across layers like in the sphereical model. However the boundary between lays is no longer defined by a set radius or redshift, instead the layers vary between 
-$`(n+½)L`$ to $`(n+½)·1.73L`$ as the line of sight moves the mid point to the corners of a box. 
+```
+python3 examples/show_snapshot_box_reorientation.py
+```
 
-Within each flavor of `orientation_lock` the random selection of periodic shifts, mirroring and rotations is can be controlled by random number seed, `orientation_seed`. For the same lock and seed, the full-sky lightcone given by `SnapshotAllSky` can be reproduced by different pointings of the beam from `SnapshotBeam`. 
+
+The `orientation_lock` parameter of `SnapshotLightcone` (and sub-classes) sets which tiles share an orientation:
+
+- `orientation_lock=None` (or `"none"`, the default): every box tile has its own unique orientation, so discontinuities occur at every face of every tile in the lightcone. This creates the most discontinuities. 
+- `orientation_lock="cube"`: every box in the same cube shell of boxes around the observer's box shares one orientation. Shell $`n`$ holds the tiles with $`n=\max(|n_x|, |n_y|, |n_z|)`$, where $`(n_x, n_y, n_z)`$ is the position of the box in box sidelengths. The orientation only changes across tile faces, a single tile is always completley within a single layer, and computationally the cost is the same as without a lock. However, the boundary between shells is not at one distance or redshift: it ranges from $`(n+½)L`$ along an axis to $`(n+½)\sqrt{3}L`$ along a box diagonal.
+- `orientation_lock="sphere"`: everything in the same spherical shell, $`(n−½)L ≤ r < (n+½)L`$, shares the same orientation, so each shell covers its own redshift range. A tile crossing a sphere is used twice, once with each shell's orientation, and each copy keeps only the particles on its own side. This is more expensive, as those tiles are read twice, and the same region of a snapshot can appear in both shells, at different positions and orientations.
+
+Within a locked shell the tiles are periodically continuous, so structures continue across the faces between them. With the `"cube"` or `"sphere"` lock and the same `orientation_seed`, a beam from `SnapshotBeam` is exactly the same as the matching patch of the `SnapshotAllSky` lightcone, whichever way it points. Without a lock this is not the case.
+
+The diagram made by [`show_snapshot_orientation_lock.py`](./examples/show_snapshot_orientation_lock.py) shows which box tiles share an orientation for each lock, for an all-sky lightcone and for beams on and off the box axes:
+
+```
+python3 examples/show_snapshot_orientation_lock.py
+```
+
+
 
 ## Projections
 
-## Additional tools
+`BeamProjection` makes projections of a slice through a beam of a lightcone using [`swiftsimio.visualisation.projection`](https://swiftsimio.readthedocs.io/en/latest/visualisation/projection.html) submodule backends. The particles can come from the FLAMINGO particle lightcones (a path, or `lightcone_io` particle data) or from a `SnapshotBeam`. The beam is rotated to lie along the x-axis, and the particles in its redshift range and in a slice `slice_thickness` thick through the middle of the beam (along z) are kept. The slice is projected with SWIFTsimIO, through a mock snapshot that takes its metadata (units, box size, cosmology) from a real snapshot of the simulation. Gas uses its own smoothing lengths, and smoothing lengths are generated for dark matter.
+
+```python
+from extra_swift_lightcones import BeamProjection
+
+BP = BeamProjection(
+    vector=(1, 0, 0),                           # direction of the beam
+    angular_diameter=10,                        # [deg]
+    redshift_range=(0.01, 0.1),
+    slice_thickness=10,                         # [Mpc]
+    store_snapshot_filename=snapshot_filename,  # snapshot used for the metadata and cosmology
+)
+
+# place the gas and dark matter particles of the beam in the slice
+BP.place_particles_in_slice(
+    gas_particle_data, ["Coordinates", "Masses", "SmoothingLengths", "ExpansionFactors", "Temperatures"],
+    dm_particle_data=dm_particle_data, dm_property_names=["Coordinates", "Masses", "ExpansionFactors"],
+)
+
+# surface densities, and a mass weighted mean
+gas_surface_density = BP.project_properties(["Masses"], ptype="Gas", assign_units=["Msun"])[0]
+dm_surface_density = BP.project_properties(["Masses"], ptype="DM", assign_units=["Msun"])[0]
+total_surface_density = gas_surface_density + dm_surface_density
+gas_temperature = BP.project_properties(["Temperatures"], ptype="Gas", weight="Masses")[0]
+```
+
+`project_properties` returns one image per property (`unyt` arrays):
+
+- **Default:** the surface density of each property.
+- **With `weight`:** the weighted mean, sum(q w) / sum(w), and 0 where there is no weight.
+- **Other options:** `resolution` sets the number of pixels along each axis, and `periodic` (default True) treats the box as periodic. `parallel` uses SWIFTsimIO's parallel projection backend. Other properties can be added to the slice with `add_property_to_slice`.
+
+### Plotting beams
+
+`split_beam_plot` draws the beam as a wedge in comoving distance and angle, with redshift, comoving distance and angle axes. The beam can be split into several wedges along the angle, each showing a different image, e.g. gas, total and dark matter:
+
+```python
+images = [image.to_value("Msun/Mpc**2") for image in (gas_surface_density, total_surface_density, dm_surface_density)]
+fig, ax, wedge_images = BP.split_beam_plot(
+    3,
+    [[image, (vmin, vmax)] for image in images],   # each wedge's image and colour range
+    ["magma", "cubehelix", "viridis"],
+    titles=["Gas", "Gas+DM", "DM"],
+    norms=["log", "log", "log"],           # or "linear", or any matplotlib Normalize, "log" by default
+    overlay_grid=(False, False, False),    # grid lines at the redshift, distance and angle ticks
+    filename="beam.png",
+)
+```
+
+It draws onto a new figure or onto an existing axes and returns the figure, the axes and the image of each wedge. Other keyword arguments style the wedges, ticks, labels and grid lines (see `BeamPlot.add_wedge` and `BeamPlot.add_beam_axes`). 
+The plotting is done by `BeamPlot`, which can also be used on its own with a cosmology, angular diameter, redshift range and the extent of the images.
+
+See [`lightcone_beam_projection.py`](./examples/lightcone_beam_projection.py) for beams of the FLAMINGO particle lightcones, and [`snapshot_beam_projection.py`](./examples/snapshot_beam_projection.py) for beams built from the snapshots.
+
+
+
+## Examples
+
+The [examples](./examples) are named after the data they start from: `snapshot_` examples build new lightcones from the snapshots, `lightcone_` and `map_` examples use the existing FLAMINGO lightcone particles, maps and haloes, and `show_` examples draw diagrams that need no data.
+
+| Example | What it does |
+|---|---|
+| `snapshot_beam_projection.py` | builds a `SnapshotBeam` of gas particles for each orientation lock and projects a slice through it, to compare the locks |
+| `snapshot_beam_particle_placement.py` | places snapshot particles in beams pointing in different directions, reading the files in chunks, and plots them against the geometry of the beam |
+| `snapshot_beam_halo_placement.py` | places haloes from the SOAP catalogues in a `SnapshotBeam` |
+| `snapshot_smoothed_map.py` / `.sh` | makes an all-sky HEALPix map of the smoothed gas mass from the snapshots, in parallel with MPI, with a job script |
+| `lightcone_beam_projection.py` | projects slices through a beam of FLAMINGO lightcone particles: the gas, dark matter and total surface density, and the mass weighted gas temperature |
+| `lightcone_halo_M500c_binary_masks.py` / `.sh` | makes binary HEALPix masks of the haloes in the lightcone within their M500c radius, with a job script |
+| `integrated_lightcone_map.py` | integrates the rotated FLAMINGO HEALPix shell maps over a redshift range |
+| `map_zoom_on_halo.py` | reads only the pixels of a HEALPix map around a halo and images them with a gnomonic projection |
+| `show_snapshot_box_reorientation.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
+| `show_snapshot_orientation_lock.py` | shows which box tiles share an orientation for each `orientation_lock`, for all-sky and on and off axis beams |
+
+
+## Additional utility functions: 
+
+### Snapshots, redshifts and units
+
+- `swift_snapshot_redshift_conversion`:
+  - **Snapshot redshifts:** `snapshot_number_redshifts` gives the redshift of FLAMINGO (and COLIBRE) snapshots, or the snapshot at a redshift. `snapshot_redshift_range` gives the redshift range each snapshot covers, and `snapshot_number_in_range` the snapshots whose ranges overlap a redshift range.
+  - **Other:** `flamingo_shell_redshift_file` finds the shell redshift files, downloading them if needed. `flamingo_box_resolution` reads the box and resolution label (e.g. `L1000N1800`) from a path.
+- `snapshot_units`:
+  - **Applying units:** `apply_expected_units` gives values the expected units, if they have none. `drop_a_from_comoving_property` gives comoving lengths in snapshot units without the scale factor.
+  
+
+### HEALPix maps (`healpix_map_utils`)
+
+- `get_related_ipix` gives the parent (lower resolution) or child (higher resolution) pixels of HEALPix pixels. `get_common_maps` lists the maps found in all of a set of files.
+- `write_rotated_lightcone_chunks` integrates the FLAMINGO HEALPix shell maps along the line of sight, as in [`integrated_lightcone_map.py`](./examples/integrated_lightcone_map.py). The shells are rotated by their own angles (`theta_arr_deg`, `phi_arr_deg`), so it sums each group of shells sharing the same angles into a chunk, rotates the chunk, and writes the sum of all chunks. It can also save each chunk (`save_chunks`), work at a different `rotate_nside` or `output_nside`, and convert units before rotating.
+- `rotate_map` and `rotate_map_fast` rotate a map in spherical harmonic space. The fast version uses the HEALPix pixel weights (see [Additional Data](#additional-data)), and `write_rotated_lightcone_chunks` uses it when they are available for that nside.
+- `sum_maps` writes a new file with the sum of the same maps across several files. `map_names=["common"]` uses every map found in all the files.
+

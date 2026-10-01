@@ -1896,10 +1896,16 @@ class SnapshotBeam(SnapshotLightcone):
         :param  verbose:            amount printed. 0: nothing, only warnings. 1: a summary of each call. 
                                         2: details of every snapshot, box tile and file
         :type   verbose:            int
-        :param  orientation_lock:           None: every box tile has its own orientation. "cube": every box tile 
-                                            in a cube shell of boxes around the observer's box shares one 
-                                            orientation, so each shell is periodically continuous and the 
-                                            orientation only changes on the faces between shells
+        :param  orientation_lock:           "none":   every box tile has its own orientation. 
+                                            "cube": every box tile in a cube shell of boxes around the observer's box shares one 
+                                                orientation, so each shell is periodically continuous and the 
+                                                orientation only changes on the faces between shells. 
+                                            "sphere": 
+                                                everything in a spherical shell, between (n-1/2) and (n+1/2) box 
+                                                sidelengths from the observer, shares one orientation, so the 
+                                                orientation only changes at those distances. A box crossing a 
+                                                sphere is used once for each shell, and tiles are labelled 
+                                                (nx, ny, nz, layer)
         :type   orientation_lock:           str
         """
         super().__init__(boxsize_resolution, simulation_name, beam_vector, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock)
@@ -2236,10 +2242,16 @@ class SnapshotAllSky(SnapshotLightcone):
         :param  verbose:            amount printed. 0: nothing, only warnings. 1: a summary of each call. 
                                         2: details of every snapshot, box tile and file
         :type   verbose:            int
-        :param  orientation_lock:           None: every box tile has its own orientation. "cube": every box tile 
-                                            in a cube shell of boxes around the observer's box shares one 
-                                            orientation, so each shell is periodically continuous and the 
-                                            orientation only changes on the faces between shells
+        :param  orientation_lock:           "none":   every box tile has its own orientation. 
+                                            "cube": every box tile in a cube shell of boxes around the observer's box shares one 
+                                                orientation, so each shell is periodically continuous and the 
+                                                orientation only changes on the faces between shells. 
+                                            "sphere": 
+                                                everything in a spherical shell, between (n-1/2) and (n+1/2) box 
+                                                sidelengths from the observer, shares one orientation, so the 
+                                                orientation only changes at those distances. A box crossing a 
+                                                sphere is used once for each shell, and tiles are labelled 
+                                                (nx, ny, nz, layer)
         :type   orientation_lock:           str
         """
         
