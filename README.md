@@ -31,18 +31,14 @@ With your environment (venv or conda) activated, install the package and its req
 
 ```
 cd ExtraSWIFTLightcones
-pip install .                 # the package and its requirements
-pip install ".[examples]"     # also the requirements of the examples
-pip install ".[all]"          # also the requirements of the examples and tests
+pip install -e .              # the package and its requirements
+pip install ".[examples]"     # + the requirements of the examples
+pip install ".[all]"          # + the requirements of the examples and tests
 extra_swift_lightcones-configure
 ```
 
-Use `pip install -e .` for an editable install while developing.
 
-`extra_swift_lightcones-configure` downloads the shell redshift files to `<environment>/share/extra_swift_lightcones/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). 
-Re-activate the environment to set them. 
-Note that to download the shell redshift .txt files else where use `--dest_dir` and `--no_activate` to leave the activate script unchanged.
-
+`extra_swift_lightcones-configure` downloads the shell redshift .txt files to `<environment>/share/extra_swift_lightcones/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). 
 If `extra_swift_lightcones-configure` isn't run, the lightcone shell redshifts are downloaded the first time they are needed instead.
 
 
