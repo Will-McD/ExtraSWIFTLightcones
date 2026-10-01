@@ -6,7 +6,14 @@ import unyt.dimensions as dim
 
 def apply_expected_units(x, expected_units):
     """
-    Convert input to expected units. 
+    Convert input to expected units. If the input has no units, the expected units are applied.
+
+    Returns the input as a unyt.unyt_array or unyt.unyt_quantity in the expected units.
+
+    :param  x:              value(s) to convert
+    :type   x:              int, float, list, np.ndarray, unyt.unyt_quantity or unyt.unyt_array
+    :param  expected_units: units to convert to
+    :type   expected_units: unyt.Unit
     """
     # check if output spectrum has units
     if hasattr(x, "units") or isinstance(x, unyt.unyt_array):
@@ -26,18 +33,22 @@ def apply_expected_units(x, expected_units):
 
 def astropy_to_unyt(a):
     """
-    convert astropy unit array to unyt_array
+    Convert an astropy array with units to a unyt_array.
+
+    :param  a:  array with astropy units
+    :type   a:  astropy.units.Quantity
     """
     return unyt.unyt_array.from_astropy(a)
 
 def snapshot_unit_metadata(snap):
     """
-        Extract the plain-float metadata needed to build a snapshot's unit
-        registry: physical constants, cosmology, and the Units/InternalCodeUnits
-        CGS conversion factors.
-        
-        Return
-        Plain dicts of Python floats/strings (no unyt objects)
+    Extract the plain-float metadata needed to build a snapshot's unit registry: 
+    physical constants, cosmology, and the Units/InternalCodeUnits CGS conversion factors.
+
+    Returns plain dicts of Python floats/strings (no unyt objects).
+
+    :param  snap:   open snapshot file
+    :type   snap:   h5py.File
     """
     physical_constants_cgs = {name: float(value[0]) for name, value in snap["PhysicalConstants/CGS"].attrs.items()}
     cosmology = {name: float(value[0]) for name, value in snap["Cosmology"].attrs.items()}
@@ -52,7 +63,14 @@ def snapshot_unit_metadata(snap):
     }
 
 def unit_registry_from_metadata(metadata):
-    
+    """
+    Create a unyt UnitRegistry from the metadata extracted by snapshot_unit_metadata.
+
+    Returns a unyt.unit_registry.UnitRegistry with the snapshot and code unit systems, a and h defined.
+
+    :param  metadata:   physical constants, cosmology and CGS unit conversion factors of the snapshot
+    :type   metadata:   dict
+    """
     
     # Create a new registry
     reg = unyt.unit_registry.UnitRegistry()
@@ -127,17 +145,22 @@ def unit_registry_from_metadata(metadata):
 def unit_registry_from_snapshot(snap):
     """
     Create a unyt UnitRegistry directly from an open snapshot file.
+
+    :param  snap:   open snapshot file
+    :type   snap:   h5py.File
     """
     return unit_registry_from_metadata(snapshot_unit_metadata(snap))
 
 def units_from_attributes(attrs, registry):
     """
-    Create a unyt.Unit object from dataset attributes
-
-    attrs: the SWIFT dataset attributes dict
-    registry: unyt unit registry with a, h and unit system for the snapshot
+    Create a unyt.Unit object from dataset attributes.
 
     Returns a unyt Unit object.
+
+    :param  attrs:      the SWIFT dataset attributes
+    :type   attrs:      dict
+    :param  registry:   unyt unit registry with a, h and unit system for the snapshot
+    :type   registry:   unyt.unit_registry.UnitRegistry
     """
     # Determine unyt unit for this quantity
     u = unyt.dimensionless
@@ -166,8 +189,6 @@ def units_from_attributes(attrs, registry):
     # Add expansion factor
     a_scale_exponent = attrs["a-scale exponent"][0]
     a_unit = unyt.Unit("a", registry=registry) ** a_scale_exponent
-    # Datasets in the FLAMINGO snapshots do not have a "Value stored as physical"
-    # attribute, so default to comoving in that case
     physical = attrs.get("Value stored as physical", [0])[0] == 1
     if (a_scale_exponent != 0) and (not physical):
         if u is unyt.dimensionless:
@@ -187,18 +208,21 @@ def units_from_attributes(attrs, registry):
     return unyt.Unit(u, registry=registry)
 
 def attributes_from_units(units, physical, a_exponent):
-
     """
-    Given a unyt.Unit object, generate SWIFT dataset attributes
+    Given a unyt.Unit object, generate SWIFT dataset attributes.
 
-    units: the Unit object
+    Returns a dict with the attributes.
 
-    Returns a dict with the attributes
+    :param  units:      the Unit object
+    :type   units:      unyt.Unit
+    :param  physical:   If True, the value is stored as physical rather than comoving
+    :type   physical:   boolean
+    :param  a_exponent: expansion factor exponent of the property. None if it cannot be converted to comoving
+    :type   a_exponent: float
     """
     attrs = {}
 
-    # Get CGS conversion factor. Note that this is the conversion to physical units,
-    # because unyt multiplies out the dimensionless a factor.
+    # Get CGS conversion factor. 
     cgs_factor, offset = units.get_conversion_factor(units.get_cgs_equivalent())
 
     # Get a exponent
@@ -238,8 +262,7 @@ def attributes_from_units(units, physical, a_exponent):
     attrs["U_T exponent"] = [float(powers[unyt.dimensions.temperature])]
     attrs["U_t exponent"] = [float(powers[unyt.dimensions.time])]
     attrs["h-scale exponent"] = [float(h_exponent)]
-    # Note that "a-scale exponent" is set even if the output is physical,
-    # or if the quantity can't be converted to comoving
+    # "a-scale exponent" is set even if the output is physical or if the quantity can't be converted to comoving
     attrs["a-scale exponent"] = [0.0 if a_exponent is None else a_exponent]
     attrs["Value stored as physical"] = [1 if physical else 0]
     attrs["Property can be converted to comoving"] = [0 if a_exponent is None else 1]
@@ -256,8 +279,20 @@ def drop_a_from_comoving_property(arr):
     Here we convert to units a*snap_length and reinterpret the numbers as
     just snap_length.
     """
+    """
+    Drop the a factor from the units of a comoving property without changing the value.
+
+    Coordinates in the lightcone are comoving but the expansion factor varies
+    so it cannot be explicitly included in the units as done with snapshots.
+    
+    e.g. lengths in units of a*snap_length are reinterpreted as just snap_length. 
+    
+    Supports lengths, densities, areas, volumes and pressures.
+
+    :param  arr:    comoving property in snapshot units
+    :type   arr:    unyt.unyt_array
+    """
     reg = arr.units.registry
-    #return arr.to("a*snap_length").value * unyt.Unit("snap_length", registry=reg)
 
     unit_str = str(arr.units)
     if unit_str == "a*snap_length": #lengths

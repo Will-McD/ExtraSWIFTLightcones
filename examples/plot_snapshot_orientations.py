@@ -59,11 +59,29 @@ COL_FINAL  = "grey"
 ###################################
 
 def rot_matrix_2d(angle_deg):
+    """
+    2D rotation matrix.
+
+    :param  angle_deg:  rotation angle [deg]
+    :type   angle_deg:  float
+    """
     a = np.deg2rad(angle_deg)
     c, s = np.round(np.cos(a), 8), np.round(np.sin(a), 8)
     return np.array([[c, -s], [s, c]])
 
 def transform_point(p, reflection, angle_deg, centre):
+    """
+    Reflect and then rotate a point about the centre.
+
+    :param  p:          point to transform
+    :type   p:          np.ndarray
+    :param  reflection: per-axis reflection signs (+1/-1)
+    :type   reflection: array-like, shape (2,)
+    :param  angle_deg:  rotation angle [deg]
+    :type   angle_deg:  float
+    :param  centre:     centre of the reflection and rotation
+    :type   centre:     float
+    """
     S = np.diag(reflection)
     R = rot_matrix_2d(angle_deg)
     M = R @ S                      # reflect first, then rotate (established convention)
@@ -72,13 +90,43 @@ def transform_point(p, reflection, angle_deg, centre):
 def wrap_point(p, shift, L):
     return np.mod(p + shift, L)
 
-def plot_transform_grid(examples, L=3.0, selected_cell_centre=(0.5, 0.5),
-                         ncols=3, nrows=None, figsize=(7,7), filename="./grid_transform_example.png"):
-    
+def plot_transform_grid(examples, L=3.0, selected_cell_centre=(0.5, 0.5), ncols=3, nrows=None, figsize=(7,7), filename="./grid_transform_example.png"):
+    """
+    Plot a grid of examples showing how a cell is repositioned by a periodic shift, reflection and rotation.
+
+    :param  examples:               (shift, reflection, rotation angle [deg]) of each example
+    :type   examples:               list
+    :param  L:                      side length of the box, in cells
+    :type   L:                      float
+    :param  selected_cell_centre:   centre of the cell to reposition
+    :type   selected_cell_centre:   tuple
+    :param  ncols:                  number of columns in the grid
+    :type   ncols:                  int
+    :param  nrows:                  number of rows in the grid. If None, use enough rows for all examples
+    :type   nrows:                  int
+    :param  figsize:                size of the figure
+    :type   figsize:                tuple
+    :param  filename:               path to write the plot to
+    :type   filename:               str
+    """
     centre = L / 2.0
     OUTLINE = [pe.Stroke(linewidth=2.5, foreground='black'), pe.Normal()]
     #OUTLINE=None
     def compute_all_steps(p0, shift, reflection, angle_deg):
+        """
+        Compute the position of the cell after each step of the repositioning.
+
+        Returns a tuple of (original, shifted, wrapped, reflected, rotated, final) positions.
+
+        :param  p0:         original position of the cell
+        :type   p0:         np.ndarray
+        :param  shift:      shift along each axis
+        :type   shift:      np.ndarray
+        :param  reflection: per-axis reflection signs (+1/-1)
+        :type   reflection: array-like, shape (2,)
+        :param  angle_deg:  rotation angle [deg]
+        :type   angle_deg:  float
+        """
         R = rot_matrix_2d(angle_deg)
         S = np.diag(reflection)
 

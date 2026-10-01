@@ -11,12 +11,16 @@ except ImportError:
 
 def _build_rotation_matrix(rot_angles, order="xyz", degrees=False):
     """
-    Build 3x3 rotation matrix
+    Build 3x3 rotation matrix.
 
-    order:      the order of axes that coordinates are rotated about 
-    rot_angles: (angle_x, angle_y, angle_z), radians unless degrees=True.
-    degrees:    Boolean, if true then angles are given in degrees
+    Returns the rotation matrix as a (3, 3) np.ndarray.
 
+    :param  rot_angles: (angle_x, angle_y, angle_z), radians unless degrees=True
+    :type   rot_angles: array-like, shape (3,)
+    :param  order:      the order of axes that coordinates are rotated about, a permutation of "x", "y", "z"
+    :type   order:      str
+    :param  degrees:    If True, then angles are given in degrees
+    :type   degrees:    boolean
     """
 
     rot_angles = np.asarray(rot_angles, dtype=np.float64)
@@ -56,6 +60,16 @@ if _HAVE_NUMBA:
     # simple rotation, no periodic shift of coordinates
     @njit(parallel=True, fastmath=True, cache=True)
     def _apply_rotation_numba(coords, R, out):
+        """
+        Rotate coordinates by the rotation matrix, writing into out.
+
+        :param  coords: coordinates, shape (N, 3)
+        :type   coords: np.ndarray
+        :param  R:      rotation matrix, shape (3, 3)
+        :type   R:      np.ndarray
+        :param  out:    output buffer, shape (N, 3)
+        :type   out:    np.ndarray
+        """
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[0, 1], R[0, 2]
         r10, r11, r12 = R[1, 0], R[1, 1], R[1, 2]
@@ -74,6 +88,20 @@ if _HAVE_NUMBA:
     # 2. rotate shifted coordinates
     @njit(parallel=True, fastmath=True, cache=True)
     def _apply_rotation_periodic_numba(coords, R, shift, L, out):
+        """
+        Periodically shift coordinates, then rotate them about the box centre, writing into out.
+
+        :param  coords: coordinates, shape (N, 3)
+        :type   coords: np.ndarray
+        :param  R:      rotation matrix, shape (3, 3)
+        :type   R:      np.ndarray
+        :param  shift:  shift along x, y, z
+        :type   shift:  np.ndarray
+        :param  L:      side lengths of the box along x, y, z
+        :type   L:      np.ndarray
+        :param  out:    output buffer, shape (N, 3)
+        :type   out:    np.ndarray
+        """
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[0, 1], R[0, 2]
         r10, r11, r12 = R[1, 0], R[1, 1], R[1, 2]
@@ -99,6 +127,20 @@ if _HAVE_NUMBA:
     # coordinates 
     @njit(parallel=True, fastmath=True, cache=True)
     def _apply_rotation_periodic_numba_inverse(coords, R, shift, L, out):
+        """
+        Inverse of _apply_rotation_periodic_numba, writing the original coordinates into out.
+
+        :param  coords: rotated coordinates, shape (N, 3)
+        :type   coords: np.ndarray
+        :param  R:      rotation matrix used in the forward rotation, shape (3, 3)
+        :type   R:      np.ndarray
+        :param  shift:  shift along x, y, z used in the forward rotation
+        :type   shift:  np.ndarray
+        :param  L:      side lengths of the box along x, y, z
+        :type   L:      np.ndarray
+        :param  out:    output buffer, shape (N, 3)
+        :type   out:    np.ndarray
+        """
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[1, 0], R[2, 0]
         r10, r11, r12 = R[0, 1], R[1, 1], R[2, 1]
@@ -127,32 +169,33 @@ def rotate_coords_cartesian(coords, rot_angles,
                    out=None, inplace=False,
                    invert=False
                    ):
+
     """
     Rotate Cartesian coordinates about the x, y, z axes. 
-    Uses a numba-compiled, parallelized loop when numba is available
-    (falls back to a plain NumPy matmul otherwise).
+    Uses a numba-compiled, parallelized loop when numba is available and falls back to NumPy matmul otherwise.
 
-    Params
-    
-        coords : ndarray, shape (N, 3)
-        rot_angles : array-like, shape (3,)
-            (angle_x, angle_y, angle_z), radians unless degrees=True.
-        reflections : array-like, shape (3,), optional
-            Per-axis reflection signs (+1/-1). Pass None for no reflection.
-        periodic_shift : array-like of int, shape (3,)
-            Shift along x, y, z.
-        sidelengths : float or array-like, shape (3,)
-            Side length of the snapshot box (scalar for cubic, or (3,).
-        order : str
-            Rotation composition order, a permutation of "x", "y", "z".
-        degrees : bool
-        out : ndarray, shape (N, 3), optional
-            Preallocated output buffer (avoids reallocation on repeated calls).
-        inplace : bool
-            If True, overwrite `coords` in place instead of allocating new memory.
+    Returns the rotated coordinates, shape (N, 3).
 
-    Returns
-        rotated : ndarray, shape (N, 3)
+    :param  coords:         coordinates, shape (N, 3)
+    :type   coords:         np.ndarray
+    :param  rot_angles:     (angle_x, angle_y, angle_z), radians unless degrees=True
+    :type   rot_angles:     array-like, shape (3,)
+    :param  reflections:    per-axis reflection signs (+1/-1). Pass None for no reflection
+    :type   reflections:    array-like, shape (3,)
+    :param  periodic_shift: shift along x, y, z. Must be given with sidelengths
+    :type   periodic_shift: array-like of int, shape (3,)
+    :param  sidelengths:    side length of the snapshot box (scalar for cubic, or (3,))
+    :type   sidelengths:    float or array-like, shape (3,)
+    :param  order:          rotation composition order, a permutation of "x", "y", "z"
+    :type   order:          str
+    :param  degrees:        If True, then angles are given in degrees
+    :type   degrees:        boolean
+    :param  out:            preallocated output buffer, shape (N, 3) (avoids reallocation on repeated calls)
+    :type   out:            np.ndarray
+    :param  inplace:        If True, overwrite coords in place instead of allocating new memory
+    :type   inplace:        boolean
+    :param  invert:         If True, apply the inverse of the rotation and periodic shift. Requires periodic_shift
+    :type   invert:         boolean
     """
     coords = np.asarray(coords, dtype=np.float64)
     if coords.ndim != 2 or coords.shape[1] != 3:
@@ -234,19 +277,18 @@ def rotate_coords_cartesian(coords, rot_angles,
 
 def random_angles(N, low=-180.0, high=180.0, seed=None):
     """
-    Generate an array random angles [deg] with shape (N, 3)
+    Generate an array of random angles [deg] with shape (N, 3).
 
-    Parameters
-    ----------
-    N : int
-        Number of rows.
-    low, high : float
-        Inclusive/exclusive bounds for the uniform distribution.
-    seed : int, optional
-        Seed for reproducibility. If None, uses fresh entropy each call.
-    Returns
-    -------
-    angles : ndarray, shape (N, 3)
+    Returns the angles as an np.ndarray, shape (N, 3).
+
+    :param  N:      number of rows
+    :type   N:      int
+    :param  low:    inclusive lower bound for the uniform distribution
+    :type   low:    float
+    :param  high:   exclusive upper bound for the uniform distribution
+    :type   high:   float
+    :param  seed:   seed for reproducibility. If None, uses fresh entropy each call
+    :type   seed:   int
     """
     rng = np.random.default_rng(seed)
     return rng.uniform(low, high, size=(N, 3))
@@ -254,20 +296,14 @@ def random_angles(N, low=-180.0, high=180.0, seed=None):
 
 def random_quater_turns(N, seed=None):
     """
-    Generate an array of random 90 (or pi/2) angles with shape (N, 3)
+    Generate random quarter turns (multiples of 90 deg, or pi/2) and reflections with shape (N, 3).
 
-    Parameters
-    ----------
-    N : int
-        Number of rows.
-    choices : array-like
-        The discrete set of values to sample from.
-    seed : int, optional
-        Seed for reproducibility. If None, uses fresh entropy each call.
+    Returns a tuple of (quarter turns in the range -2 to 2, reflection signs +1/-1), each an np.ndarray, shape (N, 3).
 
-    Returns
-    -------
-    result : ndarray, shape (N, 3)
+    :param  N:      number of rows
+    :type   N:      int
+    :param  seed:   seed for reproducibility. If None, uses fresh entropy each call
+    :type   seed:   int
     """
     rng = np.random.default_rng(seed)
     quater_turns =rng.choice([-2, -1, 0, 1, 2], size=(N, 3))
@@ -277,20 +313,16 @@ def random_quater_turns(N, seed=None):
 
 def random_cell_shift_values(N, nr_cells_per_axis, seed=None):
     """
-    Generate an array of random 90 (or pi/2) angles with shape (N, 3)
+    Generate an array of random periodic shifts, in number of cells, with shape (N, 3).
 
-    Parameters
-    ----------
-    N : int
-        Number of rows.
-    choices : array-like
-        The discrete set of values to sample from.
-    seed : int, optional
-        Seed for reproducibility. If None, uses fresh entropy each call.
+    Returns the shifts as an np.ndarray, shape (N, 3).
 
-    Returns
-    -------
-    result : ndarray, shape (N, 3)
+    :param  N:                  number of rows
+    :type   N:                  int
+    :param  nr_cells_per_axis:  number of cells per axis, sets the allowed shift sizes
+    :type   nr_cells_per_axis:  int
+    :param  seed:               seed for reproducibility. If None, uses fresh entropy each call
+    :type   seed:               int
     """
     rng = np.random.default_rng(seed)
     if nr_cells_per_axis==32:

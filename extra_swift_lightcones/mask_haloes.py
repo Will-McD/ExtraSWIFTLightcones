@@ -27,6 +27,12 @@ Mask selection of haloes for a given radius and mass range.
 
 
 def message(m):
+    """
+    Print a message with a timestamp on rank 0 only.
+
+    :param  m:  message to print
+    :type   m:  str
+    """
     if comm_rank == 0:
         current_time=dt.datetime.now()
         time_str=current_time.strftime("%H:%M:%S")
@@ -34,7 +40,12 @@ def message(m):
 
 def rank_message(m, rank):
     """
-    Print a new message on each rank.
+    Print a message with a timestamp and the rank number on each rank.
+
+    :param  m:      message to print
+    :type   m:      str
+    :param  rank:   rank number
+    :type   rank:   int
     """
     current_time=dt.datetime.now()
     time_str=current_time.strftime("%H:%M:%S")
@@ -52,7 +63,14 @@ def _rss_used():
     return psutil.Process().memory_info().rss / GB
 
 def report_rss(m, comm):
-    """Collective: report max and total peak RSS across all ranks."""
+    """
+    Collective: report max and total peak RSS across all ranks.
+
+    :param  m:      label printed with the RSS report
+    :type   m:      str
+    :param  comm:   MPI communicator
+    :type   comm:   mpi4py.MPI.Comm
+    """
     rss_gb = _rss_used()
     max_rss = comm.allreduce(rss_gb, op=MPI.MAX)
     sum_rss = comm.allreduce(rss_gb, op=MPI.SUM)
@@ -64,17 +82,34 @@ def get_num(x):
 def attr_scalar(value):
     """
     Correctly return HDF5 attributes that are conceptually scalar but are stored as a length-1 array. 
+
+    :param  value:  HDF5 attribute value
+    :type   value:  scalar or np.ndarray
     """
     return np.asarray(value).flat[0]
 
 def native_endian(arr):
+    """
+    Convert an array to native byte order.
+
+    :param  arr:    array to convert
+    :type   arr:    np.ndarray
+    """
     return arr.astype(arr.dtype.newbyteorder("="))
 
 def exchange_particles(part_dest, arrays):
     """
     Verbatim copy of lightcone_io.smoothed_map.exchange_particles that cannot be simply imported, hence local duplication.
-    """
+
+    Send each element of the arrays to its destination rank.
     
+    Returns a list of the arrays received by this rank.
+
+    :param  part_dest:  destination rank of each element
+    :type   part_dest:  np.ndarray
+    :param  arrays:     1D or 2D arrays to exchange between ranks
+    :type   arrays:     list
+    """
     send_arrays = []
     order = np.argsort(part_dest)
     for array in arrays:
@@ -109,7 +144,14 @@ def exchange_particles(part_dest, arrays):
     return recv_arrays
 
 def get_map_rotation_angles(fn):
+    """
+    Read the map rotation angles per shell from an hdf5 file.
 
+    Returns a tuple of (latitude, longitude) in degrees.
+
+    :param  fn: path to the .hdf5 file containing the rotation angles
+    :type   fn: str
+    """
     with h5py.File(fn, 'r') as rotation_data:
         rot_val=rotation_data['shells']
         latitude  = (rot_val['phi'][:]*180/np.pi * unyt.deg).astype(np.float64)
@@ -121,23 +163,15 @@ def rotate_cluster_coords(cluster_coords, map_rotator_object):
     """
     Rotate cluster 3D Cartesian comoving positions to match a sky
     rotation already applied to a HEALPix map via rotate_map_fast.
+    Each cluster's comoving distance from the observer is preserved. 
 
-    Each clusters comoving distance from the observer is preserved. 
+    Returns the cluster positions in the rotated frame, shape (N, 3), with the same distances and rotated directions.
 
-    Parameters
-    ----------
-    cluster_coords : ndarray, shape (N, 3)
-        Cartesian comoving positions (Mpc), relative to the observer.
-    map_rotator_object : hp.Rotator
-        The SAME Rotator instance returned by rotate_map_fast for this
-        shell/rotation -- do not construct a new one from theta/phi
-        independently.
-
-    Returns
-    -------
-    rotated_coords : ndarray, shape (N, 3)
-        Cluster positions in the rotated frame, same distances, rotated
-        directions.
+    :param  cluster_coords:     Cartesian comoving positions [Mpc] relative to the observer, shape (N, 3)
+    :type   cluster_coords:     np.ndarray
+    :param  map_rotator_object: the SAME Rotator instance returned by rotate_map_fast for this shell/rotation.
+                                    Do not construct a new one from theta/phi independently.
+    :type   map_rotator_object: healpy.Rotator
     """
     cluster_coords = np.atleast_2d(np.asarray(cluster_coords, dtype=float))
     distances = np.linalg.norm(cluster_coords, axis=1)
@@ -156,16 +190,30 @@ def rotate_cluster_coords(cluster_coords, map_rotator_object):
 
 def read_shell_halo_properties(halo_filenames, soap_filenames, snapshot_numbers, radius_prop, mass_prop, mass_unit_str, comm):
     """
-    MPI-parallel replacement for looping over each snapshot contributing to
-    a shell. 
+    MPI-parallel replacement for looping over each snapshot contributing to a shell. 
     Per shell:
-    1) Read a shell's halo lightcone files in a single collective read
-    2) Cross-references each snapshot's SOAP file, within the same snapshot,
-         for radius_prop/mass_prop via InputHalos/SOAPIndex, 
-    3) radius and mass properties are converted from SOAP units to comoving Mpc and the given mass units
+        1) Read a shell's halo lightcone files in a single collective read
+        2) Cross-reference each snapshot's SOAP file, within the same snapshot, for radius_prop/mass_prop via InputHalos/SOAPIndex
+        3) Convert radius and mass properties from SOAP units to comoving Mpc and the given mass units
 
-    Returns a dict of local per-halo arrays
+    Returns a dict of local per-halo arrays.
+
+    :param  halo_filenames:     halo lightcone files contributing to the shell
+    :type   halo_filenames:     list
+    :param  soap_filenames:     SOAP catalogue files, one per snapshot
+    :type   soap_filenames:     list
+    :param  snapshot_numbers:   snapshot numbers of the SOAP catalogues
+    :type   snapshot_numbers:   list or np.ndarray
+    :param  radius_prop:        path to the radius property in the SOAP catalogue, e.g. 'SO/500_crit/SORadius'
+    :type   radius_prop:        str
+    :param  mass_prop:          path to the mass property in the SOAP catalogue, e.g. 'SO/500_crit/TotalMass'
+    :type   mass_prop:          str
+    :param  mass_unit_str:      units to convert the mass property to, e.g. 'Msun'
+    :type   mass_unit_str:      str
+    :param  comm:               MPI communicator
+    :type   comm:               mpi4py.MPI.Comm
     """
+
     comm_rank = comm.Get_rank()
     comm_size = comm.Get_size()
     
@@ -251,10 +299,18 @@ def read_shell_halo_properties(halo_filenames, soap_filenames, snapshot_numbers,
     return halo_data
 
 def distribute_pixels(comm, nside):
+
     """
     Verbatim copy of lightcone_io.smoothed_map.distribute_pixels that cannot be simply imported, hence local duplication.
     
+    Split the HEALPix pixels between ranks.
+    
     Returns (nr_total_pixels, nr_local_pixels, local_offset, theta_boundary).
+
+    :param  comm:   MPI communicator
+    :type   comm:   mpi4py.MPI.Comm
+    :param  nside:  nside of the map
+    :type   nside:  int
     """
     comm_rank = comm.Get_rank()
     comm_size = comm.Get_size()
@@ -279,10 +335,20 @@ def distribute_pixels(comm, nside):
 
 def mask_cluster_apertures_local(nside, cluster_coords, radius_mpc, local_offset, nr_local_pixels):
     """
-    Stamp each halo's aperture onto only a given rank's slice of the sky
-    (global pixel indices [local_offset, local_offset + nr_local_pixels)). 
-    If zero haloes on rank, returns an all 1's mask. 
-    
+    Stamp each halo's aperture onto only a given rank's slice of the sky (global pixel indices [local_offset, local_offset + nr_local_pixels)). 
+
+    Returns the local mask, 0 inside a halo aperture and 1 otherwise. If zero haloes on rank, returns an all 1's mask. 
+
+    :param  nside:              nside of the map
+    :type   nside:              int
+    :param  cluster_coords:     Cartesian comoving positions [Mpc] relative to the observer, shape (N, 3)
+    :type   cluster_coords:     np.ndarray
+    :param  radius_mpc:         comoving aperture radius [Mpc] for each halo, or a single radius for all haloes
+    :type   radius_mpc:         float or np.ndarray
+    :param  local_offset:       global index of the first pixel on this rank
+    :type   local_offset:       int
+    :param  nr_local_pixels:    number of pixels on this rank
+    :type   nr_local_pixels:    int
     """
     cluster_coords = np.atleast_2d(np.asarray(cluster_coords, dtype=float))
     n_clusters = cluster_coords.shape[0]
@@ -310,23 +376,21 @@ def mask_cluster_apertures_local(nside, cluster_coords, radius_mpc, local_offset
 
 def route_halos_to_pixel_owners(theta_boundary, cluster_coords, radius_mpc, extra_arrays, comm):
     """
-    Determine which rank(s) each halo's angular aperture could reach. 
-    Mirrors lightcone_io.smoothed_map.make_sky_map's particle-to-rank linking.
+    Determine which rank(s) each halo's angular aperture could reach and send the halo to them. 
 
-    cluster_coords: (N, 3) comoving positions, this rank's local halos only.
-    radius_mpc:     (N,) comoving aperture radius for each halo AT THIS RADIUS
-                        SCALING (i.e. already multiplied by whichever of [0.2, 1.0, 5.0] the
-                        caller is on) - routing must be redone per radius scaling, since a
-                        halo's angular footprint changes with it, but NOT per mass bin,
-                        since the mass bin only filters which halos are kept, not where
-                        their aperture reaches. Do that filtering on the receiving side
-                        instead of re-routing once per (ri, mj).
-    extra_arrays:   additional 1D/2D per-halo arrays to carry along (e.g. mass,
-                        needed by the receiver for its own mass-bin filtering).
+    Returns (recv_coords, recv_radius, recv_extra_arrays): this rank's own halos plus every halo 
+    forwarded to it by other ranks whose aperture reaches this rank's band.
 
-    Returns (recv_coords, recv_radius, recv_extra_arrays):  
-        this rank's own halos plus every halo forwarded to it by other ranks whose aperture
-        reaches this rank's band.
+    :param  theta_boundary: theta boundaries of each rank's band of pixels, from distribute_pixels
+    :type   theta_boundary: np.ndarray
+    :param  cluster_coords: comoving positions, shape (N, 3), of this rank's local halos only
+    :type   cluster_coords: np.ndarray
+    :param  radius_mpc:     comoving aperture radius, shape (N,), for each halo. 
+    :type   radius_mpc:     np.ndarray
+    :param  extra_arrays:   additional 1D/2D per-halo arrays to carry
+    :type   extra_arrays:   list
+    :param  comm:           MPI communicator
+    :type   comm:           mpi4py.MPI.Comm
     """
     n = cluster_coords.shape[0]
 
@@ -371,46 +435,53 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                             hdf5_dset_kwargs=_UNSET
                             ):
     """
-    Write mask in parallel, Reuses read_shell_halo_properties unchanged
-    (the MPI-parallel halo lightcone / SOAP cross-reference read is the same
-    regardless of how the OUTPUT map is decomposed - only how the resulting
-    halos get turned into a written mask differs here).
+    Write binary halo masks per shell to a .hdf5 file. 
 
-    bin_method selects which mass-bin definition(s) to build masks for, same
-    meaning as write_masks_mpi_M500c's bin_method: "discrete", "cumulative",
-    or "both". With "both", neither the halo lightcone/SOAP read (once per
-    shell) nor the halo-to-rank routing (once per shell per radius scaling,
-    see the ri loop below) is repeated per method - only the cheap mass-bin
-    filter + local aperture-masking + collective write is.
-
-
-    Params: 
-        mass_poperty:           Path to SOAP catalogue values to use for the 
-                                    selection of haloes on the sky 
+    :param  halo_cat_format:    formatted path to the halo lightcone files, with {lightcone_nr} and {snap_nr} fields
+    :type   halo_cat_format:    str
+    :param  soap_cat_format:    formatted path to the SOAP catalogues, with a {snap_nr} field
+    :type   soap_cat_format:    str
+    :param  mass_poperty:       path to SOAP catalogue values to use for the selection of haloes on the sky 
                                     e.g. 'SO/500_crit/TotalMass' for M500c
-        radius_poperty:         Path to values to use as the radius of each halo 
-                                    in the SOAP catalogue e.g. 'SO/500_crit/SORadius' 
-                                    for R500c
-        mass_untis:             String showing the units of the mass property given. 
-                                    Optional, default is solar masses 'Msun'
-        log_mass_bin_range:     Tuple, log10 min and max values of the mass_poperty to 
-                                    bin haloes by. Optional, if None, then use 
-                                    default range of 12-16
-        mass_bin_width:         log10 width of the log10 mass bins. Optional, if None 
-                                    then default is 0.5
-        scale_radius:           Array, coeficents to scale the given radius property by 
-                                    when drawing apatures about each halo. If None then 
-                                    assume a coefficents of 0.2, 0.5, 1.0, 2.0 and 5.0. 
-        bin_method:             str,  selects which mass-bin definition(s) to build masks 
-                                    with. 
-                                        'discrete':     M1 < log10(M) <= M2, where M1 and M2 
-                                                            are the edges of the mass bin
-                                        'cumulative':   M1 < log10(M) <= Mmax, where Mmax is 
-                                                            the maximum of the log_mass_bin_range 
-                                                            given. 
-                                        "both":         Make 2 sets of mask, one for each other 
-                                                            bin method. 
-        redshift_filename:      path to redshift filename
+    :type   mass_poperty:       str
+    :param  radius_poperty:     path to values to use as the radius of each halo in the SOAP catalogue 
+                                    e.g. 'SO/500_crit/SORadius' for R500c
+    :type   radius_poperty:     str
+    :param  nshell:             number of shells to make masks for
+    :type   nshell:             int
+    :param  nside:              nside of the masks
+    :type   nside:              int
+    :param  latitudes:          latitude rotation angle per shell, applied to the halo positions
+    :type   latitudes:          unyt.unyt_array (units of deg or equivalent)
+    :param  longitudes:         longitude rotation angle per shell, applied to the halo positions
+    :type   longitudes:         unyt.unyt_array (units of deg or equivalent)
+    :param  lightcone_numbers:  lightcone numbers to make masks for
+    :type   lightcone_numbers:  list
+    :param  mask_filename:      name of the output mask file, prefixed with the lightcone number and bin method
+    :type   mask_filename:      str
+    :param  output_dir:         directory to write the masks to
+    :type   output_dir:         str
+    :param  comm:               MPI communicator
+    :type   comm:               mpi4py.MPI.Comm
+    :param  bin_method:         selects which mass-bin definition(s) to build masks with. 
+                                    'discrete':     M1 < log10(M) <= M2, where M1 and M2 are the edges of the mass bin
+                                    'cumulative':   M1 < log10(M) <= Mmax, where Mmax is the maximum of the 
+                                                        log_mass_bin_range given
+                                    'both':         make 2 sets of masks, one for each other bin method
+    :type   bin_method:         str
+    :param  mass_units:         units of the mass property given. Default is solar masses 'Msun'
+    :type   mass_units:         str
+    :param  log_mass_bin_range: log10 min and max values of the mass_poperty to bin haloes by. 
+                                    If None, then use default range of 12-16
+    :type   log_mass_bin_range: tuple
+    :param  log_mass_bin_width: log10 width of the log10 mass bins. If None, then default is 0.5
+    :type   log_mass_bin_width: float
+    :param  scale_radius:       coefficients to scale the given radius property by when drawing apertures about 
+                                    each halo. If None, then assume coefficients of 0.2, 0.5, 1.0, 2.0 and 5.0
+    :type   scale_radius:       list or np.ndarray
+    :param  hdf5_dset_kwargs:   keyword arguments passed to h5py create_dataset. 
+                                    If not given, use gzip compression level 9 with shuffle. If None, no compression
+    :type   hdf5_dset_kwargs:   dict
     """
     if bin_method not in ("discrete", "cumulative", "both"):
         raise ValueError(f"bin_method must be 'discrete', 'cumulative', or 'both', got {bin_method!r}")

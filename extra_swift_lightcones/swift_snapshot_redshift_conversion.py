@@ -4,7 +4,15 @@ import numpy as np
 import re
 
 
-def flamingo_snapshot_redshift(boxsize_resolution):    
+def flamingo_snapshot_redshift(boxsize_resolution):   
+    """
+    Snapshot numbers and their redshifts for the FLAMINGO simulations. 
+
+    Returns a tuple of (snapshot numbers, redshifts).
+
+    :param  boxsize_resolution: FLAMINGO box size and resolution label, e.g. "L1000N1800"
+    :type   boxsize_resolution: str
+    """ 
     if (boxsize_resolution=="L1000N1800") or (boxsize_resolution=="L1000N0900"):
         snapshot_numbers=np.array([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77])
         redshift=np.array([15, 10.38, 9.51, 8.7, 7.95, 7.26, 6.63, 6.04, 5.5, 5, 4.75, 4.5, 4.25, 4, 3.75, 3.5, 3.25, 3, 2.95, 2.9, 2.85, 2.8, 2.75, 2.7, 2.65, 2.6, 2.55, 2.5, 2.45, 2.4, 2.35, 2.3, 2.25, 2.2, 2.15, 2.1, 2.05, 2, 1.95, 1.9, 1.85, 1.8, 1.75, 1.7, 1.65, 1.6, 1.55, 1.5, 1.45, 1.4, 1.35, 1.3, 1.25, 1.2, 1.15, 1.1, 1.05, 1, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0.])
@@ -16,7 +24,11 @@ def flamingo_snapshot_redshift(boxsize_resolution):
     return snapshot_numbers, redshift
 
 def colibre_snapshot_redshift():
+    """
+    Snapshot numbers and their redshifts for the COLIBRE simulations. 
 
+    Returns a tuple of (snapshot numbers, redshifts).
+    """
     snapshot_numbers = np.array(list(range(128)))
 
     redshifts = np.array([
@@ -43,15 +55,26 @@ def snapshot_number_in_range(
                 redshift_range, boxsize_resolution=None,
                 redshift_buffer=(0.025,0.025), snapshot_buffer=(0,0),
                 bounds="equal", decimals=5, use_colibre=False):
+
     """
-        redshift_range: tuple, max, min redshifts 
-        boxsize_resolution: flamingo simulations boxsize and cuberoot of numb particles. Not required for colibre
-        redshift_buffer: tuple, additional redshift to search over below and above the min and max redshifts given
-        snapshot_buffer: tuple, include additional snapshots, if possible, above or below the found range. 
-        bounds: str, 'equal', use <= and >= as the limits. 'strict' use > and < as the limits
-        decimals:  int, rounding precision of the redshift values. 
+    Returns an array of snapshot numbers whose redshift ranges overlap with a given redshift range.
+
+    :param  redshift_range:     minimum and maximum redshifts [z_min, z_max]
+    :type   redshift_range:     tuple
+    :param  boxsize_resolution: FLAMINGO simulation box size and cube root of the number of particles, e.g. "L1000N1800". 
+                                    Not required for COLIBRE
+    :type   boxsize_resolution: str
+    :param  redshift_buffer:    additional redshift to search over below and above the min and max redshifts given
+    :type   redshift_buffer:    tuple
+    :param  snapshot_buffer:    number of additional snapshots to include, if possible, below and above the found range
+    :type   snapshot_buffer:    tuple
+    :param  bounds:             'equal', use <= and >= as the limits. 'strict', use < and > as the limits
+    :type   bounds:             str
+    :param  decimals:           rounding precision of the redshift values. If None, no rounding is applied
+    :type   decimals:           int
+    :param  use_colibre:        If True, use the COLIBRE snapshot redshifts instead of FLAMINGO
+    :type   use_colibre:        boolean
     """
-    
     if use_colibre:
         snapshot_numbers, redshift = colibre_snapshot_redshift()
     else:
@@ -116,8 +139,17 @@ def snapshot_number_in_range(
 
 def snapshot_number_redshifts(snapshot_number, boxsize_resolution=None, inverse=False, use_colibre=False):
     """
-    Returns the redshift of snapshot number. 
-        If inverse = True, returns snapshot number for redshift passed as snapshot_number param
+    Returns the redshift of the snapshot number. 
+    If inverse is True, returns the snapshot number for the redshift passed as snapshot_number.
+
+    :param  snapshot_number:    snapshot number, or the redshift if inverse is True
+    :type   snapshot_number:    int or float
+    :param  boxsize_resolution: FLAMINGO box size and resolution label, e.g. "L1000N1800". Not required for COLIBRE
+    :type   boxsize_resolution: str
+    :param  inverse:            If True, return the snapshot number for the given redshift
+    :type   inverse:            boolean
+    :param  use_colibre:        If True, use the COLIBRE snapshot redshifts instead of FLAMINGO
+    :type   use_colibre:        boolean
     """
 
     if use_colibre:
@@ -136,7 +168,18 @@ def snapshot_number_redshifts(snapshot_number, boxsize_resolution=None, inverse=
     return redshift[snapshot_number]
 
 def snapshot_redshift_range(snapshot_number, boxsize_resolution=None, use_colibre=False):
+    """
+    Redshift range covered by a snapshot, with edges at the midpoints between neighbouring snapshots.
 
+    Returns a tuple,  (minimum redshift, maximum redshift).
+
+    :param  snapshot_number:    snapshot number
+    :type   snapshot_number:    int
+    :param  boxsize_resolution: FLAMINGO box size and resolution label, e.g. "L1000N1800". Not required for COLIBRE
+    :type   boxsize_resolution: str
+    :param  use_colibre:        If True, use the COLIBRE snapshot redshifts instead of FLAMINGO
+    :type   use_colibre:        boolean
+    """
     if use_colibre:
         snapshot_numbers, redshift = colibre_snapshot_redshift()
     else:
@@ -169,12 +212,15 @@ _REDSHIFT_FILES = {
 
 def flamingo_shell_redshift_file(box):
     """
-    Return the path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or 2800 Mpc ("L2p8") box sidelength simulations .
+    Returns the absolute path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or 2800 Mpc ("L2p8") box sidelength simulations.
     Checks, in order:
-      1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
-      2. <repo>/data/redshifts/<file> (only when called from inside the package,
-         e.g. an editable install)
+        1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
+        2. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
+    
     Raises FileNotFoundError if neither exists.
+
+    :param  box:    simulation box, "L1" or "L2p8"
+    :type   box:    str
     """
     if box not in _REDSHIFT_FILES:
         raise ValueError(f"box must be one of {list(_REDSHIFT_FILES)}, got {box!r}")
@@ -202,12 +248,16 @@ def flamingo_shell_redshift_file(box):
 _BOX_RES_PATTERN = re.compile(r"(?:^|/)(L(\d+)N(\d+))(?=/|$)")
 
 def flamingo_box_resolution(path):
+
     """
-    Returns the box size / resolution of a FLAMINGO simultion from a path to the simuations data.
+    Find the box size / resolution label of a FLAMINGO simulation from a path to the simulation's data.
 
-    e.g. "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/data/products.." -> "L1000N1800"
-
+    Returns the label, e.g. "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/data/products.." -> "L1000N1800".
+    
     Raises ValueError if none (or more than one different one) is found.
+
+    :param  path:   path to the simulation data
+    :type   path:   str
     """
     matches = {m.group(1) for m in _BOX_RES_PATTERN.finditer(str(path))}
     if len(matches) != 1:
