@@ -49,7 +49,13 @@ def _build_rotation_matrix(rot_angles, order="xyz", degrees=False):
     R = np.eye(3)
     for axis in order.lower():
         R = matrices[axis] @ R
-
+    
+    # IMPORTANT FOR 1/4 TURNS TO PREVENT ERRORS DUE TO ROUNDING 
+    # make the elements of rotations by multiples of 90 degrees exactly 0 or +-1. as 
+    # cos and sin functions leave ~1e-16, which can move points on the faces of the box across its periodic boundaries
+    R_round = np.round(R)
+    R = np.where(np.abs(R - R_round) < 1e-12, R_round, R)
+    
     return R.astype(np.float64)
 
 
@@ -116,9 +122,12 @@ if _HAVE_NUMBA:
             ry = r10 * x + r11 * y + r12 * z + cy
             rz = r20 * x + r21 * y + r22 * z + cz
 
-            out[i, 0] = rx % Lx
-            out[i, 1] = ry % Ly
-            out[i, 2] = rz % Lz
+            # only warp the points outside [0, L]. 
+            # A point reflected or rotated onto the tiles face stays there,
+            # rather than being moved to the opposite face at 0. 
+            out[i, 0] = rx % Lx if (rx < 0.0 or rx > Lx) else rx
+            out[i, 1] = ry % Ly if (ry < 0.0 or ry > Ly) else ry
+            out[i, 2] = rz % Lz if (rz < 0.0 or rz > Lz) else rz
         return out
 
     # inverse of _apply_rotation_periodic_numba, recovers the original
@@ -257,7 +266,11 @@ def rotate_coords_cartesian(coords, rot_angles,
                 centred = np.mod(coords + periodic_shift, sidelengths) - centre
                 np.matmul(centred, R.T, out=target)
                 target += centre
-                np.mod(target, sidelengths, out=target)
+                #np.mod(target, sidelengths, out=target)
+                
+                # wrap only the points outside [0, L]. 
+                outside = (target < 0.) | (target > sidelengths)
+                target[outside] = np.mod(target, sidelengths)[outside]
 
     else:
         if invert:

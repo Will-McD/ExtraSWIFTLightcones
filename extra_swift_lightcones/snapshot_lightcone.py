@@ -5,6 +5,7 @@ import h5py
 from collections import namedtuple
 from scipy.interpolate import CubicSpline
 from scipy.optimize import brentq
+import virgo.formats.swift as virgo_swift
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
@@ -13,8 +14,31 @@ import lightcone_io.halo_catalogue as hc
 from . import snapshot_orientation as box_structure
 from . import snapshot_units as sw_units
 from . import  swift_snapshot_redshift_conversion as nz
+import builtins
 import datetime as dt
 import warnings
+
+
+# FORCE A PATCH FOR VIRGODC WITH NUMPY>2.4
+# unknown when raised issue will be corrected with virgodc and cannot revert to numpy<2.4
+# implement an intermediate patch for virgodc float values with soap catalogues.
+def _float(value):
+    """
+    float() that also accepts one-element arrays, as numpy < 2.4 did.
+
+    virgo.formats.swift (virgodc <= 1.0.5) calls float() on the one-element array attributes of SWIFT and SOAP 
+    files to build their units, which numpy >= 2.4 refuses, so lightcone_io's SOAPCatalogue cannot read SOAP 
+    catalogues. Used as float inside virgo.formats.swift only, until virgodc is fixed.
+
+    :param  value:  number or one-element array
+    :type   value:  float or np.ndarray
+    """
+    if np.size(value) == 1:
+        return builtins.float(np.asarray(value).reshape(-1)[0])
+    return builtins.float(value)
+
+virgo_swift.float = _float
+
 
 try:
     from numba import njit, prange
@@ -370,20 +394,37 @@ class SnapshotLightcone():
     def __get_cell_data(self, snap_nr):
         """
         Read the cell metadata of a snapshot.
-
+        
+        IMPORTANT: ALL CELL METADATA IS IN SNAPSHOT UNITS
+        
         Returns a dict of the number of cells, cell size, cell centres, box size, number of files 
         and the file, offsets and lengths of each cell per particle type.
+        
 
         :param  snap_nr:    snapshot number
         :type   snap_nr:    int
         """
+
+        
+
         cell_data={}
         with h5py.File(self.snapshot_format.format(snap_nr=snap_nr, file_nr=0), "r") as f:
+            
+            # IMPORTANT: CELL METADATA IS IN SNAPSHOT UNITS
+            # the cell sizes, cell centres and box size are in the snapshot's length unit. 
+            # The same as the particle coordinates.
+            # Give them the same units, so they are converted to Mpc exactly as the coordinates are and points on
+            # the cell and box faces stay on them when the snapshot is re-oriented
+            snap_length_registry = sw_units.unit_registry_from_metadata(sw_units.snapshot_unit_metadata(f))
+
+            def snap_length(values):
+                return unyt.unyt_array(values, "snap_length", registry=snap_length_registry)
+
             cell_data["nr_cells"]=f["/Cells/Meta-data"].attrs["nr_cells"][0] # total number of cells
             cell_data["nr_cells_axis"]=f["/Cells/Meta-data"].attrs['dimension'][:] # number of cells per axes
-            cell_data["cell_size"]=f["/Cells/Meta-data"].attrs["size"] # side length of cell
-            cell_data["cell_centres"]=f["/Cells/Centres"][:,:] # centre of each cell in snapshot coords
-            cell_data["snap_boxsize"]=f['Header'].attrs['BoxSize'] # box sidelength
+            cell_data["cell_size"]=snap_length(f["/Cells/Meta-data"].attrs["size"]) # side length of cell
+            cell_data["cell_centres"]=snap_length(f["/Cells/Centres"][:,:]) # centre of each cell in snapshot coords
+            cell_data["snap_boxsize"]=snap_length(f['Header'].attrs['BoxSize']) # box sidelength
             cell_data["nr_files"]=f['Header'].attrs['NumFilesPerSnapshot'][0] # num of subfiles
 
             cells_in_file_dict={}
@@ -448,7 +489,6 @@ class SnapshotLightcone():
         except Exception or (FileNotFoundError, OSError) as e:
             self.cosmo = Snapshot_Cosmology_For_Lightcone(self.simulation_dir+'/snapshots').COSMO
             
-
     def __comoving_distance_to_scalefactor(self, r, cosmo=None):
         """
         Compute the scale factor of particles based on comoving distance from observer.
@@ -573,7 +613,8 @@ class SnapshotLightcone():
         """
         r_min, r_max = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
 
-        boxsize = self.__snap_cell_data["snap_boxsize"][0]
+        #boxsize = self.__snap_cell_data["snap_boxsize"][0]
+        boxsize = self.__snap_cell_data["snap_boxsize"].to_value("Mpc")[0]
 
         tiles = self._tiles_intersecting_shell(r_min, r_max, boxsize, ang_radius_deg)
         if self.orientation_lock == "sphere":
@@ -738,9 +779,11 @@ class SnapshotLightcone():
         """
 
         nr_cell_axis = cell_data["nr_cells_axis"]
-        cell_sidelength=cell_data["cell_size"]
-        snapshot_sidelength=cell_data["snap_boxsize"]
+        # convert to Mpc when performing orientation related functions 
+        cell_sidelength=cell_data["cell_size"].to_value("Mpc")
+        snapshot_sidelength=cell_data["snap_boxsize"].to_value("Mpc")
 
+        # get shift vecttor
         shift_vector = self._cell_shift_to_vector(periodic_cell_shift, nr_cell_axis,  cell_sidelength, snapshot_sidelength)
 
         return box_structure.rotate_coords_cartesian(
@@ -938,8 +981,7 @@ class SnapshotLightcone():
 
         # write new snapshot specific values, reuse of data is stored in cache
         self.__reset_cell_read_state(snapshot_number)
-        self.__snap_redshift_range_to_populate=snap_shell_z_range
-
+        #self.__snap_redshift_range_to_populate=snap_shell_z_range
 
         # give read out of max beam diameter for snapshots redshift range in shell
         r_beam = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
@@ -970,7 +1012,7 @@ class SnapshotLightcone():
             
             repositioned_cell_centres=np.empty(np.shape(self.__snap_cell_data["cell_centres"]))
             __ = self._transform_snapshot_coordinates(
-                                            coords=self.__snap_cell_data["cell_centres"],
+                                            coords=self.__snap_cell_data["cell_centres"].to_value("Mpc"), # convert to Mpc when doing re-orientation
                                             rot_angles=snapshot_rotation_angles,
                                             reflections=snapshot_rotation_reflections,
                                             periodic_cell_shift=snapshot_periodic_shifts,
@@ -980,7 +1022,7 @@ class SnapshotLightcone():
                                             out=repositioned_cell_centres,
                                             inplace=False
                                         )
-            repositioned_cell_centres += self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"])
+            repositioned_cell_centres += self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"].to_value("Mpc"))
 
 
             beam_idx, __ = self._in_shell(
@@ -990,7 +1032,7 @@ class SnapshotLightcone():
                     #z_max=snap_shell_z_range[1],
                     z_min=z_sub_min,
                     z_max=z_sub_max,
-                    buffer_length=self.__snap_cell_data["cell_size"][0],
+                    buffer_length=self.__snap_cell_data["cell_size"][0].to_value("Mpc"),
                     buffer_shape="cube",
                     return_bool=False
                 )
@@ -1085,8 +1127,8 @@ class SnapshotLightcone():
                                     out=new_coords,
                                     inplace=False
                                     )
-
-            new_coords+=self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"])
+            # convert cell and boxsize metadat from snapshot_lengths to Mpc for consistancy. 
+            new_coords+=self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"].to_value("Mpc")) 
 
             # replace coordinates
             file_particle_data["Coordinates"] = (new_coords*unyt.Mpc).to(file_particle_data["Coordinates"].units)
@@ -1144,7 +1186,9 @@ class SnapshotLightcone():
         """
         Fill in a correct zero-length unyt_array for a rank assigned zero files. 
         Use the unit registery and each property's dtype + units from a rank that did read something.
-
+        
+        Note: SnapshotNumber is always included in particle properties. 
+        
         :param  property_names: particle properties read
         :type   property_names: list
         :param  comm:           MPI communicator
@@ -1158,9 +1202,9 @@ class SnapshotLightcone():
                     self._unit_metadata = metadata
                     self.unit_registry = sw_units.unit_registry_from_metadata(metadata)
                     break
-
-        for prop in property_names:
-            arr = self.particle_data[prop]
+        
+        for prop in list(property_names) + ["SnapshotNumber"]:
+            arr = self.particle_data.get(prop)        
             info = None if arr is None else (arr.dtype, arr.shape[1:], str(arr.units))
             all_info = comm.allgather(info)
 
@@ -1365,9 +1409,11 @@ class SnapshotLightcone():
         :param  property_names: particle properties to redistribute, ExpansionFactors is always included
         :type   property_names: list
         """
+        
         all_props = list(property_names)
-        if "ExpansionFactors" not in all_props:
-            all_props.append("ExpansionFactors")
+        for prop in ("ExpansionFactors", "SnapshotNumber"):
+            if prop not in all_props:
+                all_props.append(prop)
 
         n_local = self.particle_data[all_props[0]].shape[0]
         nperproc = self.comm.allgather(n_local)
@@ -1542,9 +1588,10 @@ class SnapshotLightcone():
         :param  inplace:                If True, overwrite coords in place instead of allocating new memory
         :type   inplace:                boolean
         """
+        # convert to Mpc for consistancy when doing anything with re-orienting the snapshots. 
         nr_cell_axis = cell_data["nr_cells_axis"]
-        cell_sidelength=cell_data["cell_size"]
-        snapshot_sidelength=cell_data["snap_boxsize"]
+        cell_sidelength=cell_data["cell_size"].to_value("Mpc")
+        snapshot_sidelength=cell_data["snap_boxsize"].to_value("Mpc")
 
         shift_vector = self._cell_shift_to_vector(periodic_cell_shift, nr_cell_axis,  cell_sidelength, snapshot_sidelength)
 
@@ -1615,7 +1662,7 @@ class SnapshotLightcone():
                 )
 
         cell_data = self.__cell_data_for_snapshot(snapshot_number)
-        boxsize = cell_data["snap_boxsize"]
+        boxsize = cell_data["snap_boxsize"].to_value("Mpc") # convert to Mpc for consistancey with geometry
 
         lightcone_coords_by_tile = {}
         for tile in tiles:
@@ -1713,12 +1760,11 @@ class SnapshotLightcone():
                 warnings.warn(f"Lightcone2Snapshot: {n_unmatched} point(s) not within any snapshots comoving distance range in the lasy shell read state")
 
         results = {}
-        #for snap_nr, point_idx in point_idx_by_snap.items():
         for snap_nr, snap_point_idx in point_idx_by_snap.items():
         
 
             cell_data = self.__cell_data_for_snapshot(snap_nr)
-            boxsize = cell_data["snap_boxsize"]
+            boxsize = cell_data["snap_boxsize"].to_value("Mpc")
 
             tile_results = {}
             for t in tiles_by_snap[snap_nr]:
@@ -2042,27 +2088,7 @@ class SnapshotBeam(SnapshotLightcone):
 
         # order along the line of sight
         return sorted(tiles, key=lambda tile: (tile[2], tile[0], tile[1]))
-        
-        #for n_los in range(tile_min, tile_max + 1):
-        #    if w_max <= half_L:
-        #        # one box replica already covers the beam's cross-section
-        #        tiles.append((0, 0, n_los))
-        #        continue
-        #
-        #    # add transverse replicas
-        #    n_transverse = int(np.ceil((w_max - half_L) / boxsize))
-        #    for nx in range(-n_transverse, n_transverse + 1):
-        #        tx_lo, tx_hi = nx * boxsize - half_L, nx * boxsize + half_L
-        #        min_dx = 0.0 if tx_lo <= 0.0 <= tx_hi else min(abs(tx_lo), abs(tx_hi))
-        #        for ny in range(-n_transverse, n_transverse + 1):
-        #            ty_lo, ty_hi = ny * boxsize - half_L, ny * boxsize + half_L
-        #            min_dy = 0.0 if ty_lo <= 0.0 <= ty_hi else min(abs(ty_lo), abs(ty_hi))
-        #            min_perp_dist = np.sqrt(min_dx**2 + min_dy**2)
-        #            if min_perp_dist > w_max:
-        #                continue
-        #            tiles.append((nx, ny, n_los))
-        #
-        #return tiles
+
 
     def _in_shell(self, coords, z_min, z_max, ang_radius_deg, buffer_length=0., buffer_shape="cube",  return_bool=False, cosmo=None):
         """

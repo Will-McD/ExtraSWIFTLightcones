@@ -103,13 +103,13 @@ For example, to place the gas and dark matter particles of an all-sky shell, rea
 from mpi4py import MPI
 from extra_swift_lightcones import SnapshotAllSky
 
-SAllSky = SnapshotAllSky(
+snap_all_sky = SnapshotAllSky(
     boxsize_resolution="L1000N1800",
     simulation_name="HYDRO_FIDUCIAL",
     orientation_seed=0,          # reproduces the same box orientations
     orientation_lock="cube",     # None, "cube" or "sphere", see below
 )
-shell_particles = SAllSky.place_snapshot_particles_in_shell(
+shell_particles = snap_all_sky.place_snapshot_particles_in_shell(
     lightcone_redshift_range=(0.05, 0.1),
     property_names=["Masses", "Temperatures"],
     particle_types=["PartType0", "PartType1"],
@@ -125,9 +125,9 @@ gas["SnapshotNumber"]    # snapshot each particle was taken from
 `Coordinates` and `ParticleIDs` (plus `SmoothingLengths` for particles other than dark matter) are always read. To limit memory use in serial, the files can be placed one at a time instead:
 
 ```python
-numb_files, _ = SAllSky.gather_files("PartType1", shell_z=(0.05, 0.1))
+numb_files, _ = snap_all_sky.gather_files("PartType1", shell_z=(0.05, 0.1))
 for file_number in range(numb_files):
-    file_particles = SAllSky.place_file_in_shell(file_number, "PartType1", ["Masses"])  # {} if none are kept
+    file_particles = snap_all_sky.place_file_in_shell(file_number, "PartType1", ["Masses"])  # {} if none are kept
 ```
 
 `SnapshotBeam` is used in the same way, with a `beam_vector` when it is created and the beam's angular radius (`ang_radius_deg`) passed to each of these methods.
@@ -262,3 +262,45 @@ The [examples](./examples) are named after the data they start from: `snapshot_`
 - `rotate_map` and `rotate_map_fast` rotate a map in spherical harmonic space. The fast version uses the HEALPix pixel weights (see [Additional Data](#additional-data)), and `write_rotated_lightcone_chunks` uses it when they are available for that nside.
 - `sum_maps` writes a new file with the sum of the same maps across several files. `map_names=["common"]` uses every map found in all the files.
 
+
+## Tests
+
+The [tests](./tests) need no simulation data: they write small fake snapshots and SOAP catalogues to a temporary directory each time they run. 
+
+Install the package with pytest (`pip install -e ".[test]"`, or `".[all]"`), then to run all tests from the top of the repository:
+
+```
+pytest tests
+```
+
+
+To run only a part of a given test:
+
+```
+pytest tests/test_snapshot_lightcone_placement.py                      # one file
+pytest tests/test_snapshot_lightcone_placement.py -k number_density    # the tests whose names match
+pytest tests/test_snapshot_lightcone_placement.py -k "mpi or lattice"
+pytest tests/test_snapshot_lightcone_placement.py::test_beam_is_part_of_all_sky
+```
+
+Add `-v` to list every test case, `-x` to stop at the first failure, `--durations=10` to show the slowest tests and `-p no:warnings` to hide the deprecation warnings of unyt and healpy. The snapshot lightcone tests take about 10 minutes; the first run is slower while numba compiles the re-orientation code.
+
+
+| Test file | What it checks |
+|---|---|
+| `test_config.py` | downloading the shell redshift files, adding their paths to the environment's activate script and finding them when needed |
+| `test_init.py` | the public classes and functions are imported from the package when first used, and importing the package doesn't load the modules that need MPI |
+| `test_snapshot_lightcone_placement.py` | where `SnapshotBeam` and `SnapshotAllSky` place particles and haloes, see below |
+
+`test_snapshot_lightcone_placement.py` checks, for all-sky and beams with each `orientation_lock`, that:
+
+- with a `"cube"` or `"sphere"` lock, a beam is exactly the part of the all-sky lightcone inside its cone;
+- particles on a uniform lattice are placed exactly once and the reconstructed lattice in the lightcone has no gaps or overlaps between them;
+- consecutive shells together give the same particles as one shell over the whole range;
+- placing the particles file by file (`gather_files` and `place_file_in_shell`) or in parallel with MPI gives exactly the particles of placing them in serial;
+- the number of particles placed matches the snapshots' number density times the volume they fill;
+- re-orienting points on cell faces keeps them on cell faces.
+- an all-sky lightcone out to half a box length places every snapshot particle within it at its box position less half a box length, as the observer's box tile is not re-oriented;
+- haloes placed from SOAP catalogues end up exactly where particles at the same positions in the snapshots are placed, including haloes on cell faces;
+
+The MPI test, `test_mpi_matches_serial`, runs [`mpi_place_particles.py`](./tests/mpi_place_particles.py) with `mpiexec -n 2` and `-n 3`. It uses the `mpiexec` next to the Python executable (where the `mpich` wheel installs it) if there is one, otherwise the one on the `PATH`, and is skipped if there is none or mpi4py can't be imported. The `mpiexec` must belong to the MPI library mpi4py was built with. On a cluster, run it on a compute node (e.g. in an interactive `salloc` or `srun` session), as login nodes may not allow `mpiexec`.
