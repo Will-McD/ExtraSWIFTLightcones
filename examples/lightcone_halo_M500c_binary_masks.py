@@ -1,5 +1,4 @@
-import os 
-import sys
+#!/bin/env python
 import argparse
 import numpy as np
 from extra_swift_lightcones.mask_haloes import write_binary_masks

@@ -23,7 +23,8 @@ python -m pip cache purge
 WHEEL_DIR=/cosma/local/python-wheels/3.12.4/openmpi-${ompi_version}-hdf5-${hdf5_version}
 
 # Name of the new venv to create, can be given as the first argument
-venv_name="${1:-/cosma/apps/do012/${USER}/extra_swift_lightcones_env}"
+# REPLACE PATH IN THE LINE BELOW IF NOT dp004 account
+venv_name="${1:-/cosma/apps/dp004/${USER}/extra_swift_lightcones_env}"
 
 # Create an empty venv and activate it
 python -m venv "${venv_name}"

@@ -1,13 +1,8 @@
 #!/bin/env python
-import os
-import sys
 import numpy as np
 import unyt
 import h5py
 import argparse
-import healpy as hp
-import glob
-import re
 from collections import namedtuple
 from scipy.interpolate import CubicSpline
 from scipy.optimize import brentq

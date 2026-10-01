@@ -1,4 +1,4 @@
-import sys
+#!/bin/env python
 import re
 import numpy as np
 import healpy as hp
@@ -6,13 +6,11 @@ import h5py
 import unyt
 import lightcone_io.healpix_maps as hm
 import lightcone_io.halo_reader as hr
-import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 import matplotlib as mpl
 import cmasher as cmr
 from lightcone_io.units import units_from_attributes
-from extra_swift_lightcones.healpix_map_utils import get_related_ipix
 from extra_swift_lightcones import swift_snapshot_redshift_conversion as nz
 from pathlib import Path
 import hdfstream

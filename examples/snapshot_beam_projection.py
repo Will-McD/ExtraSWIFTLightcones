@@ -8,13 +8,14 @@ from extra_swift_lightcones.snapshot_lightcone import SnapshotBeam
 from extra_swift_lightcones.lightcone_projections import BeamProjection
 
 """
-Build a pencil beam lightcone for gas and dark matter particles from the snapshots with SnapshotBeam. 
-Then project a slice through the beam to show the surface density of the gas, the dark matter and their total.
+Use SnapshotBeam to build a beam through a past lightcone of gas particles from the snapshots of the
+fiducial L1_m10 FLAMINGO simulation (i.e. L1000N0900/HYDRO_FIDUCIAL). 
+Then project a slice through the beam to show the gas surface density.
 
-The beam is built for each orientation lock in orientation_locks, and the total surface densities are
-plotted side by side. Without a lock (None) every snapshot box tile has its own orientation, so structures
-are cut at every box face the beam crosses. With "cube" or "sphere" the boxes in each layer share one
-orientation, so structures continue across the box faces within a layer.
+The beam is built for each orientation lock in orientation_locks, and the gas surface densities are
+plotted side by side. Without a lock (None) every snapshot box (or tile in the lightcone) has its own 
+orientation, so structures are cut at every tile face the beam crosses. With "cube" or "sphere" the tiles in each 
+layer share one orientation, so structures continue across the tiles faces within a layer.
 """
 
 # units of the properties passed to the beam projection
@@ -73,7 +74,7 @@ if __name__ == "__main__":
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # part of the sky and redshift range of the beam. The beam is tilted so that it crosses the box faces,
-    # and reaches past half a box sidelength from the observer (z ~ 0.12 for a 1 Gpc box), where the
+    # and reaches past half a box sidelength from the observer, where the
     # orientation of a locked layer first changes
     beam_vector = (1.0, 1.0, 1.0)       # direction of the beam
     ang_radius_deg = 6.0                # angular radius of the beam [deg]
@@ -84,13 +85,12 @@ if __name__ == "__main__":
     orientation_locks = [None, "cube", "sphere"]
 
     # slice through the beam to project, and the resolution of the projections
-    slice_thickness = 10 * unyt.Mpc
+    slice_thickness = 12.5 * unyt.Mpc
     resolution = 1024
 
     gas_property_names = ["Coordinates", "Masses", "SmoothingLengths", "ExpansionFactors"]
-    dm_property_names = ["Coordinates", "Masses", "ExpansionFactors"]
 
-    total_surface_densities = []
+    gas_surface_densities_per_locking = []
     for orientation_lock in orientation_locks:
         lock_title, lock_filename = lock_label(orientation_lock)
         print(f"\n{lock_title}")
@@ -105,13 +105,12 @@ if __name__ == "__main__":
             lightcone_redshift_range=redshift_range,
             ang_radius_deg=ang_radius_deg,
             property_names=["Masses"],
-            particle_types=["PartType0", "PartType1"],
+            particle_types=["PartType0"],
             )
 
         gas_particle_data = beam_properties(beam_particles["PartType0"], gas_property_names, "PartType0")
-        dm_particle_data = beam_properties(beam_particles["PartType1"], dm_property_names, "PartType1")
         del beam_particles
-        print(f"\n{len(gas_particle_data['Masses'])} gas and {len(dm_particle_data['Masses'])} dark matter particles in the beam\n")
+        print(f"\n{len(gas_particle_data['Masses'])} gas particles in the beam\n")
 
         # project a slice through the beam, using the cosmology of the snapshots
         BP = BeamProjection(
@@ -123,42 +122,24 @@ if __name__ == "__main__":
             store_snapshot_filename=snapshot_filename,
             )
 
-        BP.place_particles_in_slice(gas_particle_data, gas_property_names, dm_particle_data=dm_particle_data, dm_property_names=dm_property_names)
-        del gas_particle_data, dm_particle_data
+        BP.place_particles_in_slice(gas_particle_data, gas_property_names)
+        del gas_particle_data
 
         gas_surface_density = BP.project_properties(["Masses"], ptype="Gas", assign_units=["Msun"], resolution=resolution)[0].to_value("Msun/Mpc**2")
-        dm_surface_density = BP.project_properties(["Masses"], ptype="DM", assign_units=["Msun"], resolution=resolution)[0].to_value("Msun/Mpc**2")
-        total_surface_density = gas_surface_density + dm_surface_density
-        total_surface_densities.append(total_surface_density)
-
-        # plot the beam split into wedges of the gas, total and dark matter surface densities
-        pix_min, pix_max = np.percentile(total_surface_density[total_surface_density > 0], [10, 99.5])
-        projection_data = [
-            [gas_surface_density, (pix_min * 0.2, pix_max)],
-            [total_surface_density, (pix_min, pix_max)],
-            [dm_surface_density, (pix_min * 0.8, pix_max)],
-        ]
-        colour_maps = ["magma", "cubehelix", "viridis"]
-
-        output_filename = f"{output_dir}/snapshot_beam_surface_density_lock_{lock_filename}.png"
-        fig, ax, wedge_imgs = BP.split_beam_plot(
-            len(projection_data), projection_data, colour_maps, filename=output_filename,
-            minor_tick_kwargs={"color": "k", "lw": 0.6}, tick_label_kwargs={"rotation": "auto"}, overlay_grid=(True, False, False),
-            titles=["Gas", "Gas+DM", "DM"], title_kwargs={"fontsize": 5}, # small titles to fit the narrow wedges
-            )
-        print(f"Surface density image saved as: {output_filename}")
+        gas_surface_densities_per_locking.append(gas_surface_density)
 
     # compare the total surface density for each orientation lock
     if len(orientation_locks) > 1:
-        all_totals = np.concatenate([total.ravel() for total in total_surface_densities])
+        all_totals = np.concatenate([total.ravel() for total in gas_surface_densities_per_locking])
         pix_min, pix_max = np.percentile(all_totals[all_totals > 0], [10, 99.5])
 
         fig, axs = plt.subplots(len(orientation_locks), 1, figsize=(7, 2.6 * len(orientation_locks)))
-        for ax, orientation_lock, total_surface_density in zip(np.atleast_1d(axs), orientation_locks, total_surface_densities):
+        for ax, orientation_lock, surface_density in zip(np.atleast_1d(axs), orientation_locks, gas_surface_densities_per_locking):
             BP.split_beam_plot(
-                1, [[total_surface_density, (pix_min, pix_max)]], ["magma"], axs=ax,
+                1, [[surface_density, (pix_min, pix_max)]], ["magma"], axs=ax,
                 minor_tick_kwargs={"color": "k", "lw": 0.6}, tick_label_kwargs={"rotation": "auto"},
-                titles=[f"Gas+DM, {lock_label(orientation_lock)[0]}"], title_kwargs={"fontsize": 6},
+                titles=[rf"$\Sigma_{{\mathrm{{Gas}}}}$, {lock_label(orientation_lock)[0]}"], title_kwargs={"fontsize": 10},
+                overlay_grid=(False, False, False), # turn off grids
                 )
 
         output_filename = f"{output_dir}/snapshot_beam_surface_density_lock_comparison.png"

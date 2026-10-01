@@ -1,7 +1,4 @@
 #!/bin/env python
-#
-
-import sys
 import numpy as np
 from extra_swift_lightcones.snapshot_lightcone import SnapshotBeam
 from  extra_swift_lightcones.swift_snapshot_redshift_conversion import flamingo_shell_redshift_file

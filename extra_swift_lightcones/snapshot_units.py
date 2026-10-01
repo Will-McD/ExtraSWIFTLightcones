@@ -139,7 +139,6 @@ def unit_registry_from_metadata(metadata):
         physical_constants_cgs["newton_G"] * unyt.cm**3 / unyt.g / unyt.s**2,
         registry=reg,
     )
-
     return reg
 
 def unit_registry_from_snapshot(snap):

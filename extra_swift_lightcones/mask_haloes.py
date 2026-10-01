@@ -1,16 +1,11 @@
 #!/bin/env python
-
-import os
-import sys
 import numpy as np
 import h5py
 import healpy as hp
 import unyt
 from pathlib import Path
-from lightcone_io.halo_reader import HaloLightconeFile
 from lightcone_io.units import units_from_attributes
 from . import swift_snapshot_redshift_conversion as nz
-import psutil
 import datetime as dt
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
@@ -50,31 +45,6 @@ def rank_message(m, rank):
     current_time=dt.datetime.now()
     time_str=current_time.strftime("%H:%M:%S")
     print('[Rank {rank_nr:03d}] [@{print_time}]'.format(rank_nr=rank,print_time=time_str) + m)
-
-def _rss_used():
-    """
-    Report this process's own resident set size (RSS)
-    """
-    # Do nothing if psutil is not installed
-    if psutil is None:
-        return None
-
-    GB = 1024**3
-    return psutil.Process().memory_info().rss / GB
-
-def report_rss(m, comm):
-    """
-    Collective: report max and total peak RSS across all ranks.
-
-    :param  m:      label printed with the RSS report
-    :type   m:      str
-    :param  comm:   MPI communicator
-    :type   comm:   mpi4py.MPI.Comm
-    """
-    rss_gb = _rss_used()
-    max_rss = comm.allreduce(rss_gb, op=MPI.MAX)
-    sum_rss = comm.allreduce(rss_gb, op=MPI.SUM)
-    message(f"RSS [{m}]: max = {max_rss:.2f} [GB], sum = {sum_rss:.2f} [GB]")
 
 def get_num(x):
    return int(x.split('/')[-2].lstrip().split('_')[-1])

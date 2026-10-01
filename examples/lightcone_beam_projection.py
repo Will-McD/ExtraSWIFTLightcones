@@ -1,12 +1,6 @@
-
 #!/bin/env python
-import sys
 import numpy as np
-import healpy as hp
 import unyt
-import h5py
-import math
-import argparse
 import unyt
 import lightcone_io.particle_reader as pr
 from extra_swift_lightcones.lightcone_projections import BeamProjection
@@ -16,15 +10,17 @@ from pathlib import Path
 
 
 """
-This script contains 2 example projections of a past lightcones beam. 
-    1) Project a slice through a beam to show the surface mass density within the lightcone
-    2) Now use custom datasets to show mass and redshift dependance of within the lightcone beam
-"""
+Create 2 different projections of slices through a beam from an observers past lightcone. 
 
+Read in gas and dark matter particles from a lightcone of the fiducial L1_m9 FLAMINGO simulation (i.e. L1000N1800/HYDRO_FIDUCIAL). 
+Create a split beam projection for:
+    1) The surface mass density of gas, dark matter and total mass within the beam. 
+    2) The mass weighted and redshift weighted gas temperature within the lightcone. 
+        This demonstrates the  mass weighting function of BeamProjection class. 
+"""
 
 def example_fig1(BP, particle_lightcone, gas_particle_data, gas_property_names, dm_particle_data):
     # project a slice through a beam to show the surface mass density within the lightcone
-
 
     # add particle data to the slice 
     BP.place_particles_in_slice(gas_particle_data, gas_property_names, dm_particle_data=dm_particle_data, dm_property_names=dm_property_names)
@@ -137,7 +133,7 @@ if __name__ == "__main__":
     base_dir="/cosma8/data/dp004/flamingo/Runs/{LN}/{sim}".format(LN=boxsize_resolution, sim=sim)
 
     # define output directory
-    output_dir="./example_outputs/beam_projection"
+    output_dir="./example_outputs/lightcone_beam_projection"
     
     # ensure output directory exists
     directory_path = Path(output_dir)

@@ -6,8 +6,6 @@
 # Run from anywhere, optionally giving the path of the environment to make:
 #   bash venv_scripts/make_venv.sh [/path/to/environment]
 #
-# On COSMA use make_cosma_env.sh instead, which installs mpi4py and h5py built for COSMA's MPI and parallel HDF5.
-#
 
 set -e
 
@@ -27,4 +25,4 @@ pip install -e "${repo_dir}[all]"
 # download the shell redshift files into the environment, and export their paths when it is activated
 extra_swift_lightcones-configure
 
-echo "Made ${venv_name}, activate it with: source ${venv_name}/bin/activate"
+echo "Made ${venv_name}"

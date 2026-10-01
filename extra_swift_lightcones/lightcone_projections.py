@@ -7,7 +7,7 @@ from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from .property_to_field_names import property_to_field, field_to_property
 from .snapshot_units import apply_expected_units
 from . import beam_plotting
-from .beam_plotting import BeamPlot, round_down_10, round_up_10, orderOfMagnitude
+from .beam_plotting import BeamPlot, round_up_10
 import swiftsimio as sw
 from swiftsimio.objects import cosmo_array
 
@@ -696,7 +696,8 @@ class BeamProjection:
 
     def split_beam_plot(self, numb_wedges, projection_data, colour_maps,
             axs=None, filename=None,
-            angular_diameter=None, cosmology=None, redshift_range=None, axes_extent=None, update_badcol=True, figsize=(7,7), titles=None, norms=None, **kwargs):
+            angular_diameter=None, cosmology=None, redshift_range=None, 
+            axes_extent=None, update_badcol=True, figsize=(7,7), titles=None, norms=None, **kwargs):
         
         """
         Create plot of the whole beam, split into seperate wedges. 

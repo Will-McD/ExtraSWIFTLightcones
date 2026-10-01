@@ -1,7 +1,4 @@
 #!/bin/env python
-import os
-import sys
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
@@ -9,7 +6,8 @@ from matplotlib.lines import Line2D
 from pathlib import Path
 
 """
-Example script to highlilght how cells within the snaphots are repositioned when creating new 'unique' snapshot tiles that are then placed in to the lightcone and/or beam
+Example script to highlilght how cells within the snaphots boxes (tiles in lightcone)
+are repositioned when creating new 'unique' snapshot tiles as they placed in to the lightcone (all-sky or beam). 
 """
 
 

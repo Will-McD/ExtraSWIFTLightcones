@@ -21,9 +21,9 @@ dependencies = [
     "healpy",
     "astropy",
     "numba",
-    "tqdm",
     "mpi4py",
     "virgodc>=1.0.2",
+    "matplotlib",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -33,7 +33,7 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest"]
-examples = ["matplotlib"]
+examples = ["cmasher", "hdfstream","tqdm",]
 
 [project.urls]
 Homepage = "https://github.com/Will-McD/ExtraSWIFTLightcones"

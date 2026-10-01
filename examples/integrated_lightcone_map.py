@@ -1,11 +1,8 @@
 #!/bin/env python
-import os
-import sys
 import numpy as np
-import healpy as hp
 from pathlib import Path
 import hdfstream
-from extra_swift_lightcones.healpix_map_utils import write_rotated_lightcone_chunks, sum_maps
+from extra_swift_lightcones.healpix_map_utils import write_rotated_lightcone_chunks
 
 # rotation angles (in radian) for flamingo simualtions with sidelength of 1000Mpc
 ROTATIONS_L1=np.array(
