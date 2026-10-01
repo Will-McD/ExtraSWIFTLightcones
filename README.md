@@ -1,6 +1,6 @@
 # ExtraSWIFTLightcones
 
-This module is designed to provide additional tools for the post-processing and the visualization of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) lightcones. Specifically, this module provides the tools to generate new lightcones from the swift snapshots or  to either [LightconeIO]([https://github.com/jchelly/LightconeIO](https://lightconeio.readthedocs.io/en/latest/#)) and [SWIFTsimIO](https://swiftsimio.readthedocs.io/en/latest/), therefore it requires the both the aforementioned packages 
+This module provides additional tools for the post-processing and visualisation of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) lightcones. Specifically, this module provides the tools to generate new lightcones from the swift snapshots or  to either [LightconeIO]([https://github.com/jchelly/LightconeIO](https://lightconeio.readthedocs.io/en/latest/#)) and [SWIFTsimIO](https://swiftsimio.readthedocs.io/en/latest/), therefore it requires the both the aforementioned packages 
 
 Further information about the FLAMINGO lightcones: https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html
 

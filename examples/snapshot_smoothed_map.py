@@ -3,11 +3,11 @@ import numpy as np
 import h5py
 import unyt
 import healpy as hp
+import matplotlib.pyplot as plt
 from pathlib import Path
 import lightcone_io.smoothed_map as smoothed_map
 import lightcone_io.kernel as kernel
 import virgo.mpi.parallel_hdf5 as phdf5
-
 from extra_swift_lightcones.snapshot_lightcone import SnapshotAllSky
 
 from mpi4py import MPI
@@ -209,7 +209,7 @@ if __name__ == "__main__":
 
     # Place the gas particles from the snapshots in the all-sky shell. Passing comm reads the
     # snapshot files in parallel, each rank keeping the particles from its own files
-    SA = SnapshotAllSky(boxsize_resolution=box_res, simulation_name=sim_name, verbose=1)
+    SA = SnapshotAllSky(boxsize_resolution=box_res, simulation_name=sim_name, verbose=1,orientation_lock="cube")
     shell_particles = SA.place_snapshot_particles_in_shell(
         lightcone_redshift_range=redshift_range,
         property_names=["Masses"],

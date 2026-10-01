@@ -7,7 +7,7 @@ from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from .property_to_field_names import property_to_field, field_to_property
 from .snapshot_units import apply_expected_units
 from . import beam_plotting
-from .beam_plotting import BeamPlot, round_down_10, round_up_10, orderOfMagnitude
+from .beam_plotting import BeamPlot, round_up_10
 import swiftsimio as sw
 from swiftsimio.objects import cosmo_array
 
@@ -82,17 +82,17 @@ class BeamProjection:
         
         self.slice_thickness = None if slice_thickness is None else apply_expected_units(slice_thickness, unyt.Mpc) # size on z-axis
         
+        self._make_empty_flags()
+
+
+        if store_snapshot_filename is not None:
+            self._snapshot_filename=store_snapshot_filename
+        
         # try apply cosmology 
         if isinstance(cosmology, str):
             cosmology = Snapshot_Cosmology_For_Lightcone(cosmology).COSMO
 
         self.cosmology = cosmology
-       
-
-        self._make_empty_flags()
-
-        if store_snapshot_filename is not None:
-            self._snapshot_filename=store_snapshot_filename
 
     def _make_empty_flags(self,):
         """
@@ -225,7 +225,7 @@ class BeamProjection:
         
         if self.in_slice_boolean[ptype] is None or self.particle_data[ptype] is None:
             print(f"No {ptype} particles in slice, cannot add {dset_name}")
-        
+            return
         if len(dset) != len(self.in_slice_boolean[ptype]):
             print("incorrect size of dataset")
             return
@@ -359,16 +359,22 @@ class BeamProjection:
         # check ptype is ok. 
         check_ptype(ptype)
         
-        if self.cosmology is None:
-            self.cosmology=Snapshot_Cosmology_For_Lightcone(snapshot_filename).COSMO
-            
-            # update snapshot name stored if used for cosmology
-            self._snapshot_filename = snapshot_filename
+        #if self.cosmology is None:
+        #    self.cosmology=Snapshot_Cosmology_For_Lightcone(snapshot_filename).COSMO
+        #    
+        #    # update snapshot name stored if used for cosmology
+        #    self._snapshot_filename = snapshot_filename
         
         # update snapshot filename if a new one is passed 
         if snapshot_filename is not None:
             if snapshot_filename != self._snapshot_filename:
                 self._snapshot_filename = snapshot_filename
+        
+        if self._snapshot_filename is None:
+            raise ValueError("'snapshot_filename' must be passed or already given as 'store_snapshot_filename' when creating the BeamProjection")
+
+        if self.cosmology is None:
+            self.cosmology=Snapshot_Cosmology_For_Lightcone(self._snapshot_filename).COSMO
 
         if weight is None:
             return self._project(list(project_particle_properties), self._snapshot_filename, resolution, assign_units, ptype, periodic, parallel)
@@ -696,10 +702,11 @@ class BeamProjection:
 
     def split_beam_plot(self, numb_wedges, projection_data, colour_maps,
             axs=None, filename=None,
-            angular_diameter=None, cosmology=None, redshift_range=None, axes_extent=None, update_badcol=True, figsize=(7,7), titles=None, norms=None, **kwargs):
+            angular_diameter=None, cosmology=None, redshift_range=None, 
+            axes_extent=None, update_badcol=True, figsize=(7,7), titles=None, norms=None, **kwargs):
         
         """
-        Create plot of the whole beam, split into seperate wedges. 
+        Create plot of the whole beam, split into separate wedges. 
 
         Returns list of each projected wedge.  
 

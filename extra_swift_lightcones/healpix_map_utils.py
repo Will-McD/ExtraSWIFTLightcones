@@ -9,8 +9,6 @@ import lightcone_io.healpix_maps as hm
 from . import snapshot_units as sw_units
 from .swift_snapshot_redshift_conversion import flamingo_shell_redshift_file
 
-import math
-
 """
 Utility functions for working with healpix maps. 
 """
@@ -377,7 +375,6 @@ def write_rotated_lightcone_chunks(
     
     # load all redshifts for any FLAMINGO lightcone
     redshifts=np.loadtxt(flamingo_shell_redshift_file('L2p8'), delimiter=",")[shell_numbers, :]
-    #redshifts = np.loadtxt("/cosma8/data/dp004/flamingo/Runs/L2800N5040/HYDRO_FIDUCIAL/shell_redshifts.txt", delimiter=",")[shell_numbers, :]
     
     update_str=f"total number of rotations:\t{nrot}"+f"\ntotal range of shell numbers:\t{shell_numbers[0]}, {shell_numbers[-1]}\n" +f"total redshift range:\t{redshifts[0, 0]:.3f}, {redshifts[-1, 1]:.3f}"
     print(update_str)

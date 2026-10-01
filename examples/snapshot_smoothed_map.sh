@@ -15,7 +15,7 @@ module load gnu_comp/14.1.0 openmpi/5.0.3
 module load python/3.12.4
 
 # virtual environment made with venv_scripts/make_cosma_env.sh
-venv_name="/cosma/apps/do012/${USER}/extra_swift_lightcones_env"
+venv_name="/cosma/apps/dp004/${USER}/extra_swift_lightcones_env"
 source "${venv_name}/bin/activate"
 
 # simulations resolution
@@ -35,7 +35,7 @@ output_dir=./example_outputs/smoothed_maps/${box_res}/${sim_name}
 
 mkdir -p "${output_dir}"
 
-mpirun -np 12 -- python3 -m mpi4py ./examples/make_smoothed_map_from_snapshot.py \
+mpirun -np 12 -- python3 -m mpi4py ./examples/snapshot_smoothed_map.py \
     --box_res="${box_res}" \
     --sim_name="${sim_name}" \
     --zmin=${zmin} \

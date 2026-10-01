@@ -2,7 +2,7 @@
 import os
 import numpy as np
 import re
-
+from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_redshifts, environment_data_dir
 
 def flamingo_snapshot_redshift(boxsize_resolution):   
     """
@@ -49,7 +49,7 @@ def colibre_snapshot_redshift():
          0.2500,  0.2250,  0.2000,  0.1800,  0.1600,  0.1400,  0.1200,  0.1000,
          0.0800,  0.0600,  0.0500,  0.0400,  0.0300,  0.0200,  0.0100,  0.0000,
     ])
-    return snapshot_numbers, redshift
+    return snapshot_numbers, redshifts
 
 def snapshot_number_in_range(
                 redshift_range, boxsize_resolution=None,
@@ -204,29 +204,36 @@ def snapshot_redshift_range(snapshot_number, boxsize_resolution=None, use_colibr
     return edges[snapshot_number + 1], edges[snapshot_number]
 
 
-# access the flamingo shell redshifts if downloaded and placed in virtual environment from ./venv_scripts/shell_redshifts.sh
-_REDSHIFT_FILES = {
-    "L1":   ("L1_REDSHIFTS_FILENAME",   "L1_shell_redshifts_z3.txt"),
-    "L2p8": ("L2P8_REDSHIFTS_FILENAME", "L2p8_shell_redshifts_z5.txt"),
-}
 
-def flamingo_shell_redshift_file(box):
+# FLAMINGO shell redshift files, downloaded into the Python environment by extra_swift_lightcones-configure
+def flamingo_shell_redshift_file(box, download=True):
     """
-    Returns the absolute path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or 2800 Mpc ("L2p8") box sidelength simulations.
+    Returns the absolute path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or 
+    2800 Mpc ("L2p8") box sidelength simulations.
     Checks, in order:
         1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
-        2. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
+        2. <environment>/share/extra_swift_lightcones/redshifts/<file>, where extra_swift_lightcones-configure 
+            downloads the files to
+        3. ~/.cache/extra_swift_lightcones/redshifts/<file>, used when the environment can't be written to
+        4. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
     
-    Raises FileNotFoundError if neither exists.
+    If none exist and download is True, the files are downloaded (see config.download_shell_redshifts).
+    Raises FileNotFoundError if the file can't be found or downloaded.
 
-    :param  box:    simulation box, "L1" or "L2p8"
-    :type   box:    str
+    :param  box:        simulation box, "L1" or "L2p8"
+    :type   box:        str
+    :param  download:   If True, download the files when they can't be found
+    :type   download:   boolean
     """
-    if box not in _REDSHIFT_FILES:
-        raise ValueError(f"box must be one of {list(_REDSHIFT_FILES)}, got {box!r}")
-    env_name, filename = _REDSHIFT_FILES[box]
+    if box not in SHELL_REDSHIFT_FILES:
+        raise ValueError(f"box must be one of {list(SHELL_REDSHIFT_FILES)}, got {box!r}")
+    env_name, filename, _ = SHELL_REDSHIFT_FILES[box]
     #
-    candidates = [os.environ.get(env_name)]
+    candidates = [
+        os.environ.get(env_name),
+        os.path.join(environment_data_dir(), "redshifts", filename),
+        os.path.join(os.path.expanduser("~"), ".cache", "extra_swift_lightcones", "redshifts", filename),
+    ]
     #
     # interactive session work around, _file__ only exists when this code lives in a .py
     module_file = globals().get("__file__")
@@ -238,10 +245,16 @@ def flamingo_shell_redshift_file(box):
         if path and os.path.isfile(path):
             return os.path.abspath(path)
     #
+    download_error = ""
+    if download:
+        try:
+            return download_shell_redshifts(verbose=False)[env_name]
+        except OSError as error:
+            download_error = f" Downloading them to {default_redshift_dir()} failed: {error}."
     raise FileNotFoundError(
         f"FLAMINGO shell redshifts for {box} not found (looked in: "
-        f"{[p for p in candidates if p]}). Set {env_name} or run "
-        "additional_scripts/flamingo_shell_redshifts.sh"
+        f"{[p for p in candidates if p]}).{download_error} Run extra_swift_lightcones-configure "
+        f"on a machine with internet access, or set {env_name} to the path of the file"
     )
 
 
