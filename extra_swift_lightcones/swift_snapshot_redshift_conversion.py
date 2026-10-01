@@ -4,7 +4,6 @@ import numpy as np
 import re
 from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_redshifts, environment_data_dir
 
-
 def flamingo_snapshot_redshift(boxsize_resolution):   
     """
     Snapshot numbers and their redshifts for the FLAMINGO simulations. 
@@ -50,7 +49,7 @@ def colibre_snapshot_redshift():
          0.2500,  0.2250,  0.2000,  0.1800,  0.1600,  0.1400,  0.1200,  0.1000,
          0.0800,  0.0600,  0.0500,  0.0400,  0.0300,  0.0200,  0.0100,  0.0000,
     ])
-    return snapshot_numbers, redshift
+    return snapshot_numbers, redshifts
 
 def snapshot_number_in_range(
                 redshift_range, boxsize_resolution=None,

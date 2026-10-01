@@ -359,11 +359,11 @@ class BeamProjection:
         # check ptype is ok. 
         check_ptype(ptype)
         
-        if self.cosmology is None:
-            self.cosmology=Snapshot_Cosmology_For_Lightcone(snapshot_filename).COSMO
-            
-            # update snapshot name stored if used for cosmology
-            self._snapshot_filename = snapshot_filename
+        #if self.cosmology is None:
+        #    self.cosmology=Snapshot_Cosmology_For_Lightcone(snapshot_filename).COSMO
+        #    
+        #    # update snapshot name stored if used for cosmology
+        #    self._snapshot_filename = snapshot_filename
         
         # update snapshot filename if a new one is passed 
         if snapshot_filename is not None:
@@ -372,6 +372,9 @@ class BeamProjection:
         
         if self._snapshot_filename is None:
             raise ValueError("'snapshot_filename' must be passed or already given as 'store_snapshot_filename' when creating the BeamProjection")
+
+        if self.cosmology is None:
+            self.cosmology=Snapshot_Cosmology_For_Lightcone(self._snapshot_filename).COSMO
 
         if weight is None:
             return self._project(list(project_particle_properties), self._snapshot_filename, resolution, assign_units, ptype, periodic, parallel)
@@ -703,7 +706,7 @@ class BeamProjection:
             axes_extent=None, update_badcol=True, figsize=(7,7), titles=None, norms=None, **kwargs):
         
         """
-        Create plot of the whole beam, split into seperate wedges. 
+        Create plot of the whole beam, split into separate wedges. 
 
         Returns list of each projected wedge.  
 

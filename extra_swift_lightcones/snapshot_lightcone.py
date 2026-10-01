@@ -1631,13 +1631,15 @@ class SnapshotLightcone():
 
     def Lightcone2Snapshot(self, coords, snapshot_number=None, tile=None):
         """
-        Inverse of Snapshot2Lightcone, translate lightcone frame
-        coordinates back into the snapshot numbers and snapshot frame coordinates.
+        Inverse of Snapshot2Lightcone, translate lightcone frame coordinates back into 
+        the snapshot numbers and snapshot frame coordinates.
 
-        This function relies on self.last_snapshot_read and only knows about snapshots and tiles from the most recently gathered shell.
+        This function relies on self.last_snapshot_read and only knows about snapshots 
+        and tiles from the most recently gathered shell.
         
-        Which snapshot a lightcone frame particle belongs to is determined from its comoving distance alone. 
-        Within a matched snapshot the snapshot number alone doesn't say which of its tiles a given point's orientation should be inverted to. 
+        Which snapshot a lightcone frame particle belongs to is determined from 
+        its comoving distance alone. Within a matched snapshot the snapshot number alone doesn't 
+        say which of its tiles a given point's orientation should be inverted to. 
         Therefore, this inverts every one of that snapshot's tiles and returns all of them. 
         Only one is the 'real' originating tile for any given point . 
 
@@ -1662,8 +1664,6 @@ class SnapshotLightcone():
         if tile is not None and snapshot_number is None:
             raise ValueError("tile requires snapshot_number to also be given")
 
-        # point_idx_by_snap[snap_nr]: which input points belong to snap_nr.
-        # tiles_by_snap[snap_nr]: which tiles to invert them through.
         if snapshot_number is not None:
             # every point assigned directly, no distance-based filtering
             point_idx_by_snap = {snapshot_number: np.arange(coords.shape[0])}
@@ -1672,26 +1672,19 @@ class SnapshotLightcone():
             else:
                 if not self.last_snapshot_read:
                     raise ValueError(
-                        "no shell-read state to look up tiles from -- call "
-                        "gather_files or place_snapshot_particles_in_shell "
-                        "first, or pass tile explicitly to skip this lookup"
+                        "no shell-read state to look up tiles from -- call gather_files or place_snapshot_particles_in_shell first, or pass tile explicitly to skip this lookup"
                     )
                 found_tiles = [record.tile for record in self.last_snapshot_read
                                if record.snap_nr == snapshot_number]
                 if not found_tiles:
                     raise ValueError(
-                        f"snapshot {snapshot_number} not found in the last "
-                        "shell-read state -- pass tile explicitly to skip "
-                        "this lookup"
+                        f"snapshot {snapshot_number} not found in the last shell-read state -- pass tile explicitly to skip this lookup"
                     )
                 tiles_by_snap = {snapshot_number: found_tiles}
         else:
             if not self.last_snapshot_read:
                 raise ValueError(
-                    "no shell-read state to look up snapshots from -- call "
-                    "gather_files or place_snapshot_particles_in_shell "
-                    "first, or pass snapshot_number explicitly to skip "
-                    "this lookup"
+                    "no shell-read state to look up snapshots from -- call gather_files or place_snapshot_particles_in_shell first, or pass snapshot_number explicitly to skip this lookup"
                 )
             # every tile recorded for each snapshot, and the (z_min, z_max)
             # range that snapshot (all its tiles alike) was assigned
@@ -1717,7 +1710,7 @@ class SnapshotLightcone():
 
             n_unmatched = coords.shape[0] - sum(idx.size for idx in point_idx_by_snap.values())
             if n_unmatched > 0:
-                warnings.warn(f"Lightcone2Snapshot: {n_unmatched} point(s) not within any snapshots comoiving distance range in the lasy shell read state")
+                warnings.warn(f"Lightcone2Snapshot: {n_unmatched} point(s) not within any snapshots comoving distance range in the lasy shell read state")
 
         results = {}
         #for snap_nr, point_idx in point_idx_by_snap.items():
