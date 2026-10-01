@@ -48,7 +48,7 @@ If `extra_swift_lightcones-configure` isn't run, the lightcone shell redshifts a
 
 ### MPI support
 
-MPI support is not required to generate new lightcones from snapshots with the `SnapshotLightcone` classes, however it is necessary for the full, more efficient, use of the `SnapshotLightcone` classes, the `BeamProjection` class and for generating binary masks of haloes (`mask_haloes.py`).
+MPI support is not required to generate new lightcones from snapshots with the `SnapshotLightcone` sub classes. However, it is necessary for the more efficient parallel methods of `SnapshotLightcone`, the `BeamProjection` class and for generating binary masks of haloes (`mask_haloes.py`).
 
 MPI support requires mpi4py and an MPI enabled build of h5py. 
 The mpi4py package installed from PyPI needs an MPI library at run time. If your system has none (e.g. on a laptop), install one into the environment with `pip install mpich` (or `pip install openmpi`). `extra_swift_lightcones-configure` doesn't need MPI.
