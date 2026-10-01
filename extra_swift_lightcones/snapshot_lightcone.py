@@ -5,6 +5,7 @@ import h5py
 from collections import namedtuple
 from scipy.interpolate import CubicSpline
 from scipy.optimize import brentq
+import virgo.formats.swift as virgo_swift
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
@@ -13,8 +14,31 @@ import lightcone_io.halo_catalogue as hc
 from . import snapshot_orientation as box_structure
 from . import snapshot_units as sw_units
 from . import  swift_snapshot_redshift_conversion as nz
+import builtins
 import datetime as dt
 import warnings
+
+
+# FORCE A PATCH FOR VIRGODC WITH NUMPY>2.4
+# unknown when raised issue will be corrected with virgodc and cannot revert to numpy<2.4
+# implement an intermediate patch for virgodc float values with soap catalogues.
+def _float(value):
+    """
+    float() that also accepts one-element arrays, as numpy < 2.4 did.
+
+    virgo.formats.swift (virgodc <= 1.0.5) calls float() on the one-element array attributes of SWIFT and SOAP 
+    files to build their units, which numpy >= 2.4 refuses, so lightcone_io's SOAPCatalogue cannot read SOAP 
+    catalogues. Used as float inside virgo.formats.swift only, until virgodc is fixed.
+
+    :param  value:  number or one-element array
+    :type   value:  float or np.ndarray
+    """
+    if np.size(value) == 1:
+        return builtins.float(np.asarray(value).reshape(-1)[0])
+    return builtins.float(value)
+
+virgo_swift.float = _float
+
 
 try:
     from numba import njit, prange
@@ -1162,7 +1186,9 @@ class SnapshotLightcone():
         """
         Fill in a correct zero-length unyt_array for a rank assigned zero files. 
         Use the unit registery and each property's dtype + units from a rank that did read something.
-
+        
+        Note: SnapshotNumber is always included in particle properties. 
+        
         :param  property_names: particle properties read
         :type   property_names: list
         :param  comm:           MPI communicator
@@ -1176,9 +1202,9 @@ class SnapshotLightcone():
                     self._unit_metadata = metadata
                     self.unit_registry = sw_units.unit_registry_from_metadata(metadata)
                     break
-
-        for prop in property_names:
-            arr = self.particle_data[prop]
+        
+        for prop in list(property_names) + ["SnapshotNumber"]:
+            arr = self.particle_data.get(prop)        
             info = None if arr is None else (arr.dtype, arr.shape[1:], str(arr.units))
             all_info = comm.allgather(info)
 
@@ -1383,9 +1409,11 @@ class SnapshotLightcone():
         :param  property_names: particle properties to redistribute, ExpansionFactors is always included
         :type   property_names: list
         """
+        
         all_props = list(property_names)
-        if "ExpansionFactors" not in all_props:
-            all_props.append("ExpansionFactors")
+        for prop in ("ExpansionFactors", "SnapshotNumber"):
+            if prop not in all_props:
+                all_props.append(prop)
 
         n_local = self.particle_data[all_props[0]].shape[0]
         nperproc = self.comm.allgather(n_local)
