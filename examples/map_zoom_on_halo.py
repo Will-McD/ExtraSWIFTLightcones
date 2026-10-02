@@ -21,6 +21,18 @@ Here we will select a small region centred on a halo in the lightcone by reading
 subset of pixels from the larger map, that are in a disk about the 
 pixel the halos centre of mass is found in and then making an image 
 using a Gnomonic projection. 
+
+
+Note 1) This example uses Nside 16384 maps read from the remote comsa6 server, 
+to reduce memory required change nside_output to 4096. 
+
+Note 2) The centre of the zoomed image is on the halo lightcones "HaloCentre" values
+and/or the centre of the pixel containing that HaloCentre (depending on if centre_vector is passed to the plotting function). 
+The centre of the halo is not necesarily where it will appear to be brightest or most dense. 
+
+Note 3) The selected halo can be split across multiple redshift shells. If the halo doesn't apprear 
+in the loaded map you may have to change how the shell number used to select the HEALPix map if 
+the halo is near the edge of a lightcones redshift shell. 
 """
 
 def plot_settings():
@@ -89,11 +101,60 @@ def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False)
     else:
          return particle_shell_nr.astype(np.int32), redshifts[np.min(particle_shell_nr.astype(np.int32)):np.max(particle_shell_nr.astype(np.int32))+1, :]
 
+
+
+def read_selected_pixels(healpix_map, pixel_idx):
+    """
+    Read only the selected pixels of HEALPix map without reading the whole map.
+
+    The pixels are read as runs of consecutive pixel indices, assuming ring order, grouped by the file of the map holding them. 
+    
+    Read remote maps with hdfstream in one request to avoid the server stopping access due to too many requests. 
+    Local maps are read row by row of the selected pixels in the map. 
+
+    Uses the file names, pixels per file and dataset name of the lightcone_io HealpixMap, as lightcone_io has
+    no method to read several ranges of pixels in one request.
+
+    Returns the values of the pixels, in the order of the sorted pixel indices.
+
+    :param  healpix_map:    map to read from, e.g. a map of a lightcone_io.healpix_maps.Shell
+    :type   healpix_map:    lightcone_io.healpix_maps.HealpixMap
+    :param  pixel_idx:      indices of the pixels to read
+    :type   pixel_idx:      np.ndarray
+    """
+    pixel_idx = np.sort(np.asarray(pixel_idx, dtype=int))
+    healpix_map._set_metadata()
+    pix_per_file, nr_files = healpix_map._pix_per_file, len(healpix_map._filenames)
+
+    # get runs of consecutive pixels.  
+    # To read lightcone_io maps, file n starts at pixel n * pix_per_file and the last file holds the rest of the pixels.
+    runs_by_file = {}
+    for run in np.split(pixel_idx, np.flatnonzero(np.diff(pixel_idx) != 1) + 1):
+        start, stop = int(run[0]), int(run[-1]) + 1
+        while start < stop:
+            file_nr = min(start // pix_per_file, nr_files - 1)
+            file_stop = stop if file_nr == nr_files - 1 else min(stop, (file_nr + 1) * pix_per_file)
+            runs_by_file.setdefault(file_nr, []).append(np.s_[start - file_nr * pix_per_file:file_stop - file_nr * pix_per_file])
+            start = file_stop
+
+    values = []
+    for file_nr in sorted(runs_by_file):
+        with healpix_map.open_file(healpix_map._filenames[file_nr]) as infile:
+            dataset = infile[healpix_map._map_name]
+            if hasattr(dataset, "request_slices"):  # remote lightcone_io maps, all the runs in one request
+                values.append(np.asarray(dataset.request_slices(runs_by_file[file_nr])))
+            else:  # local maps
+                values.append(np.concatenate([dataset[run] for run in runs_by_file[file_nr]]))
+    return np.concatenate(values)
+
+
 def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, return_empty_map=False):
     """
     Retrieve selected pixels from a map to make a zoomed in 
     gnomview plot of a region on the sky.
-
+    
+    For large or high Nside maps to reduce peak memory return_empty_map=False. 
+    
     Returns a tuple of (map of the selected pixels, value of the centre pixel).
 
     :param  filename:           path to hdf5 file of the map or lightcone_io healpix map shell object
@@ -107,12 +168,12 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
     :param  map_name:           name of the map's dataset within the file
     :type   map_name:           str
     :param  return_empty_map:   If False, only return selected pixels. Otherwise return all-sky map with 
-                                    all pixels not selected = 0
+                                    all pixels not selected = 0. 
     :type   return_empty_map:   boolean
     """
     
     if isinstance(pixel_idx, list):
-        pixel_idx = np.asarray(pixel_idx).dtype(int)
+        pixel_idx = np.asarray(pixel_idx).astype(int)
     if isinstance(filename, str):# assume string implies that the map is hdf5 object 
         with h5py.File(filename, 'r') as f:
             # define map array and units
@@ -132,6 +193,7 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
                 if return_empty_map is True:
                     xmap[pixel_idx]+=f[map_name][pixel_idx]
                 else:
+                    # read only the selected pixels
                     xmap[:]+=f[map_name][pixel_idx]
                 centre_pix_val = f[map_name][centre_pixel_idx]*map_units
 
@@ -143,17 +205,35 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
             xmap = unyt.unyt_array(np.zeros(len(pixel_idx)), units=filename[map_name].units)
         else:
             raise ValueError("no selected pixels and return_empty_map=False")
-        
+
+        # value of the centre pixel
+        centre_pix_val = unyt.unyt_quantity( np.asarray(filename[map_name][centre_pixel_idx:centre_pixel_idx+1])[0], filename[map_name].units)
+
         if pixel_idx is None:
             xmap += filename[map_name][:]
-            centre_pix_val = f[map_name][centre_pixel_idx]* filename[map_name].units
+        
         else:
-            pixel_idx=pixel_idx[np.argsort(pixel_idx)].astype(int) # order and ensure correct type
+            pixel_idx=np.asarray(pixel_idx[np.argsort(pixel_idx)]).astype(int) # order and ensure order, is np.array and int 
+            
+            # Now we gather the runs of consequtive pixels using read_selected_pixels instead of defining here. 
+            #runs = np.split(pixel_idx, np.flatnonzero(np.diff(pixel_idx) != 1) + 1) # combine slices of pixels to reduce number of server requests
+            selected_pix_vals = read_selected_pixels(filename[map_name], pixel_idx)
+            
             if return_empty_map is True:
-                xmap[pixel_idx]+=np.array([filename[map_name][n_idx:n_idx+1][0] for n_idx in pixel_idx])
+                #xmap[pixel_idx]+=np.concatenate([np.asarray(filename[map_name][run[0]:run[-1] + 1]) for run in runs])
+                xmap[pixel_idx]+=selected_pix_vals
             else:
-                xmap[:]+=np.array([filename[map_name][n_idx:n_idx+1][0] for n_idx in pixel_idx])
-            centre_pix_val = filename[map_name][centre_pixel_idx:centre_pixel_idx+1][0] * filename[map_name].units
+                # read only the selected pixels, in as few requests as possible
+                #xmap[:]+=np.concatenate([np.asarray(filename[map_name][run[0]:run[-1] + 1]) for run in runs])
+                xmap[:]+=selected_pix_vals
+
+            # sanity check: are the selected pixels being read correctly? 
+            # Compare selected pixels centre pix value against the centre pix value
+            centre_in_selected = np.searchsorted(pixel_idx, centre_pixel_idx)
+            if centre_in_selected < len(pixel_idx) and pixel_idx[centre_in_selected] == centre_pixel_idx:
+                if not np.isclose(selected_pix_vals[centre_in_selected], centre_pix_val, rtol=1e-6, atol=0, equal_nan=True):
+                    raise RuntimeError(f"{map_name}: centre pixel read with the selected pixels differs from reading it on its own ({centre_pix_val} vs {pixel_values[centre_in_selected]})")
+
 
     return xmap, centre_pix_val
 
@@ -171,6 +251,111 @@ def no_frac_latex(unit_obj):
     one_line_str = re.sub(r'\\frac\{(.+?)\}\{(.+?)\}', r'\1/\2', latex_expression)
     return one_line_str
 
+
+def find_haloes_in_shell(halo_format, soap_format, shell_redshift_range, centre_vector, radius, boxsize_resolution,
+                        remote_dir=None, min_mass=1e13*unyt.Msun, extra_properties=("InputHalos/IsCentral", "BoundSubhalo/TotalMass")):
+    """
+    Find the haloes of the halo lightcone around a direction on the sky in a lightcone redshift shell.
+    Haloes in one shell can come from mutiple halo lightcone files as each file contains haloes from only one snapshot. 
+
+    Returns a dict of arrays, one entry per halo: 
+        {   
+            "HaloCentre" [cMpc],
+            "Redshift", 
+            "M200c" [Msun], 
+            "R200c" [cMpc],
+            "SnapshotNumber", 
+            "vectors" (unit vectors of their directions), 
+            "angular_radius" (of R200c),
+            "offset" (from centre_vector) [radians], 
+            **extra_properties...
+        }
+
+    :param  halo_format:            format string of the halo lightcone filenames (using {snap_nr})
+    :type   halo_format:            str
+    :param  soap_format:            format string of the matching SOAP catalogue filenames (using {snap_nr})
+    :type   soap_format:            str
+    :param  shell_redshift_range:   minimum and maximum redshift of the map's shell
+    :type   shell_redshift_range:   sequence of two floats
+    :param  centre_vector:          direction to search around, e.g. the centre of a zoom
+    :type   centre_vector:          array-like, shape (3,)
+    :param  radius:                 angular radius to search [radians]
+    :type   radius:                 float
+    :param  boxsize_resolution:     FLAMINGO box size and resolution label, e.g. "L1000N1800", for the snapshot redshifts
+    :type   boxsize_resolution:     str
+    :param  remote_dir:             remote directory of the files (hdfstream), or None for local files
+    :type   remote_dir:             hdfstream.RemoteDirectory
+    :param  min_mass:               smallest M200c of the haloes kept
+    :type   min_mass:               unyt.unyt_quantity
+    :param  extra_properties:       other halo properties to read, if the files have them
+    :type   extra_properties:       sequence of str
+    """
+    centre_vector = np.asarray(centre_vector, dtype=float) / np.linalg.norm(centre_vector)
+    z_min, z_max = shell_redshift_range
+
+    # snapshots whose redshift ranges overlap the shell, and one on either side
+    overlapping = []
+    for snap_nr in range(0, 1000):
+        try:
+            snap_z_min, snap_z_max = nz.snapshot_redshift_range(snap_nr, boxsize_resolution)
+        except (IndexError, KeyError, ValueError):
+            break  # past the last snapshot
+        last_snap_nr = snap_nr
+        if snap_z_min < z_max and snap_z_max > z_min:
+            overlapping.append(snap_nr)
+    snapshots = range(max(min(overlapping) - 1, 0), min(max(overlapping) + 1, last_snap_nr) + 1)
+
+    base_properties = ["Lightcone/HaloCentre", "Lightcone/Redshift", "SO/200_crit/TotalMass", "SO/200_crit/SORadius"]
+    found = []
+    for snap_nr in snapshots:
+        try:
+            halo_file = hr.HaloLightconeFile(filename=halo_format.format(snap_nr=snap_nr),
+                                             soap_filename=soap_format.format(snap_nr=snap_nr), remote_dir=remote_dir)
+        except Exception as error:  # e.g. no file for a snapshot beyond the last one
+            print(f"\tno halo lightcone for snapshot {snap_nr}: {error}")
+            continue
+        available = [name for name in extra_properties
+                     if name in halo_file._file or (halo_file._soap_file is not None and name in halo_file._soap_file)]
+        haloes = halo_file.read_halos_in_radius(centre_vector, radius, base_properties + available)
+        # read_halos_in_radius returns every halo in the index pixels it reads, so also cut on the angle
+        redshift = haloes["Lightcone/Redshift"].value
+        position = haloes["Lightcone/HaloCentre"].to_value("Mpc")
+        cos_offset = position @ centre_vector / np.linalg.norm(position, axis=1)
+        keep = ((redshift > z_min) & (redshift <= z_max) & (haloes["SO/200_crit/TotalMass"] >= min_mass)
+                & (cos_offset >= np.cos(radius)))
+        haloes = {name: values[keep] for name, values in haloes.items()}
+        haloes["SnapshotNumber"] = np.full(np.count_nonzero(keep), snap_nr)
+        found.append(haloes)
+        print(f"\tsnapshot {snap_nr}: {np.count_nonzero(keep)} haloes in the shell within the search radius")
+
+    if not found:
+        raise FileNotFoundError("no halo lightcone files found for the snapshots covering the shell")
+
+    def joined(name, units=None):
+        # one array of a property from every file, in the given units
+        return np.concatenate([np.asarray(haloes[name].to_value(units) if units else haloes[name]) for haloes in found])
+
+    centre = joined("Lightcone/HaloCentre", "Mpc")
+    result = {
+        "HaloCentre": centre,
+        "Redshift": joined("Lightcone/Redshift"),
+        "M200c": joined("SO/200_crit/TotalMass", "Msun"),
+        "R200c": joined("SO/200_crit/SORadius", "Mpc"),  # comoving
+        "SnapshotNumber": joined("SnapshotNumber"),
+    }
+    for name in extra_properties:
+        if all(name in haloes for haloes in found):
+            # masses in Msun, anything else as stored
+            is_mass = found[0][name].units.dimensions == unyt.dimensions.mass
+            result[name] = joined(name, "Msun" if is_mass else None)
+    distance = np.linalg.norm(centre, axis=1)
+    result["vectors"] = centre / distance[:, None]
+    result["angular_radius"] = result["R200c"] / distance
+    result["offset"] = np.arccos(np.clip(result["vectors"] @ centre_vector, -1, 1))
+    return result
+
+
+
 def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names, 
                         axes_idx=None, output_filename=None, 
                         r_npix=10,
@@ -182,6 +367,7 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
                         inclusive=True,
                         cmap_norm=None,
                         highlight_centre_pixel=None,
+                        centre_vector=None,
                         ):
     """
     Make a gnomview plot of a disk centered on a given pixel. 
@@ -223,12 +409,20 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
                                         coords of the centre pixel
     :type   highlight_centre_pixel: tuple
     """
+    
+
     plot_settings()
 
     # query the map to find all pixels within a radius of the centre pixel. 
     theta, phi = hp.pix2ang(nside, centre_pix_idx, lonlat=True) # lonlat=True => [degrees]
-    xyz = hp.pix2vec(nside, centre_pix_idx)
-    
+    if centre_vector is None:
+        xyz = np.asarray(hp.pix2vec(nside, centre_pix_idx))
+    else:
+        xyz = np.asarray(centre_vector, dtype=float) / np.linalg.norm(centre_vector)
+        if hp.vec2pix(nside, *xyz) != centre_pix_idx:
+            raise ValueError("centre_vector is not in the pixel centre_pix_idx")
+    theta, phi = hp.vec2ang(xyz, lonlat=True) # lonlat=True => longitude and latitude [degrees]
+    theta, phi = float(theta[0]), float(phi[0])
     pix_sidelength = hp.nside2resol(nside, arcmin=True)*unyt.arcmin
     
     include_pix_idx=hp.query_disc(nside, xyz, r_npix*pix_sidelength.to_value(unyt.radian), inclusive=inclusive)
@@ -244,6 +438,9 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
             ncols=2
         elif n>4:
             ncols=3
+        else:
+            ncols=n
+
         nrows = int(np.ceil(n / ncols))
         for i, name in enumerate(map_names):
             row = int(i // ncols)
@@ -274,7 +471,7 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
     
     fig = plt.figure(figsize=(fig_xsize, fig_ysize))
     plot_grid = fig.add_gridspec(nrows=nrows, ncols=ncols, wspace=0.02, hspace=0.02, width_ratios=[1]*ncols, height_ratios=[1]*nrows)
-    axs=plot_grid.subplots(sharex=True, sharey=True)
+    axs=plot_grid.subplots(sharex=True, sharey=True, squeeze=False)
 
     if cmap_norm is None:
         cmap_norm = ['log']*len(map_names)
@@ -283,8 +480,15 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
         print(f"\tPlotting Zoom for {map_name} map")
         
         # collect pixel values
-        xmap, centre_pix_val = fetch_zoom_pixels(filename, centre_pix_idx, include_pix_idx, nside, map_name, return_empty_map=True)
-        
+        xmap, centre_pix_val = fetch_zoom_pixels(filename, centre_pix_idx, include_pix_idx, nside, map_name, return_empty_map=False)
+        selected_pix_idx = np.sort(include_pix_idx)
+
+        def vec2index(x, y, z):
+            # position of each pixel, or the last entry of values if it isn't a selected pixel
+            pix = hp.vec2pix(nside, x, y, z)
+            idx = np.clip(np.searchsorted(selected_pix_idx, pix), 0, len(selected_pix_idx) - 1)
+            return np.where(selected_pix_idx[idx] == pix, idx, len(selected_pix_idx))
+    
         # convert coordinate system 
         xmap.convert_to_base("galactic")
         centre_pix_val.convert_to_base("galactic")
@@ -294,7 +498,6 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
             xmap.convert_to_units("erg/s/cm**2")
         elif xmap.units.dimensions == unyt.dimensions.time ** -1 * unyt.dimensions.length**-2:
             xmap.convert_to_units("photon/s/cm**2")
-        
         if centre_pix_val.units.dimensions == unyt.dimensions.energy/unyt.dimensions.time/unyt.dimensions.length**2:
             centre_pix_val.convert_to_units("erg/s/cm**2")
         elif centre_pix_val.units.dimensions == unyt.dimensions.time ** -1 * unyt.dimensions.length**-2:
@@ -305,7 +508,6 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
             xmap.convert_to_units("erg/s")
         elif xmap.units.dimensions == unyt.dimensions.time ** -1:
             xmap.convert_to_units("photon/s")
-        
         if centre_pix_val.units.dimensions == unyt.dimensions.energy/unyt.dimensions.time:
             centre_pix_val.convert_to_units("erg/s")
         elif centre_pix_val.units.dimensions == unyt.dimensions.time ** -1:
@@ -320,10 +522,8 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
         img_xy=(2*r_npix+1, 2*r_npix+1)
         
         # make gnom projection of selected pixels 
-        map_zoom=hp.gnomview(xmap.value, rot=[theta,phi], xsize=img_xy[0], ysize=img_xy[1], reso=img_res, cmap=None, norm=None, return_projected_map=True, no_plot=True) 
-        
-        # sanity check selected pixels with gnom projector
         gnom_obj = hp.projector.GnomonicProj(rot=[theta,phi], xsize=img_xy[0], ysize=img_xy[1], reso=img_res)
+        map_zoom = gnom_obj.projmap(np.append(np.asarray(xmap.value, dtype=np.float64), 0.), vec2index)
 
         axes_extent = [gnom_obj.get_extent()[0],
                        gnom_obj.get_extent()[1],
@@ -340,12 +540,27 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
 
         # create img
         if map_name == "DopplerB":
-            #print(map_zoom_for_plot.min(),map_zoom_for_plot[map_zoom_for_plot>0].min(), map_zoom_for_plot.max())
-            map_name=r"|$\,$"+map_name+r"$\,$|"
-            img = ax.imshow(np.abs(map_zoom), origin='lower', cmap=cmap, norm=cmap_norm[map_idx], extent=axes_extent, interpolation="none")
+            cmap_norm[map_idx]="symlog"
+            pixmin=np.percentile(map_zoom[map_zoom!=0], [1])[0]
+            pixmax=np.percentile(map_zoom[map_zoom!=0], [99])[0]
+            map_zoom[map_zoom==0]=np.nan
         else:
-            img = ax.imshow(map_zoom, origin='lower', cmap=cmap, norm=cmap_norm[map_idx], extent=axes_extent, interpolation="none")
-        
+            pixmin=None
+            pixmax=None
+        map_zoom = np.ma.masked_invalid(map_zoom)
+        norm = cmap_norm[map_idx]
+        if norm == "log" and not np.any(map_zoom > 0):
+            print(f"\t{map_name} has no positive values in the zoom, plotting it with a linear scale")
+            norm = "linear"
+            map_zoom[map_zoom==0]=np.nan
+
+        if norm=="log" and (np.abs(np.log10(np.nanmax(map_zoom)) - np.log10(np.nanmin(map_zoom[map_zoom>0])))<2):
+            print(np.log10(np.nanmax(map_zoom)), np.log10(np.nanmin(map_zoom[map_zoom>0])))
+            norm = "linear"
+            map_zoom[map_zoom==0]=np.nan
+
+        img = ax.imshow(map_zoom, origin='lower', cmap=cmap, norm=norm, extent=axes_extent,vmin=pixmin, vmax=pixmax, interpolation="none")
+
         if highlight_centre_pixel is not None:
             gnom_x, gnom_y = gnom_obj.ang2xy(theta, phi,lonlat=True) #positions in the gnomietric plane
             ax.scatter(gnom_x, gnom_y, edgecolor=highlight_centre_pixel[0], facecolor="none", marker=highlight_centre_pixel[1], linewidth=highlight_centre_pixel[3], s=highlight_centre_pixel[2])
@@ -361,13 +576,9 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
             show_units=r"[${unit_label}$]".format(unit_label=no_frac_latex(xmap.units))
 
         if ax_ij[0]==0:
-            cbar=fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.85, location='top',
-            label=show_units,pad=0.01,
-            )
-        elif ax_ij[0]==1:
-            cbar=fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.85, location='bottom',
-            label=show_units,pad=0.01,
-            )
+            cbar=fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.85, location='top',label=show_units,pad=0.01,)
+        else:
+            cbar=fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.85, location='bottom',label=show_units,pad=0.01,)
         cbar.ax.tick_params(labelsize=10) 
 
         # add scale 
@@ -403,7 +614,7 @@ def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names,
             va='top',
             color=text_colour,
             path_effects=[pe.withStroke(linewidth=1., foreground="Black"), pe.Normal()],
-            transform = ax.transAxes, fontsize=10, 
+            transform = ax.transAxes, fontsize=10 if len(map_name)<30 else 8, 
         )
         
     # save img
@@ -421,21 +632,22 @@ if __name__ == "__main__":
 
     # Find a halo on the sky at low redshift
     lightcone_nr=0
-    snapshot_number=75 # snapshot redshift, z=0.05
+    shell_nr = 1
 
     # output nside
-    output_nside=4096
+    output_nside=16384
 
     # define output directory
     output_dir="./example_outputs/zoom_on_pix_{nside}".format(nside=output_nside)
+    
     # ensure output directory exists
     directory_path = Path(output_dir)
     directory_path.mkdir(parents=True, exist_ok=True)
 
     # output filename
-    output_filename = output_dir+'/lightcone{lightcone_nr}.snapshot_{snap_nr}.png'.format(lightcone_nr=lightcone_nr, snap_nr=snapshot_number)
+    output_filename = output_dir+'/lightcone{lightcone_nr}.shell_{shell_nr}.png'.format(lightcone_nr=lightcone_nr, shell_nr=shell_nr)
 
-    # make path to healpix lightcone maps
+    # make path to healpix lightcone maps, if the healpix maps and catalogues are local then set root=None
     root = hdfstream.open("cosma", "/")
 
     # Location of the lightcone output relative to the directory we opened
@@ -444,70 +656,66 @@ if __name__ == "__main__":
     # Specify which observer's lightcone to read
     basename="lightcone{lightcone_nr}".format(lightcone_nr=lightcone_nr)
 
-    haloes_filename = basedir+"/halo_lightcone/lightcone{lc_nr}/lightcone_halos_{snapshot_number:04d}.hdf5".format(lc_nr=lightcone_nr, snapshot_number=snapshot_number)
-    soap_filename = basedir+"/SOAP-HBT/halo_properties_{snapshot_number:04d}.hdf5".format(snapshot_number=snapshot_number)
-    
+    # redshift range of selected shell
+    shell_redshift_range = np.loadtxt(nz.flamingo_shell_redshift_file('L1'), delimiter=",")[shell_nr]
 
-    # Read both soap and halo catalogue together 
-    halos = hr.HaloLightconeFile(filename=haloes_filename, soap_filename=soap_filename, remote_dir=root)
+    # halo lightcone and SOAP catalogue of each snapshot. 
+    halo_format = basedir+"/halo_lightcone/lightcone{lc_nr}/lightcone_halos_{{snap_nr:04d}}.hdf5".format(lc_nr=lightcone_nr)
+    soap_format = basedir+"/SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"
 
-    # List of halo properties to read
-    properties = ("Lightcone/HaloCentre", "Lightcone/Redshift", "SO/200_crit/TotalMass")
-
-    # to speed up the example we will only look at haloes within a small area on the sky
     # Line of sight vector specifying a point on the sky
-    vector = (1.0, 0.0, 0.0)
+    vector = (1.0, 2.0, 3.0)
     
-    # Angular radius around this point (in radians)
-    radius = np.radians(20.0)
+    # Angular radius (radians) around the unit vector that we will search within
+    radius = np.radians(30.0)
 
-    # Read the halo lightcone
-    halo_props = halos.read_halos_in_radius(vector, radius, properties)
+    # Read the haloes in the shell around this point, from every halo lightcone file covering the shell
+    print(f"\nHaloes within {np.degrees(radius):.0f} deg of {vector} in shell {shell_nr} ({shell_redshift_range[0]:.3f} < z <= {shell_redshift_range[1]:.3f}):")
+    
+    candidates = find_haloes_in_shell(halo_format, soap_format, shell_redshift_range, vector, radius, boxsize_resolution,remote_dir=root, min_mass=1e12*unyt.Msun, extra_properties=())
 
-    # select a halo with M200c close to 10^14 Msun
-    haloes_M200c = np.log10(halo_props['SO/200_crit/TotalMass'].to_value('Msun'))
-    target_log_M200c = 14
-    selected_halo_idx = np.argmin(np.abs(target_log_M200c - haloes_M200c))
 
-    #determine lightcone shell of selected halo
-    shell_numbers = assign_shell_number([halo_props['Lightcone/Redshift'][selected_halo_idx].value], nz.flamingo_shell_redshift_file('L1'), return_bounds=False)
-    shell_nr = shell_numbers[0]
+    ## select a halo with M200c close to 5 x 10^14 Msun
+    target_log_M200c = np.log10(5e14)
+    
+    selected_halo_idx = np.argmin(np.abs(target_log_M200c - np.log10(candidates["M200c"])))
+    halo_centre = candidates["HaloCentre"][selected_halo_idx]
 
-    # Read out information about the halo
-    info_str="\nM200c:\t\t{m200:.2e}\nRedshift:\t{z}\nShell numb:\t{shell_numb:d}\n".format(m200=halo_props['SO/200_crit/TotalMass'][selected_halo_idx].to('Msun'), z=halo_props['Lightcone/Redshift'][selected_halo_idx].value, shell_numb=shell_nr)
-    print(info_str)
-
-    # Find pixel in Nside 4096 healpix maps associated with tracer particle for the selcted halo 
-    ipix_4096 = hp.vec2pix(
-        4096, 
-        halo_props["Lightcone/HaloCentre"][selected_halo_idx][0].to_value("Mpc"),
-        halo_props["Lightcone/HaloCentre"][selected_halo_idx][1].to_value("Mpc"),
-        halo_props["Lightcone/HaloCentre"][selected_halo_idx][2].to_value("Mpc"),
+    info_str="\nM200c:\t\t{m200:.4e} Msun\nRedshift:\t{z}\nShell numb:\t{shell_numb:d}\nSnapshot:\t{snap:d}\n".format(
+        m200=candidates["M200c"][selected_halo_idx], 
+        z=candidates["Redshift"][selected_halo_idx], 
+        shell_numb=shell_nr,
+        snap=int(candidates["SnapshotNumber"][selected_halo_idx])
     )
+    print(info_str)
+    
+    # Find pixel in Nside 4096 healpix maps associated with tracer particle for the selcted halo 
+    ipix = hp.vec2pix(output_nside, *halo_centre)
 
     # Plot a a disk with radius of 100 pixels, centred the selected pixel.
-    r_pixels = 25
+    r_pixels = 128
+    zoom_radius = r_pixels * hp.nside2resol(output_nside)  # [radians]
 
     # Show all X-ray bands for intrinsic observations 
     map_names=[
         'XrayErositaLowIntrinsicPhotons_Recomp', 
         'DopplerB',
-        'StarFormationRate', 
-        'SmoothedGasMass', 
+        'ComptonY',
         'DM',
-        'DarkMatterMass'
+        'SmoothedGasMass', 
+        'DarkMatterMass',
     ]
-    colour_maps=["cubehelix", "cmr.eclipse", "cmr.ember" ,"plasma", "cmr.lilac", "cmr.cosmic"]
-
+    colour_maps=["cubehelix", "twilight", "cmr.ember" ,"cmr.eclipse", "cmr.lilac", "cmr.cosmic"]
 
     # Open the lightcone shell of healpix maps
-    shell_4096 = hm.Shell(basedir+"/healpix_maps/nside_{nside}".format(nside=output_nside), "lightcone{lc_nr}".format(lc_nr=lightcone_nr), shell_nr=shell_nr, remote_dir=root)
-
-    plot_zoom_on_pixel(shell_4096, 4096, ipix_4096, map_names, 
+    shell_arr = hm.Shell(basedir+"/healpix_maps/nside_{nside}".format(nside=output_nside), "lightcone{lc_nr}".format(lc_nr=lightcone_nr), shell_nr=shell_nr, remote_dir=root)
+    
+    plot_zoom_on_pixel(shell_arr, output_nside, ipix, map_names, 
                             axes_idx=None, output_filename=output_filename, r_npix=r_pixels, f_pixels=None, show_plot=False, 
                             colormap=colour_maps, bad_colours="grey",
                             length_scale=10*unyt.arcmin,
                             highlight_centre_pixel=("cyan", "o", 30, 1.), # highlight the centre pixel with a cyan ring. 
+                            centre_vector=halo_centre, # force the centre of zoom is pointed to the centre of the halo instead of pixels centre
                             )
     
 

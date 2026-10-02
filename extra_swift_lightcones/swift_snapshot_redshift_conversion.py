@@ -204,7 +204,6 @@ def snapshot_redshift_range(snapshot_number, boxsize_resolution=None, use_colibr
     return edges[snapshot_number + 1], edges[snapshot_number]
 
 
-
 # FLAMINGO shell redshift files, downloaded into the Python environment by extra_swift_lightcones-configure
 def flamingo_shell_redshift_file(box, download=True):
     """

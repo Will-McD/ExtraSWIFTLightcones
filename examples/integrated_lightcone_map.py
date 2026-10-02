@@ -44,6 +44,7 @@ if __name__ == "__main__":
     ell_max=2*output_nside
 
     # make path to healpix lightcone maps
+    # If the healpix maps are local then set root=None
     root = hdfstream.open("cosma", "/")
 
     # Location of the lightcone output relative to the directory we opened
