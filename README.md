@@ -27,19 +27,30 @@ bash ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh /path/to/environment
 ```
 ### Existing environment
 
-With your environment (venv or conda) activated, install the package and its requirements, then download the shell redshift files:
+With your environment (venv or conda) activated, install the module and its requirements from the repositories directory before then downloading the shell redshift .txt files:  
 
 ```
 cd ExtraSWIFTLightcones
-pip install -e .              # the package and its requirements
-pip install ".[examples]"     # + the requirements of the examples
-pip install ".[all]"          # + the requirements of the examples and tests
+pip install -e .              # the module and its requirements
+pip install ".[all]"          # the module, its requirements + the requirements of the examples and tests
 extra_swift_lightcones-configure
 ```
 
+To specifically install the additional requirements for the examples and tests:
 
+```
+pip install ".[examples]"     # the requirements of the examples
+pip install ".[test]"         # the requirements of the examples
+```
+
+The shell redshift .txt files, give the redshift bounds of [each shell within FLAMINGO's lightcones](https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html). 
 `extra_swift_lightcones-configure` downloads the shell redshift .txt files to `<environment>/share/extra_swift_lightcones/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). 
 If `extra_swift_lightcones-configure` isn't run, the lightcone shell redshifts are downloaded the first time they are needed instead.
+
+These shell redshifts are required for mapping between FLAMINGO's HEALPix maps, constructed in concentric redshift shells, and the corresponding halo lightcones which are constructed per snapshot or for identifying which HEALPix maps exist within a given redshift range. 
+
+The [COLIBRE](https://colibre.strw.leidenuniv.nl/index.html) simulation suite does not have lightcones and as such doesn't have shell redshift files. 
+
 
 
 ### MPI support
@@ -68,7 +79,6 @@ bash venv_scripts/healpix_pixel_weights.sh
 
 
 ## Generating Lightcones from SWIFT Snapshots
-
 
 The `SnapshotLightcone` classes build new lightcones from SWIFT snapshots by tiling periodic copies of the snapshot box around an observer, who sits at the centre of the first box. We refer to these periodic replicas as tiles. 
 As the observer's past lightcone propagates through the lattice of tiles, the lightcone is filled with particles (and/or haloes) from the snapshot closest in redshift, as chosen by the comoving distance from the observer.
@@ -147,7 +157,6 @@ Which shift, reflection and rotation a tile gets is set by its position and the 
 python3 examples/show_snapshot_box_reorientation.py
 ```
 
-
 The `orientation_lock` parameter of `SnapshotLightcone` (and subclasses) sets which tiles share an orientation:
 
 - `orientation_lock=None` (or `"none"`, the default): every box tile has its own unique orientation, so discontinuities occur at every face of every tile in the lightcone. This creates the most discontinuities. 
@@ -156,13 +165,52 @@ The `orientation_lock` parameter of `SnapshotLightcone` (and subclasses) sets wh
 
 Within a locked shell, the tiles are periodically continuous, so structures continue across the faces between them. With the `"cube"` or `"sphere"` lock and the same `orientation_seed`, a beam from `SnapshotBeam` is exactly the same as the matching patch of the `SnapshotAllSky` lightcone, whichever way it points. Without a lock, this is not the case.
 
-The diagram made by [`show_snapshot_orientation_lock.py`](./examples/show_snapshot_orientation_lock.py) shows which box tiles share an orientation for each lock, for an all-sky lightcone and for beams on and off the box axes:
+The diagram made by [`show_snapshot_orientation_lock.py`](./examples/show_snapshot_orientation_lock.py) shows which box tiles share an orientations for each lock, for an all-sky lightcone and for beams on and off the box axes:
 
 ```
 python3 examples/show_snapshot_orientation_lock.py
 ```
+ 
+### Writing .hdf5 files
+
+#### HEALPix maps
+See `examples/snapshot_smoothed_map.py` for an example of how construct all-sky HEALPIx maps from the snapshots. 
+
+#### Particle lightcones (**coming soon**)
+
+A method to directly write new particle lightcone .hdf5 files (as available with FLAMINGO) with a `SnapshotLightcone` function is yet to be implemented. The current best practice to write the outputs given by the `SnapshotLightcone` subclasses described above to a .hdf5 file using the example file structure below before indexing these new particle lightcones with [`lightcone_io/index_particles.py`](https://github.com/jchelly/LightconeIO/blob/master/lightcone_io/index_particles.py). These indexed particle lightcone files are now readable with `lightcone_io`.
 
 
+Example FLAMINGO particle lightcone file structure:
+
+```
+L1000N1800/HYDRO_FIDUCIAL/lightcones/
+│
+├── lightcone0/                             # observer 0's lightcone
+│   │
+│   ├── lightcone0_0000.hdf5                # particle lightcone, file 0 of N
+│   ├── lightcone0_0001.hdf5                # particle lightcone, file 1 of N
+│   │   │
+│   │   ├── PartType0/                      # gas particles
+│   │   ├── PartType0/                      # gas particles
+│   │   │   ├── Coordinates
+│   │   │   ├── ExpansionFactors
+│   │   │   ├── SnapshotNumber
+│   │   │   ├── Masses
+│   │   │  └── ...
+│   │   ├── PartType1/                      # dark matter particles
+│   │   │   └── ...
+│   │   ├── PartType4/                      # stars
+│   │   ├── PartType5/                      # black holes
+│   │   │
+│   │   ├── ...
+│   │
+│   ├── ...
+│
+├── lightcone1/                             # observer 1 (different orientation/position)
+├── ...
+
+```
 
 ## Projections
 
