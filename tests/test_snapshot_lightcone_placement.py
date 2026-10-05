@@ -23,8 +23,8 @@ import unyt
 
 h5py = pytest.importorskip("h5py")
 astropy_cosmology = pytest.importorskip("astropy.cosmology")
-snapshot_lightcone = pytest.importorskip("extra_swift_lightcones.snapshot_lightcone")
-from extra_swift_lightcones import swift_snapshot_redshift_conversion as nz
+snapshot_lightcone = pytest.importorskip("swiftlet.snapshot_lightcone")
+from swiftlet import swift_snapshot_redshift_conversion as nz
 
 BOX_RES = "L1000N0900"
 SNAPSHOTS = range(69, 78)  # z = 0 to 0.425, out to about 1.65 box lengths from the observer

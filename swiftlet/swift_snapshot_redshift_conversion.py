@@ -204,16 +204,16 @@ def snapshot_redshift_range(snapshot_number, boxsize_resolution=None, use_colibr
     return edges[snapshot_number + 1], edges[snapshot_number]
 
 
-# FLAMINGO shell redshift files, downloaded into the Python environment by extra_swift_lightcones-configure
+# FLAMINGO shell redshift files, downloaded into the Python environment by swiftlet-configure
 def flamingo_shell_redshift_file(box, download=True):
     """
     Returns the absolute path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or 
     2800 Mpc ("L2p8") box sidelength simulations.
     Checks, in order:
         1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
-        2. <environment>/share/extra_swift_lightcones/redshifts/<file>, where extra_swift_lightcones-configure 
+        2. <environment>/share/swiftlet/redshifts/<file>, where swiftlet-configure 
             downloads the files to
-        3. ~/.cache/extra_swift_lightcones/redshifts/<file>, used when the environment can't be written to
+        3. ~/.cache/swiftlet/redshifts/<file>, used when the environment can't be written to
         4. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
     
     If none exist and download is True, the files are downloaded (see config.download_shell_redshifts).
@@ -231,7 +231,7 @@ def flamingo_shell_redshift_file(box, download=True):
     candidates = [
         os.environ.get(env_name),
         os.path.join(environment_data_dir(), "redshifts", filename),
-        os.path.join(os.path.expanduser("~"), ".cache", "extra_swift_lightcones", "redshifts", filename),
+        os.path.join(os.path.expanduser("~"), ".cache", "swiftlet", "redshifts", filename),
     ]
     #
     # interactive session work around, _file__ only exists when this code lives in a .py
@@ -252,7 +252,7 @@ def flamingo_shell_redshift_file(box, download=True):
             download_error = f" Downloading them to {default_redshift_dir()} failed: {error}."
     raise FileNotFoundError(
         f"FLAMINGO shell redshifts for {box} not found (looked in: "
-        f"{[p for p in candidates if p]}).{download_error} Run extra_swift_lightcones-configure "
+        f"{[p for p in candidates if p]}).{download_error} Run swiftlet-configure "
         f"on a machine with internet access, or set {env_name} to the path of the file"
     )
 

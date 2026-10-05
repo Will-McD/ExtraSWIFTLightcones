@@ -1,4 +1,4 @@
-# ExtraSWIFTLightcones
+# SWIFTLET: Lightcone Extension Tools
 
 Supplementary tools for the post-processing and visualisation of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) lightcones. This module includes tools to generate new lightcones from the SWIFT snapshots, and, project, plot and post process lightcones. It builds on [LightconeIO](https://lightconeio.readthedocs.io/en/latest/#) and [SWIFTsimIO](https://swiftsimio.readthedocs.io/en/latest/), which it requires.
 
@@ -23,7 +23,7 @@ Both download the FLAMINGO lightcone shell redshift files into the environment a
 
 ---
 
-From anywhere, make a virtual environment with ExtraSWIFTLightcones (in editable mode), the dependencies of the package, [examples](./examples) and tests, and the shell redshift files:
+From anywhere, make a virtual environment with SWIFTLET (in editable mode), the dependencies of the package, [examples](./examples) and tests, and the shell redshift files:
 
 ```
 git clone https://github.com/Will-McD/ExtraSWIFTLightcones.git
@@ -31,7 +31,7 @@ bash ExtraSWIFTLightcones/venv_scripts/make_venv.sh /path/to/environment
 source /path/to/environment/bin/activate
 ```
 
-If no path is given, the environment is made in `ExtraSWIFTLightcones/extra_swift_lightcones_env`.
+If no path is given, the environment is made in `ExtraSWIFTLightcones/swiftlet_env`.
 
 On COSMA, build the virtual environment with the pre-built wheels of mpi4py and h5py for COSMA's MPI and parallel HDF5 instead:
 
@@ -49,7 +49,7 @@ With your environment (venv or conda) activated, install the module and its requ
 cd ExtraSWIFTLightcones
 pip install -e .              # the module and its requirements
 pip install ".[all]"          # the module, its requirements + the requirements of the examples and tests
-extra_swift_lightcones-configure
+swiftlet-configure
 ```
 
 To specifically install the additional requirements for the examples and tests:
@@ -60,8 +60,8 @@ pip install ".[test]"         # the requirements of the examples
 ```
 
 The shell redshift .txt files, give the redshift bounds of [each shell within FLAMINGO's lightcones](https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html). 
-`extra_swift_lightcones-configure` downloads the shell redshift .txt files to `<environment>/share/extra_swift_lightcones/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). 
-If `extra_swift_lightcones-configure` isn't run, the lightcone shell redshifts are downloaded the first time they are needed instead.
+`swiftlet-configure` downloads the shell redshift .txt files to `<environment>/share/swiftlet/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). 
+If `swiftlet-configure` isn't run, the lightcone shell redshifts are downloaded the first time they are needed instead.
 
 These shell redshifts are required for mapping between FLAMINGO's HEALPix maps, constructed in concentric redshift shells, and the corresponding halo lightcones which are constructed per snapshot or for identifying which HEALPix maps exist within a given redshift range. 
 
@@ -75,7 +75,7 @@ The [COLIBRE](https://colibre.strw.leidenuniv.nl/index.html) simulation suite do
 MPI support is not required to generate new lightcones from snapshots with the `SnapshotLightcone` sub classes. However, it is necessary for the more efficient parallel methods of `SnapshotLightcone`, the `BeamProjection` class and for generating binary masks of haloes (`mask_haloes.py`).
 
 MPI support requires mpi4py and an MPI enabled build of h5py. 
-The mpi4py package installed from PyPI needs an MPI library at run time. If your system has none (e.g. on a laptop), install one into the environment with `pip install mpich` (or `pip install openmpi`). `extra_swift_lightcones-configure` doesn't need MPI.
+The mpi4py package installed from PyPI needs an MPI library at run time. If your system has none (e.g. on a laptop), install one into the environment with `pip install mpich` (or `pip install openmpi`). `swiftlet-configure` doesn't need MPI.
 
 See the instructions for installing LightconeIO with MPI support: [LightconeIO with MPI support](https://lightconeio.readthedocs.io/en/latest/installation.html#with-mpi-support)
 
@@ -144,7 +144,7 @@ For example, to place the gas and dark matter particles of an all-sky shell, rea
 
 ```python
 from mpi4py import MPI
-from extra_swift_lightcones import SnapshotAllSky
+from swiftlet import SnapshotAllSky
 
 snap_all_sky = SnapshotAllSky(
     boxsize_resolution="L1000N1800",
@@ -281,7 +281,7 @@ L1000N1800/HYDRO_FIDUCIAL/lightcones/
 `BeamProjection` makes projections of a slice through a beam of a lightcone using [`swiftsimio.visualisation.projection`](https://swiftsimio.readthedocs.io/en/latest/visualisation/projection.html) submodule backends. The particles can come from the FLAMINGO particle lightcones (a path, or `lightcone_io` particle data) or from a `SnapshotBeam`. The beam is rotated to lie along the x-axis, and the particles in its redshift range and in a slice `slice_thickness` thick through the middle of the beam (along z) are kept. The slice is projected with SWIFTsimIO, through a mock snapshot that takes its metadata (units, box size, cosmology) from a real snapshot of the simulation. Gas uses its own smoothing lengths, and smoothing lengths are generated for dark matter.
 
 ```python
-from extra_swift_lightcones import BeamProjection
+from swiftlet import BeamProjection
 
 BP = BeamProjection(
     vector=(1, 0, 0),                           # direction of the beam

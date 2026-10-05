@@ -3,12 +3,12 @@ requires = ["setuptools>=61.0", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ExtraSWIFTLightcones"
+name = "swiftlet-lightcones"
 dynamic = ["version"]
 authors = [
   { name="William McDonald", email="mcdonald@strw.leidenuniv.nl" },
 ]
-description = "Add ons for the post processing of SWIFT lightcones and building new lightcones from SWIFT snapshots"
+description = "SWIFTLET: SWIFT Lightcone Extension Tools. Add ons for the post processing of SWIFT lightcones and building new lightcones from SWIFT snapshots"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -34,7 +34,7 @@ classifiers = [
 [project.optional-dependencies]
 test = ["pytest"]
 examples = ["cmasher", "hdfstream","tqdm",]
-all = ["ExtraSWIFTLightcones[test,examples]"]
+all = ["swiftlet-lightcones[test,examples]"]
 
 [project.urls]
 Homepage = "https://github.com/Will-McD/ExtraSWIFTLightcones"
@@ -42,10 +42,10 @@ Repository = "https://github.com/Will-McD/ExtraSWIFTLightcones.git"
 Issues = "https://github.com/Will-McD/ExtraSWIFTLightcones/issues"
 
 [project.scripts]
-extra_swift_lightcones-configure = "extra_swift_lightcones.config:cli_configure"
+swiftlet-configure = "swiftlet.config:cli_configure"
 
 [tool.setuptools]
-packages = ["extra_swift_lightcones"]
+packages = ["swiftlet"]
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"

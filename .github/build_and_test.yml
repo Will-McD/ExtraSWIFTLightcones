@@ -1,5 +1,5 @@
 #
-# Build ExtraSWIFTLightcones and run tests.
+# Build SWIFTLET and run tests.
 #
 name: Build and test
 
@@ -53,7 +53,7 @@ jobs:
 
     - name: Check the package imports
       run: |
-        python -c "import extra_swift_lightcones.snapshot_lightcone, extra_swift_lightcones.snapshot_orientation, extra_swift_lightcones.snapshot_units"
+        python -c "import swiftlet.snapshot_lightcone, swiftlet.snapshot_orientation, swiftlet.snapshot_units"
 
     - name: Test with pytest
       run: |

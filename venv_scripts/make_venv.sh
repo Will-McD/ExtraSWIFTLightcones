@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Make a virtual environment for ExtraSWIFTLightcones, with the package, all the dependencies of the
+# Make a virtual environment for SWIFTLET, with the package, all the dependencies of the
 # package, examples and tests, and the FLAMINGO lightcone shell redshift files.
 #
 # Run from anywhere, optionally giving the path of the environment to make:
@@ -12,7 +12,7 @@ set -e
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # path of the new environment
-venv_name="${1:-${repo_dir}/extra_swift_lightcones_env}"
+venv_name="${1:-${repo_dir}/swiftlet_env}"
 
 # create the environment and activate it
 python3 -m venv "${venv_name}"
@@ -23,6 +23,6 @@ python -m pip install --upgrade pip
 pip install -e "${repo_dir}[all]"
 
 # download the shell redshift files into the environment, and export their paths when it is activated
-extra_swift_lightcones-configure
+swiftlet-configure
 
 echo "Made ${venv_name}"
