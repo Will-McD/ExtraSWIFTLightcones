@@ -278,7 +278,12 @@ L1000N1800/HYDRO_FIDUCIAL/lightcones/
 <details>
 <summary><b>Project particles in a slice</b></summary>
 
-`BeamProjection` makes projections of a slice through a beam of a lightcone using [`swiftsimio.visualisation.projection`](https://swiftsimio.readthedocs.io/en/latest/visualisation/projection.html) submodule backends. The particles can come from the FLAMINGO particle lightcones (a path, or `lightcone_io` particle data) or from a snapshot using `SnapshotBeam` and `SnapshotAllSky`. The beam is rotated to lie along the x-axis, and the particles in its redshift range and in a slice `slice_thickness` thick through the middle of the beam (along z) are kept. The slice is projected with SWIFTsimIO, through a mock snapshot that takes its metadata (units, box size, cosmology) from a real snapshot of the simulation. Gas uses its own smoothing lengths, and smoothing lengths are generated for dark matter.
+`BeamProjection` makes projections of a slice through a beam of a lightcone using [`swiftsimio.visualisation.projection`](https://swiftsimio.readthedocs.io/en/latest/visualisation/projection.html) submodule backends. The particles can come from the FLAMINGO particle lightcones (a path, or `lightcone_io` particle data) or from a snapshot using `SnapshotBeam` and `SnapshotAllSky`. 
+
+As shown in the example below, to make a projection:
+- **define the projected slice:** to define a slice through the lightcone requires: 1) a beam within the lightcone (i.e. pass a `vector`, `radius` and `redshift range` that defines the beam) 2) the thickness of the slice through the beam (`slice_thickness`), and 3) either a cosmology object of the simulation corresponding to the intended lightcone data or a path to a snapshot of the same simulation. Note that, the projected beam and the corresponding particles are rotated to lie along the x-axis, so the slice is always through the middle of the beam: along the z-axis.
+- **add particles to the slice:** add the lightcones particle data (or equivalent dictionary object of `unyt` arrays) and the property names you want to project too the slice via `BeamProjection.place_particles_in_slice()`
+- **project selected properties:** for a given particle type in the slice, create a projection of the selected properties in the assigned units using `BeamProjection.project_properties()`. The slice is projected with SWIFTsimIO, through a mock snapshot that takes its metadata (units, box size, cosmology) from a real snapshot of the simulation. Gas uses its own smoothing lengths, and smoothing lengths are generated for dark matter.
 
 ```python
 from extra_swift_lightcones import BeamProjection
@@ -286,7 +291,7 @@ from extra_swift_lightcones import BeamProjection
 BP = BeamProjection(
     vector=(1, 0, 0),                           # direction of the beam
     angular_diameter=10,                        # [deg]
-    redshift_range=(0.01, 0.1),
+    redshift_range=(0.01, 0.1),`
     slice_thickness=10,                         # [Mpc]
     store_snapshot_filename=snapshot_filename,  # snapshot used for the metadata and cosmology
 )
@@ -315,22 +320,22 @@ gas_temperature = BP.project_properties(["Temperatures"], ptype="Gas", weight="M
 <details>
 <summary><b>Plotting beams</b></summary>
 
-`split_beam_plot` draws the beam as a wedge in comoving distance and angle, with redshift, comoving distance and angle axes. The beam can be split into several wedges along the angle, each showing a different image, e.g. gas, total and dark matter:
+`BeamProjection.split_beam_plot` draws the beam as a wedge in comoving distance and angle, with redshift, comoving distance and angle axes. The beam can be split into several wedges, each showing a different particle type and/or property:
 
 ```python
 images = [image.to_value("Msun/Mpc**2") for image in (gas_surface_density, total_surface_density, dm_surface_density)]
 fig, ax, wedge_images = BP.split_beam_plot(
     3,
     [[image, (vmin, vmax)] for image in images],   # each wedge's image and colour range
-    ["magma", "cubehelix", "viridis"],
-    titles=["Gas", "Gas+DM", "DM"],
-    norms=["log", "log", "log"],           # or "linear", or any matplotlib Normalize, "log" by default
-    overlay_grid=(False, False, False),    # grid lines at the redshift, distance and angle ticks
-    filename="beam.png",
+    ["magma", "cubehelix", "viridis"],             # individually set each wedges colour map
+    titles=["Gas", "Gas+DM", "DM"],                # the title placed in each wedge
+    norms=["log", "log", "log"],                   # or "linear", or any matplotlib Normalize, "log" by default
+    overlay_grid=(False, False, False),            # grid lines at the redshift, distance and angle ticks
+    filename="beam.png",                           # save image to this file
 )
 ```
 
-It draws a new figure or adds each wedge to an existing axes, then returns the figure, the axes and the image of each wedge. Other keyword arguments style the wedges, ticks, labels and grid lines (see `BeamPlot.add_wedge` and `BeamPlot.add_beam_axes`). 
+It either draws a new figure or adds each wedge to an existing axes, then returns the figure, the axes and the image of each wedge. Other keyword arguments style the wedges, ticks, labels and grid lines (see `BeamPlot.add_wedge` and `BeamPlot.add_beam_axes`). 
 The plotting is done by `BeamPlot`, which can also be used on its own with a cosmology, angular diameter, redshift range and the extent of the images.
 
 See [`lightcone_beam_projection.py`](./examples/lightcone_beam_projection.py) for beams of the FLAMINGO particle lightcones, and [`snapshot_beam_projection.py`](./examples/snapshot_beam_projection.py) for beams built from the snapshots.
