@@ -278,7 +278,7 @@ L1000N1800/HYDRO_FIDUCIAL/lightcones/
 <details>
 <summary><b>Project particles in a slice</b></summary>
 
-`BeamProjection` makes projections of a slice through a beam of a lightcone using [`swiftsimio.visualisation.projection`](https://swiftsimio.readthedocs.io/en/latest/visualisation/projection.html) submodule backends. The particles can come from the FLAMINGO particle lightcones (a path, or `lightcone_io` particle data) or from a `SnapshotBeam`. The beam is rotated to lie along the x-axis, and the particles in its redshift range and in a slice `slice_thickness` thick through the middle of the beam (along z) are kept. The slice is projected with SWIFTsimIO, through a mock snapshot that takes its metadata (units, box size, cosmology) from a real snapshot of the simulation. Gas uses its own smoothing lengths, and smoothing lengths are generated for dark matter.
+`BeamProjection` makes projections of a slice through a beam of a lightcone using [`swiftsimio.visualisation.projection`](https://swiftsimio.readthedocs.io/en/latest/visualisation/projection.html) submodule backends. The particles can come from the FLAMINGO particle lightcones (a path, or `lightcone_io` particle data) or from a snapshot using `SnapshotBeam` and `SnapshotAllSky`. The beam is rotated to lie along the x-axis, and the particles in its redshift range and in a slice `slice_thickness` thick through the middle of the beam (along z) are kept. The slice is projected with SWIFTsimIO, through a mock snapshot that takes its metadata (units, box size, cosmology) from a real snapshot of the simulation. Gas uses its own smoothing lengths, and smoothing lengths are generated for dark matter.
 
 ```python
 from extra_swift_lightcones import BeamProjection
