@@ -1,7 +1,7 @@
 #!/bin/env python
 import numpy as np
-from extra_swift_lightcones.snapshot_lightcone import SnapshotBeam
-from  extra_swift_lightcones.swift_snapshot_redshift_conversion import flamingo_shell_redshift_file
+from swiftlet.snapshot_lightcone import SnapshotBeam
+from swiftlet.swift_snapshot_redshift_conversion import flamingo_shell_redshift_file
 from pathlib import Path
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 

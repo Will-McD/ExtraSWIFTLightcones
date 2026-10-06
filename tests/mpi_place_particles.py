@@ -1,9 +1,8 @@
 #!/bin/env python
 """
-Place the particles of a fake simulation snapshot into a lightcone shell in parallel, run under mpiexec by
-test_snapshot_lightcone_placement.test_mpi_matches_serial. 
-
-Each rank saves the particles it placed to <output>.<rank>.npz.
+Place the particles of a fake snapshot in a lightcone shell in parallel, run under mpiexec by
+test_snapshot_lightcone_placement.test_mpi_matches_serial. Each rank saves the particles it placed to
+<output>.<rank>.npz.
 
     mpiexec -n 2 python mpi_place_particles.py '<json arguments>'
 

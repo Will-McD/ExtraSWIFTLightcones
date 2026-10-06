@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 
-from extra_swift_lightcones.snapshot_lightcone import SnapshotBeam
+from swiftlet.snapshot_lightcone import SnapshotBeam
 
 
 """

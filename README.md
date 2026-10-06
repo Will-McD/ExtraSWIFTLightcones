@@ -1,4 +1,4 @@
-# ExtraSWIFTLightcones
+# SWIFTLET: SWIFT Lightcone Extension Tools
 
 Supplementary tools for the post-processing and visualisation of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) lightcones. This module includes tools to generate new lightcones from the SWIFT snapshots, and, project, plot and post process lightcones. It builds on [LightconeIO](https://lightconeio.readthedocs.io/en/latest/#) and [SWIFTsimIO](https://swiftsimio.readthedocs.io/en/latest/), which it requires.
 
@@ -23,7 +23,7 @@ Both download the FLAMINGO lightcone shell redshift files into the environment a
 
 ---
 
-From anywhere, make a virtual environment with ExtraSWIFTLightcones (in editable mode), the dependencies of the package, [examples](./examples) and tests, and the shell redshift files:
+From anywhere, make a virtual environment with SWIFTLET (in editable mode), the dependencies of the package, [examples](./examples) and tests, and the shell redshift files:
 
 ```
 git clone https://github.com/Will-McD/ExtraSWIFTLightcones.git
@@ -31,7 +31,7 @@ bash ExtraSWIFTLightcones/venv_scripts/make_venv.sh /path/to/environment
 source /path/to/environment/bin/activate
 ```
 
-If no path is given, the environment is made in `ExtraSWIFTLightcones/extra_swift_lightcones_env`.
+If no path is given, the environment is made in `ExtraSWIFTLightcones/swiftlet_env`.
 
 On COSMA, build the virtual environment with the pre-built wheels of mpi4py and h5py for COSMA's MPI and parallel HDF5 instead:
 
@@ -49,7 +49,7 @@ With your environment (venv or conda) activated, install the module and its requ
 cd ExtraSWIFTLightcones
 pip install -e .              # the module and its requirements
 pip install ".[all]"          # the module, its requirements + the requirements of the examples and tests
-extra_swift_lightcones-configure
+swiftlet-configure
 ```
 
 To specifically install the additional requirements for the examples and tests:
@@ -60,8 +60,8 @@ pip install ".[test]"         # the requirements of the examples
 ```
 
 The shell redshift .txt files, give the redshift bounds of [each shell within FLAMINGO's lightcones](https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html). 
-`extra_swift_lightcones-configure` downloads the shell redshift .txt files to `<environment>/share/extra_swift_lightcones/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). 
-If `extra_swift_lightcones-configure` isn't run, the lightcone shell redshifts are downloaded the first time they are needed instead.
+`swiftlet-configure` downloads the shell redshift .txt files to `<environment>/share/swiftlet/redshifts` and adds `L1_REDSHIFTS_FILENAME` and `L2P8_REDSHIFTS_FILENAME` to the environment's activate script (`bin/activate` for a venv, `etc/conda/activate.d` for conda). 
+If `swiftlet-configure` isn't run, the lightcone shell redshifts are downloaded the first time they are needed instead.
 
 These shell redshifts are required for mapping between FLAMINGO's HEALPix maps, constructed in concentric redshift shells, and the corresponding halo lightcones which are constructed per snapshot or for identifying which HEALPix maps exist within a given redshift range. 
 
@@ -75,7 +75,7 @@ The [COLIBRE](https://colibre.strw.leidenuniv.nl/index.html) simulation suite do
 MPI support is not required to generate new lightcones from snapshots with the `SnapshotLightcone` sub classes. However, it is necessary for the more efficient parallel methods of `SnapshotLightcone`, the `BeamProjection` class and for generating binary masks of haloes (`mask_haloes.py`).
 
 MPI support requires mpi4py and an MPI enabled build of h5py. 
-The mpi4py package installed from PyPI needs an MPI library at run time. If your system has none (e.g. on a laptop), install one into the environment with `pip install mpich` (or `pip install openmpi`). `extra_swift_lightcones-configure` doesn't need MPI.
+The mpi4py package installed from PyPI needs an MPI library at run time. If your system has none (e.g. on a laptop), install one into the environment with `pip install mpich` (or `pip install openmpi`). `swiftlet-configure` doesn't need MPI.
 
 See the instructions for installing LightconeIO with MPI support: [LightconeIO with MPI support](https://lightconeio.readthedocs.io/en/latest/installation.html#with-mpi-support)
 
@@ -144,7 +144,7 @@ For example, to place the gas and dark matter particles of an all-sky shell, rea
 
 ```python
 from mpi4py import MPI
-from extra_swift_lightcones import SnapshotAllSky
+from swiftlet import SnapshotAllSky
 
 snap_all_sky = SnapshotAllSky(
     boxsize_resolution="L1000N1800",
@@ -286,7 +286,7 @@ As shown in the example below, to make a projection:
 - **project selected properties:** for a given particle type in the slice, create a projection of the selected properties in the assigned units using `BeamProjection.project_properties()`. The slice is projected with SWIFTsimIO, through a mock snapshot that takes its metadata (units, box size, cosmology) from a real snapshot of the simulation. Gas uses its own smoothing lengths, and smoothing lengths are generated for dark matter.
 
 ```python
-from extra_swift_lightcones import BeamProjection
+from swiftlet import BeamProjection
 
 BP = BeamProjection(
     vector=(1, 0, 0),                           # direction of the beam
@@ -438,6 +438,7 @@ pytest tests/test_snapshot_lightcone_placement.py::test_beam_is_part_of_all_sky
 
 Add `-v` to list every test case, `-x` to stop at the first failure, `--durations=10` to show the slowest tests and `-p no:warnings` to hide the deprecation warnings of unyt and healpy. The snapshot lightcone tests take about 10 minutes; the first run is slower while numba compiles the re-orientation code.
 
+
 | Test file | What it checks |
 |---|---|
 | `test_config.py` | downloading the shell redshift files, adding their paths to the environment's activate script and finding them when needed |
@@ -454,6 +455,15 @@ Add `-v` to list every test case, `-x` to stop at the first failure, `--duration
 - re-orienting points on cell faces keeps them on cell faces.
 - an all-sky lightcone out to half a box length places every snapshot particle within it at its box position less half a box length, as the observer's box tile is not re-oriented;
 - haloes placed from SOAP catalogues end up exactly where particles at the same positions in the snapshots are placed, including haloes on cell faces;
+
+
+To see what the lattice test checks, add `--figures-dir` with a directory to save figures to. `test_lattice_over_many_tiles` then saves one figure per case, showing one layer of the lattice placed in the lightcone with the expected lattice points, any missing or repeated points, the box tile edges and the snapshot hand-overs, and a close-up of a corner where tiles meet. The figure is drawn before the checks, so a failing case shows where it goes wrong:
+
+```
+pytest tests/test_snapshot_lightcone_placement.py -k lattice_over_many_tiles --figures-dir test_figures
+```
+
+
 
 The MPI test, `test_mpi_matches_serial`, runs [`mpi_place_particles.py`](./tests/mpi_place_particles.py) with `mpiexec -n 2` and `-n 3`. It uses the `mpiexec` next to the Python executable (where the `mpich` wheel installs it) if there is one, otherwise the one on the `PATH`, and is skipped if there is none or mpi4py can't be imported. The `mpiexec` must belong to the MPI library mpi4py was built with. On a cluster, run it on a compute node (e.g. in an interactive `salloc` or `srun` session), as login nodes may not allow `mpiexec`.
 
