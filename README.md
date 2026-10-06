@@ -433,6 +433,7 @@ pytest tests/test_snapshot_lightcone_placement.py::test_beam_is_part_of_all_sky
 
 Add `-v` to list every test case, `-x` to stop at the first failure, `--durations=10` to show the slowest tests and `-p no:warnings` to hide the deprecation warnings of unyt and healpy. The snapshot lightcone tests take about 10 minutes; the first run is slower while numba compiles the re-orientation code.
 
+
 | Test file | What it checks |
 |---|---|
 | `test_config.py` | downloading the shell redshift files, adding their paths to the environment's activate script and finding them when needed |
@@ -449,6 +450,15 @@ Add `-v` to list every test case, `-x` to stop at the first failure, `--duration
 - re-orienting points on cell faces keeps them on cell faces.
 - an all-sky lightcone out to half a box length places every snapshot particle within it at its box position less half a box length, as the observer's box tile is not re-oriented;
 - haloes placed from SOAP catalogues end up exactly where particles at the same positions in the snapshots are placed, including haloes on cell faces;
+
+
+To see what the lattice test checks, add `--figures-dir` with a directory to save figures to. `test_lattice_over_many_tiles` then saves one figure per case, showing one layer of the lattice placed in the lightcone with the expected lattice points, any missing or repeated points, the box tile edges and the snapshot hand-overs, and a close-up of a corner where tiles meet. The figure is drawn before the checks, so a failing case shows where it goes wrong:
+
+```
+pytest tests/test_snapshot_lightcone_placement.py -k lattice_over_many_tiles --figures-dir test_figures
+```
+
+
 
 The MPI test, `test_mpi_matches_serial`, runs [`mpi_place_particles.py`](./tests/mpi_place_particles.py) with `mpiexec -n 2` and `-n 3`. It uses the `mpiexec` next to the Python executable (where the `mpich` wheel installs it) if there is one, otherwise the one on the `PATH`, and is skipped if there is none or mpi4py can't be imported. The `mpiexec` must belong to the MPI library mpi4py was built with. On a cluster, run it on a compute node (e.g. in an interactive `salloc` or `srun` session), as login nodes may not allow `mpiexec`.
 

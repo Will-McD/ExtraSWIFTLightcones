@@ -255,7 +255,8 @@ def patch_snapshot_lightcone(patch, run_dir):
     patch.setattr(init, "__defaults__", tuple(defaults))
 
 
-# 'run' fake SWIFT simulations, i.e. place fake particles in snapshot and catalogue
+# 'run' fake SWIFT simulations, 
+# i.e. place fake particles in snapshot and SOAP catalogue and write ID values
 
 @pytest.fixture(scope="module")
 def fake_run_dir(tmp_path_factory):
@@ -536,6 +537,116 @@ def lattice_index(coords):
     return k
 
 
+def plot_lattice_slice(filename, placed, expected, beam_vector, r_range, title):
+    """
+    Save a figure of the lattice layer with points closest to the observers. 
+    The first (left) panel shows the length of the beam where applicable. The second (right) panel 
+    zooms in on a corner where tiles meet.  
+
+    :param  filename:       path of the figure
+    :type   filename:       pathlib.Path
+    :param  placed:         positions [Mpc] of the particles placed
+    :type   placed:         np.ndarray
+    :param  expected:       positions [Mpc] of the lattice points expected in the shell
+    :type   expected:       np.ndarray
+    :param  beam_vector:    direction of the beam, None for all-sky
+    :type   beam_vector:    tuple
+    :param  r_range:        inner and outer comoving distance [Mpc] of the shell
+    :type   r_range:        tuple
+    :param  title:          title of the figure
+    :type   title:          str
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    # the layer of lattice points, and the two axes in its plane
+    normal = 2 if beam_vector is None else int(np.argmin(np.abs(beam_vector)))
+    u, v = [axis for axis in range(3) if axis != normal]
+    layer = 0.5 * LATTICE_SPACING
+    in_layer = lambda points: points[np.abs(points[:, normal] - layer) < 1e-3]
+    placed, expected = in_layer(placed), in_layer(expected)
+
+    # how many times each lattice point of the layer was placed
+    key = lambda points: [tuple(k) for k in lattice_index(points)]
+    counts = {}
+    for k in key(placed):
+        counts[k] = counts.get(k, 0) + 1
+    expected_keys = set(key(expected))
+    missing = np.array([p for p, k in zip(expected, key(expected)) if counts.get(k, 0) == 0]).reshape(-1, 3)
+    extra = {k: p for p, k in zip(placed, key(placed)) if counts[k] > 1 or k not in expected_keys}  # one per lattice point
+    extra = np.array(list(extra.values())).reshape(-1, 3)
+
+    # distances where one snapshot's redshift range ends and the next begins, inside the shell
+    edges_z = sorted({z for snap_nr in SNAPSHOTS for z in nz.snapshot_redshift_range(snap_nr, BOX_RES)})
+    snapshot_edges = [r for r in Cosmology.COSMO.comoving_distance(edges_z).to_value("Mpc") if r_range[0] < r < r_range[1]]
+
+    ink, muted, grid = "#1f2328", "#9aa0a6", "#c8ccd0"
+    missing_colour, repeated_colour = "#c62828", "#b26a00"
+    fig, axes = plt.subplots(1, 2, figsize=(11, 5.6), gridspec_kw={"width_ratios": [1.35, 1]})
+    for ax, zoom in zip(axes, (False, True)):
+        if zoom:
+            # the tile corner nearest the first missing or repeated point if there is one, otherwise the middle of
+            # the placed points
+            problems = np.concatenate([missing, extra])
+            if len(problems):
+                centre = problems[0, [u, v]]
+            else:
+                centre = np.median(placed[:, [u, v]], axis=0) if len(placed) else np.zeros(2)
+            corner = (np.round(centre / BOXSIZE - 0.5) + 0.5) * BOXSIZE
+            half = 4.2 * LATTICE_SPACING
+            limits = [(corner[0] - half, corner[0] + half), (corner[1] - half, corner[1] + half)]
+        else:
+            r_plane = np.sqrt(max(r_range[1]**2 - layer**2, 0.))
+            points = expected[:, [u, v]] if len(expected) else np.array([[-r_plane, -r_plane], [r_plane, r_plane]])
+            pad = 2 * LATTICE_SPACING
+            limits = [(points[:, 0].min() - pad, points[:, 0].max() + pad), (points[:, 1].min() - pad, points[:, 1].max() + pad)]
+
+        # box tile edges at (n + 1/2) box lengths, and the shell and snapshot hand-overs in the plane of the layer
+        for axis_limits, draw in ((limits[0], ax.axvline), (limits[1], ax.axhline)):
+            for n in range(int(np.floor(axis_limits[0] / BOXSIZE - 0.5)), int(np.ceil(axis_limits[1] / BOXSIZE + 0.5)) + 1):
+                draw((n + 0.5) * BOXSIZE, color=muted, lw=1.2, zorder=1)
+        theta = np.linspace(0, 2 * np.pi, 721)
+        for r, style in [(r_range[0], "-"), (r_range[1], "-")] + [(r, "--") for r in snapshot_edges]:
+            if r > layer:
+                ax.plot(np.sqrt(r**2 - layer**2) * np.cos(theta), np.sqrt(r**2 - layer**2) * np.sin(theta),
+                        ls=style, color=muted if style == "-" else "#5f6368", lw=0.8 if style == "-" else 1.0,
+                        zorder=1 if style == "-" else 5)
+
+        size = 3 if not zoom else 28
+        ax.scatter(expected[:, u], expected[:, v], s=size * 2.2, facecolors="none", edgecolors=grid, linewidths=0.6, zorder=2)
+        ax.scatter(placed[:, u], placed[:, v], s=size, color=ink, linewidths=0, zorder=3)
+        if len(missing):
+            ax.scatter(missing[:, u], missing[:, v], s=size * 6, marker="x", color=missing_colour, linewidths=1.2, zorder=4)
+        if len(extra):
+            ax.scatter(extra[:, u], extra[:, v], s=size * 6, facecolors="none", edgecolors=repeated_colour, linewidths=1.2, zorder=4)
+        ax.set_xlim(*limits[0])
+        ax.set_ylim(*limits[1])
+        ax.set_aspect("equal")
+        ax.set_xlabel(f"{'xyz'[u]} [Mpc]")
+        ax.set_ylabel(f"{'xyz'[v]} [Mpc]")
+        ax.set_title(f"tile corner at ({corner[0]:.0f}, {corner[1]:.0f}) Mpc" if zoom else
+                     f"lattice layer {'xyz'[normal]} = {layer:.1f} Mpc", fontsize=10)
+
+    handles = [
+        Line2D([], [], ls="", marker="o", color=ink, markersize=4, label=f"placed ({len(placed)})"),
+        Line2D([], [], ls="", marker="o", markerfacecolor="none", markeredgecolor=grid, markersize=6,
+               label=f"expected lattice point ({len(expected)})"),
+        Line2D([], [], ls="", marker="x", color=missing_colour, markersize=7, label=f"missing ({len(missing)})"),
+        Line2D([], [], ls="", marker="o", markerfacecolor="none", markeredgecolor=repeated_colour, markersize=7,
+               label=f"repeated or off the lattice ({len(extra)})"),
+        Line2D([], [], color=muted, lw=1.2, label="box tile edge"),
+        Line2D([], [], color=muted, lw=0.8, label="shell edge"),
+        Line2D([], [], color="#5f6368", lw=1.0, ls="--", label="snapshot hand-over"),
+    ]
+    fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, fontsize=9)
+    fig.suptitle(title, fontsize=11)
+    fig.tight_layout(rect=(0, 0.1, 1, 1))
+    fig.savefig(filename, dpi=150)
+    plt.close(fig)
+
+
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
 @pytest.mark.parametrize("beam_vector, ang_radius_deg, r_range", [
     pytest.param(None, None, (440., 1110.), id="all_sky"),
@@ -543,7 +654,7 @@ def lattice_index(coords):
     pytest.param((1, 2, 3), 25., (110., 1610.), id="beam_off_axis"),
     pytest.param((1, 1, 1), 40., (110., 1610.), id="beam_diagonal_wide"),
 ])
-def test_lattice_over_many_tiles(fake_runs, beam_vector, ang_radius_deg, r_range, orientation_lock):
+def test_lattice_over_many_tiles(fake_runs, beam_vector, ang_radius_deg, r_range, orientation_lock, figures_dir, request):
     """
     Place particles from a uniform lattive across the whole snapshot box into a lightcone redshift shell with a radius 
     larger than L/2. Therefore many tiles are needed within this shell. 
@@ -558,6 +669,14 @@ def test_lattice_over_many_tiles(fake_runs, beam_vector, ang_radius_deg, r_range
     snap_nr, ids, coords = particle_rows(particles)
 
     expected = lattice_in_shell(*r_range, beam_vector, ang_radius_deg)
+    if figures_dir is not None:
+        # before the checks, so a failing case still shows where it goes wrong
+        case = request.node.callspec.id
+        plot_lattice_slice(
+            figures_dir / f"lattice_over_many_tiles[{case}].png", 
+            coords, expected, beam_vector, r_range, 
+            f"Lattice placed in the lightcone: {case} ({r_range[0]:.0f} to {r_range[1]:.0f} Mpc, orientation_lock={orientation_lock})"
+            )
     placed_idx = lattice_index(coords)
     expected_idx = lattice_index(expected)
     unique_idx, counts = np.unique(placed_idx, axis=0, return_counts=True)
