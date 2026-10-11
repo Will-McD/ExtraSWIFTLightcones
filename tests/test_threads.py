@@ -73,8 +73,8 @@ def test_set_max_threads_to_all():
 
 
 def test_limit_is_at_most_the_available_cores(monkeypatch):
-    monkeypatch.setattr(threads, "available_cores", lambda: 4)
-    assert threads.thread_limit() == 4  # the default maximum of 30 is more than the cores
+    monkeypatch.setattr(threads, "available_cores", lambda: 8)
+    assert threads.thread_limit() == 8  # the default maximum of 30 is more than the cores
     threads.set_max_threads(2)
     assert threads.thread_limit() == 2
 
@@ -119,8 +119,8 @@ def test_healpy_threads_limited_in_the_block():
     assert openmp() == before
 
 
-def test_tests_use_at_most_4_threads():
+def test_tests_use_at_most_8_threads():
     """
-    conftest.py sets the maximum to 4 threads for all the tests.
+    conftest.py sets the maximum to 8 threads for all the tests.
     """
-    assert MAX_THREADS_IN_TESTS == "4"
+    assert MAX_THREADS_IN_TESTS == "8"

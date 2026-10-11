@@ -67,21 +67,21 @@ def set_max_threads(number):
     number = _check_number_of_threads(number, "the maximum number of threads")
     os.environ[MAX_THREADS_ENV] = ALL_THREADS if number is None else str(number)
 
+def available_cores():
+    """
+    Returns the number of cores this process is allowed to run on (e.g. those given to a job or an MPI rank).
+    """
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except AttributeError:  # not available on macOS
+        return max(1, os.cpu_count() or 1)
 
 def thread_limit():
     """
     Returns the number of threads to use: the maximum, but no more than the cores this process may run on, or all
     of those cores if SWIFTLET_MAX_THREADS is "all".
     """
-    def available_cores():
-        """
-        Returns the number of cores this process is allowed to run on (e.g. those given to a job or an MPI rank).
-        """
-        try:
-            return max(1, len(os.sched_getaffinity(0)))
-        except AttributeError:  # not available on macOS
-            return max(1, os.cpu_count() or 1)
-    
+
     maximum = max_threads()
     return available_cores() if maximum is None else max(1, min(maximum, available_cores()))
 
