@@ -1,10 +1,10 @@
 """
-ExtraSWIFTLightcones: tools to build new lightcones from SWIFT snapshots, and to post-process and
+SWIFTLET (Lightcone Extension Tools): tools to build new lightcones from SWIFT snapshots, and to post-process and
 visualise SWIFT lightcones.
 
 The main classes and functions can be imported from the package:
 
-    from extra_swift_lightcones import SnapshotBeam, BeamProjection
+    from swiftlet import SnapshotBeam, BeamProjection
 
     snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS
     lightcone_projections:              BeamProjection
@@ -16,14 +16,14 @@ The main classes and functions can be imported from the package:
     config:                             configure, download_shell_redshifts
 
 Each is imported when first used, so importing the package doesn't need MPI, matplotlib or lightcone_io
-until something needing them is used. The submodules can also be used as attributes, e.g. extra_swift_lightcones.config.
+until something needing them is used. The submodules can also be used as attributes, e.g. swiftlet.config.
 """
 import importlib
 
 # Use setuptools_scm to get version from git tags
 from importlib.metadata import version, PackageNotFoundError
 try:
-    __version__ = version("ExtraSWIFTLightcones")
+    __version__ = version("swiftlet-lightcones")
 except PackageNotFoundError:
     __version__ = "unknown"
 
@@ -71,7 +71,7 @@ __all__ = list(_PUBLIC_NAMES)
 def __getattr__(name):
     """
     Import the public classes, functions and submodules of the package when first used, so that modules
-    which don't need MPI (e.g. extra_swift_lightcones.config) can be imported without it.
+    which don't need MPI (e.g. swiftlet.config) can be imported without it.
 
     :param  name:   name of the attribute
     :type   name:   str

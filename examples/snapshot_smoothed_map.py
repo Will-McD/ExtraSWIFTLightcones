@@ -8,7 +8,7 @@ from pathlib import Path
 import lightcone_io.smoothed_map as smoothed_map
 import lightcone_io.kernel as kernel
 import virgo.mpi.parallel_hdf5 as phdf5
-from extra_swift_lightcones.snapshot_lightcone import SnapshotAllSky
+from swiftlet.snapshot_lightcone import SnapshotAllSky
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD

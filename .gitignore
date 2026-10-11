@@ -18,7 +18,10 @@ __pycache__/
 logs/
 example_outputs/
 data/
+swiftlet_env/
 tests/snapshot_lightcone_test.py
 tests/snapshot_tracer_particle.py
+extra_swift_lightcones
 extra_swift_lightcones/hmf.py
 examples/large_examples/
+tests/test_lightcone_projections.pytest_figures/

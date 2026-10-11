@@ -1,6 +1,6 @@
 #!/bin/env python
 """
-Tests for extra_swift_lightcones.config: downloading the FLAMINGO shell redshift files into the environment,
+Tests for swiftlet.config: downloading the FLAMINGO shell redshift files into the environment,
 and exporting their paths when the environment is activated. The files are served by a local HTTP server.
 """
 import functools
@@ -11,8 +11,8 @@ import threading
 
 import pytest
 
-from extra_swift_lightcones import config
-from extra_swift_lightcones import swift_snapshot_redshift_conversion as nz
+from swiftlet import config
+from swiftlet import swift_snapshot_redshift_conversion as nz
 
 FILE_CONTENTS = {
     "L1": "0.0, 0.05\n0.05, 0.1\n",
@@ -75,7 +75,7 @@ def test_download_shell_redshifts(file_server, fake_venv):
     requests, _ = file_server
     paths = config.download_shell_redshifts(verbose=False)
     # downloaded into the environment
-    redshift_dir = fake_venv / "share" / "extra_swift_lightcones" / "redshifts"
+    redshift_dir = fake_venv / "share" / "swiftlet" / "redshifts"
     assert paths == {"L1_REDSHIFTS_FILENAME": str(redshift_dir / "L1_shell_redshifts_z3.txt"),
                      "L2P8_REDSHIFTS_FILENAME": str(redshift_dir / "L2p8_shell_redshifts_z5.txt")}
     assert open(paths["L1_REDSHIFTS_FILENAME"]).read() == FILE_CONTENTS["L1"]
@@ -121,13 +121,34 @@ def test_configure_exports_paths_in_venv(file_server, fake_venv):
     assert f'export L1_REDSHIFTS_FILENAME="{other_dir / "L1_shell_redshifts_z3.txt"}"' in activate
 
 
+def test_configure_replaces_lines_of_the_old_package_name(file_server, fake_venv, tmp_path, monkeypatch):
+    # a venv configured under the earlier name, swiftlet
+    old_line = 'export L1_REDSHIFTS_FILENAME="/old/L1.txt"  # added by extra_swift_lightcones-configure'
+    (fake_venv / "bin" / "activate").write_text(f"# venv activate script\n{old_line}\n")
+    config.configure(verbose=False)
+    activate = (fake_venv / "bin" / "activate").read_text()
+    assert "extra_swift_lightcones" not in activate
+    assert activate.count("L1_REDSHIFTS_FILENAME") == 1
+
+    # a conda environment configured under the earlier name: its scripts are removed
+    prefix = tmp_path / "conda_env"
+    (prefix / "conda-meta").mkdir(parents=True)
+    for kind in ("activate.d", "deactivate.d"):
+        (prefix / "etc" / "conda" / kind).mkdir(parents=True)
+        (prefix / "etc" / "conda" / kind / "extra_swift_lightcones.sh").write_text(f"{old_line}\n")
+    monkeypatch.setattr(sys, "prefix", str(prefix))
+    config.configure(verbose=False)
+    for kind in ("activate.d", "deactivate.d"):
+        assert not (prefix / "etc" / "conda" / kind / "extra_swift_lightcones.sh").exists()
+        assert (prefix / "etc" / "conda" / kind / "swiftlet.sh").exists()
+
 def test_configure_exports_paths_in_conda(file_server, tmp_path, monkeypatch):
     prefix = tmp_path / "conda_env"
     (prefix / "conda-meta").mkdir(parents=True)
     monkeypatch.setattr(sys, "prefix", str(prefix))
     paths = config.configure(verbose=False)
-    activate = (prefix / "etc" / "conda" / "activate.d" / "extra_swift_lightcones.sh").read_text()
-    deactivate = (prefix / "etc" / "conda" / "deactivate.d" / "extra_swift_lightcones.sh").read_text()
+    activate = (prefix / "etc" / "conda" / "activate.d" / "swiftlet.sh").read_text()
+    deactivate = (prefix / "etc" / "conda" / "deactivate.d" / "swiftlet.sh").read_text()
     for name, path in paths.items():
         assert f'export {name}="{path}"' in activate
         assert f"unset {name}" in deactivate
@@ -162,7 +183,7 @@ def test_shell_redshift_file_lookup(file_server, fake_venv, tmp_path, monkeypatc
     monkeypatch.setattr(os.path, "expanduser", lambda path: path.replace("~", str(tmp_path / "home")))
     monkeypatch.setattr(nz, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
     path = nz.flamingo_shell_redshift_file("L2p8")
-    assert path == str(fake_venv / "share" / "extra_swift_lightcones" / "redshifts" / "L2p8_shell_redshifts_z5.txt")
+    assert path == str(fake_venv / "share" / "swiftlet" / "redshifts" / "L2p8_shell_redshifts_z5.txt")
     assert nz.flamingo_shell_redshift_file("L2p8") == path
     assert requests == {"L1": 1, "L2p8": 1}
 
@@ -173,5 +194,5 @@ def test_shell_redshift_file_lookup(file_server, fake_venv, tmp_path, monkeypatc
 def test_shell_redshift_file_not_found(fake_venv, tmp_path, monkeypatch):
     monkeypatch.setattr(os.path, "expanduser", lambda path: path.replace("~", str(tmp_path / "home")))
     monkeypatch.setattr(nz, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
-    with pytest.raises(FileNotFoundError, match="extra_swift_lightcones-configure"):
+    with pytest.raises(FileNotFoundError, match="swiftlet-configure"):
         nz.flamingo_shell_redshift_file("L1", download=False)

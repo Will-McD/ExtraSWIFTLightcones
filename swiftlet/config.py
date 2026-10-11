@@ -5,11 +5,11 @@ import sys
 import urllib.request
 
 """
-Set up the data files ExtraSWIFTLightcones needs in the Python environment it is installed in.
+Set up the data files SWIFTLET needs in the Python environment it is installed in.
 
-After installing the package with pip, run: extra_swift_lightcones-configure
+After installing the package with pip, run: swiftlet-configure
 
-To download the FLAMINGO lightcone shell redshift files into <environment>/share/extra_swift_lightcones/redshifts
+To download the FLAMINGO lightcone shell redshift files into <environment>/share/swiftlet/redshifts
 and export their paths (L1_REDSHIFTS_FILENAME and L2P8_REDSHIFTS_FILENAME) whenever the environment is activated.
 """
 
@@ -21,22 +21,25 @@ SHELL_REDSHIFT_FILES = {
 }
 
 # marks the lines this module writes into an activate script, so they can be replaced when run again
-ACTIVATE_MARKER = "# added by extra_swift_lightcones-configure"
-
+ACTIVATE_MARKER = "# added by swiftlet-configure"
+# markers of earlier names of this command, whose lines are replaced too
+OLD_ACTIVATE_MARKERS = ("# added by extra_swift_lightcones-configure",)
+# activate.d / deactivate.d script name of a conda environment under the earlier package name, removed when run again
+OLD_CONDA_SCRIPT = "extra_swift_lightcones.sh"
 
 def environment_data_dir():
     """
     Directory for the data files inside the Python environment the package is installed in.
 
-    Returns <sys.prefix>/share/extra_swift_lightcones.
+    Returns <sys.prefix>/share/swiftlet.
     """
-    return os.path.join(sys.prefix, "share", "extra_swift_lightcones")
+    return os.path.join(sys.prefix, "share", "swiftlet")
 
 
 def default_redshift_dir():
     """
     Directory the shell redshift files are downloaded to by default: inside the Python environment
-    when it can be written to, otherwise ~/.cache/extra_swift_lightcones/redshifts.
+    when it can be written to, otherwise ~/.cache/swiftlet/redshifts.
 
     Returns the directory.
     """
@@ -46,7 +49,7 @@ def default_redshift_dir():
         existing = os.path.dirname(existing)
     if os.access(existing, os.W_OK):
         return env_dir
-    return os.path.join(os.path.expanduser("~"), ".cache", "extra_swift_lightcones", "redshifts")
+    return os.path.join(os.path.expanduser("~"), ".cache", "swiftlet", "redshifts")
 
 
 def download_file(url, target, timeout=60):
@@ -115,8 +118,8 @@ def activate_scripts():
     """
     if os.path.isdir(os.path.join(sys.prefix, "conda-meta")):
         return ("conda",
-                os.path.join(sys.prefix, "etc", "conda", "activate.d", "extra_swift_lightcones.sh"),
-                os.path.join(sys.prefix, "etc", "conda", "deactivate.d", "extra_swift_lightcones.sh"))
+                os.path.join(sys.prefix, "etc", "conda", "activate.d", "swiftlet.sh"),
+                os.path.join(sys.prefix, "etc", "conda", "deactivate.d", "swiftlet.sh"))
     if sys.prefix != getattr(sys, "base_prefix", sys.prefix) and os.path.isfile(os.path.join(sys.prefix, "bin", "activate")):
         return "venv", os.path.join(sys.prefix, "bin", "activate"), None
     return None, None, None
@@ -124,7 +127,7 @@ def activate_scripts():
 
 def _replace_marked_lines(filename, new_lines):
     """
-    Remove the lines added by an earlier run (see ACTIVATE_MARKER) from a file and append new ones.
+    Remove the lines added by an earlier run (see ACTIVATE_MARKER and OLD_ACTIVATE_MARKERS) from a file and append new ones.
 
     :param  filename:   file to update
     :type   filename:   str
@@ -134,7 +137,7 @@ def _replace_marked_lines(filename, new_lines):
     lines = []
     if os.path.isfile(filename):
         with open(filename) as infile:
-            lines = [line for line in infile.read().splitlines() if not line.endswith(ACTIVATE_MARKER)]
+            lines = [line for line in infile.read().splitlines() if not line.endswith((ACTIVATE_MARKER,) + OLD_ACTIVATE_MARKERS)]
     lines += [f"{line}  {ACTIVATE_MARKER}" for line in new_lines]
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as outfile:
@@ -164,6 +167,12 @@ def export_paths_on_activate(paths, verbose=True):
     _replace_marked_lines(activate, [f'export {name}="{value}"' for name, value in paths.items()])
     if deactivate is not None:
         _replace_marked_lines(deactivate, [f"unset {name}" for name in paths])
+    if env_type == "conda":
+        # scripts written under the earlier package name
+        for script in (activate, deactivate):
+            old_script = os.path.join(os.path.dirname(script), OLD_CONDA_SCRIPT)
+            if os.path.isfile(old_script):
+                os.remove(old_script)
     if verbose:
         print(f"{', '.join(paths)} set in {activate}, re-activate the environment to use them")
     return True
@@ -192,14 +201,13 @@ def configure(dest_dir=None, force=False, update_activate=True, verbose=True):
 
 def cli_configure(argv=None):
     """
-    Command line entry point, installed as extra_swift_lightcones-configure.
+    Command line entry point, installed as swiftlet-configure.
 
     :param  argv:   command line arguments. If None, use sys.argv
     :type   argv:   list of str
     """
     parser = argparse.ArgumentParser(
-        description="Download the FLAMINGO lightcone shell redshift files into the Python environment "
-                    "ExtraSWIFTLightcones is installed in, and export their paths when it is activated")
+        description="Download the FLAMINGO lightcone shell redshift files into the Python environment SWIFTLET is installed in, and export their paths when it is activated")
     parser.add_argument("--dest_dir", type=str, default=None,
                         help=f"directory to download the files to (default: {default_redshift_dir()})")
     parser.add_argument("--force", action="store_true", help="download the files again even if they already exist")

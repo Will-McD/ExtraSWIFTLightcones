@@ -998,10 +998,9 @@ class SnapshotLightcone():
         # set up dictionary of ptypes in snapshot files:
         ptypes_in_current_snap = self.__files_with_ptype(snapshot_number, self.__snap_cell_data["nr_files"])
 
-        #iterate through tiles pieces
-        # add transverse tiles when the beam's diameter exceeds one box sidelength. 
+        #iterate through tiles pieces and add transverse tiles when the beam's diameter exceeds one box sidelength. 
         for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range, ang_radius_deg):
-            # read in instructions for how to reconstruct the snapshot box
+            # read in the instructions for how to reconstruct the snapshot box
             snapshot_rotation_angles, snapshot_rotation_reflections, snapshot_periodic_shifts = self._snapshot_reorientation(tile)
             orientation_str=(f"Reorienting snapshot {snapshot_number} (tile {tile}, z={z_sub_min:.5f}-{z_sub_max:.5f}"+
                 (f", orientation layer {self._orientation_layer(tile)}" if self.orientation_lock else "")+"):"

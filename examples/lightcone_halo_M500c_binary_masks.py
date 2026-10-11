@@ -1,7 +1,7 @@
 #!/bin/env python
 import argparse
 import numpy as np
-from extra_swift_lightcones.mask_haloes import write_binary_masks
+from swiftlet.mask_haloes import write_binary_masks
 
 # rotation angles (in radian) for flamingo simualtions with sidelength of 1000Mpc
 ROTATIONS_L1=np.array(

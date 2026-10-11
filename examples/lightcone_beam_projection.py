@@ -2,7 +2,7 @@
 import numpy as np
 import unyt
 import lightcone_io.particle_reader as pr
-from extra_swift_lightcones.lightcone_projections import BeamProjection
+from swiftlet.lightcone_projections import BeamProjection
 import cmasher as cmr # noqa: F401 registers the "cmr.*" colour maps used by name
 from pathlib import Path
 

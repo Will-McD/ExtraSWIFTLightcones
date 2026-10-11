@@ -4,8 +4,8 @@ import unyt
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from extra_swift_lightcones.snapshot_lightcone import SnapshotBeam
-from extra_swift_lightcones.lightcone_projections import BeamProjection
+from swiftlet.snapshot_lightcone import SnapshotBeam
+from swiftlet.lightcone_projections import BeamProjection
 
 """
 Use SnapshotBeam to build a beam through a past lightcone of gas particles from the snapshots of the

@@ -17,7 +17,7 @@ module load gnu_comp/14.1.0 openmpi/5.0.3
 module load python/3.12.4
 
 
-source "/cosma/apps/dp004/${USER}/extra_swift_lightcones_env/bin/activate"
+source "/cosma/apps/dp004/${USER}/swiftlet_env/bin/activate"
 
 # use job array as the lightcone number
 

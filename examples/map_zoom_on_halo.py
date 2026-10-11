@@ -11,7 +11,7 @@ import matplotlib.patheffects as pe
 import matplotlib as mpl
 import cmasher as cmr # noqa: F401 register "cmr.*" colour maps used
 from lightcone_io.units import units_from_attributes
-from extra_swift_lightcones import swift_snapshot_redshift_conversion as nz
+from swiftlet import swift_snapshot_redshift_conversion as nz
 from pathlib import Path
 import hdfstream
 
