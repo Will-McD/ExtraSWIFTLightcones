@@ -5,8 +5,9 @@ visualise SWIFT lightcones.
 The main classes and functions can be imported from the package:
 
     from swiftlet import SnapshotBeam, BeamProjection
-
-    snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS
+    snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS,
+                                        write_lightcone_metadata, read_lightcone_metadata
+    snapshot_orientation:               write_orientation_tables, read_orientation_tables, generate_orientation_tables
     lightcone_projections:              BeamProjection
     beam_plotting:                      BeamPlot
     healpix_map_utils:                  write_rotated_lightcone_chunks, sum_maps
@@ -35,6 +36,12 @@ _PUBLIC_NAMES = {
     "SnapshotBeam": "snapshot_lightcone",
     "SnapshotAllSky": "snapshot_lightcone",
     "ORIENTATION_LOCK_OPTIONS": "snapshot_lightcone",
+    "write_lightcone_metadata": "snapshot_lightcone",
+    "read_lightcone_metadata": "snapshot_lightcone",
+    # orientation tables of the box tiles
+    "write_orientation_tables": "snapshot_orientation",
+    "read_orientation_tables": "snapshot_orientation",
+    "generate_orientation_tables": "snapshot_orientation",
     # projecting and plotting beams
     "BeamProjection": "lightcone_projections",
     "BeamPlot": "beam_plotting",

@@ -350,6 +350,9 @@ def random_cell_shift_values(N, nr_cells_per_axis, seed=None):
     return shifts
 
 
+
+# default orientation table values
+
 SnapshotBeamAngles_quaters=np.array([
     [0,0,0],
     [0,1,-1],
@@ -676,4 +679,185 @@ SnapshotBeamAngles_deg=np.array([
     [-22.808518021854923, 3.9368165717869488, -12.47821132179675],
     [-79.01619384401654, -51.705253761865436, -144.82715907671647],
     ], dtype=float)
+
+
+
+ORIENTATION_TABLE_NAMES = ("QuarterTurns", "Reflections", "CellShifts")
+# cell shifts of the generated tables, as in the default tables (for 32 cells per axis)
+DEFAULT_CELL_SHIFT_VALUES = (0, 4, -4, 8, -8, 16, -16)
+
+def default_orientation_tables():
+    """
+    The orientation tables used when no orientation table file is given, 79 rows.
+
+    Returns a dict: 
+        {"QuarterTurns", "Reflections", "CellShifts"}.
+    """
+    return check_orientation_tables({
+        "QuarterTurns": SnapshotBeamAngles_quaters,
+        "Reflections": SnapshotBeamAngles_reflections,
+        "CellShifts": SnapshotBeamAngles_shifts,
+    })
+
+def check_orientation_tables(tables):
+    """
+    Check orientation tables. 
+    Three tables with the same number of rows (at least 1) of 3 whole numbers to build new snapshot tiles:
+
+        - the quarter turns about the x, y and z axes
+        - reflections of +1 or -1 per axis
+        - periodic shifts in whole cells per axis
+
+    Returns the tables as a dict of np.ndarray of int64, shape (N, 3).
+
+    :param  tables: {"QuarterTurns", "Reflections", "CellShifts"}
+    :type   tables: dict
+    """
+    missing = [name for name in ORIENTATION_TABLE_NAMES if name not in tables]
+    if missing:
+        raise ValueError(f"orientation tables {missing} missing, the tables are {ORIENTATION_TABLE_NAMES}")
+    checked = {}
+    for name in ORIENTATION_TABLE_NAMES:
+        values = np.asarray(tables[name])
+        if values.ndim != 2 or values.shape[1] != 3 or values.shape[0] < 1:
+            raise ValueError(f"orientation table {name} must have shape (N, 3) with N >= 1, not {values.shape}")
+        if not np.all(np.isfinite(values)) or not np.all(values == np.round(values)):
+            raise ValueError(f"orientation table {name} must hold whole numbers")
+        checked[name] = values.astype(np.int64)
+    if len({values.shape[0] for values in checked.values()}) != 1:
+        raise ValueError("the orientation tables must have the same number of rows, "
+                         + ", ".join(f"{name}: {checked[name].shape[0]}" for name in ORIENTATION_TABLE_NAMES))
+    if not np.all(np.isin(checked["Reflections"], (-1, 1))):
+        raise ValueError("orientation table Reflections must hold only +1 and -1")
+    return checked
+
+def orientation_tables_fingerprint(tables):
+    """
+    Fingerprint of the contents of orientation tables, the same for the same tables wherever they come from.
+
+    Returns the first 16 hexadecimal digits of the tables SHA-256 hash.
+
+    :param  tables: orientation tables
+    :type   tables: dict
+    """
+    import hashlib
+    tables = check_orientation_tables(tables)
+    digest = hashlib.sha256()
+    for name in ORIENTATION_TABLE_NAMES:
+        digest.update(name.encode())
+        digest.update(np.ascontiguousarray(tables[name], dtype="<i8").tobytes())
+    return digest.hexdigest()[:16]
+
+
+def generate_orientation_tables(seed=0, n_rows=None, cell_shift_values=DEFAULT_CELL_SHIFT_VALUES):
+    """
+    Orientation tables holding every distinct orientation: each of the 48 ways of turning and reflecting the box
+    (the signed permutations of the axes) with each combination of the cell shifts along x, y and z, e.g.
+    48 x 7^3 = 16464 rows for the default shifts. 
+    The first row leaves the box unchanged, so the observer's box tile
+    (0, 0, 0) is not re-oriented with orientation_seed=0, and the other rows are shuffled.
+
+    Returns the tables as a dict, see check_orientation_tables.
+
+    :param  seed:               seed of the shuffle of the rows, the same seed gives the same tables
+    :type   seed:               int
+    :param  n_rows:             number of rows to keep (the first, unchanged, and n_rows - 1 others). If None, all
+    :type   n_rows:             int
+    :param  cell_shift_values:  shifts [cells] each axis can take, including 0
+    :type   cell_shift_values:  sequence of int
+    """
+    import itertools
+    cell_shift_values = [int(value) for value in cell_shift_values]
+    if 0 not in cell_shift_values or len(set(cell_shift_values)) != len(cell_shift_values):
+        raise ValueError("cell_shift_values must include 0 and have no repeats")
+
+    # one (quarter turns, reflections) for each of the 48 distinct matrices, the unchanged box first
+    turns_and_reflections = {}
+    for turns in itertools.product((0, 1, 2, -1), repeat=3):
+        for reflections in itertools.product((1, -1), repeat=3):
+            # build rot matrix of quater turns
+            matrix = _build_rotation_matrix(np.array(turns) * 90., degrees=True) * np.array(reflections)[np.newaxis, :]
+            turns_and_reflections.setdefault(tuple(np.rint(matrix).astype(int).ravel()), (turns, reflections))
+    assert len(turns_and_reflections) == 48 # ensure all 48 combinations have been sampled
+    orientations = list(turns_and_reflections.values())
+    shifts = list(itertools.product(cell_shift_values, repeat=3))
+
+    # add rows to table with a given quater turn, relfection and periodic shift. 
+    rows = [(turns, reflections, shift) for turns, reflections in orientations for shift in shifts]
+    unchanged = ((0, 0, 0), (1, 1, 1), (0, 0, 0))
+    rows.remove(unchanged)
+    order = np.random.default_rng(seed).permutation(len(rows))
+    rows = [unchanged] + [rows[i] for i in order]
+    if n_rows is not None:
+        if not 1 <= int(n_rows) <= len(rows):
+            raise ValueError(f"n_rows must be between 1 and {len(rows)}, not {n_rows}")
+        rows = rows[:int(n_rows)]
+    return check_orientation_tables({name: np.array([row[i] for row in rows]) for i, name in enumerate(ORIENTATION_TABLE_NAMES)})
+
+
+def write_orientation_tables(filename, tables=None, seed=0, n_rows=None, cell_shift_values=DEFAULT_CELL_SHIFT_VALUES):
+    """
+    Write orientation tables to a .hdf5 file. The tables are given, or generated with every distinct orientation. 
+    The .hdf5 file holds the datasets 'QuarterTurns', 'Reflections' and 'CellShifts', and the attributes describing them.
+
+    Returns the fingerprint of the tables.
+
+    :param  filename:           path of the HDF5 file to write
+    :type   filename:           str
+    :param  tables:             tables to write, see check_orientation_tables. If None, generate them
+    :type   tables:             dict
+    :param  seed:               seed of generate_orientation_tables, if the tables are generated
+    :type   seed:               int
+    :param  n_rows:             number of rows of generate_orientation_tables, if the tables are generated
+    :type   n_rows:             int
+    :param  cell_shift_values:  cell shifts of generate_orientation_tables, if the tables are generated
+    :type   cell_shift_values:  sequence of int
+    """
+    import h5py
+    generated = tables is None
+    if generated:
+        tables = generate_orientation_tables(seed=seed, n_rows=n_rows, cell_shift_values=cell_shift_values)
+    tables = check_orientation_tables(tables)
+    fingerprint = orientation_tables_fingerprint(tables)
+    with h5py.File(filename, "w") as outfile:
+        # iterativley construct dataset names 
+        for name in ORIENTATION_TABLE_NAMES:
+            outfile.create_dataset(name, data=tables[name])
+        
+        # add all datasets to file
+        outfile["QuarterTurns"].attrs["description"] = "number of quarter turns (90 degrees) about the x, y and z axes"
+        outfile["Reflections"].attrs["description"] = "reflection (+1 or -1) of the x, y and z axes"
+        outfile["CellShifts"].attrs["description"] = "periodic shift of the box along x, y and z, in whole cells"
+        outfile.attrs["description"] = ("orientation tables of the box tiles of a snapshot lightcone: tile reads row "
+                                        "(tile hash % number of rows) of every table")
+        outfile.attrs["number_of_rows"] = len(tables["QuarterTurns"])
+        outfile.attrs["fingerprint"] = fingerprint
+        outfile.attrs["generated"] = generated
+        # for newley generated table add info so it can be reproduced later on. 
+        if generated:
+            outfile.attrs["seed"] = int(seed)
+            outfile.attrs["cell_shift_values"] = np.asarray(cell_shift_values, dtype=np.int64)
+    return fingerprint
+
+def read_orientation_tables(filename):
+    """
+    Read and check orientation tables written by write_orientation_tables.
+
+    Returns the tables as a dict. 
+
+    :param  filename:   path of the HDF5 file
+    :type   filename:   str
+    """
+    import h5py
+    with h5py.File(filename, "r") as infile:
+        # check all required dset names are present 
+        missing = [name for name in ORIENTATION_TABLE_NAMES if name not in infile]
+        
+        # for missing names raise an error
+        if missing:
+            raise ValueError(f"{filename} is not an orientation table file, it has no {missing}")
+            
+        return check_orientation_tables({name: infile[name][...] for name in ORIENTATION_TABLE_NAMES})
+
+
 

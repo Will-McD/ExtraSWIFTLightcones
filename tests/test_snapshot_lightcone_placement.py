@@ -283,13 +283,13 @@ def fake_runs(fake_run_dir):
     return soap_format(fake_run_dir)
 
 
-def new_lightcone(sim_name, beam_vector, orientation_lock):
+def new_lightcone(sim_name, beam_vector, orientation_lock, **kwargs):
     """
     SnapshotBeam along beam_vector, or SnapshotAllSky if beam_vector is None, using a fake simulation.
     """
     if beam_vector is None:
-        return snapshot_lightcone.SnapshotAllSky(BOX_RES, sim_name, verbose=0, orientation_lock=orientation_lock)
-    return snapshot_lightcone.SnapshotBeam(BOX_RES, sim_name, beam_vector, verbose=0, orientation_lock=orientation_lock)
+        return snapshot_lightcone.SnapshotAllSky(BOX_RES, sim_name, verbose=0, orientation_lock=orientation_lock, **kwargs)
+    return snapshot_lightcone.SnapshotBeam(BOX_RES, sim_name, beam_vector, verbose=0, orientation_lock=orientation_lock, **kwargs)
 
 
 def shell_args(lightcone, ang_radius_deg):
@@ -1058,3 +1058,134 @@ def test_no_repeats_within_a_tile(fake_run_dir, fake_runs, beam_vector, ang_radi
         rows = np.column_stack([snap_nr, ids, tiles])
         return rows[np.lexsort(rows.T[::-1])]
     np.testing.assert_array_equal(sorted_rows_by_tile(*haloes), sorted_rows_by_tile(*particles))
+
+
+# test the orientation tables read from a file and that their metadata is recorded correctly with every lightcone output
+
+def tile_orientations(lightcone, extent=5):
+    """
+    The orientation key of every tile (n_x, n_y, n_z) with |n| <= extent.
+    """
+    tiles = [tuple(int(n) for n in t) for t in np.indices((2 * extent + 1,) * 3).reshape(3, -1).T - extent]
+    return {tile: orientation_key(lightcone, tile) for tile in tiles}
+
+
+def test_default_tables_from_a_file_are_unchanged(fake_runs, tmp_path):
+    """
+    Test that a lightcone made with the default tables written to a file is the same as one made from 
+    reading the hardcoded default table  a table. Must have the same orientation of every tile, and the same particles placed.
+    """
+    orientation = pytest.importorskip(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
+    filename = tmp_path / "default_tables.hdf5"
+    orientation.write_orientation_tables(filename, tables=orientation.default_orientation_tables())
+
+    without, with_file = new_lightcone(HALO_SIM, None, None), new_lightcone(HALO_SIM, None, None, orientation_table=filename)
+    assert tile_orientations(without) == tile_orientations(with_file)
+    assert without.orientation_table_fingerprint == with_file.orientation_table_fingerprint
+    assert_same_particles(particle_rows(place_particles(with_file, (0.1, 0.2), None)),
+                          particle_rows(place_particles(without, (0.1, 0.2), None)))
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube"])
+def test_lightcone_with_generated_tables(fake_runs, tmp_path, orientation_lock):
+    """
+    With a file of generated tables each tile reads the row (tile hash % number of rows) of every table, 
+    as with the default tables, so the tiles take many more orientations than the 79 of the default tables. 
+    The lattice is still placed exactly once everywhere, and the same tables, seed and lock make the same lightcone again.
+    """
+    orientation = pytest.importorskip(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
+    filename = tmp_path / "tables.hdf5"
+    orientation.write_orientation_tables(filename, seed=1)
+    tables = orientation.read_orientation_tables(filename)
+    lightcone = new_lightcone(LATTICE_SIM, None, orientation_lock, orientation_table=filename)
+
+    # each tile's orientation is the row (tile hash % number of rows) of the tables
+    p1, p2, p3 = snapshot_lightcone.TILE_HASH_PRIMES
+    for tile in [(0, 0, 0), (1, -2, 3), (-4, 0, 2)]:
+        layer_tile = tile if orientation_lock is None else (0, 0, max(abs(n) for n in tile))
+        row = (layer_tile[0] * p1 + layer_tile[1] * p2 + layer_tile[2] * p3) % len(tables["QuarterTurns"])
+        rot_angles, reflections, shift = lightcone._snapshot_reorientation(tile)
+        np.testing.assert_array_equal(rot_angles, tables["QuarterTurns"][row] * 90)
+        np.testing.assert_array_equal(reflections, tables["Reflections"][row])
+        np.testing.assert_array_equal(shift, tables["CellShifts"][row])
+    if orientation_lock is None:
+        orientations = tile_orientations(lightcone)
+        assert len(set(orientations.values())) > 1000, "no more orientations than the default tables"
+
+    # the lattice is placed exactly once everywhere
+    r_range = (440., 1110.)
+    snap_nr, ids, coords = particle_rows(place_particles(lightcone, redshift_at_distance(r_range), None))
+    placed_idx, expected_idx = lattice_index(coords), lattice_index(lattice_in_shell(*r_range, None, None))
+    unique_idx, counts = np.unique(placed_idx, axis=0, return_counts=True)
+    assert np.all(counts == 1) and len(unique_idx) == len(np.unique(expected_idx, axis=0))
+
+    # the same tables, seed and lock make the same lightcone
+    again = new_lightcone(LATTICE_SIM, None, orientation_lock, orientation_table=filename)
+    assert_same_particles(particle_rows(place_particles(again, redshift_at_distance(r_range), None)), (snap_nr, ids, coords))
+
+
+@pytest.mark.parametrize("beam_vector, ang_radius_deg, orientation_lock, use_table", [
+    pytest.param(None, None, "cube", False, id="all_sky_cube"),
+    pytest.param((1, 2, 3), 20., None, True, id="beam_with_table"),
+])
+def test_outputs_carry_the_lightcone_settings(fake_runs, tmp_path, beam_vector, ang_radius_deg, orientation_lock, use_table):
+    """
+    Test that the output lightcone carries the metadata that made it in .metadata so the exact same lightcone can be reproduced. 
+    Should store the:
+        - orientation_seed
+        - orientation_lock
+        - orientation table (file and fingerprint)
+        - simulation, 
+        - beam
+        - redshift range
+    
+    This .metadata should be the same when written to and read back from .hdf5 attributes.
+
+    """
+    orientation = pytest.importorskip(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
+    kwargs = {"orientation_seed": 7}
+    if use_table:
+        kwargs["orientation_table"] = tmp_path / "tables.hdf5"
+        orientation.write_orientation_tables(kwargs["orientation_table"], seed=2)
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, **kwargs)
+    redshift_range = (0.05, 0.15)
+    expected = {
+        "lightcone_type": "SnapshotAllSky" if beam_vector is None else "SnapshotBeam",
+        "boxsize_resolution": BOX_RES,
+        "simulation_name": HALO_SIM,
+        "orientation_seed": 7,
+        "orientation_lock": "none" if orientation_lock is None else orientation_lock,
+        "orientation_table": str(Path(kwargs["orientation_table"]).resolve()) if use_table else "default",
+        "orientation_table_fingerprint": orientation.orientation_tables_fingerprint(
+            orientation.read_orientation_tables(kwargs["orientation_table"]) if use_table else orientation.default_orientation_tables()),
+        "ang_radius_deg": ang_radius_deg,
+        "redshift_range": list(redshift_range),
+    }
+
+    def assert_settings(metadata, what):
+        for name, value in expected.items():
+            assert metadata[name] == value, f"{what}: {name} is {metadata[name]!r}, not {value!r}"
+        if beam_vector is None:
+            assert metadata["beam_vector"] is None
+        else:
+            np.testing.assert_allclose(metadata["beam_vector"], np.asarray(beam_vector) / np.linalg.norm(beam_vector))
+        assert metadata["package_version"]
+
+    args = shell_args(lightcone, ang_radius_deg)
+    shell = lightcone.place_snapshot_particles_in_shell(redshift_range, property_names=["ParticleIDs", "Coordinates"],
+                                                        particle_types=PTYPE, **args)
+    assert_settings(shell.metadata, "particles placed")
+    assert_settings(shell[PTYPE].metadata, "particles of one type")
+    numb_files, _ = lightcone.gather_files(PTYPE, redshift_range, **args)
+    assert_settings(lightcone.place_file_in_shell(0, PTYPE, ["ParticleIDs", "Coordinates"], **args).metadata,
+                    "particles placed file by file")
+    halos = lightcone.place_halos_in_shell(fake_runs, redshift_range, **args)
+    assert len(halos["Lightcone/SnapshotNumber"]) > 0
+    assert_settings(halos.metadata, "haloes placed")
+
+    # written to and read back from HDF5 attributes
+    with h5py.File(tmp_path / "metadata.hdf5", "w") as f:
+        snapshot_lightcone.write_lightcone_metadata(f, shell.metadata)
+    with h5py.File(tmp_path / "metadata.hdf5", "r") as f:
+        assert_settings(snapshot_lightcone.read_lightcone_metadata(f), "settings read back from HDF5")
+

@@ -8,7 +8,8 @@ from pathlib import Path
 import lightcone_io.smoothed_map as smoothed_map
 import lightcone_io.kernel as kernel
 import virgo.mpi.parallel_hdf5 as phdf5
-from swiftlet.snapshot_lightcone import SnapshotAllSky
+from swiftlet.snapshot_lightcone import SnapshotAllSky, write_lightcone_metadata
+
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -130,7 +131,7 @@ def make_smoothed_sky_map(part_pos, part_hsml, part_val, nside, progress=False):
     return map_data
 
 
-def write_map(output_filename, dataset_name, map_data, nside, redshift_range):
+def write_map(output_filename, dataset_name, map_data, nside, redshift_range,lightcone_metadata=None):
     """
     Write the map, distributed over the MPI ranks, to a HDF5 file in parallel.
 
@@ -144,6 +145,8 @@ def write_map(output_filename, dataset_name, map_data, nside, redshift_range):
     :type   nside:              int
     :param  redshift_range:     minimum and maximum redshift of the shell [z_min, z_max]
     :type   redshift_range:     tuple
+    :param  lightcone_metadata: .metadata of the settings that made the lightcone
+    :type   lightcone_metadata: dict
     """
     with h5py.File(output_filename, "w", driver="mpio", comm=comm) as outfile:
         phdf5.collective_write(outfile, dataset_name, map_data.value, comm)
@@ -154,6 +157,8 @@ def write_map(output_filename, dataset_name, map_data, nside, redshift_range):
         dataset.attrs["pixel_ordering_scheme"] = "ring"
         dataset.attrs["units"] = str(map_data.units)
         dataset.attrs["redshift_range"] = list(redshift_range)
+        if lightcone_metadata is not None:
+            write_lightcone_metadata(dataset, lightcone_metadata)
 
 
 def plot_map(map_filename, dataset_name, plot_filename):
@@ -229,7 +234,7 @@ if __name__ == "__main__":
     map_data = make_smoothed_sky_map(part_pos, part_hsml, part_mass, nside, progress=True)
 
     # write the map
-    write_map(output_filename, "SmoothedGasMass", map_data, nside, redshift_range)
+    write_map(output_filename, "SmoothedGasMass", map_data, nside, redshift_range, lightcone_metadata=shell_particles.metadata)
     message(f"Map written to: {output_filename}")
     
     # plot the map, read back from the file on rank 0

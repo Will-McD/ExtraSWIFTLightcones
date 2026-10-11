@@ -224,6 +224,69 @@ TILE_HASH_SEED_PRIME = 2246822519
 # ways of locking the orientation of the box tiles into layers
 ORIENTATION_LOCK_OPTIONS = (None, "none", "cube", "sphere")
 
+# the settings recorded with every lightcone output .metadata 
+# esentially what is needed to perfectly reproduce the same lightcone
+LIGHTCONE_METADATA_NAMES = (
+    "lightcone_type", 
+    "boxsize_resolution", "simulation_name", 
+    "orientation_seed", "orientation_lock",
+    "orientation_table", "orientation_table_fingerprint", 
+    "beam_vector", "ang_radius_deg", "redshift_range",
+    "version",
+)
+
+class LightconeOutput(dict):
+    """
+    The output dictionary object for particles or haloes placed in a lightcone. 
+    This classes .metadata object is included to track the settings used to 
+    make the lightcone. 
+    """
+    def __init__(self, data, metadata):
+        super().__init__(data)
+        self.metadata = dict(metadata)
+
+
+
+def write_lightcone_metadata(hdf5_object, metadata):
+    """
+    Write the settings that made a lightcone as attributes of an HDF5 file, group or dataset.
+    None is written as "none".
+
+    :param  hdf5_object:    h5py file, group or dataset to add the attributes to
+    :type   hdf5_object:    h5py.File, h5py.Group or h5py.Dataset
+    :param  metadata:       the settings, see SnapshotLightcone.lightcone_metadata
+    :type   metadata:       dict
+    """
+    for name, value in metadata.items():
+        if value is None:
+            value = "none"
+        elif isinstance(value, (list, tuple, np.ndarray)):
+            value = np.asarray(value)
+        hdf5_object.attrs[name] = value
+
+
+def read_lightcone_metadata(hdf5_object):
+    """
+    Read the settings written by write_lightcone_metadata.
+
+    Returns a dict of the settings, with "none" read back as None, except orientation_lock, which is recorded as "none".
+
+    :param  hdf5_object:    h5py file, group or dataset holding the attributes
+    :type   hdf5_object:    h5py.File, h5py.Group or h5py.Dataset
+    """
+    metadata = {}
+    for name in LIGHTCONE_METADATA_NAMES:
+        if name in hdf5_object.attrs:
+            value = hdf5_object.attrs[name]
+            if isinstance(value, bytes):
+                value = value.decode()
+            if isinstance(value, np.ndarray):
+                value = value.tolist()
+            elif isinstance(value, np.generic):
+                value = value.item()
+            metadata[name] = None if value == "none" and name != "orientation_lock" else value
+    return metadata
+
 class SnapshotLightcone():
     """
     Fundamental code used to constuct lightcones from snapshots with 
@@ -243,7 +306,8 @@ class SnapshotLightcone():
 
     def __init__(self, boxsize_resolution, simulation_name, beam_vector, 
                     simulation_base_dir_format="/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}",  
-                    orientation_seed=0, verbose=1, orientation_lock=None):
+                    orientation_seed=0, orientation_lock=None, orientation_table=None,
+                    verbose=1):
         """
         Define the lightcone's cosmology, units and vector (where applicable).
 
@@ -268,6 +332,11 @@ class SnapshotLightcone():
                                                 sphere is used once for each shell, and tiles are labelled 
                                                 (nx, ny, nz, layer)
         :type   orientation_lock:           str
+        :param  orientation_table:          path of an HDF5 file of orientation tables (see
+                                                snapshot_orientation.write_orientation_tables) to take the quarter turns,
+                                                reflections and cell shifts of the box tiles from. If None, the default
+                                                tables (79 rows). Each tile reads one row of every table, as for the default
+        :type   orientation_table:          str
         """
 
         # simulation values
@@ -281,8 +350,6 @@ class SnapshotLightcone():
         # define the cosmology from the snapshots
         self.__define_snapshot_cosmology(int(nz.snapshot_number_redshifts(snapshot_number=0, boxsize_resolution=self.box_res, inverse=True)), 0)
 
-        #self.__clear_all_internal_values()
-
         # define the beam vector (direction of line of sight)
         if beam_vector is None:
             self.beam_vec = None
@@ -292,7 +359,18 @@ class SnapshotLightcone():
         self.orientation_seed = int(orientation_seed)
         if orientation_lock not in ORIENTATION_LOCK_OPTIONS:
             raise ValueError(f"orientation_lock must be one of {ORIENTATION_LOCK_OPTIONS}, not {orientation_lock!r}")
-        self.orientation_lock = orientation_lock
+
+        # lock="none" is the same as lock=None
+        self.orientation_lock = None if orientation_lock == "none" else orientation_lock
+
+        # quarter turns, reflections and cell shifts of the box tiles: from a file, or the default tables
+        if orientation_table is None:
+            self.orientation_table = None
+            self._orientation_tables = box_structure.default_orientation_tables()
+        else:
+            self.orientation_table = os.path.abspath(str(orientation_table))
+            self._orientation_tables = box_structure.read_orientation_tables(self.orientation_table)
+        self.orientation_table_fingerprint = box_structure.orientation_tables_fingerprint(self._orientation_tables)
 
         # values & caches to compute once and reuse for every call
         self.unit_registry=None
@@ -305,6 +383,52 @@ class SnapshotLightcone():
 
         # define grid to interpolate redshift from comoving distance
         self.__redshift_from_comoving_distance([0.0005, 5.0], n_grid=5000, method="precise")
+
+    def lightcone_metadata(self, redshift_range=None, ang_radius_deg=None):
+        """
+        Metadata tracks the settings that made the lightcone and a record of everything placed in it:
+            
+            - orientation_seed 
+            - orientation_lock
+            - orientation table (file and fingerprint of its contents) that set the
+                orientation of every box tile, 
+            - the simulation, 
+            - the beam 
+            - the redshift range. 
+            
+        Given the same settings and snapshots, the same exact lightcone can be made again.
+
+        Returns a dict, with the names LIGHTCONE_METADATA_NAMES.
+
+        :param  redshift_range: minimum and maximum redshift of the shell placed
+        :type   redshift_range: sequence of two floats
+        :param  ang_radius_deg: angular radius [deg] of the beam, None for all-sky
+        :type   ang_radius_deg: float
+        """
+        from . import __version__ as package_version
+        metadata_dict = {
+            "lightcone_type": type(self).__name__,
+            "boxsize_resolution": self.box_res,
+            "simulation_name": self.sim_name,
+            "orientation_seed": self.orientation_seed,
+            "orientation_lock": "none" if self.orientation_lock is None else self.orientation_lock,
+            "orientation_table": "default" if self.orientation_table is None else self.orientation_table,
+            "orientation_table_fingerprint": self.orientation_table_fingerprint,
+            "beam_vector": None if self.beam_vec is None else [float(x) for x in np.ravel(self.beam_vec)],
+            "ang_radius_deg": None if ang_radius_deg is None else float(ang_radius_deg),
+            "redshift_range": None if redshift_range is None else [float(z) for z in redshift_range],
+            "version": package_version,
+        }
+        # remove excess metadata names 
+        for metadata_prop in metadata_dict:
+            if metadata_prop not in LIGHTCONE_METADATA_NAMES:
+                del metadata_dict[metadata_prop]
+
+        # ensure all extra metadata names are added
+        for required_prop in LIGHTCONE_METADATA_NAMES:
+            if required_prop not in metadata_dict:
+                metadata_dict[required_prop]=None
+
 
     def __clear_shell_read_state(self, ):
         """
@@ -679,7 +803,7 @@ class SnapshotLightcone():
 
     def _snapshot_reorientation(self, tile):
         """
-        Orientation (rotation, reflection, periodic shift) for snapshot box 'tile' (nx, ny, n_los). 
+        Orientation (rotation, reflection, periodic shift) for snapshot 'tile' (nx, ny, n_los). 
         Create a new permutation of the snapshot if the comoving distance to this redshift 
         is > box sidelength or in a set orientation lock layer. 
         With orientation_lock="cube" or "sphere" every tile in the same layer takes the orientation 
@@ -690,9 +814,15 @@ class SnapshotLightcone():
         :param  tile:   periodic replica tile index
         :type   tile:   tuple
         """
-        n_ang = box_structure.SnapshotBeamAngles_quaters.shape[0]
-        n_ref = box_structure.SnapshotBeamAngles_reflections.shape[0]
-        n_shift = box_structure.SnapshotBeamAngles_shifts.shape[0]
+        
+        #n_ang = box_structure.SnapshotBeamAngles_quaters.shape[0]
+        #n_ref = box_structure.SnapshotBeamAngles_reflections.shape[0]
+        #n_shift = box_structure.SnapshotBeamAngles_shifts.shape[0]
+        
+        tables = self._orientation_tables
+        n_ang = tables["QuarterTurns"].shape[0]
+        n_ref = tables["Reflections"].shape[0]
+        n_shift = tables["CellShifts"].shape[0]
         
         if self.orientation_lock is not None:
             nx, ny, nz = 0, 0, self._orientation_layer(tile)
@@ -703,9 +833,12 @@ class SnapshotLightcone():
         tile_hash = nx * p1 + ny * p2 + nz * p3 + self.orientation_seed * TILE_HASH_SEED_PRIME
 
         orientation_idx = (tile_hash % n_ang, tile_hash % n_ref, tile_hash % n_shift)
-        ang = box_structure.SnapshotBeamAngles_quaters[orientation_idx[0]] * 90  # degrees
-        ref = box_structure.SnapshotBeamAngles_reflections[orientation_idx[1]]
-        shift = box_structure.SnapshotBeamAngles_shifts[orientation_idx[2]]
+        #ang = box_structure.SnapshotBeamAngles_quaters[orientation_idx[0]] * 90  # degrees
+        #ref = box_structure.SnapshotBeamAngles_reflections[orientation_idx[1]]
+        #shift = box_structure.SnapshotBeamAngles_shifts[orientation_idx[2]]
+        ang = tables["QuarterTurns"][orientation_idx[0]] * 90  # degrees
+        ref = tables["Reflections"][orientation_idx[1]]
+        shift = tables["CellShifts"][orientation_idx[2]]
 
         return ang, ref, shift
 
@@ -1455,6 +1588,7 @@ class SnapshotLightcone():
         self._validate_ang_radius_deg(ang_radius_deg)
 
         files = self._gather_files_for_ptype(current_ptype, shell_z, ang_radius_deg, use_snapshots)
+        self._gathered_shell_z = shell_z  # recorded with the particles placed, see lightcone_metadata
         return len(files), files
 
     def place_file_in_shell(self, file_number, current_ptype, property_names, ang_radius_deg):
@@ -1492,14 +1626,17 @@ class SnapshotLightcone():
 
         self.particle_data = {name: None for name in property_names}
         self.__read_and_place_particles([file_data], current_ptype, property_names, ang_radius_deg)
-
+        
+        # record metadata 
+        metadata = self.lightcone_metadata(getattr(self, "_gathered_shell_z", None), ang_radius_deg)
+        
         if self.particle_data["Coordinates"] is None:
             self._log(f"\nNo particles kept from file {file_number}\n", level=2)
-            return {}
+            return LightconeOutput({}, metadata) # return empty lightcone with associated metadata. 
 
         self._attach_expansion_factors()
 
-        return self.particle_data
+        return LightconeOutput(self.particle_data, metadata) # return lightcone with metadata. 
 
     def place_snapshot_particles_in_shell(self, lightcone_redshift_range, ang_radius_deg, property_names, particle_types=["PartType0", "PartType1", "PartType5"], use_snapshots=None, comm=None, redistibute_particles=False):
         """
@@ -1544,7 +1681,10 @@ class SnapshotLightcone():
             self._log(seperator_str()+f"\nPlacing {ptype} in lightcone", level=1)
             combined_dset[ptype]=self.__populate_lightcone_with_ptype(ang_radius_deg=ang_radius_deg, shell_z=lightcone_redshift_range, property_names=property_names, particle_type=ptype,redistribute=redistibute_particles, use_snapshots=use_snapshots)
 
-        return combined_dset
+        #record the settings that made the lightcone as metadata
+        metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
+        return LightconeOutput({ptype: LightconeOutput(data, metadata) for ptype, data in combined_dset.items()}, metadata) # Return the lightcone and its metadata
+
 
     def inverse_transform_snapshot_coordinates(self, coords, rot_angles, cell_data,
                     reflections=None, periodic_cell_shift=None,
@@ -1847,6 +1987,10 @@ class SnapshotLightcone():
             "InputHalos/HaloCatalogueIndex": unyt.unyt_array(np.zeros((0,), dtype=int), unyt.dimensionless),
             "Lightcone/ExpansionFactor": unyt.unyt_array(np.zeros((0,)), unyt.dimensionless),
         }
+        
+        # add metadata to empty result
+        metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
+        empty_result = LightconeOutput(empty_result, metadata)
 
         if len(snapshots_to_read) == 0:
             self._log("\nNo snapshots found in range for halo placement\n", level=1)
@@ -1912,13 +2056,14 @@ class SnapshotLightcone():
         expansion_factor = self.__comoving_distance_to_scalefactor(r_comoving)
 
         self._log(f"\nTotal halos placed in lightcone shell: {all_snap_nr.shape[0]}\n", level=1)
-
-        return {
+        
+        
+        return LightconeOutput({
             "Lightcone/HaloCentre": unyt.unyt_array(all_centre, unyt.Mpc),
             "Lightcone/SnapshotNumber": unyt.unyt_array(all_snap_nr, unyt.dimensionless),
             "InputHalos/HaloCatalogueIndex": unyt.unyt_array(all_index, unyt.dimensionless),
             "Lightcone/ExpansionFactor": unyt.unyt_array(expansion_factor, unyt.dimensionless),
-        }
+        }, metadata) # include metadata
 
 
 class SnapshotBeam(SnapshotLightcone):
@@ -1926,7 +2071,7 @@ class SnapshotBeam(SnapshotLightcone):
     Class for constructing a pencil beam lightcone, about a single line of sight, from snapshots.
     """
 
-    def __init__(self, boxsize_resolution, simulation_name, beam_vector, orientation_seed=0, verbose=1, orientation_lock=None):
+    def __init__(self, boxsize_resolution, simulation_name, beam_vector, orientation_seed=0,orientation_lock=None,orientation_table=None,verbose=1):
         """
         Define the beam.
 
@@ -1953,10 +2098,11 @@ class SnapshotBeam(SnapshotLightcone):
                                                 (nx, ny, nz, layer)
         :type   orientation_lock:           str
         """
-        super().__init__(boxsize_resolution, simulation_name, beam_vector, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock)
-
-        # set up orthonormal basis perpendicular to beam_vec, 
-        # used to place tiles transverse to the line of sight once
+        #super().__init__(boxsize_resolution, simulation_name, beam_vector, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock)
+        
+        super().__init__(boxsize_resolution, simulation_name, beam_vector, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock, orientation_table=orientation_table)
+        
+        # set up orthonormal basis perpendicular to beam_vec, used to place tiles transverse to the line of sight once
         # the beam's diameter exceeds one box sidelength. 
         self.beam_transverse_e1, self.beam_transverse_e2 = self.__transverse_basis(self.beam_vec)
 
@@ -2254,7 +2400,7 @@ class SnapshotAllSky(SnapshotLightcone):
     Class for constructing an all-sky lightcone from snapshots.
     """
 
-    def __init__(self, boxsize_resolution, simulation_name, orientation_seed=0, verbose=1, orientation_lock=None):
+    def __init__(self, boxsize_resolution, simulation_name, orientation_seed=0, orientation_lock=None,orientation_table=None,verbose=1):
         """
         Define the all-sky lightcone, passed to SnapshotLightcone with no beam vector.
 
@@ -2280,7 +2426,7 @@ class SnapshotAllSky(SnapshotLightcone):
         :type   orientation_lock:           str
         """
         
-        super().__init__(boxsize_resolution, simulation_name, beam_vector=None, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock)
+        super().__init__(boxsize_resolution, simulation_name, beam_vector=None, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock,orientation_table=orientation_table)
 
     def _tiles_intersecting_shell(self, r_min, r_max, boxsize, ang_radius_deg=None):
         """
