@@ -217,7 +217,7 @@ To avoid exact copies of the same structure along a line of sight, each box tile
 3. a rotation about each axis by a multiple of 90 degrees.
 
 The total number of unique orientations or snapshot box structures is $`N_{\mathrm{shifts}}^3 \times 48`$, where $`N_{\mathrm{shifts}}`$ is the number of unique periodic shifts. 
-For a SWIFT simulation with a cosmological volume subdivided into $`32\times32\times32`$ cells, there are 16464 possible unique tiles. 
+For a SWIFT simulation with a cosmological volume subdivided into $`32\times32\times32`$ cells, there are 16464 possible unique tiles, all of which are used with orientation tables made by `write_orientation_tables`. The default tables use 79 of them. 
 
 Which shift, reflection and rotation a tile gets is set by its position and the random number seed `orientation_seed`, so a lightcone can be reproduced exactly.
 [`show_snapshot_box_reorientation.py`](./examples/show_snapshot_box_reorientation.py) builds a diagram of how the cells of a box are moved by each step:
@@ -225,6 +225,24 @@ Which shift, reflection and rotation a tile gets is set by its position and the 
 ```
 python3 examples/show_snapshot_box_reorientation.py
 ```
+
+Each tile reads one row of the orientation tables (quarter turn, reflection and periodic shift). The default tables have 79 rows, so the tiles take at most 79 orientations. 
+To use more orientations, write a file of orientation tables and pass it as `orientation_table`:
+
+```python
+from swiftlet import SnapshotAllSky, write_orientation_tables
+
+write_orientation_tables("orientation_tables.hdf5", seed=0)   # every distinct orientation, 48 x 7^3 = 16464 rows
+SA = SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL", orientation_seed=0, orientation_lock="cube",
+                    orientation_table="orientation_tables.hdf5")
+```
+
+The generated tables hold every combination of the 48 quarter turns and reflections with the periodic cell shifts (by default 0, ±4, ±8 or ±16 cells along each axis), with the first row leaving the box unchanged. `seed` shuffles the rows, `n_rows` keeps only the first rows, and `cell_shift_values` sets the shifts, e.g. for 64 cells per axis. 
+Any tables can be written with `write_orientation_tables(filename, tables={...})`. Without `orientation_table`, the default tables are used.
+
+The orientations and their settings that made the lightcone are stored in `.metadata` of the output lightcones. `.metadata` stores the `orientation_seed`, `orientation_lock`, the orientation table (`"default"` or the file, and a fingerprint of its contents), the simulation, the beam, the redshift range and the package version. With the same .metadata and snapshots the same lightcone can be reproduced exactly. `write_lightcone_metadata` writes the metadata as attributes.  
+The example, [`snapshot_smoothed_map.py`](./examples/snapshot_smoothed_map.py) does with its output map .hdf5 file, and `read_lightcone_metadata` reads them back.
+
 
 The `orientation_lock` parameter of `SnapshotLightcone` (and subclasses) sets which tiles share an orientation:
 
@@ -474,6 +492,7 @@ Add `-v` to list every test case, `-x` to stop at the first failure, `--duration
 | `test_config.py` | downloading the shell redshift files, adding their paths and the maximum number of threads to the environment's activate script and finding them when needed |
 | `test_threads.py` | the maximum number of threads (`SWIFTLET_MAX_THREADS`), and that numba and healpy alm parallel funcations abide by it |
 | `test_init.py` | the public classes and functions are imported from the package when first used, and importing the package doesn't load the modules that need MPI |
+| `test_orientation_tables.py` | the default orientation tables, generating tables with every distinct orientation, and writing, reading and checking table files |
 | `test_snapshot_lightcone_placement.py` | where `SnapshotBeam` and `SnapshotAllSky` place particles and haloes |
 
 Note the lightcone placement tests are very extensive and can take a while (order of 20 minutes) to complete. Below is a list of the various tests within `test_snapshot_lightcone_placement.py`: 
@@ -491,6 +510,8 @@ Note the lightcone placement tests are very extensive and can take a while (orde
 - the `ExpansionFactors` of the particles and haloes placed are 1 / (1 + z) at their comoving distance, with z found independently;
 - non-essential properties read with the particles from a snapshot (test cases uses `Masses`, different for every snapshot and ID) are carried through unchanged with each particle;
 - every tile's orientation is an exact signed permutation of the axes with a periodic shift of 0, ±4, ±8 or ±16 cells, face neighbouring tiles differ without a lock, tiles of one layer share an orientation with the `"cube"` or `"sphere"` lock, and the same `orientation_seed` gives the same orientations;
+- a lightcone made with the default tables written to a file is the same as one made with the hardcoded default a table;
+- the .metadata of the constructed lightcone (`orientation_seed`, `orientation_lock`, orientation table, beam and redshift range), is correctly written to and read back from .hdf5 files dataset attributes;
 
 To see what the lattice test checks, add `--figures-dir` with a directory to save figures to. `test_lattice_over_many_tiles` then saves one figure per case, showing one layer of the lattice placed in the lightcone with the expected lattice points, any missing or repeated points, the box tile edges and the snapshot hand-overs, and a close-up of a corner where tiles meet. The figure is drawn before the checks, so a failing case shows where it goes wrong:
 
