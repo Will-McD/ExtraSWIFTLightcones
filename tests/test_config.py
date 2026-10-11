@@ -1,8 +1,12 @@
 #!/bin/env python
 """
-Tests for swiftlet.config: downloading the FLAMINGO shell redshift files into the environment,
-and exporting their paths when the environment is activated. The files are served by a local HTTP server.
+Tests for swiftlet.config: 
+    - download the FLAMINGO shell redshift files into the environment
+    - export paths when the environment is activated.
+    - max number of threads are correctly set and abided by
+
 """
+
 import functools
 import http.server
 import os
@@ -68,6 +72,7 @@ def fake_venv(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "base_prefix", "/usr")
     for env_name, _, _ in config.SHELL_REDSHIFT_FILES.values():
         monkeypatch.delenv(env_name, raising=False)
+        monkeypatch.delenv("SWIFTLET_MAX_THREADS", raising=False) # read in max threads for testing
     return prefix
 
 
@@ -168,6 +173,41 @@ def test_cli_configure(file_server, fake_venv, tmp_path):
     config.cli_configure(["--dest_dir", str(tmp_path / "cli"), "--no_activate"])
     assert (tmp_path / "cli" / "L1_shell_redshifts_z3.txt").read_text() == FILE_CONTENTS["L1"]
     assert "L1_REDSHIFTS_FILENAME" not in (fake_venv / "bin" / "activate").read_text()
+
+
+def test_configure_exports_max_threads(file_server, fake_venv, monkeypatch):
+    # 30 by default
+    config.configure(verbose=False)
+    activate = (fake_venv / "bin" / "activate").read_text()
+    assert 'export SWIFTLET_MAX_THREADS="30"' in activate
+
+    # --max_threads replaces it, and running again without it keeps the value already set
+    config.cli_configure(["--max_threads", "8"])
+    activate = (fake_venv / "bin" / "activate").read_text()
+    assert activate.count("SWIFTLET_MAX_THREADS") == 1 and 'export SWIFTLET_MAX_THREADS="8"' in activate
+    monkeypatch.setenv("SWIFTLET_MAX_THREADS", "8")  # as after re-activating the environment
+    config.configure(verbose=False)
+    assert 'export SWIFTLET_MAX_THREADS="8"' in (fake_venv / "bin" / "activate").read_text()
+
+    # "all" for no fixed maximum, so each job uses all the cores it is allowed
+    config.cli_configure(["--max_threads", "all"])
+    assert 'export SWIFTLET_MAX_THREADS="all"' in (fake_venv / "bin" / "activate").read_text()
+    config.cli_configure(["--max_threads", "8"])
+
+    # an invalid number of threads is refused before anything is changed
+    with pytest.raises(SystemExit, match="SWIFTLET_MAX_THREADS|whole number"):
+        config.cli_configure(["--max_threads", "0"])
+    assert 'export SWIFTLET_MAX_THREADS="8"' in (fake_venv / "bin" / "activate").read_text()
+
+
+def test_configure_unsets_max_threads_on_conda_deactivate(file_server, tmp_path, monkeypatch):
+    prefix = tmp_path / "conda_env"
+    (prefix / "conda-meta").mkdir(parents=True)
+    monkeypatch.setattr(sys, "prefix", str(prefix))
+    monkeypatch.delenv("SWIFTLET_MAX_THREADS", raising=False)
+    config.configure(verbose=False, max_threads=16)
+    assert 'export SWIFTLET_MAX_THREADS="16"' in (prefix / "etc" / "conda" / "activate.d" / "swiftlet.sh").read_text()
+    assert "unset SWIFTLET_MAX_THREADS" in (prefix / "etc" / "conda" / "deactivate.d" / "swiftlet.sh").read_text()
 
 
 def test_shell_redshift_file_lookup(file_server, fake_venv, tmp_path, monkeypatch):

@@ -38,8 +38,9 @@ def environment_data_dir():
 
 def default_redshift_dir():
     """
-    Directory the shell redshift files are downloaded to by default: inside the Python environment
-    when it can be written to, otherwise ~/.cache/swiftlet/redshifts.
+    Directory the shell redshift files are downloaded to.  
+    Defaults to the Python environment when possible, otherwise use cache
+    (~/.cache/swiftlet/redshifts).
 
     Returns the directory.
     """
@@ -55,7 +56,7 @@ def default_redshift_dir():
 def download_file(url, target, timeout=60):
     """
     Download a text file, checking a web page (e.g. a login or error page) was not returned instead.
-    The file is written to <target>.part first and only moved to target once complete.
+    The file is written to target.part first and only moved to target once complete.
 
     :param  url:        URL of the file
     :type   url:        str
@@ -83,7 +84,8 @@ def download_shell_redshifts(dest_dir=None, force=False, verbose=True):
 
     Returns a dict of {environment variable name: path of the file}.
 
-    :param  dest_dir:   directory to download the files to. If None, see default_redshift_dir
+    :param  dest_dir:   directory to download the files to. 
+                            If None use default directory set by default_redshift_dir()
     :type   dest_dir:   str
     :param  force:      If True, download the files again even if they already exist
     :type   force:      boolean
@@ -113,8 +115,11 @@ def activate_scripts():
     Scripts run when the Python environment is activated: bin/activate for a virtual environment (venv),
     and etc/conda/activate.d / deactivate.d scripts for a conda environment.
 
-    Returns a tuple of (environment type, activate script, deactivate script). The deactivate script is
-    None for a venv, and the environment type is None when not in a venv or conda environment.
+    Returns a tuple 
+        (environment type, activate script, deactivate script). 
+    
+    The deactivate script is None for a venv, and the environment 
+        type is None when not in a venv or conda environment.
     """
     if os.path.isdir(os.path.join(sys.prefix, "conda-meta")):
         return ("conda",
@@ -147,7 +152,9 @@ def _replace_marked_lines(filename, new_lines):
 def export_paths_on_activate(paths, verbose=True):
     """
     Export environment variables whenever the Python environment is activated, by adding them
-    to its activate script(s). Running this again replaces the values added before.
+    to its activate script(s). 
+    
+    Running this again replaces the values added before.
 
     Returns True if the variables were added, False if not in a venv or conda environment.
 
@@ -178,7 +185,7 @@ def export_paths_on_activate(paths, verbose=True):
     return True
 
 
-def configure(dest_dir=None, force=False, update_activate=True, verbose=True):
+def configure(dest_dir=None, force=False, update_activate=True, max_threads=None, verbose=True):
     """
     Download the FLAMINGO lightcone shell redshift files and export their paths when the environment is activated.
 
@@ -190,12 +197,24 @@ def configure(dest_dir=None, force=False, update_activate=True, verbose=True):
     :type   force:              boolean
     :param  update_activate:    If True, add the paths to the environment's activate script(s)
     :type   update_activate:    boolean
+    :param  max_threads:        maximum number of threads to export as SWIFTLET_MAX_THREADS, or "all" to 
+                                    use all the cores each job is allowed. If None, use the value 
+                                    for SWIFTLET_MAX_THREADS or 30 if it set
+    :type   max_threads:        int or str
     :param  verbose:            If True, print what is done
     :type   verbose:            boolean
     """
+    # set max number of threads for numba and healpy alm functions
+    from . import threads
+    if max_threads is not None:
+        threads.set_max_threads(max_threads) 
+    max_threads = threads.max_threads()
+    max_threads = threads.ALL_THREADS if max_threads is None else max_threads
+
     paths = download_shell_redshifts(dest_dir=dest_dir, force=force, verbose=verbose)
     if update_activate:
-        export_paths_on_activate(paths, verbose=verbose)
+        #export_paths_on_activate(paths, verbose=verbose)
+        export_paths_on_activate({**paths, threads.MAX_THREADS_ENV: str(max_threads)}, verbose=verbose)
     return paths
 
 
@@ -206,18 +225,19 @@ def cli_configure(argv=None):
     :param  argv:   command line arguments. If None, use sys.argv
     :type   argv:   list of str
     """
-    parser = argparse.ArgumentParser(
-        description="Download the FLAMINGO lightcone shell redshift files into the Python environment SWIFTLET is installed in, and export their paths when it is activated")
+    parser = argparse.ArgumentParser(description="Download the FLAMINGO lightcone shell redshift files into the Python environment SWIFTLET is installed in, then export their paths and the maximum number of threads (SWIFTLET_MAX_THREADS) when it is activated")
     parser.add_argument("--dest_dir", type=str, default=None,
                         help=f"directory to download the files to (default: {default_redshift_dir()})")
     parser.add_argument("--force", action="store_true", help="download the files again even if they already exist")
     parser.add_argument("--no_activate", action="store_true", help="do not add the paths to the environment's activate script")
+    parser.add_argument("--max_threads", type=str, default=None,
+                        help="maximum number of threads used by numba's parallel functions and healpy's transforms, or 'all' to use all the cores each job is allowed (default: SWIFTLET_MAX_THREADS if set, otherwise 30)")
     args = parser.parse_args(argv)
     try:
-        configure(dest_dir=args.dest_dir, force=args.force, update_activate=not args.no_activate)
-    except OSError as error:
+        #configure(dest_dir=args.dest_dir, force=args.force, update_activate=not args.no_activate)
+        configure(dest_dir=args.dest_dir, force=args.force, update_activate=not args.no_activate, max_threads=args.max_threads)
+    except (OSError, ValueError) as error:
         sys.exit(f"Error: {error}")
-
 
 if __name__ == "__main__":
     cli_configure()

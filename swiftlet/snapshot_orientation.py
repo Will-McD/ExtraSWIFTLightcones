@@ -1,5 +1,6 @@
 #!/bin/env python
 import numpy as np
+from .threads import limit_numba_threads
 
 try:
     from numba import njit, prange
@@ -232,6 +233,9 @@ def rotate_coords_cartesian(coords, rot_angles,
         target = out
     else:
         target = np.empty_like(coords)
+
+    if _HAVE_NUMBA:
+        limit_numba_threads() # set max threads for numba functions to SWIFTLET_MAX_THREADS
 
     if periodic_shift is not None:
         # include shift across periodic bounds

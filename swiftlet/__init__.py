@@ -1,5 +1,5 @@
 """
-SWIFTLET (Lightcone Extension Tools): tools to build new lightcones from SWIFT snapshots, and to post-process and
+SWIFTLET (SWIFT Lightcone Extension Tools): tools to build new lightcones from SWIFT snapshots, post-process and
 visualise SWIFT lightcones.
 
 The main classes and functions can be imported from the package:
@@ -14,6 +14,7 @@ The main classes and functions can be imported from the package:
     swift_snapshot_redshift_conversion: flamingo_shell_redshift_file, snapshot_number_redshifts, snapshot_redshift_range
     snapshot_units:                     apply_expected_units
     config:                             configure, download_shell_redshifts
+    threads:                            set_max_threads, max_threads, thread_limit
 
 Each is imported when first used, so importing the package doesn't need MPI, matplotlib or lightcone_io
 until something needing them is used. The submodules can also be used as attributes, e.g. swiftlet.config.
@@ -50,6 +51,10 @@ _PUBLIC_NAMES = {
     # setting up the environment
     "configure": "config",
     "download_shell_redshifts": "config",
+    # max numb of threads for numba's parallel functions and healpy's alm transforms
+    "set_max_threads": "threads",
+    "max_threads": "threads",
+    "thread_limit": "threads",
 }
 
 _SUBMODULES = (
@@ -63,6 +68,7 @@ _SUBMODULES = (
     "snapshot_orientation",
     "snapshot_units",
     "swift_snapshot_redshift_conversion",
+    "threads",
 )
 
 __all__ = list(_PUBLIC_NAMES)

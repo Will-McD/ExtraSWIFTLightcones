@@ -7,6 +7,7 @@ import h5py
 import unyt
 import lightcone_io.healpix_maps as hm
 from . import snapshot_units as sw_units
+from .threads import limit_openmp_threads
 from .swift_snapshot_redshift_conversion import flamingo_shell_redshift_file
 
 """
@@ -217,10 +218,17 @@ def rotate_map(base_map, theta, phi, ell_max=None, map_rotator_object=None):
         return base_map, map_rotator_object
     if map_rotator_object is None:
         map_rotator_object = hp.Rotator(rot=[theta.to_value(unyt.deg), phi.to_value(unyt.deg)], inv=True, deg=True)
+    
+    #if ell_max is None:
+    #    return map_rotator_object.rotate_map_alms(base_map.astype(np.float64)), map_rotator_object
+    #elif ell_max is not None:
+    #    return map_rotator_object.rotate_map_alms(base_map.astype(np.float64), lmax=ell_max), map_rotator_object
+    
+    
+    with limit_openmp_threads():# healpy alm transforms use threads set by SWIFTLET_MAX_THREADS
+        if ell_max is None:
+            return map_rotator_object.rotate_map_alms(base_map.astype(np.float64)), map_rotator_object
 
-    if ell_max is None:
-        return map_rotator_object.rotate_map_alms(base_map.astype(np.float64)), map_rotator_object
-    elif ell_max is not None:
         return map_rotator_object.rotate_map_alms(base_map.astype(np.float64), lmax=ell_max), map_rotator_object
 
 
@@ -251,9 +259,16 @@ def rotate_map_fast(base_map, theta, phi, nside, ell_max=None, map_rotator_objec
     
     HEALPY_PIXEL_WEIGHTS=check_healpy_pixel_weights(nside)
     
-    alm = hp.map2alm(base_map.astype(np.float64), lmax=ell_max, use_pixel_weights=True, iter=3, datapath=HEALPY_PIXEL_WEIGHTS)
-    alm_rot = map_rotator_object.rotate_alm(alm, lmax=ell_max)
-    map_rot = hp.alm2map(alm_rot, nside=nside, lmax=ell_max)
+    #alm = hp.map2alm(base_map.astype(np.float64), lmax=ell_max, use_pixel_weights=True, iter=3, datapath=HEALPY_PIXEL_WEIGHTS)
+    #alm_rot = map_rotator_object.rotate_alm(alm, lmax=ell_max)
+    #map_rot = hp.alm2map(alm_rot, nside=nside, lmax=ell_max)
+    
+    with limit_openmp_threads(): # healpy alm transforms use threads set by SWIFTLET_MAX_THREADS
+
+        alm = hp.map2alm(base_map.astype(np.float64), lmax=ell_max, use_pixel_weights=True, iter=3, datapath=HEALPY_PIXEL_WEIGHTS)
+        alm_rot = map_rotator_object.rotate_alm(alm, lmax=ell_max)
+        map_rot = hp.alm2map(alm_rot, nside=nside, lmax=ell_max)
+    
     return map_rot, map_rotator_object
 
 

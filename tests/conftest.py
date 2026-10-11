@@ -3,9 +3,18 @@
 pytest settings.
 With --figures-dir DIR, tests that can make figures output said figures to given directory. 
 """
-
+import os
 from pathlib import Path
 import pytest
+
+# set max num of threads for testing to 8. 
+# this limit should be sufficent for testing and not beyond the limits of any machine. 
+TEST_MAX_THREADS = 8
+def pytest_configure(config):
+    """
+    set max threads for the tests
+    """
+    os.environ["SWIFTLET_MAX_THREADS"] = str(TEST_MAX_THREADS)
 
 def pytest_addoption(parser):
     parser.addoption("--figures-dir", default=None, help="directory to save figures of the tests to, e.g. of the lattice placed in the lightcone. No figures are made if not given")

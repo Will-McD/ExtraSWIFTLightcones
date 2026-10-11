@@ -6,6 +6,7 @@ import lightcone_io.particle_reader as pr
 from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from .property_to_field_names import property_to_field, field_to_property
 from .snapshot_units import apply_expected_units
+from .threads import limit_numba_threads
 from . import beam_plotting
 from .beam_plotting import BeamPlot, round_up_10
 import swiftsimio as sw
@@ -446,7 +447,10 @@ class BeamProjection:
                 scale_factor=1.,
                 scale_exponent=1,  # distances scale as a**1, so the scale exponent is 1
             )
-        
+        if parallel:
+            # swiftsimio's parallel projection uses numba, 
+            # use max number of threads set by SWIFTLET_MAX_THREADS
+            limit_numba_threads()
         projection_outputs=[]
         for prop in particle_properties:
             field_name = property_to_field.get(prop, prop) # allow for custom properties 

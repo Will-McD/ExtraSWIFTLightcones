@@ -82,6 +82,34 @@ See the instructions for installing LightconeIO with MPI support: [LightconeIO w
 </details>
 
 <details>
+<summary><b>Number of threads</b></summary>
+
+The threaded parts of SWIFTLET, numba's parallel functions (used in re-orienting the snapshots, and `BeamProjection`) and the healpy alm functions (`map2alm`, `rotate_alm` and `alm2map`), use at most  threads.  
+Set to 30 by default, and `SWIFTLET_MAX_THREADS` can never more than the cores the process is allowed to run on (e.g. the cores given to a job or an MPI rank).
+
+`swiftlet-configure` adds `SWIFTLET_MAX_THREADS` to the environment's activate script. To change it:
+
+```
+swiftlet-configure --max_threads 16          # saved in the environment, re-activate it to use
+export SWIFTLET_MAX_THREADS=16               # for one shell or job script
+```
+
+otherwise, within a python script: 
+```python
+swiftlet.set_max_threads(16)
+```
+
+As an example, when building a new environment to set the limit as 16 instead of 30:
+```
+SWIFTLET_MAX_THREADS=16 bash ExtraSWIFTLightcones/venv_scripts/make_venv.sh /path/to/environment
+```
+
+To have no fixed maximum, so that each job (or MPI rank) uses all the cores it is allowed to run on, use `all` instead of a number, e.g. `swiftlet-configure --max_threads all`. 
+This option is best used when the cores given to a job set the number of threads, e.g. `--cpus-per-task` in Slurm. 
+
+</details>
+
+<details>
 <summary><a name="additional-data"></a><b>Additional Data</b></summary>
 
 To add the shell redshift files to another existing environment:
@@ -436,16 +464,19 @@ pytest tests/test_snapshot_lightcone_placement.py -k "mpi or lattice"
 pytest tests/test_snapshot_lightcone_placement.py::test_beam_is_part_of_all_sky
 ```
 
+Note that the tests use at most 8 threads , where ever `SWIFTLET_MAX_THREADS` would be used and can be changed in `tests/conftest.py`.
+
 Add `-v` to list every test case, `-x` to stop at the first failure, `--durations=10` to show the slowest tests and `-p no:warnings` to hide the deprecation warnings of unyt and healpy. The snapshot lightcone tests take about 10 minutes; the first run is slower while numba compiles the re-orientation code.
 
 
 | Test file | What it checks |
 |---|---|
-| `test_config.py` | downloading the shell redshift files, adding their paths to the environment's activate script and finding them when needed |
+| `test_config.py` | downloading the shell redshift files, adding their paths and the maximum number of threads to the environment's activate script and finding them when needed |
+| `test_threads.py` | the maximum number of threads (`SWIFTLET_MAX_THREADS`), and that numba and healpy alm parallel funcations abide by it |
 | `test_init.py` | the public classes and functions are imported from the package when first used, and importing the package doesn't load the modules that need MPI |
-| `test_snapshot_lightcone_placement.py` | where `SnapshotBeam` and `SnapshotAllSky` place particles and haloes, see below |
+| `test_snapshot_lightcone_placement.py` | where `SnapshotBeam` and `SnapshotAllSky` place particles and haloes |
 
-`test_snapshot_lightcone_placement.py` checks, for all-sky and beams with each `orientation_lock`, that:
+Note the lightcone placement tests are very extensive and can take a while (order of 20 minutes) to complete. Below is a list of the various tests within `test_snapshot_lightcone_placement.py`: 
 
 - with a `"cube"` or `"sphere"` lock, a beam is exactly the part of the all-sky lightcone inside its cone;
 - particles on a uniform lattice are placed exactly once and the reconstructed lattice in the lightcone has no gaps or overlaps between them;
@@ -455,7 +486,11 @@ Add `-v` to list every test case, `-x` to stop at the first failure, `--duration
 - re-orienting points on cell faces keeps them on cell faces.
 - an all-sky lightcone out to half a box length places every snapshot particle within it at its box position less half a box length, as the observer's box tile is not re-oriented;
 - haloes placed from SOAP catalogues end up exactly where particles at the same positions in the snapshots are placed, including haloes on cell faces;
-
+- without the `"sphere"` lock, no particle or halo is placed twice in the same box tile, and across the lightcone none are placed more often than the number of tiles its snapshot fills.
+- the shortest distance between particles placed into the lightcone from the same tile is the same as in the snapshot, so each tile is the box moved as a whole;
+- the `ExpansionFactors` of the particles and haloes placed are 1 / (1 + z) at their comoving distance, with z found independently;
+- non-essential properties read with the particles from a snapshot (test cases uses `Masses`, different for every snapshot and ID) are carried through unchanged with each particle;
+- every tile's orientation is an exact signed permutation of the axes with a periodic shift of 0, ±4, ±8 or ±16 cells, face neighbouring tiles differ without a lock, tiles of one layer share an orientation with the `"cube"` or `"sphere"` lock, and the same `orientation_seed` gives the same orientations;
 
 To see what the lattice test checks, add `--figures-dir` with a directory to save figures to. `test_lattice_over_many_tiles` then saves one figure per case, showing one layer of the lattice placed in the lightcone with the expected lattice points, any missing or repeated points, the box tile edges and the snapshot hand-overs, and a close-up of a corner where tiles meet. The figure is drawn before the checks, so a failing case shows where it goes wrong:
 
