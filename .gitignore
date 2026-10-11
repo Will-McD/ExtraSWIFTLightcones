@@ -20,3 +20,5 @@ example_outputs/
 data/
 tests/snapshot_lightcone_test.py
 tests/snapshot_tracer_particle.py
+extra_swift_lightcones/hmf.py
+examples/large_examples/

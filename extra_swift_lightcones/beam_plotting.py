@@ -418,7 +418,8 @@ class BeamPlot:
         self.axes_extent = axes_extent
 
     def split_beam_plot(self, numb_wedges, projection_data, colour_maps,
-            axs=None, filename=None, update_badcol=True, figsize=(7,7), titles=None, norms=None, **kwargs):
+            axs=None, filename=None, update_badcol=True, figsize=(7,7), titles=None, title_radius=[0,0,0], norms=None, 
+            outline_kwargs=None, **kwargs):
         """
         Create plot of the whole beam, split into separate wedges.
 
@@ -445,6 +446,11 @@ class BeamPlot:
         :param  norms:              colour normalisation of each segment of the beam: "log", "linear" or a 
                                         matplotlib.colors.Normalize, see colour_norm. If None, all are "log"
         :type   norms:              list
+        :param  outline_kwargs:     keyword arguments of an outline of the whole beam drawn over the wedges.
+                                        Allows for the outer edges to be styled differently from the lines between the wedges.
+                                        Same keys and defaults as wedge_kwargs (see wedge_style). 
+                                        If None, no additional outlines are overlaid. 
+        :type   outline_kwargs:     dict
         :param  kwargs:             All additional arguments to be passed onto the add_wedge and add_beam_axes functions.
         :type   kwargs:             dict
         """
@@ -522,10 +528,22 @@ class BeamPlot:
                 wedge_cmap, cmap_pix_range[0], cmap_pix_range[1],
                 beam_radius_deg, wedge_diameter_deg,
                 rmin, rmax, title=wedge_title,
+                title_radius=title_radius[wedge_idx],
                 img_zorder=-1, 
                 norm=norms[wedge_idx],
                 **img_kwargs
                 )
+
+        if outline_kwargs is not None:
+            # outline of the whole beam, over the wedge outlines: inner arc then outer arc
+            outline_kwargs = wedge_style(outline_kwargs)
+            outline_kwargs["zorder"] = max(outline_kwargs["zorder"], wedge_style(img_kwargs.get("wedge_kwargs"))["zorder"]) + 0.5
+            theta_arc = np.deg2rad(np.linspace(beam_radius_deg, -beam_radius_deg, 720))
+            verts = np.vstack([
+                np.c_[rmin * np.cos(theta_arc), rmin * np.sin(theta_arc)],
+                np.c_[rmax * np.cos(theta_arc), rmax * np.sin(theta_arc)][::-1],
+            ])
+            axs.add_patch(Polygon(verts, closed=True, **outline_kwargs))
 
         # add axes to the outer edge of the whole beam
         self.add_beam_axes(axs, redshift_axis_ticks, redshift_axis_minor_ticks, beam_radius_deg,
@@ -542,7 +560,7 @@ class BeamPlot:
         return fig, axs, wedge_imgs
 
     def add_wedge(self, ax, wedge_idx, data_2D, cmap, pix_min, pix_max, beam_max_ang_radius_deg, wedge_ang_diameter_deg, rmin, rmax,
-        title=None, img_zorder=10, wedge_kwargs=None, title_kwargs=None, norm="log", interpolation="quadric"):
+        title=None, img_zorder=10, wedge_kwargs=None, title_kwargs=None,title_radius=0., norm="log", interpolation="quadric"):
         """
         Add each smaller beam or wedge onto the plot.
 
@@ -576,6 +594,9 @@ class BeamPlot:
         :type   wedge_kwargs:               dict
         :param  title_kwargs:               keyword arguments to control the text of the wedge title
         :type   title_kwargs:               dict
+        :param  title_radius:               where the title is placed along the wedge, as a fraction of the way from
+                                                the inner arc (0, rmin) to the outer arc (1, rmax).
+        :type   title_radius:               float
         :param  norm:                       colour normalisation, "log", "linear" or a matplotlib.colors.Normalize, see colour_norm
         :type   norm:                       str or matplotlib.colors.Normalize
         :param  interpolation:              matplotlib imshow interpolation of the image, e.g. "nearest" to show each pixel
@@ -613,11 +634,13 @@ class BeamPlot:
         img.set_clip_path(wedge)
 
         if title is not None:
+            if not 0. <= title_radius <= 1.:
+                raise ValueError(f"title_radius must be between 0 (inner arc) and 1 (outer arc), got {title_radius}")
             # Position text on the inner arc
             theta_mid = 0.5 * (theta0 + theta1)
             ax.text(
-                rmin * np.cos(theta_mid),
-                rmin * np.sin(theta_mid),
+                (rmin + title_radius * (rmax - rmin)) * np.cos(theta_mid),
+                (rmin + title_radius * (rmax - rmin)) * np.sin(theta_mid),
                 title,
                 **title_kwargs,
                 rotation = np.rad2deg(theta_mid),
