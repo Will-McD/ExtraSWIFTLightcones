@@ -1060,8 +1060,24 @@ def test_no_repeats_within_a_tile(fake_run_dir, fake_runs, beam_vector, ang_radi
     np.testing.assert_array_equal(sorted_rows_by_tile(*haloes), sorted_rows_by_tile(*particles))
 
 
-# test the orientation tables read from a file and that their metadata is recorded correctly with every lightcone output
+def orientation_matrix(rot_angles, reflections):
+    """
+    Matrix of a tile's reflections and quarter turns, as applied to the snapshot coordinates.
+    """
+    from importlib import import_module
+    orientation = import_module(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
+    return orientation._build_rotation_matrix(rot_angles, order="xyz", degrees=True) @ np.diag(reflections)
 
+
+def orientation_key(lightcone, tile):
+    """
+    The orientation of a tile as a hashable key: its matrix and its periodic shift.
+    """
+    rot_angles, reflections, shift = lightcone._snapshot_reorientation(tile)
+    return tuple(np.rint(orientation_matrix(rot_angles, reflections)).astype(int).ravel()) + tuple(int(n) for n in shift)
+
+
+# test the orientation tables read from a file and that their metadata is recorded correctly with every lightcone output
 def tile_orientations(lightcone, extent=5):
     """
     The orientation key of every tile (n_x, n_y, n_z) with |n| <= extent.
