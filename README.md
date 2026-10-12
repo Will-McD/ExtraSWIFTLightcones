@@ -520,9 +520,23 @@ pytest tests/test_snapshot_lightcone_placement.py -k lattice_over_many_tiles --f
 ```
 
 
-
 The MPI test, `test_mpi_matches_serial`, runs [`mpi_place_particles.py`](./tests/mpi_place_particles.py) with `mpiexec -n 2` and `-n 3`. It uses the `mpiexec` next to the Python executable (where the `mpich` wheel installs it) if there is one, otherwise the one on the `PATH`, and is skipped if there is none or mpi4py can't be imported. The `mpiexec` must belong to the MPI library mpi4py was built with. On a cluster, run it on a compute node (e.g. in an interactive `salloc` or `srun` session), as login nodes may not allow `mpiexec`.
 
 </details>
 
 </details>
+
+---
+
+<details>
+<summary>
+
+## Use of AI
+
+</summary>
+
+We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing parts of this module, which included  most of the test suite (`tests/`), the documentation (the doc-strings and this `README.md` file), configuration code (`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`) and the diagram examples (`examples/show_snapshot_box_reorientation.py` and `examples/show_snapshot_orientation_lock.py`). 
+All use of AI was supervised and any contribution to this module was first vetted by humans.
+
+</details>
+
