@@ -1,5 +1,6 @@
 #!/bin/env python
 import numpy as np
+import os
 import unyt
 import h5py
 from collections import namedtuple
