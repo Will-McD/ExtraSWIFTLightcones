@@ -232,7 +232,8 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
             centre_in_selected = np.searchsorted(pixel_idx, centre_pixel_idx)
             if centre_in_selected < len(pixel_idx) and pixel_idx[centre_in_selected] == centre_pixel_idx:
                 if not np.isclose(selected_pix_vals[centre_in_selected], centre_pix_val, rtol=1e-6, atol=0, equal_nan=True):
-                    raise RuntimeError(f"{map_name}: centre pixel read with the selected pixels differs from reading it on its own ({centre_pix_val} vs {pixel_values[centre_in_selected]})")
+                    raise RuntimeError(f"{map_name}: centre pixel read with the selected pixels differs from reading it on its own ({centre_pix_val} vs {selected_pix_vals[centre_in_selected]})")
+ 
 
 
     return xmap, centre_pix_val

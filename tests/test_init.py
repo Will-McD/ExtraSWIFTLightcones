@@ -1,7 +1,7 @@
 #!/bin/env python
 """
-Tests for the package's top level: public names are imported when first used, and importing the
-package doesn't import the modules that need MPI.
+Tests for the modules top level: public names are imported when first used, and importing the
+module doesn't import the modules that need MPI.
 """
 import importlib
 import subprocess

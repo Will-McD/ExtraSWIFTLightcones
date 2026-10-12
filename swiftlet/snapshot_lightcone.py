@@ -1,5 +1,6 @@
 #!/bin/env python
 import numpy as np
+import os
 import unyt
 import h5py
 from collections import namedtuple
@@ -420,7 +421,8 @@ class SnapshotLightcone():
             "version": package_version,
         }
         # remove excess metadata names 
-        for metadata_prop in metadata_dict:
+        #for metadata_prop in metadata_dict:
+        for metadata_prop in list(metadata_dict):
             if metadata_prop not in LIGHTCONE_METADATA_NAMES:
                 del metadata_dict[metadata_prop]
 
@@ -428,6 +430,8 @@ class SnapshotLightcone():
         for required_prop in LIGHTCONE_METADATA_NAMES:
             if required_prop not in metadata_dict:
                 metadata_dict[required_prop]=None
+        
+        return metadata_dict
 
 
     def __clear_shell_read_state(self, ):
