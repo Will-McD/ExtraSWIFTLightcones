@@ -56,5 +56,8 @@ jobs:
         python -c "import swiftlet.snapshot_lightcone, swiftlet.snapshot_orientation, swiftlet.snapshot_units"
 
     - name: Test with pytest
+      env:
+        # the MPI tests run on 3 ranks. Git test runner has 2 cores. Let Open MPI place more processes than cores
+        OMPI_MCA_rmaps_base_oversubscribe: "1"
       run: |
         pytest -v tests/

@@ -1185,7 +1185,7 @@ def test_outputs_carry_the_lightcone_settings(fake_runs, tmp_path, beam_vector, 
             assert metadata["beam_vector"] is None
         else:
             np.testing.assert_allclose(metadata["beam_vector"], np.asarray(beam_vector) / np.linalg.norm(beam_vector))
-        assert metadata["package_version"]
+        assert metadata["version"]
 
     args = shell_args(lightcone, ang_radius_deg)
     shell = lightcone.place_snapshot_particles_in_shell(redshift_range, property_names=["ParticleIDs", "Coordinates"],
