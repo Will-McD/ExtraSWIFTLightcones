@@ -220,10 +220,10 @@ The total number of unique orientations or snapshot box structures is $`N_{\math
 For a SWIFT simulation with a cosmological volume subdivided into $`32\times32\times32`$ cells, there are 16464 possible unique tiles, all of which are used with orientation tables made by `write_orientation_tables`. The default tables use 79 of them. 
 
 Which shift, reflection and rotation a tile gets is set by its position and the random number seed `orientation_seed`, so a lightcone can be reproduced exactly.
-[`show_snapshot_box_reorientation.py`](./examples/show_snapshot_box_reorientation.py) builds a diagram of how the cells of a box are moved by each step:
+[`show_snapshot_tile_reorientation.py`](./examples/show_snapshot_tile_reorientation.py) builds a diagram of how the cells of a box are moved by each step:
 
 ```
-python3 examples/show_snapshot_box_reorientation.py
+python3 examples/show_snapshot_tile_reorientation.py
 ```
 
 Each tile reads one row of the orientation tables (quarter turn, reflection and periodic shift). The default tables have 79 rows, so the tiles take at most 79 orientations. 
@@ -414,7 +414,7 @@ The [examples](./examples) are named after the data they start from: `snapshot_`
 | `lightcone_halo_M500c_binary_masks.py` / `.sh` | makes binary HEALPix masks of the haloes in the lightcone within their M500c radius, with a job script |
 | `integrated_lightcone_map.py` | integrates the rotated FLAMINGO HEALPix shell maps over a redshift range |
 | `map_zoom_on_halo.py` | reads only the pixels of a HEALPix map around a halo and images them with a gnomonic projection |
-| `show_snapshot_box_reorientation.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
+| `show_snapshot_tile_reorientation.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
 | `show_snapshot_orientation_lock.py` | shows which box tiles share an orientation for each `orientation_lock`, for all-sky and on and off axis beams |
 
 </details>
@@ -535,7 +535,7 @@ The MPI test, `test_mpi_matches_serial`, runs [`mpi_place_particles.py`](./tests
 
 </summary>
 
-We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing parts of this module, which included  most of the test suite (`tests/`), the documentation (the doc-strings and this `README.md` file), configuration code (`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`) and the diagram examples (`examples/show_snapshot_box_reorientation.py` and `examples/show_snapshot_orientation_lock.py`). 
+We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing parts of this module, which included  most of the test suite (`tests/`), the documentation (the doc-strings and this `README.md` file), configuration code (`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`) and the diagram examples (`examples/show_snapshot_tile_reorientation.py` and `examples/show_snapshot_orientation_lock.py`). 
 All use of AI was supervised and any contribution to this module was first vetted by humans.
 
 </details>
