@@ -296,5 +296,5 @@ if __name__ == "__main__":
         ((-1, -2), (-1, 1),  0),
     ]
     
-    plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5), ncols=4, nrows=4, figsize=(9,9), filename=output_dir+"/snapshot_tile_repositioning.png")
+    plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5), ncols=4, nrows=4, figsize=(9,9), filename=output_dir+"/snapshot_tile_reorientation.png")
 

@@ -33,11 +33,7 @@ source /path/to/environment/bin/activate
 
 If no path is given, the environment is made in `ExtraSWIFTLightcones/swiftlet_env`.
 
-On COSMA, build the virtual environment with the pre-built wheels of mpi4py and h5py for COSMA's MPI and parallel HDF5 instead:
-
-```
-bash ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh /path/to/environment
-```
+If you have acess to COSMA, see [Use with COSMA](#use-with-cosma) to build the virtual environment.
 
 ### Existing environment
 
@@ -67,7 +63,25 @@ These shell redshifts are required for mapping between FLAMINGO's HEALPix maps, 
 
 The [COLIBRE](https://colibre.strw.leidenuniv.nl/index.html) simulation suite does not have lightcones and as such doesn't have shell redshift files. 
 
+---
+
 </details>
+
+
+
+<a id="use-with-cosma"></a>
+<details>
+<summary><b>Use with COSMA</b></summary>
+
+The following step is only applicable for those with access to [COSMA](https://cosma.readthedocs.io/en/latest/index.html).
+On COSMA, build the virtual environment with the pre-built wheels of mpi4py and h5py for COSMA's MPI and parallel HDF5 instead:
+
+```
+bash ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh /path/to/environment
+```
+</details>
+
+
 
 <details>
 <summary><b>MPI support</b></summary>
@@ -75,9 +89,18 @@ The [COLIBRE](https://colibre.strw.leidenuniv.nl/index.html) simulation suite do
 MPI support is not required to generate new lightcones from snapshots with the `SnapshotLightcone` sub classes. However, it is necessary for the more efficient parallel methods of `SnapshotLightcone`, the `BeamProjection` class and for generating binary masks of haloes (`mask_haloes.py`).
 
 MPI support requires mpi4py and an MPI enabled build of h5py. 
-The mpi4py package installed from PyPI needs an MPI library at run time. If your system has none (e.g. on a laptop), install one into the environment with `pip install mpich` (or `pip install openmpi`). `swiftlet-configure` doesn't need MPI.
+The mpi4py package installed from PyPI needs an MPI library when it is run. If your system has none, install one into the environment with `pip install mpich` (or `pip install openmpi`). `swiftlet-configure` doesn't need MPI.
+
+
+<details>
+<summary><b>MPI support with COSMA</b></summary>
+
+The following step is only applicable for those with access to [COSMA](https://cosma.readthedocs.io/en/latest/index.html). See the above information under [Use with COSMA](#use-with-cosma) on building a virtual environment on COSMA. `ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh` used to build the COSMA environment is already configured use the pre-existing h5py and mpi4py wheels on COSMA.  
+
+</details>
 
 See the instructions for installing LightconeIO with MPI support: [LightconeIO with MPI support](https://lightconeio.readthedocs.io/en/latest/installation.html#with-mpi-support)
+
 
 </details>
 
@@ -414,6 +437,7 @@ The [examples](./examples) are named after the data they start from: `snapshot_`
 | `lightcone_halo_M500c_binary_masks.py` / `.sh` | makes binary HEALPix masks of the haloes in the lightcone within their M500c radius, with a job script |
 | `integrated_lightcone_map.py` | integrates the rotated FLAMINGO HEALPix shell maps over a redshift range |
 | `map_zoom_on_halo.py` | reads only the pixels of a HEALPix map around a halo and images them with a gnomonic projection |
+| `snapshot_beam_zoom_on_haloes.py / .sh` | The same as above but using `SnapshotBeam` to build lightcone beams centred on a halo |
 | `show_snapshot_tile_reorientation.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
 | `show_snapshot_orientation_lock.py` | shows which box tiles share an orientation for each `orientation_lock`, for all-sky and on and off axis beams |
 

@@ -202,8 +202,8 @@ if __name__ == "__main__":
     sim_name = "HYDRO_FIDUCIAL"
 
     # lightcone shell and map resolution
-    redshift_range = (0.05, 0.1)
-    nside = 2048
+    redshift_range = (0.1, 0.15)
+    nside = 4096
 
     # define output directory and file
     output_dir = "./example_outputs/smoothed_maps"

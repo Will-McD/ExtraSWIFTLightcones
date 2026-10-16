@@ -107,7 +107,7 @@ def read_selected_pixels(healpix_map, pixel_idx):
     """
     Read only the selected pixels of HEALPix map without reading the whole map.
 
-    The pixels are read as runs of consecutive pixel indices, assuming ring order, grouped by the file of the map holding them. 
+    The pixels are read as runs of consecutive pixel indices, assuming ring order.
     
     Read remote maps with hdfstream in one request to avoid the server stopping access due to too many requests. 
     Local maps are read row by row of the selected pixels in the map. 

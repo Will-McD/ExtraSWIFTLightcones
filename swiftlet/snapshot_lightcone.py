@@ -741,7 +741,6 @@ class SnapshotLightcone():
         """
         r_min, r_max = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
 
-        #boxsize = self.__snap_cell_data["snap_boxsize"][0]
         boxsize = self.__snap_cell_data["snap_boxsize"].to_value("Mpc")[0]
 
         tiles = self._tiles_intersecting_shell(r_min, r_max, boxsize, ang_radius_deg)
@@ -819,10 +818,7 @@ class SnapshotLightcone():
         :type   tile:   tuple
         """
         
-        #n_ang = box_structure.SnapshotBeamAngles_quaters.shape[0]
-        #n_ref = box_structure.SnapshotBeamAngles_reflections.shape[0]
-        #n_shift = box_structure.SnapshotBeamAngles_shifts.shape[0]
-        
+
         tables = self._orientation_tables
         n_ang = tables["QuarterTurns"].shape[0]
         n_ref = tables["Reflections"].shape[0]
@@ -837,9 +833,7 @@ class SnapshotLightcone():
         tile_hash = nx * p1 + ny * p2 + nz * p3 + self.orientation_seed * TILE_HASH_SEED_PRIME
 
         orientation_idx = (tile_hash % n_ang, tile_hash % n_ref, tile_hash % n_shift)
-        #ang = box_structure.SnapshotBeamAngles_quaters[orientation_idx[0]] * 90  # degrees
-        #ref = box_structure.SnapshotBeamAngles_reflections[orientation_idx[1]]
-        #shift = box_structure.SnapshotBeamAngles_shifts[orientation_idx[2]]
+
         ang = tables["QuarterTurns"][orientation_idx[0]] * 90  # degrees
         ref = tables["Reflections"][orientation_idx[1]]
         shift = tables["CellShifts"][orientation_idx[2]]
@@ -1688,7 +1682,6 @@ class SnapshotLightcone():
         #record the settings that made the lightcone as metadata
         metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
         return LightconeOutput({ptype: LightconeOutput(data, metadata) for ptype, data in combined_dset.items()}, metadata) # Return the lightcone and its metadata
-
 
     def inverse_transform_snapshot_coordinates(self, coords, rot_angles, cell_data,
                     reflections=None, periodic_cell_shift=None,

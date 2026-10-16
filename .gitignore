@@ -26,3 +26,4 @@ extra_swift_lightcones/hmf.py
 examples/large_examples/
 tests/test_lightcone_projections.pytest_figures/
 lightcone_comp/
+talk_examples/
