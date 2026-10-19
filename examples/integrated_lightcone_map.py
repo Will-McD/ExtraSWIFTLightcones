@@ -14,8 +14,8 @@ ROTATIONS_L1=np.array(
 
 
 """
-For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create an intergrated 'TotalMass' and æSmoothedGasMass' map over the redshift range 0.1-0.3. 
-Write the intergrated maps a hdf5 file and store the individually rotated redshift chunks used to create the intergrated map. 
+For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create an intergrated 'TotalMass' and 'SmoothedGasMass' map over the redshift range 0.1-0.3. 
+Write the intergrated maps as a hdf5 file and store the individually rotated redshift chunks used to create the intergrated map. 
 """
 
 

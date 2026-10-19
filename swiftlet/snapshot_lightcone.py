@@ -19,7 +19,6 @@ import builtins
 import datetime as dt
 import warnings
 
-
 # FORCE A PATCH FOR VIRGODC WITH NUMPY>2.4
 # unknown when raised issue will be corrected with virgodc and cannot revert to numpy<2.4
 # implement an intermediate patch for virgodc float values with soap catalogues.
@@ -229,11 +228,11 @@ ORIENTATION_LOCK_OPTIONS = (None, "none", "cube", "sphere")
 # esentially what is needed to perfectly reproduce the same lightcone
 LIGHTCONE_METADATA_NAMES = (
     "lightcone_type", 
-    "boxsize_resolution", "simulation_name", 
-    "orientation_seed", "orientation_lock",
-    "orientation_table", "orientation_table_fingerprint", 
-    "beam_vector", "ang_radius_deg", "redshift_range",
-    "version",
+    "boxsize_resolution", "simulation_name", # simulation info 
+    "orientation_seed", "orientation_lock",  # geometry info
+    "orientation_table", "orientation_table_fingerprint",  # geomtry table info
+    "beam_vector", "ang_radius_deg", "redshift_range", # beam info 
+    "version", # not included just yet, keep as place holder for now
 )
 
 class LightconeOutput(dict):
@@ -245,7 +244,6 @@ class LightconeOutput(dict):
     def __init__(self, data, metadata):
         super().__init__(data)
         self.metadata = dict(metadata)
-
 
 
 def write_lightcone_metadata(hdf5_object, metadata):
@@ -287,6 +285,7 @@ def read_lightcone_metadata(hdf5_object):
                 value = value.item()
             metadata[name] = None if value == "none" and name != "orientation_lock" else value
     return metadata
+
 
 class SnapshotLightcone():
     """
