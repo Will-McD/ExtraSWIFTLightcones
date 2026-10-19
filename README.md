@@ -177,7 +177,7 @@ Note that passing an MPI communicator (`comm`) reads the snapshot files in paral
 To limit memory use, the files containing particles within the lightcone's footprint can also be gathered and read from one at a time to place particles in the lightcone (`gather_files` and `place_file_in_shell`).  
 Haloes from SOAP catalogues can be placed in the same lightcone (`place_halos_in_shell`), and points can be mapped between the snapshot and the lightcone (`Snapshot2Lightcone` and `Lightcone2Snapshot`).
 
-A diagram of the complete workflow of `SnapshotLightcone` and its subclasses is shown in [docs/snapshot_lightcone_flow.md](./docs/snapshot_lightcone_workflow.md). 
+A diagram of the complete workflow of `SnapshotLightcone` and its subclasses is shown in [docs/snapshot_lightcone_flow.md](./docs/snapshot_lightcone_flow.md). 
 
 
 </details>
