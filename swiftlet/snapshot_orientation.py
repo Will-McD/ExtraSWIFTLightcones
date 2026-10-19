@@ -735,7 +735,7 @@ def orientation_tables_fingerprint(tables):
     """
     Fingerprint of the contents of orientation tables, the same for the same tables wherever they come from.
 
-    Returns the first 16 hexadecimal digits of the tables SHA-256 hash.
+    Returns the first 16 hexadecimal digits of the tables hashlib SHA-256 hash.
 
     :param  tables: orientation tables
     :type   tables: dict

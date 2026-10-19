@@ -19,7 +19,6 @@ import builtins
 import datetime as dt
 import warnings
 
-
 # FORCE A PATCH FOR VIRGODC WITH NUMPY>2.4
 # unknown when raised issue will be corrected with virgodc and cannot revert to numpy<2.4
 # implement an intermediate patch for virgodc float values with soap catalogues.
@@ -229,11 +228,11 @@ ORIENTATION_LOCK_OPTIONS = (None, "none", "cube", "sphere")
 # esentially what is needed to perfectly reproduce the same lightcone
 LIGHTCONE_METADATA_NAMES = (
     "lightcone_type", 
-    "boxsize_resolution", "simulation_name", 
-    "orientation_seed", "orientation_lock",
-    "orientation_table", "orientation_table_fingerprint", 
-    "beam_vector", "ang_radius_deg", "redshift_range",
-    "version",
+    "boxsize_resolution", "simulation_name", # simulation info 
+    "orientation_seed", "orientation_lock",  # geometry info
+    "orientation_table", "orientation_table_fingerprint",  # geomtry table info
+    "beam_vector", "ang_radius_deg", "redshift_range", # beam info 
+    "version", # not included just yet, keep as place holder for now
 )
 
 class LightconeOutput(dict):
@@ -245,7 +244,6 @@ class LightconeOutput(dict):
     def __init__(self, data, metadata):
         super().__init__(data)
         self.metadata = dict(metadata)
-
 
 
 def write_lightcone_metadata(hdf5_object, metadata):
@@ -287,6 +285,7 @@ def read_lightcone_metadata(hdf5_object):
                 value = value.item()
             metadata[name] = None if value == "none" and name != "orientation_lock" else value
     return metadata
+
 
 class SnapshotLightcone():
     """
@@ -741,7 +740,6 @@ class SnapshotLightcone():
         """
         r_min, r_max = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
 
-        #boxsize = self.__snap_cell_data["snap_boxsize"][0]
         boxsize = self.__snap_cell_data["snap_boxsize"].to_value("Mpc")[0]
 
         tiles = self._tiles_intersecting_shell(r_min, r_max, boxsize, ang_radius_deg)
@@ -819,10 +817,7 @@ class SnapshotLightcone():
         :type   tile:   tuple
         """
         
-        #n_ang = box_structure.SnapshotBeamAngles_quaters.shape[0]
-        #n_ref = box_structure.SnapshotBeamAngles_reflections.shape[0]
-        #n_shift = box_structure.SnapshotBeamAngles_shifts.shape[0]
-        
+
         tables = self._orientation_tables
         n_ang = tables["QuarterTurns"].shape[0]
         n_ref = tables["Reflections"].shape[0]
@@ -837,9 +832,7 @@ class SnapshotLightcone():
         tile_hash = nx * p1 + ny * p2 + nz * p3 + self.orientation_seed * TILE_HASH_SEED_PRIME
 
         orientation_idx = (tile_hash % n_ang, tile_hash % n_ref, tile_hash % n_shift)
-        #ang = box_structure.SnapshotBeamAngles_quaters[orientation_idx[0]] * 90  # degrees
-        #ref = box_structure.SnapshotBeamAngles_reflections[orientation_idx[1]]
-        #shift = box_structure.SnapshotBeamAngles_shifts[orientation_idx[2]]
+
         ang = tables["QuarterTurns"][orientation_idx[0]] * 90  # degrees
         ref = tables["Reflections"][orientation_idx[1]]
         shift = tables["CellShifts"][orientation_idx[2]]
@@ -1688,7 +1681,6 @@ class SnapshotLightcone():
         #record the settings that made the lightcone as metadata
         metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
         return LightconeOutput({ptype: LightconeOutput(data, metadata) for ptype, data in combined_dset.items()}, metadata) # Return the lightcone and its metadata
-
 
     def inverse_transform_snapshot_coordinates(self, coords, rot_angles, cell_data,
                     reflections=None, periodic_cell_shift=None,

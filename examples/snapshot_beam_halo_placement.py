@@ -229,13 +229,6 @@ if __name__ == "__main__":
         expansion_factor = halos["Lightcone/ExpansionFactor"].value
 
         print(f"Spanning snapshots: {sorted(np.unique(snap_numbers))}")
-        print(f"HaloCatalogueIndex range: {halo_index.min()} - {halo_index.max()}")
-        print(f"ExpansionFactor range: {expansion_factor.min():.4f} - {expansion_factor.max():.4f}")
-
-        print("\nFirst 5 halos (snapshot, HaloCatalogueIndex) -- this pair is what you'd")
-        print("use to look up any other SOAP property later from the original catalogue:")
-        for i in range(min(5, n_halos)):
-            print(f"  snapshot {snap_numbers[i]}, HaloCatalogueIndex {halo_index[i]}")
 
         base_dir = f"/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}"
         snapshot_dir = f"{base_dir}/snapshots"

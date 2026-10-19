@@ -18,6 +18,7 @@ periodic replicas (i.e. tiles) of the snapshot boxes share an orientation:
 The diagram is a slice through the x-z plane, which holds the observer.
 As in SnapshotLightcone, the tiles sit on a regular lattice of whole box sidelengths, centred on (mx, my, mz) * L.
 """
+###################################
 
 # build colour map for tiles
 ORIENTATION_CMAP = LinearSegmentedColormap.from_list("cyan_magenta_gold", ["darkcyan", "darkmagenta", "darkgoldenrod"])
@@ -28,7 +29,7 @@ COL_BOX_EDGE = "#52514e"
 COL_LAYER_EDGE = "black"
 COL_CHANGE = "black"
 COL_TEXT = "#0b0b0b"
-
+###################################
 
 def plot_settings():
     """
@@ -263,9 +264,9 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
             axis = beam_in_slice(beam_vector)
             ray_angle = np.arctan2(axis[1], axis[0]) - 0.55 * np.deg2rad(half_angle_deg)
         label_positions = layer_label_positions(ray_angle, L, r_max, orientation_lock)
-    for text, position in label_positions:
-        ax.text(*position, text, ha="center", va="center", fontsize=8, color=COL_TEXT, zorder=5,
-                bbox=dict(facecolor="white", edgecolor="none", alpha=0.75, pad=0.8))
+    #for text, position in label_positions:
+    #    ax.text(*position, text, ha="center", va="center", fontsize=8, color=COL_TEXT, zorder=5,
+    #            bbox=dict(facecolor="white", edgecolor="none", alpha=0.75, pad=0.8))
 
     # outline of the lightcone and the observer
     if beam_vector is None:

@@ -107,9 +107,9 @@ def read_selected_pixels(healpix_map, pixel_idx):
     """
     Read only the selected pixels of HEALPix map without reading the whole map.
 
-    The pixels are read as runs of consecutive pixel indices, assuming ring order, grouped by the file of the map holding them. 
+    The pixels are read as runs of consecutive pixel indices, assuming ring order.
     
-    Read remote maps with hdfstream in one request to avoid the server stopping access due to too many requests. 
+    Read remote maps with hdfstream in one request. 
     Local maps are read row by row of the selected pixels in the map. 
 
     Uses the file names, pixels per file and dataset name of the lightcone_io HealpixMap, as lightcone_io has
@@ -252,7 +252,6 @@ def no_frac_latex(unit_obj):
     one_line_str = re.sub(r'\\frac\{(.+?)\}\{(.+?)\}', r'\1/\2', latex_expression)
     return one_line_str
 
-
 def find_haloes_in_shell(halo_format, soap_format, shell_redshift_range, centre_vector, radius, boxsize_resolution,
                         remote_dir=None, min_mass=1e13*unyt.Msun, extra_properties=("InputHalos/IsCentral", "BoundSubhalo/TotalMass")):
     """
@@ -354,8 +353,6 @@ def find_haloes_in_shell(halo_format, soap_format, shell_redshift_range, centre_
     result["angular_radius"] = result["R200c"] / distance
     result["offset"] = np.arccos(np.clip(result["vectors"] @ centre_vector, -1, 1))
     return result
-
-
 
 def plot_zoom_on_pixel(filename, nside, centre_pix_idx, map_names, 
                         axes_idx=None, output_filename=None, 

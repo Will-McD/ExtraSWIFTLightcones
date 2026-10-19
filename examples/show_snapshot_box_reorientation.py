@@ -88,7 +88,7 @@ def transform_point(p, reflection, angle_deg, centre):
 def wrap_point(p, shift, L):
     return np.mod(p + shift, L)
 
-def plot_transform_grid(examples, L=3.0, selected_cell_centre=(0.5, 0.5), ncols=3, nrows=None, figsize=(7,7), filename="./grid_transform_example.png"):
+def plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5), ncols=3, nrows=None, figsize=(7,7), filename="./grid_transform_example.png"):
     """
     Plot a grid of examples showing how a cell is repositioned by a periodic shift, reflection and rotation.
 
@@ -109,7 +109,6 @@ def plot_transform_grid(examples, L=3.0, selected_cell_centre=(0.5, 0.5), ncols=
     """
     centre = L / 2.0
     OUTLINE = [pe.Stroke(linewidth=2.5, foreground='black'), pe.Normal()]
-    #OUTLINE=None
     def compute_all_steps(p0, shift, reflection, angle_deg):
         """
         Compute the position of the cell after each step of the repositioning.
@@ -297,5 +296,5 @@ if __name__ == "__main__":
         ((-1, -2), (-1, 1),  0),
     ]
     
-    plot_transform_grid(examples, L=3.0, selected_cell_centre=(0.5, 0.5),ncols=4, nrows=4, figsize=(9,9), filename=output_dir+"/snapshot_cell_repositioning.png")
+    plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5), ncols=4, nrows=4, figsize=(9,9), filename=output_dir+"/snapshot_tile_reorientation.png")
 

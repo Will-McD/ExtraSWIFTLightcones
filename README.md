@@ -33,11 +33,7 @@ source /path/to/environment/bin/activate
 
 If no path is given, the environment is made in `ExtraSWIFTLightcones/swiftlet_env`.
 
-On COSMA, build the virtual environment with the pre-built wheels of mpi4py and h5py for COSMA's MPI and parallel HDF5 instead:
-
-```
-bash ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh /path/to/environment
-```
+If you have acess to COSMA, see [Use with COSMA](#use-with-cosma) to build the virtual environment.
 
 ### Existing environment
 
@@ -67,7 +63,25 @@ These shell redshifts are required for mapping between FLAMINGO's HEALPix maps, 
 
 The [COLIBRE](https://colibre.strw.leidenuniv.nl/index.html) simulation suite does not have lightcones and as such doesn't have shell redshift files. 
 
+---
+
 </details>
+
+
+
+<a id="use-with-cosma"></a>
+<details>
+<summary><b>Use with COSMA</b></summary>
+
+The following step is only applicable for those with access to [COSMA](https://cosma.readthedocs.io/en/latest/index.html).
+On COSMA, build the virtual environment with the pre-built wheels of mpi4py and h5py for COSMA's MPI and parallel HDF5 instead:
+
+```
+bash ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh /path/to/environment
+```
+</details>
+
+
 
 <details>
 <summary><b>MPI support</b></summary>
@@ -75,9 +89,18 @@ The [COLIBRE](https://colibre.strw.leidenuniv.nl/index.html) simulation suite do
 MPI support is not required to generate new lightcones from snapshots with the `SnapshotLightcone` sub classes. However, it is necessary for the more efficient parallel methods of `SnapshotLightcone`, the `BeamProjection` class and for generating binary masks of haloes (`mask_haloes.py`).
 
 MPI support requires mpi4py and an MPI enabled build of h5py. 
-The mpi4py package installed from PyPI needs an MPI library at run time. If your system has none (e.g. on a laptop), install one into the environment with `pip install mpich` (or `pip install openmpi`). `swiftlet-configure` doesn't need MPI.
+The mpi4py package installed from PyPI needs an MPI library when it is run. If your system has none, install one into the environment with `pip install mpich` (or `pip install openmpi`). `swiftlet-configure` doesn't need MPI.
+
+
+<details>
+<summary><b>MPI support with COSMA</b></summary>
+
+The following step is only applicable for those with access to [COSMA](https://cosma.readthedocs.io/en/latest/index.html). See the above information under [Use with COSMA](#use-with-cosma) on building a virtual environment on COSMA. `ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh` used to build the COSMA environment is already configured use the pre-existing h5py and mpi4py wheels on COSMA.  
+
+</details>
 
 See the instructions for installing LightconeIO with MPI support: [LightconeIO with MPI support](https://lightconeio.readthedocs.io/en/latest/installation.html#with-mpi-support)
+
 
 </details>
 
@@ -150,8 +173,12 @@ The snapshot particles (and haloes) placed in the lightcone (`place_snapshot_par
 
 The reading and placing of particles into the lightcone is done first at the cell-level of the SWIFT snapshots. The cells from a given snapshot that overlap with the lightcone's footprint (including a $`1/2`$ cell length buffer) are flagged, then only the particles within the flagged cells are read from the corresponding SWIFT snapshot .hdf5 files. 
 Note that passing an MPI communicator (`comm`) reads the snapshot files in parallel.
+
 To limit memory use, the files containing particles within the lightcone's footprint can also be gathered and read from one at a time to place particles in the lightcone (`gather_files` and `place_file_in_shell`).  
 Haloes from SOAP catalogues can be placed in the same lightcone (`place_halos_in_shell`), and points can be mapped between the snapshot and the lightcone (`Snapshot2Lightcone` and `Lightcone2Snapshot`).
+
+A diagram of the complete workflow of `SnapshotLightcone` and its subclasses is shown in [docs/snapshot_lightcone_flow.md](./docs/snapshot_lightcone_workflow.md). 
+
 
 </details>
 
@@ -220,10 +247,10 @@ The total number of unique orientations or snapshot box structures is $`N_{\math
 For a SWIFT simulation with a cosmological volume subdivided into $`32\times32\times32`$ cells, there are 16464 possible unique tiles, all of which are used with orientation tables made by `write_orientation_tables`. The default tables use 79 of them. 
 
 Which shift, reflection and rotation a tile gets is set by its position and the random number seed `orientation_seed`, so a lightcone can be reproduced exactly.
-[`show_snapshot_box_reorientation.py`](./examples/show_snapshot_box_reorientation.py) builds a diagram of how the cells of a box are moved by each step:
+[`show_snapshot_tile_reorientation.py`](./examples/show_snapshot_tile_reorientation.py) builds a diagram of how the cells of a box are moved by each step:
 
 ```
-python3 examples/show_snapshot_box_reorientation.py
+python3 examples/show_snapshot_tile_reorientation.py
 ```
 
 Each tile reads one row of the orientation tables (quarter turn, reflection and periodic shift). The default tables have 79 rows, so the tiles take at most 79 orientations. 
@@ -414,7 +441,8 @@ The [examples](./examples) are named after the data they start from: `snapshot_`
 | `lightcone_halo_M500c_binary_masks.py` / `.sh` | makes binary HEALPix masks of the haloes in the lightcone within their M500c radius, with a job script |
 | `integrated_lightcone_map.py` | integrates the rotated FLAMINGO HEALPix shell maps over a redshift range |
 | `map_zoom_on_halo.py` | reads only the pixels of a HEALPix map around a halo and images them with a gnomonic projection |
-| `show_snapshot_box_reorientation.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
+| `snapshot_beam_zoom_on_haloes.py / .sh` | The same as above but using `SnapshotBeam` to build lightcone beams centred on a halo |
+| `show_snapshot_tile_reorientation.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
 | `show_snapshot_orientation_lock.py` | shows which box tiles share an orientation for each `orientation_lock`, for all-sky and on and off axis beams |
 
 </details>
@@ -535,7 +563,7 @@ The MPI test, `test_mpi_matches_serial`, runs [`mpi_place_particles.py`](./tests
 
 </summary>
 
-We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing parts of this module, which included  most of the test suite (`tests/`), the documentation (the doc-strings and this `README.md` file), configuration code (`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`) and the diagram examples (`examples/show_snapshot_box_reorientation.py` and `examples/show_snapshot_orientation_lock.py`). 
+We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing parts of this module, which included  most of the test suite (`tests/`), the documentation (the doc-strings and this `README.md` file), configuration code (`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`) and the diagram examples (`examples/show_snapshot_tile_reorientation.py` and `examples/show_snapshot_orientation_lock.py`). 
 All use of AI was supervised and any contribution to this module was first vetted by humans.
 
 </details>
