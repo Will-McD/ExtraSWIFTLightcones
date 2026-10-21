@@ -3,7 +3,8 @@ import numpy as np
 import unyt
 import collections
 import lightcone_io.particle_reader as pr
-from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
+#from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
+from .snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology
 from .property_to_field_names import property_to_field, field_to_property
 from .snapshot_units import apply_expected_units
 from .threads import limit_numba_threads
@@ -89,11 +90,7 @@ class BeamProjection:
         if store_snapshot_filename is not None:
             self._snapshot_filename=store_snapshot_filename
         
-        # try apply cosmology 
-        if isinstance(cosmology, str):
-            cosmology = Snapshot_Cosmology_For_Lightcone(cosmology).COSMO
-
-        self.cosmology = cosmology
+        self.cosmology = None if cosmology is None else as_astropy_cosmology(cosmology)
 
     def _make_empty_flags(self,):
         """
@@ -362,7 +359,6 @@ class BeamProjection:
         
         #if self.cosmology is None:
         #    self.cosmology=Snapshot_Cosmology_For_Lightcone(snapshot_filename).COSMO
-        #    
         #    # update snapshot name stored if used for cosmology
         #    self._snapshot_filename = snapshot_filename
         
@@ -374,6 +370,7 @@ class BeamProjection:
         if self._snapshot_filename is None:
             raise ValueError("'snapshot_filename' must be passed or already given as 'store_snapshot_filename' when creating the BeamProjection")
 
+        # update cosmology if needed
         if self.cosmology is None:
             self.cosmology=Snapshot_Cosmology_For_Lightcone(self._snapshot_filename).COSMO
 
@@ -767,11 +764,14 @@ class BeamProjection:
 
         #check cosmology object is present
         if cosmology is not None:
-            self.cosmology = cosmology
+            #self.cosmology = cosmology
+            self.cosmology = as_astropy_cosmology(cosmology)
         elif self.cosmology is None:
             if self._snapshot_filename is None:
                 raise ValueError("Cosmology is not defined")
-            self.cosmology = Snapshot_Cosmology_For_Lightcone(self._snapshot_filename).COSMO
+            
+            #self.cosmology = Snapshot_Cosmology_For_Lightcone(self._snapshot_filename).COSMO
+            self.cosmology = SnapshotCosmology.from_path(self._snapshot_filename).COSMO
 
         # return plot 
         return self.beam_plot().split_beam_plot(numb_wedges, projection_data, colour_maps,axs=axs, filename=filename, update_badcol=update_badcol, figsize=figsize, titles=titles, norms=norms, **kwargs)
