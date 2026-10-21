@@ -17,7 +17,8 @@ __pycache__/
 # Run logs and example outputs
 logs/
 example_outputs/
-data/
+# the shell redshift files downloaded into the /data repository (not the package data in swiftlet/data)
+/data/
 swiftlet_env/
 tests/snapshot_lightcone_test.py
 tests/snapshot_tracer_particle.py
@@ -27,3 +28,5 @@ examples/large_examples/
 tests/test_lightcone_projections.pytest_figures/
 lightcone_comp/
 talk_examples/
+colibre_test/
+swiftlet/swift_snapshot_redshift_conversion.py

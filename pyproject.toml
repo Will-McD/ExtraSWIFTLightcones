@@ -47,6 +47,10 @@ swiftlet-configure = "swiftlet.config:cli_configure"
 [tool.setuptools]
 packages = ["swiftlet"]
 
+[tool.setuptools.package-data]
+# the output redshifts of the FLAMINGO and COLIBRE snapshots
+swiftlet = ["data/output_redshifts/*.txt"]
+
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"

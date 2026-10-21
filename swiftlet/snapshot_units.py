@@ -30,7 +30,6 @@ def apply_expected_units(x, expected_units):
             x=unyt.unyt_quantity(x, units=expected_units)
     return x
 
-
 def astropy_to_unyt(a):
     """
     Convert an astropy array with units to a unyt_array.
@@ -307,3 +306,4 @@ def drop_a_from_comoving_property(arr):
     else:
         raise ValueError(f"drop_a_from_comoving_property: unrecognised comoving units '{unit_str}'")
     return arr.value * unyt.Unit(target, registry=reg)
+

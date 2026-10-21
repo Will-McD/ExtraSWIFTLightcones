@@ -7,11 +7,12 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as col
 import matplotlib.patheffects as path_effects
 from matplotlib.patches import Polygon
+from .snapshot_cosmology import as_astropy_cosmology
+
 
 """
 Plot projections of a past lightcone beam as wedges, with redshift, comoving distance and angular axes.
 """
-
 
 # simple rounding functions
 
@@ -412,7 +413,7 @@ class BeamPlot:
                                         Required by split_beam_plot and add_wedge
         :type   axes_extent:        list
         """
-        self.cosmology = cosmology
+        self.cosmology = as_astropy_cosmology(cosmology) # ensure cosmology is correctly handled in swiftlet with the right classes. 
         self.angular_diameter = angular_diameter
         self.redshift_range = redshift_range
         self.axes_extent = axes_extent

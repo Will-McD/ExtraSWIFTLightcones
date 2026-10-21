@@ -9,35 +9,16 @@ from scipy.optimize import brentq
 import virgo.formats.swift as virgo_swift
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
-from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from lightcone_io.particle_reader import merge_cells
 import lightcone_io.halo_catalogue as hc
 from . import snapshot_orientation as box_structure
 from . import snapshot_units as sw_units
-from . import  swift_snapshot_redshift_conversion as nz
+from .simulation_suites import Simulation
+from .snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology
+from .soap_reader import soap_catalogue_length, read_soap_rows, read_soap_in_chunks, read_soap_selected_rows, select_soap_rows
 import builtins
 import datetime as dt
 import warnings
-
-# FORCE A PATCH FOR VIRGODC WITH NUMPY>2.4
-# unknown when raised issue will be corrected with virgodc and cannot revert to numpy<2.4
-# implement an intermediate patch for virgodc float values with soap catalogues.
-def _float(value):
-    """
-    float() that also accepts one-element arrays, as numpy < 2.4 did.
-
-    virgo.formats.swift (virgodc <= 1.0.5) calls float() on the one-element array attributes of SWIFT and SOAP 
-    files to build their units, which numpy >= 2.4 refuses, so lightcone_io's SOAPCatalogue cannot read SOAP 
-    catalogues. Used as float inside virgo.formats.swift only, until virgodc is fixed.
-
-    :param  value:  number or one-element array
-    :type   value:  float or np.ndarray
-    """
-    if np.size(value) == 1:
-        return builtins.float(np.asarray(value).reshape(-1)[0])
-    return builtins.float(value)
-
-virgo_swift.float = _float
 
 
 try:
@@ -71,17 +52,15 @@ def message(rank, m, time_date_update=False):
     :param  time_date_update:   If True, prefix the message with the current time
     :type   time_date_update:   boolean
     """
+    current_time=dt.datetime.now()
+    time_str=current_time.strftime("%H:%M:%S")
     if rank is None:
-        if time_date_update:
-            current_time=dt.datetime.now()
-            time_str=current_time.strftime("%H:%M:%S")
+        if time_date_update:            
             m = '[@{print_time}]\t'.format(print_time=time_str) + m
         print(m)
     else:
         if rank == 0:
             if time_date_update:
-                current_time=dt.datetime.now()
-                time_str=current_time.strftime("%H:%M:%S")
                 m = '[@{print_time}]\t'.format(print_time=time_str) + m
             print(m)
 
@@ -109,17 +88,29 @@ def print_coord_ranges(x, indent=0, rank=None):
     :param  rank:   MPI rank, only rank 0 prints. If None, always print
     :type   rank:   int
     """
+    coords_str=""
     if indent >0:
         indent = "\t"*indent
     else:
         indent=""
     for i in range(3):
-        coords_str = indent+ f"{i}, {np.min(x[:,i]):.3f} -> {np.max(x[:,i]):.3f}"
-        message(rank, coords_str)
+        coords_str += indent + f"{i}, {np.min(x[:,i]):.3f} -> {np.max(x[:,i]):.3f}"
+    
+    message(rank, coords_str)
 
 
-FileReadSpec = namedtuple("FileReadSpec", ["snap_nr", "tile", "file_nr", "offsets", "lengths"])
-SnapshotReadRecord = namedtuple("SnapshotReadRecord", ["snap_nr", "tile", "z_updated"])
+# Named tuples for particle lightcone methods
+FileReadSpec = namedtuple("FileReadSpec", ["snap_nr", "tile", "file_nr", "offsets", "lengths"]) # record the snapshot files used and link files to tiles
+SnapshotReadRecord = namedtuple("SnapshotReadRecord", ["snap_nr", "tile", "z_updated"]) # record the snapshots used and link to tiles
+
+
+# Named tuples for halo lightcone methods 
+#
+# The SOAP catalogue to read for one tile of the lightcone: its haloes are moved into the tile and kept if they are in
+# the tile's redshift range of the shell
+HaloCatalogueSpec = namedtuple("HaloCatalogueSpec", ["snap_nr", "tile", "filename", "z_range"]) # record the catalogue files and link to tiles
+
+HaloReadPiece = namedtuple("HaloReadPiece", ["snap_nr", "start", "stop"]) # rows [start, stop) of a snapshot's SOAP catalogue, read by one rank
 
 
 # numba optimised function for flagging cells and particles in a wedge 
@@ -179,23 +170,33 @@ if _HAVE_NUMBA:
             )
         return mask
 
-def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05, n_grid=3000, method="fast"):
+
+# set up redshift-comoving dist interpolation grid 
+def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05, n_grid=3000, method="precise"):
     """
     Build an interpolation function for the redshift at a given comoving distance.
 
     Returns a CubicSpline function taking comoving distance [Mpc] and returning redshift.
 
     :param  cosmo:  cosmology of the simulation
-    :type   cosmo:  astropy cosmology object
+    :type   cosmo:  SnapshotCosmology, astropy cosmology or str
     :param  zmin:   minimum redshift of the grid
     :type   zmin:   float
     :param  zmax:   maximum redshift of the grid
     :type   zmax:   float
     :param  n_grid: number of points in the grid
     :type   n_grid: int
-    :param  method: 'fast', a uniform grid in redshift. 'precise', a uniform grid in comoving distance
+    :param  method: 'fast', a uniform grid in redshift, requires less computations now, but few % loss in 
+                        precision when interpolating later on. 
+                        'precise', a uniform grid in comoving distance, more transforms required now
+                         but less of a drop in precision when interpolating later on
     :type   method: str
     """
+    
+    # ensure cosmology is correct format, use wrapper to read all used formats 
+    # across astropy, lightcone_io, swiftsim_io and older version of swiftlet
+    cosmo = as_astropy_cosmology(cosmo)
+
     if method=="fast":
         # fastes method to build grid
         z_grid = np.linspace(zmin, zmax, n_grid)
@@ -228,18 +229,20 @@ ORIENTATION_LOCK_OPTIONS = (None, "none", "cube", "sphere")
 # esentially what is needed to perfectly reproduce the same lightcone
 LIGHTCONE_METADATA_NAMES = (
     "lightcone_type", 
-    "boxsize_resolution", "simulation_name", # simulation info 
+    "boxsize_resolution", "simulation_name", "simulation_suite_name" # simulation info 
     "orientation_seed", "orientation_lock",  # geometry info
     "orientation_table", "orientation_table_fingerprint",  # geomtry table info
     "beam_vector", "ang_radius_deg", "redshift_range", # beam info 
     "version", # not included just yet, keep as place holder for now
 )
 
+######################################################
+# Metadata class and related functions
+
 class LightconeOutput(dict):
     """
     The output dictionary object for particles or haloes placed in a lightcone. 
-    This classes .metadata object is included to track the settings used to 
-    make the lightcone. 
+    The .metadata object tracks the settings used to make the lightcone. 
     """
     def __init__(self, data, metadata):
         super().__init__(data)
@@ -286,39 +289,99 @@ def read_lightcone_metadata(hdf5_object):
             metadata[name] = None if value == "none" and name != "orientation_lock" else value
     return metadata
 
+######################################################
+# SWIFT Simulation class funcitons
+
+def as_simulation(boxsize_resolution=None, simulation_name=None, simulation_suite_name=None,
+                  simulation_base_dir_format=None, simulation_object=None):
+    """
+    The simulation a lightcone is built from: 
+        - a Simulation given as simulation (or as boxsize_resolution, the first argument of the lightcone classes), 
+        - made from boxsize_resolution and simulation_name (see simulations.Simulation.from_label)
+
+    Transform inputs into swiftlet.simulations object and acts as wrapper for backwards compatibility with older examples. 
+
+    Returns a Simulation class object
+
+    :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800", or a Simulation
+    :type   boxsize_resolution:         str or Simulation
+    :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
+    :type   simulation_name:            str
+    :param  simulation_suite:           "flamingo" or "colibre". If None, found from boxsize_resolution
+    :type   simulation_suite:           str
+    :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
+                                            the suite's directory
+    :type   simulation_base_dir_format: str
+    :param  simulation:                 the simulation
+    :type   simulation:                 Simulation
+    """
+    if isinstance(boxsize_resolution, Simulation):
+        if simulation_object is not None:
+            raise TypeError("a Simulation was given twice, as boxsize_resolution and as simulation_object")
+        simulation_object, boxsize_resolution = boxsize_resolution, None
+    if simulation_object is not None:
+        if not isinstance(simulation_object, Simulation):
+            raise TypeError(f"simulation_object must be a swiftlet.Simulation, not {type(simulation_object).__name__}")
+        given = {
+            "simulation_name": simulation_name, 
+            "simulation_suite_name": simulation_suite_name,
+            "simulation_base_dir_format": simulation_base_dir_format, 
+            "boxsize_resolution": boxsize_resolution
+            }
+        extra = [name for name, value in given.items() if value is not None]
+        if extra:
+            raise TypeError(f"{', '.join(extra)} given with a Simulation, which already sets them. With a Simulation, pass the other arguments (e.g. beam_vector) by keyword")
+        return simulation_object
+    if boxsize_resolution is None or simulation_name is None:
+        raise TypeError("a lightcone needs a Simulation, or boxsize_resolution and simulation_name")
+    return Simulation.from_label(
+        boxsize_resolution, simulation_name, 
+        simulation_suite_name=simulation_suite_name,
+        base_dir_format=simulation_base_dir_format
+        )
+
+######################################################
+
 
 class SnapshotLightcone():
     """
     Fundamental code used to constuct lightcones from snapshots with 
     SnapshotBeam and SnapshotAllSky sub classes. 
+    Each sub class is built to handle their specific lightcone geometry. 
 
     This class tracks:
-        1. snapshot cosmology 
-        2. MPI ranks
-        3. periodic replications of snapshots and their reorientation
+        1. periodic replications of snapshots and their reorientation
             to avoid exact replication of structures. 
-        4. reading and placing particles from snapshots into 
-            the lightcone
+        2. reading and placing particles from snapshots into the lightcone
+        3. snapshot cosmology 
+        4. MPI ranks and communication between ranks
+        
 
     The exact methods of identifying particles within the lightcones footprint and how the 
     snapshot box replication occurs is handled in the SnapshotBeam and SnapshotAllSky sub classes. 
     """
 
-    def __init__(self, boxsize_resolution, simulation_name, beam_vector, 
-                    simulation_base_dir_format="/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}",  
+    def __init__(self, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None, 
+                    beam_vector=None, 
+                    simulation_base_dir_format=None,  
                     orientation_seed=0, orientation_lock=None, orientation_table=None,
-                    verbose=1):
+                    verbose=1, simulation_object=None):
         """
-        Define the lightcone's cosmology, units and vector (where applicable).
-
+        Define the lightcone's cosmology, units and vector (where applicable) for the given simulation. 
+        Build a Simulation object from the given simulation suite, boxsize, resolution and simulation name. 
+        
+        :param  simulation_suite_)name:     "flamingo" or "colibre". 
+                                                If None, found from boxsize_resolution, see simulation_suites.suite_for_label
+        :type   simulation_suite_name:      str
         :param  boxsize_resolution:         FLAMINGO box size and resolution label, e.g. "L1000N1800"
-        :type   boxsize_resolution:         str
+        :type   boxsize_resolution:         str or Simulation class object (swiftlet class object)
         :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
         :type   simulation_name:            str
         :param  beam_vector:                direction vector of the line of sight as an array of 3 floats. None for all-sky
         :type   beam_vector:                numpy.ndarray
-        :param  simulation_base_dir_format: formatted path to the simulation directory, with {box_res} and {sim_name} fields
-        :type   simulation_base_dir_format: str
+        :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. 
+                                                If None, the suite's directory (see simulations.SimulationSuite.directory_format)
+        :type simulation_base_dir_format:   str
         :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box tile. 
         :type   orientation_seed:           int
         :param  orientation_lock:           "none":   every box tile has its own orientation. 
@@ -337,18 +400,41 @@ class SnapshotLightcone():
                                                 reflections and cell shifts of the box tiles from. If None, the default
                                                 tables (79 rows). Each tile reads one row of every table, as for the default
         :type   orientation_table:          str
+        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
+        :type   simulation_object:          Simulation, swiftlet Simulation class object
         """
 
         # simulation values
-        self.box_res=boxsize_resolution
-        self.sim_name=simulation_name
-        self.simulation_dir=simulation_base_dir_format.format(box_res=self.box_res, sim_name=self.sim_name)
-        self.snapshot_format = self.simulation_dir+'/snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5'
+
+        #self.box_res=boxsize_resolution
+        #self.sim_name=simulation_name
+        #self.simulation_dir=simulation_base_dir_format.format(box_res=self.box_res, sim_name=self.sim_name)
+        #self.snapshot_format = self.simulation_dir+'/snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5'
         
+        # use the simulation class to define + format all needed paths, names and the snapshot-redshift table
+        self.simulation = as_simulation(boxsize_resolution, simulation_name, simulation_suite_name, simulation_base_dir_format, simulation_object)
+        
+        # define all related sim names and paths
+        self.box_res = self.simulation.box_res
+        self.sim_name = self.simulation.name
+        self.simulation_suite = self.simulation.suite.name
+        self.simulation_dir = self.simulation.directory
+        self.snapshot_format = self.simulation.snapshot_format
+        
+        # how much to print the individual outputs
         self.verbose = int(verbose)
         
         # define the cosmology from the snapshots
-        self.__define_snapshot_cosmology(int(nz.snapshot_number_redshifts(snapshot_number=0, boxsize_resolution=self.box_res, inverse=True)), 0)
+        #self.__define_snapshot_cosmology(int(nz.snapshot_number_redshifts(snapshot_number=0, boxsize_resolution=self.box_res, inverse=True)), 0)
+        #try:
+        #    self.cosmo = Snapshot_Cosmology_For_Lightcone(self.simulation.snapshot_file(self.simulation.z0_snapshot, 0)).COSMO
+        #except Exception or (FileNotFoundError, OSError) as e:
+        #    self.cosmo = Snapshot_Cosmology_For_Lightcone(self.simulation_dir+'/snapshots').COSMO
+        
+        # define the cosmology from the snapshots
+        # the cosmology of the simulation, from its snapshots (FLAMINGO or COLIBRE)
+        self.snapshot_cosmology = SnapshotCosmology.from_simulation(self.simulation)
+        self.cosmo = self.snapshot_cosmology.COSMO
 
         # define the beam vector (direction of line of sight)
         if beam_vector is None:
@@ -356,6 +442,7 @@ class SnapshotLightcone():
         else:
             self.beam_vec=self.__define_beam_vector(beam_vector)
         
+        # define the orientation seed: order of reading the table of orientation boxes
         self.orientation_seed = int(orientation_seed)
         if orientation_lock not in ORIENTATION_LOCK_OPTIONS:
             raise ValueError(f"orientation_lock must be one of {ORIENTATION_LOCK_OPTIONS}, not {orientation_lock!r}")
@@ -363,6 +450,7 @@ class SnapshotLightcone():
         # lock="none" is the same as lock=None
         self.orientation_lock = None if orientation_lock == "none" else orientation_lock
 
+        # define where to read orientation instructions from: default or user defined table...
         # quarter turns, reflections and cell shifts of the box tiles: from a file, or the default tables
         if orientation_table is None:
             self.orientation_table = None
@@ -370,15 +458,21 @@ class SnapshotLightcone():
         else:
             self.orientation_table = os.path.abspath(str(orientation_table))
             self._orientation_tables = box_structure.read_orientation_tables(self.orientation_table)
+        
+        # define tables finger print so it can be recovered as needed. 
         self.orientation_table_fingerprint = box_structure.orientation_tables_fingerprint(self._orientation_tables)
 
         # values & caches to compute once and reuse for every call
-        self.unit_registry=None
-        self._unit_metadata=None
+        self.unit_registry=None # place holder 
+        self._unit_metadata=None # place holder 
         self._cell_data_cache={} # track cell data per snapshot
         self._ptype_in_file_cache={} # track ptype in  data per snapshot
 
-        self.__clear_shell_read_state()
+        # track files found in the gathering stages
+        self.__clear_shell_read_state() # ensure empty read state for particles per shell
+        self.__clear_halo_read_state() # ensure empty read state for haloes per shell
+        
+        # is MPI mode needed? Define which pathway to use
         self._define_mpi_mode(None, False)
 
         # define grid to interpolate redshift from comoving distance
@@ -408,6 +502,7 @@ class SnapshotLightcone():
         from . import __version__ as package_version
         metadata_dict = {
             "lightcone_type": type(self).__name__,
+            "simulation_suite_name": self.simulation_suite_name,
             "boxsize_resolution": self.box_res,
             "simulation_name": self.sim_name,
             "orientation_seed": self.orientation_seed,
@@ -431,7 +526,6 @@ class SnapshotLightcone():
                 metadata_dict[required_prop]=None
         
         return metadata_dict
-
 
     def __clear_shell_read_state(self, ):
         """
@@ -457,7 +551,17 @@ class SnapshotLightcone():
         # points to state of current snapshot and cell data
         self.__snap_cell_data=None
         self.__cell_data_snap_nr=None
-        self.__snap_redshift_range_to_populate=None
+        #self.__snap_redshift_range_to_populate=None
+
+    def __clear_halo_read_state(self, ):
+        """
+        Reset the SOAP catalogues found by gather_halo_catalogues.
+        """
+        self.halo_catalogues_to_read=None
+        self.halo_catalogue_lengths=None
+        self.halo_cell_snapshot=None
+        self._halo_cell_data=None
+        self._gathered_halo_settings=None
 
     def __reset_cell_read_state(self, snap_nr):
         """
@@ -518,6 +622,17 @@ class SnapshotLightcone():
             raise ValueError("beam_vector must be a nonzero vector")
         return beam_vector / norm # ensure unit vector
 
+    @staticmethod
+    def __halo_settings(halo_format, shell_z, ang_radius_deg, use_snapshots, cell_snapshot):
+        """
+        The arguments of gather_halo_catalogues. 
+        Tells us if place_halos_in_shell can reuse its result?
+
+        """
+        return (str(halo_format), tuple(float(z) for z in shell_z), ang_radius_deg,
+                None if use_snapshots is None else tuple(int(n) for n in np.atleast_1d(use_snapshots)),
+                None if cell_snapshot is None else int(cell_snapshot))
+
     def __get_cell_data(self, snap_nr):
         """
         Read the cell metadata of a snapshot.
@@ -527,21 +642,17 @@ class SnapshotLightcone():
         Returns a dict of the number of cells, cell size, cell centres, box size, number of files 
         and the file, offsets and lengths of each cell per particle type.
         
-
         :param  snap_nr:    snapshot number
         :type   snap_nr:    int
         """
-
-        
-
         cell_data={}
-        with h5py.File(self.snapshot_format.format(snap_nr=snap_nr, file_nr=0), "r") as f:
-            
+        #with h5py.File(self.snapshot_format.format(snap_nr=snap_nr, file_nr=0), "r") as f:
+        with h5py.File(self.simulation.snapshot_file(snap_nr, 0), "r") as f:
             # IMPORTANT: CELL METADATA IS IN SNAPSHOT UNITS
-            # the cell sizes, cell centres and box size are in the snapshot's length unit. 
-            # The same as the particle coordinates.
+            # The cell sizes, cell centres and box size are in the snapshot's length unit. The same as the particle coordinates.
             # Give them the same units, so they are converted to Mpc exactly as the coordinates are and points on
             # the cell and box faces stay on them when the snapshot is re-oriented
+
             snap_length_registry = sw_units.unit_registry_from_metadata(sw_units.snapshot_unit_metadata(f))
 
             def snap_length(values):
@@ -560,13 +671,13 @@ class SnapshotLightcone():
 
             ptype_in_file_boolean = f["Header"].attrs["NumPart_ThisFile"][:]>0
 
-            for i in range(7):
-                if f["Header"].attrs['NumPart_Total'][i]>0:
-                    cells_in_file_dict[f"PartType{i}"] = f[f"Cells/Files/PartType{i}"][...]
-                    snap_offsets[f"PartType{i}"] = f[f"/Cells/OffsetsInFile/PartType{i}"][...]
-                    snap_lengths[f"PartType{i}"] = f[f"/Cells/Counts/PartType{i}"][...]
-                    assert snap_offsets[f"PartType{i}"].shape == snap_lengths[f"PartType{i}"].shape
-                    assert np.shape(snap_offsets[f"PartType{i}"])[0] == np.shape(cell_data["cell_centres"])[0]
+            for ptype_i in range(7):
+                if f["Header"].attrs['NumPart_Total'][ptype_i]>0:
+                    cells_in_file_dict[f"PartType{ptype_i}"] = f[f"Cells/Files/PartType{ptype_i}"][...]
+                    snap_offsets[f"PartType{ptype_i}"] = f[f"/Cells/OffsetsInFile/PartType{ptype_i}"][...]
+                    snap_lengths[f"PartType{ptype_i}"] = f[f"/Cells/Counts/PartType{ptype_i}"][...]
+                    assert snap_offsets[f"PartType{ptype_i}"].shape == snap_lengths[f"PartType{ptype_i}"].shape
+                    assert np.shape(snap_offsets[f"PartType{ptype_i}"])[0] == np.shape(cell_data["cell_centres"])[0]
 
             cell_data["cells_in_file"]=cells_in_file_dict
             cell_data["offsets"]=snap_offsets
@@ -592,7 +703,8 @@ class SnapshotLightcone():
         infile_dict = {f"PartType{i}":[] for i in np.arange(8)}
 
         for ii in range(numb_files):
-            with h5py.File(self.snapshot_format.format(snap_nr=snap_nr, file_nr=ii), "r") as f:
+            #with h5py.File(self.snapshot_format.format(snap_nr=snap_nr, file_nr=ii), "r") as f:
+            with h5py.File(self.simulation.snapshot_file(snap_nr, ii), "r") as f:
                 m=f["Header"].attrs["NumPart_ThisFile"][:]>0
                 for jj in range(7):
                     if m[jj]:
@@ -600,22 +712,7 @@ class SnapshotLightcone():
 
         self._ptype_in_file_cache[snap_nr] = infile_dict # update cache
         return infile_dict
-
-    def __define_snapshot_cosmology(self, snapshot_number, file_number):
-        """
-        Define the cosmology from a snapshot file.
-
-        :param  snapshot_number:    snapshot number
-        :type   snapshot_number:    int
-        :param  file_number:        file number of the snapshot
-        :type   file_number:        int
-        """
-        try:
-            self.cosmo = Snapshot_Cosmology_For_Lightcone(self.snapshot_format.format(snap_nr=snapshot_number, file_nr=file_number)).COSMO
-
-        except Exception or (FileNotFoundError, OSError) as e:
-            self.cosmo = Snapshot_Cosmology_For_Lightcone(self.simulation_dir+'/snapshots').COSMO
-            
+     
     def __comoving_distance_to_scalefactor(self, r, cosmo=None):
         """
         Compute the scale factor of particles based on comoving distance from observer.
@@ -625,8 +722,11 @@ class SnapshotLightcone():
         :param  cosmo:  cosmology. If None, use the snapshot cosmology
         :type   cosmo:  astropy cosmology object
         """
-        if cosmo is None:
-            cosmo=self.cosmo
+        #if cosmo is None:
+            #cosmo=self.cosmo
+        
+        cosmo = self.cosmo if cosmo is None else as_astropy_cosmology(cosmo)
+
         if self.interp_redshift_from_comoving_distance is None:
             raise ValueError("interpolation function not defined")
 
@@ -643,12 +743,12 @@ class SnapshotLightcone():
         :type   shell_z:    sequence of two floats
         :param  n_grid:     number of points in the interpolation grid
         :type   n_grid:     int
-        :param  method:     'fast' or 'precise', see define_redshift_at_comoving_distance_function
+        :param  method:     'fast' or 'precise', see docstring for define_redshift_at_comoving_distance_function 
         :type   method:     str
         """
         zmin=shell_z[0]-0.01 if shell_z[0]>0.01 else shell_z[0]
         zmax=shell_z[1]+0.01
-        self.interp_redshift_from_comoving_distance = define_redshift_at_comoving_distance_function(self.cosmo, zmin, zmax, n_grid, method="precise")
+        self.interp_redshift_from_comoving_distance = define_redshift_at_comoving_distance_function(self.cosmo, zmin, zmax, n_grid, method=method)
 
     def __remove_snapshots_outside_shell(self, shell_z):
         """
@@ -659,14 +759,15 @@ class SnapshotLightcone():
         """
         m = np.ones(len(self.snapshots_to_read), dtype=bool)
         for ii, snap_nr in enumerate(self.snapshots_to_read):
-            snapshot_z_range = nz.snapshot_redshift_range(snap_nr, self.box_res)
+            #snapshot_z_range = nz.snapshot_redshift_range(snap_nr, self.box_res)
+            snapshot_z_range = self.simulation.snapshot_redshift_range(snap_nr)
             if snapshot_z_range[0] > shell_z[1]:
                 m[ii]=0
             elif  snapshot_z_range[1] < shell_z[0]:
                 m[ii]=0
         self.snapshots_to_read=self.snapshots_to_read[m]
 
-    def _log(self, m, level=1, time_date_update=False):
+    def _log(self, m, level=1, every_rank=False, time_date_update=False):
         """
         If self.verbose is equal to given level, print a message (prime (zero) rank only for MPI compatibility). 
 
@@ -677,20 +778,13 @@ class SnapshotLightcone():
         :param  time_date_update:   If True, prefix the message with the current time
         :type   time_date_update:   boolean
         """
-        if self.verbose >= level:
-            message(self.comm_rank, m, time_date_update=time_date_update)
-
-    def _rank_log(self, m, level=1):
-        """
-        Print a message on each rank, if self.verbose is equal to given level. 
-
-        :param  m:      message to print
-        :type   m:      str
-        :param  level:  1 for a summary, 2 for details
-        :type   level:  int
-        """
-        if self.verbose >= level:
+        #if self.verbose >= level:
+        if self.verbose < level:
+            return 
+        if every_rank:
             rank_message(self.comm_rank, m)
+        else:
+            message(self.comm_rank, m, time_date_update=time_date_update)
 
     def _log_coord_ranges(self, title, coords):
         """
@@ -704,6 +798,24 @@ class SnapshotLightcone():
         if self.verbose >= 2:
             message(self.comm_rank, title)
             print_coord_ranges(coords, indent=2, rank=self.comm_rank)
+
+    def __log_snapshot_shell(self, snapshot_number, snap_shell_z_range, target):
+        """
+        Print the redshift and comoving distance range a snapshot populates, if self.verbose == 2.
+        :param  snapshot_number:    snapshot number
+        :type   snapshot_number:    int
+        :param  snap_shell_z_range: redshift range of the shell populated by the snapshot [z_min, z_max]
+        :type   snap_shell_z_range: tuple
+        :param  target:               what is added, e.g. "particles" or "haloes"
+        :type   target:               str
+        """
+        if self.verbose < 2:
+            return
+        
+        # give read out of max beam diameter for snapshots redshift range in shell
+        r_beam = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
+        self._log(
+            f"add {target} from snapshot {snapshot_number} to lightcone shell" + f"\n\tredshift:\t{snap_shell_z_range[0]:.5f} - {snap_shell_z_range[1]:.5f}" + f"\n\tradii:\t{r_beam[0]:.5f} - {r_beam[1]:.5f} [Mpc]", level=2)
 
     def _define_mpi_mode(self, comm, redistibute_particles):
         """
@@ -765,9 +877,11 @@ class SnapshotLightcone():
         """
         z_min, z_max = snap_shell_z_range
         r_min, r_max = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
+        
         # redshift range of each layer within the snapshot's range, and the comoving distances 
         # the particle selection will use for it. Neighbouring layers share the redshift of the
         # sphere between them, so they meet exactly
+        
         layers = {}
         for layer in range(int(np.floor(r_min / boxsize + 0.5)), int(np.floor(r_max / boxsize + 0.5)) + 1):
             r_inner, r_outer = (layer - 0.5) * boxsize, (layer + 0.5) * boxsize
@@ -816,7 +930,6 @@ class SnapshotLightcone():
         :param  tile:   periodic replica tile index
         :type   tile:   tuple
         """
-        
 
         tables = self._orientation_tables
         n_ang = tables["QuarterTurns"].shape[0]
@@ -857,6 +970,7 @@ class SnapshotLightcone():
         """
         if cell_shift is None:
             cell_shift=np.zeros(3, dtype=np.int64)
+        
         # check params have correct shapes
         cell_shift = np.asarray(cell_shift, dtype=np.int64)
         if cell_shift.shape != (3,):
@@ -879,7 +993,6 @@ class SnapshotLightcone():
 
     def _transform_snapshot_coordinates(self, coords, rot_angles,cell_data,
                     reflections=None, periodic_cell_shift=None,
-                    #cell_data=None, snapshot_number=None,
                     order="xyz", degrees=False,
                     out=None, inplace=False):
         """
@@ -909,6 +1022,7 @@ class SnapshotLightcone():
         """
 
         nr_cell_axis = cell_data["nr_cells_axis"]
+        
         # convert to Mpc when performing orientation related functions 
         cell_sidelength=cell_data["cell_size"].to_value("Mpc")
         snapshot_sidelength=cell_data["snap_boxsize"].to_value("Mpc")
@@ -931,7 +1045,31 @@ class SnapshotLightcone():
         :param  ang_radius_deg: angular radius [deg] of the beam
         :type   ang_radius_deg: float
         """
+        # place holder for full-sky, only needed for beam and then it uses to sub-classes own method
         pass
+
+    def _attach_expansion_factors(self):
+        """
+        Compute the scale factors of the particles inside the beam 
+        from their comoving distance, stored as the ExpansionFactors lightcone property.
+        """
+        npart_in_beam = self.particle_data["Coordinates"].shape[0]
+        self._log(f"Total particles in beam:\t{npart_in_beam}", level=2)
+
+        if npart_in_beam > 0:
+            self._log_coord_ranges("\ncoordinates range of particles in beam", self.particle_data["Coordinates"][:])
+
+        # compute distance from observer
+        r_comoving = unyt.unyt_array(np.zeros(npart_in_beam), units = self.particle_data["Coordinates"].units)
+        r_comoving[:]=np.sqrt(
+                self.particle_data["Coordinates"][:, 0]**2 +
+                self.particle_data["Coordinates"][:, 1]**2 +
+                self.particle_data["Coordinates"][:, 2]**2
+            )
+
+        # determine scale factor of particles in the beam
+        self.particle_data["ExpansionFactors"]=unyt.unyt_array(np.zeros(npart_in_beam), units = unyt.dimensionless)
+        self.particle_data["ExpansionFactors"][:]=self.__comoving_distance_to_scalefactor(r_comoving)*unyt.dimensionless
 
     def _gather_files_for_ptype(self, current_ptype, shell_z, ang_radius_deg, use_snapshots=None):
         """
@@ -956,17 +1094,27 @@ class SnapshotLightcone():
         self.__clear_shell_read_state()
 
         if use_snapshots is None:
-            self.snapshots_to_read = nz.snapshot_number_in_range(
-                    boxsize_resolution=self.box_res,
-                    redshift_range=shell_z,
-                    redshift_buffer=(0.025,0.025),
-                    snapshot_buffer=(0,0),
-                    bounds="strict", decimals=5
-                )[::-1]
+            #self.snapshots_to_read = self.simulation.snapshots_in_range(
+            #   shell_z,
+            #self.snapshots_to_read = nz.snapshot_number_in_range(
+            #        boxsize_resolution=self.box_res,
+            #        redshift_range=shell_z,
+            #        redshift_buffer=(0.025,0.025),
+            #        snapshot_buffer=(0,0),
+            #        bounds="strict", decimals=5
+            #    )[::-1]
+            
+            # find every snapshot whose redshift range overlaps the shell, from high to low redshift.
+            # Compared exactly (range_tol=0).
+            # A snapshot just outside the shell will be clipped to a range of negative width
+
+            self.snapshots_to_read = self.simulation.snapshots_in_range(shell_z)[::-1]
+
         else:
             self.snapshots_to_read = np.asarray(use_snapshots)
-
+            
         self.__remove_snapshots_outside_shell(shell_z) # sanity check to catch edge cases and rounding errors that slip through
+        #self.__remove_snapshots_outside_shell(shell_z) # sanity check to catch edge cases and rounding errors that slip through
 
         # iterate through snapshot cell data to identify cells, filenames, offsets, lengths and particles per file to read.
         self.snap_file_offset_lengths=[] #snapshot number, file number, offsets (of cells in file), lengths (of cells in file)
@@ -1055,7 +1203,6 @@ class SnapshotLightcone():
             self.particle_offset={}
             self.previous_offset={}
 
-
             # read particles from files and place into ligthcone beam
             self.__read_and_place_particles(self.snap_file_offset_lengths, particle_type, property_names, ang_radius_deg) #, total_ptype_to_read)
 
@@ -1074,6 +1221,26 @@ class SnapshotLightcone():
 
         return self.particle_data
 
+    def __snapshot_shell_z_range(self, snapshot_number, shell_z):
+        """
+        The part of the lightcone shell a snapshot populates. 
+        Returns (z_min, z_max).
+        :param  snapshot_number:    snapshot number
+        :type   snapshot_number:    int
+        :param  shell_z:            minimum and maximum redshift of the shell [z_min, z_max]
+        :type   shell_z:            sequence of two floats
+        """
+        
+        snapshot_z_range = self.simulation.snapshot_redshift_range(snapshot_number)
+        
+        # print out of the snapshot redshift info
+        snapshot_to_shell_str=(f"snapshot: {snapshot_number}"+f"\n\tcentre redshift {self.simulation.snapshot_redshift(snapshot_number)}"+f"\n\tredshift range: {snapshot_z_range[0]} - {snapshot_z_range[1]}")
+        self._log(snapshot_to_shell_str, level=2)
+        return tuple(
+                    [snapshot_z_range[0] if snapshot_z_range[0] > shell_z[0] else shell_z[0],
+                    snapshot_z_range[1] if snapshot_z_range[1] < shell_z[1] else shell_z[1]]
+                )
+
     def __gather_cells_and_tiles(self, snapshot_number, shell_z, current_ptype, ang_radius_deg):
         """
         Find the cells and files of a snapshot, for every tile, that fall within the lightcone shell. 
@@ -1091,85 +1258,87 @@ class SnapshotLightcone():
 
         # sanity check snapshot specific values
         if self.__snap_cell_data is not None:
-            raise ValueError(f"snapshot specific values are not being cleared after iterations")
+            raise ValueError(f"snapshot specific values are not being cleared after iterations (__snap_cell_data)")
         elif self.__cell_data_snap_nr is not None:
-            raise ValueError(f"snapshot specific values are not being cleared after iterations")
-        elif self.__snap_redshift_range_to_populate is not None:
-            raise ValueError(f"snapshot specific values are not being cleared after iterations")
+            raise ValueError(f"snapshot specific values are not being cleared after iterations (__cell_data_snap_nr)")
+        #elif self.__snap_redshift_range_to_populate is not None:
+        #    raise ValueError(f"snapshot specific values are not being cleared after iterations (__snap_redshift_range_to_populate)")
 
-        snapshot_z_range = nz.snapshot_redshift_range(snapshot_number, self.box_res)
-        # show read out of snapshot redshift info
-        snapshot_to_shell_str=(f"snapshot: {snapshot_number}"+f"\n\tcentre redshift {nz.snapshot_number_redshifts( snapshot_number, self.box_res)}"+f"\n\tredshift range: {snapshot_z_range[0]} - {snapshot_z_range[1]}")
-        self._log(snapshot_to_shell_str, level=2)
-        snap_shell_z_range=tuple(
-                    [snapshot_z_range[0] if snapshot_z_range[0] > shell_z[0] else shell_z[0],
-                    snapshot_z_range[1] if snapshot_z_range[1] < shell_z[1] else shell_z[1]]
-                )
+        ##snapshot_z_range = nz.snapshot_redshift_range(snapshot_number, self.box_res)
+        #snapshot_z_range = self.simulation.snapshot_redshift_range(snapshot_number)
+        #
+        ## print out of the snapshots redshift info
+        #snapshot_to_shell_str=(f"snapshot: {snapshot_number}"+f"\n\tcentre redshift {self.simulation.snapshot_redshift(snapshot_number)}"+f"\n\tredshift range: {snapshot_z_range[0]} - {snapshot_z_range[1]}")
+        #self._log(snapshot_to_shell_str, level=2)
+        #
+        #snap_shell_z_range=tuple(
+        #            [snapshot_z_range[0] if snapshot_z_range[0] > shell_z[0] else shell_z[0],
+        #            snapshot_z_range[1] if snapshot_z_range[1] < shell_z[1] else shell_z[1]]
+        #        )
 
-        self.__snap_redshift_range_to_populate=snap_shell_z_range
-
+        snap_shell_z_range = self.__snapshot_shell_z_range(snapshot_number, shell_z)
 
         # write new snapshot specific values, reuse of data is stored in cache
         self.__reset_cell_read_state(snapshot_number)
+
         #self.__snap_redshift_range_to_populate=snap_shell_z_range
 
         # give read out of max beam diameter for snapshots redshift range in shell
-        r_beam = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
-        add_part_from_snap_str=(
-            f"add particles from snapshot {snapshot_number} to lightcone shell" +
-            f"\n\tredshift:\t{snap_shell_z_range[0]:.5f} - {snap_shell_z_range[1]:.5f}" +
-            f"\n\tradii:\t{r_beam[0]:.5f} - {r_beam[1]:.5f} [Mpc]" 
-            )
+        self.__log_snapshot_shell(snapshot_number, snap_shell_z_range, "particles")
 
-        self._log(add_part_from_snap_str, level=2)
-
-        del r_beam #, max_diameter
+        #r_beam = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
+        #add_part_from_snap_str=(
+        #    f"add particles from snapshot {snapshot_number} to lightcone shell" +
+        #    f"\n\tredshift:\t{snap_shell_z_range[0]:.5f} - {snap_shell_z_range[1]:.5f}" +
+        #    f"\n\tradii:\t{r_beam[0]:.5f} - {r_beam[1]:.5f} [Mpc]" 
+        #    )
+        #self._log(add_part_from_snap_str, level=2)
+        #del r_beam #, max_diameter
 
         # set up dictionary of ptypes in snapshot files:
         ptypes_in_current_snap = self.__files_with_ptype(snapshot_number, self.__snap_cell_data["nr_files"])
 
         #iterate through tiles pieces and add transverse tiles when the beam's diameter exceeds one box sidelength. 
         for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range, ang_radius_deg):
-            # read in the instructions for how to reconstruct the snapshot box
-            snapshot_rotation_angles, snapshot_rotation_reflections, snapshot_periodic_shifts = self._snapshot_reorientation(tile)
-            orientation_str=(f"Reorienting snapshot {snapshot_number} (tile {tile}, z={z_sub_min:.5f}-{z_sub_max:.5f}"+
-                (f", orientation layer {self._orientation_layer(tile)}" if self.orientation_lock else "")+"):"
-                f"\n\tRotation:\t{snapshot_rotation_angles} [deg]"+
-                f"\n\tReflection:\t{snapshot_rotation_reflections}"+
-                f"\n\tPeriodic Shift:\t{snapshot_periodic_shifts}")
-            self._log(orientation_str, level=2)
             
-            repositioned_cell_centres=np.empty(np.shape(self.__snap_cell_data["cell_centres"]))
-            __ = self._transform_snapshot_coordinates(
-                                            coords=self.__snap_cell_data["cell_centres"].to_value("Mpc"), # convert to Mpc when doing re-orientation
-                                            rot_angles=snapshot_rotation_angles,
-                                            reflections=snapshot_rotation_reflections,
-                                            periodic_cell_shift=snapshot_periodic_shifts,
-                                            cell_data=self.__snap_cell_data,
-                                            order="xyz",
-                                            degrees=True,
-                                            out=repositioned_cell_centres,
-                                            inplace=False
-                                        )
-            repositioned_cell_centres += self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"].to_value("Mpc"))
+            # read in the instructions for how to reconstruct the snapshot box
+            beam_idx = self.__cells_in_tile(snapshot_number, tile, z_sub_min, z_sub_max, ang_radius_deg)
 
-
-            beam_idx, __ = self._in_shell(
-                    coords=repositioned_cell_centres,
-                    ang_radius_deg=ang_radius_deg,
-                    #z_min=snap_shell_z_range[0],
-                    #z_max=snap_shell_z_range[1],
-                    z_min=z_sub_min,
-                    z_max=z_sub_max,
-                    buffer_length=self.__snap_cell_data["cell_size"][0].to_value("Mpc"),
-                    buffer_shape="cube",
-                    return_bool=False
-                )
-
-            self._log(f"\nnumber of cells in beam: {np.shape(beam_idx)[0]}", level=2)
-
-            if len(beam_idx) > 0:
-                self._log_coord_ranges("coordinates range of cell centres in beam", repositioned_cell_centres[beam_idx,:])
+            #snapshot_rotation_angles, snapshot_rotation_reflections, snapshot_periodic_shifts = self._snapshot_reorientation(tile)
+            #orientation_str=(f"Reorienting snapshot {snapshot_number} (tile {tile}, z={z_sub_min:.5f}-{z_sub_max:.5f}"+
+            #    (f", orientation layer {self._orientation_layer(tile)}" if self.orientation_lock else "")+"):"
+            #    f"\n\tRotation:\t{snapshot_rotation_angles} [deg]"+
+            #    f"\n\tReflection:\t{snapshot_rotation_reflections}"+
+            #    f"\n\tPeriodic Shift:\t{snapshot_periodic_shifts}")
+            #self._log(orientation_str, level=2)
+            #
+            #repositioned_cell_centres=np.empty(np.shape(self.__snap_cell_data["cell_centres"]))
+            #__ = self._transform_snapshot_coordinates(
+            #                                coords=self.__snap_cell_data["cell_centres"].to_value("Mpc"), # convert to Mpc when doing re-orientation
+            #                                rot_angles=snapshot_rotation_angles,
+            #                                reflections=snapshot_rotation_reflections,
+            #                                periodic_cell_shift=snapshot_periodic_shifts,
+            #                                cell_data=self.__snap_cell_data,
+            #                                order="xyz",
+            #                                degrees=True,
+            #                                out=repositioned_cell_centres,
+            #                                inplace=False
+            #                            )
+            #repositioned_cell_centres += self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"].to_value("Mpc"))
+            #beam_idx, __ = self._in_shell(
+            #        coords=repositioned_cell_centres,
+            #        ang_radius_deg=ang_radius_deg,
+            #        z_min=z_sub_min,
+            #        z_max=z_sub_max,
+            #        buffer_length=self.__snap_cell_data["cell_size"][0].to_value("Mpc"),
+            #        buffer_shape="cube",
+            #        return_bool=False
+            #    )
+            #
+            #self._log(f"\nnumber of cells in beam: {np.shape(beam_idx)[0]}", level=2)
+            #
+            #if len(beam_idx) > 0:
+            #    self._log_coord_ranges("coordinates range of cell centres in beam", repositioned_cell_centres[beam_idx,:])
 
             # unique files to read
             file_numbers = np.unique(self.__snap_cell_data["cells_in_file"][current_ptype][beam_idx])
@@ -1199,14 +1368,72 @@ class SnapshotLightcone():
                 )
 
             self.npart_per_file.append(npart_per_file)
-            # store the snapshot's full shell range here, so __read_and_place_particles uses the
-            # same correct (wider) radial bound.
-            #self.__last_snapshot_read(snapshot_number, tile, snap_shell_z_range)
+            # store the snapshot's full shell range here.
+            # Ensures that __read_and_place_particles uses the same correct (wider) radial bound.
             self.__last_snapshot_read(snapshot_number, tile, (z_sub_min, z_sub_max))
+
+    def __cells_in_tile(self, snapshot_number, tile, z_sub_min, z_sub_max, ang_radius_deg):
+        """
+        Find the cells of the current snapshot cell data (after the snapshot is moved into the tile) that overlap the
+        tile's part of the lightcone shell. 
+        The cell centres are tested with a buffer of one cell length, so every point of the snapshot inside 
+        the shell is in one of the cells found.
+        
+        Returns the indices of the cells, into the snapshot's cell metadata.
+        
+        :param  snapshot_number:    snapshot number, for the log only
+        :type   snapshot_number:    int
+        :param  tile:               periodic replica tile index
+        :type   tile:               tuple
+        :param  z_sub_min:          minimum redshift of the tile's part of the shell
+        :type   z_sub_min:          float
+        :param  z_sub_max:          maximum redshift of the tile's part of the shell
+        :type   z_sub_max:          float
+        :param  ang_radius_deg:     angular radius [deg] of the beam
+        :type   ang_radius_deg:     float
+        """
+        # read in the instructions for how to reconstruct the snapshot box
+        snapshot_rotation_angles, snapshot_rotation_reflections, snapshot_periodic_shifts = self._snapshot_reorientation(tile)
+        orientation_str=(f"Reorienting snapshot {snapshot_number} (tile {tile}, z={z_sub_min:.5f}-{z_sub_max:.5f}"+
+            (f", orientation layer {self._orientation_layer(tile)}" if self.orientation_lock else "")+"):"
+            f"\n\tRotation:\t{snapshot_rotation_angles} [deg]"+f"\n\tReflection:\t{snapshot_rotation_reflections}"+f"\n\tPeriodic Shift:\t{snapshot_periodic_shifts}"
+            )
+        self._log(orientation_str, level=2)
+
+        repositioned_cell_centres=np.empty(np.shape(self.__snap_cell_data["cell_centres"]))
+        __ = self._transform_snapshot_coordinates(
+                                        coords=self.__snap_cell_data["cell_centres"].to_value("Mpc"), # convert to Mpc when doing re-orientation
+                                        rot_angles=snapshot_rotation_angles,
+                                        reflections=snapshot_rotation_reflections,
+                                        periodic_cell_shift=snapshot_periodic_shifts,
+                                        cell_data=self.__snap_cell_data,
+                                        order="xyz",
+                                        degrees=True,
+                                        out=repositioned_cell_centres,
+                                        inplace=False
+                                    )
+        repositioned_cell_centres += self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"].to_value("Mpc"))
+
+        beam_idx, __ = self._in_shell(
+                coords=repositioned_cell_centres,
+                ang_radius_deg=ang_radius_deg,
+                z_min=z_sub_min,
+                z_max=z_sub_max,
+                buffer_length=self.__snap_cell_data["cell_size"][0].to_value("Mpc"),
+                buffer_shape="cube",
+                return_bool=False
+            )
+
+        self._log(f"\nnumber of cells in beam: {np.shape(beam_idx)[0]}", level=2)
+
+        if len(beam_idx) > 0:
+            self._log_coord_ranges("coordinates range of cell centres in beam", repositioned_cell_centres[beam_idx,:])
+
+        return beam_idx
 
     def __read_and_place_particles(self, files_to_read, current_ptype, property_names, ang_radius_deg):
         """
-        Read the given FileReadSpec entries and re-orient each file's coordinates into the beam.
+        Read the given FileReadSpec entries and reorient each file's coordinates into the beam.
 
         :param  files_to_read:  files to read
         :type   files_to_read:  list of FileReadSpec
@@ -1231,7 +1458,8 @@ class SnapshotLightcone():
             snap_nr=file_data.snap_nr
             tile=file_data.tile
             file_nr=file_data.file_nr
-            filename = self.snapshot_format.format(snap_nr=snap_nr, file_nr=file_nr)
+            #filename = self.snapshot_format.format(snap_nr=snap_nr, file_nr=file_nr)
+            filename = self.simulation.snapshot_file(snap_nr, file_nr)
             infile_offset, infile_lengths = merge_cells(file_data.offsets, file_data.lengths)
             jj=self.__last_snapshot_index(snap_nr, tile)
             npart_infile = self.npart_per_file[jj][file_nr]
@@ -1256,6 +1484,7 @@ class SnapshotLightcone():
                                     out=new_coords,
                                     inplace=False
                                     )
+
             # convert cell and boxsize metadat from snapshot_lengths to Mpc for consistancy. 
             new_coords+=self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"].to_value("Mpc")) 
 
@@ -1272,7 +1501,6 @@ class SnapshotLightcone():
                 zmin=zmin,
                 zmax=zmax,
                 ang_radius_deg=ang_radius_deg,
-                #method="approx",
                 method="exact",
                 r_tol=0*unyt.Mpc,
                 )
@@ -1310,143 +1538,6 @@ class SnapshotLightcone():
         
         if len(kept_parts["SnapshotNumber"]) > 0:
             self.particle_data["SnapshotNumber"] = unyt.uconcatenate(kept_parts["SnapshotNumber"])
-
-    def __fill_missing_particle_data(self, property_names, comm):
-        """
-        Fill in a correct zero-length unyt_array for a rank assigned zero files. 
-        Use the unit registery and each property's dtype + units from a rank that did read something.
-        
-        Note: SnapshotNumber is always included in particle properties. 
-        
-        :param  property_names: particle properties read
-        :type   property_names: list
-        :param  comm:           MPI communicator
-        :type   comm:           mpi4py.MPI.Comm
-        """
-        all_unit_metadata = comm.allgather(self._unit_metadata)
-        if self.unit_registry is None:
-            #for metadata in comm.allgather(self._unit_metadata):
-            for metadata in all_unit_metadata:
-                if metadata is not None:
-                    self._unit_metadata = metadata
-                    self.unit_registry = sw_units.unit_registry_from_metadata(metadata)
-                    break
-        
-        for prop in list(property_names) + ["SnapshotNumber"]:
-            arr = self.particle_data.get(prop)        
-            info = None if arr is None else (arr.dtype, arr.shape[1:], str(arr.units))
-            all_info = comm.allgather(info)
-
-            if arr is None:
-                for other in all_info:
-                    if other is not None:
-                        dtype, trailing_shape, units_str = other
-                        self.particle_data[prop] = unyt.unyt_array(
-                            np.zeros((0,)+tuple(trailing_shape), dtype=dtype), units_str, registry=self.unit_registry)
-                        break
-                else:
-                    raise RuntimeError(f"no rank read any {prop} particles; cannot determine its dtype/units")
-
-    def _attach_expansion_factors(self):
-        """
-        Compute the scale factors of the particles inside the beam 
-        from their comoving distance, stored as the ExpansionFactors lightcone property.
-        """
-        npart_in_beam = self.particle_data["Coordinates"].shape[0]
-        self._log(f"Total particles in beam:\t{npart_in_beam}", level=2)
-
-        if npart_in_beam > 0:
-            self._log_coord_ranges("\ncoordinates range of particles in beam", self.particle_data["Coordinates"][:])
-
-        # compute distance from observer
-        r_comoving = unyt.unyt_array(np.zeros(npart_in_beam), units = self.particle_data["Coordinates"].units)
-        r_comoving[:]=np.sqrt(
-                self.particle_data["Coordinates"][:, 0]**2 +
-                self.particle_data["Coordinates"][:, 1]**2 +
-                self.particle_data["Coordinates"][:, 2]**2
-            )
-
-        # determine scale factor of particles in the beam
-        self.particle_data["ExpansionFactors"]=unyt.unyt_array(np.zeros(npart_in_beam), units = unyt.dimensionless)
-        self.particle_data["ExpansionFactors"][:]=self.__comoving_distance_to_scalefactor(r_comoving)*unyt.dimensionless
-
-    def __read_particles_from_cells(self, ptype, filename, infile_offset, infile_lengths, property_names, numb_part_infile):
-        """
-        Read the particles in the selected cells of a snapshot file.
-
-        Returns a dict of unyt arrays per property.
-
-        :param  ptype:              particle type, e.g. "PartType1"
-        :type   ptype:              str
-        :param  filename:           path to the snapshot file
-        :type   filename:           str
-        :param  infile_offset:      offset of each set of adjacent cells in the file
-        :type   infile_offset:      np.ndarray
-        :param  infile_lengths:     number of particles in each set of adjacent cells
-        :type   infile_lengths:     np.ndarray
-        :param  property_names:     particle properties to read
-        :type   property_names:     list
-        :param  numb_part_infile:   total number of particles to read from the file
-        :type   numb_part_infile:   int
-        """
-        file_particle_data = {}
-
-        with h5py.File(filename, "r") as infile:
-            # set max number of particles that can be read from file
-            numb_all_infile = np.sum(infile["Header"].attrs["NumPart_ThisFile"][:])
-            if self.unit_registry is None:
-                    self._unit_metadata = sw_units.snapshot_unit_metadata(infile)
-                    self.unit_registry = sw_units.unit_registry_from_metadata(self._unit_metadata) #sw_units.unit_registry_from_snapshot(infile)
-            for prop in property_names:
-                # Find the dataset for this property
-                if prop in infile[ptype]:
-                    infile_dset = infile[ptype][prop] # read hdf5 type object
-                else:
-                    raise ValueError(f"{prop} not found")
-
-                # Create output array, if we didn't already
-                if self.particle_data[prop] is None:
-                    #infile_shape = list(infile_dset.shape)
-                    infile_shape = list(infile_dset.shape)
-                    #infile_shape[0] = np.sum(numb_part_total)
-                    infile_shape[0] = numb_part_infile
-                    # set property dtype
-                    if prop=="ParticleIDs":
-                        prop_dtype=np.int64
-                    else:
-                        prop_dtype=infile_dset.dtype
-                    #set property units
-                    if unyt is not None:
-                        units = sw_units.units_from_attributes(dict(infile_dset.attrs), self.unit_registry)
-
-                        # set values = -1 unless assigned
-                        #self.particle_data[prop] = unyt.unyt_array(-1*np.ones(infile_shape, dtype=prop_dtype), units) # data is array for all particles in the current file z1<z<z2
-                        arr = unyt.unyt_array(-1*np.ones(infile_shape, dtype=prop_dtype), units) # data is array for all particles in the current file z1<z<z2
-                        if "a*" in str(units) or "*a" in str(units):
-                            arr = sw_units.drop_a_from_comoving_property(arr)
-                    else:
-                        #self.particle_data[prop] = -1*np.ones(infile_shape, dtype=prop_dtype)
-                        arr = -1*np.ones(infile_shape, dtype=prop_dtype)
-
-                # to track that total added to file matches input total to read
-                num_added=0
-                offset = 0
-
-                for (clen, coff) in zip(infile_lengths, infile_offset):
-                    i1 = max((coff, 0)) # the starting index for infile data, either at start of file (=0, especially if global offset value is -ve relative to file), or offset further within the file if there are multiple sets fo adjacent cells
-                    i2 = min((coff+clen), int(numb_all_infile)) # final index for infile data, either for all particles within the file if all cells need to be read, or to end of where adjacent cells are within file
-                    num = i2 - i1 # number of particles to be read from the file
-
-                    if num > 0:
-                        arr[offset:offset+num] = infile_dset[i1:i2,...]
-                        offset += num
-                        num_added+=num
-
-                assert num_added == numb_part_infile
-                file_particle_data[prop] = arr
-            del num_added
-
-        return file_particle_data
 
     def __parallel_read_and_place_particles(self, current_ptype, property_names, ang_radius_deg):
         """
@@ -1494,6 +1585,127 @@ class SnapshotLightcone():
         self.__fill_missing_particle_data(property_names, self.comm)
 
         self._attach_expansion_factors()
+
+    def __fill_missing_particle_data(self, property_names, comm):
+        """
+        Fill in a correct zero-length unyt_array for a rank assigned zero files. 
+        Use the unit registery and each property's dtype + units from a rank that did read something.
+        
+        Note: SnapshotNumber is always included in particle properties. 
+        
+        :param  property_names: particle properties read
+        :type   property_names: list
+        :param  comm:           MPI communicator
+        :type   comm:           mpi4py.MPI.Comm
+        """
+        all_unit_metadata = comm.allgather(self._unit_metadata)
+        if self.unit_registry is None:
+            #for metadata in comm.allgather(self._unit_metadata):
+            for metadata in all_unit_metadata:
+                if metadata is not None:
+                    self._unit_metadata = metadata
+                    self.unit_registry = sw_units.unit_registry_from_metadata(metadata)
+                    break
+        
+        for prop in list(property_names) + ["SnapshotNumber"]:
+            arr = self.particle_data.get(prop)        
+            info = None if arr is None else (arr.dtype, arr.shape[1:], str(arr.units))
+            all_info = comm.allgather(info)
+
+            if arr is None:
+                for other in all_info:
+                    if other is not None:
+                        dtype, trailing_shape, units_str = other
+                        self.particle_data[prop] = unyt.unyt_array(
+                            np.zeros((0,)+tuple(trailing_shape), dtype=dtype), units_str, registry=self.unit_registry)
+                        break
+                else:
+                    raise RuntimeError(f"no rank read any {prop} particles; cannot determine its dtype/units")
+
+    def __read_particles_from_cells(self, ptype, filename, infile_offset, infile_lengths, property_names, numb_part_infile):
+        """
+        Read the particles in the selected cells of a snapshot file.
+
+        Returns a dict of unyt arrays per property.
+
+        :param  ptype:              particle type, e.g. "PartType1"
+        :type   ptype:              str
+        :param  filename:           path to the snapshot file
+        :type   filename:           str
+        :param  infile_offset:      offset of each set of adjacent cells in the file
+        :type   infile_offset:      np.ndarray
+        :param  infile_lengths:     number of particles in each set of adjacent cells
+        :type   infile_lengths:     np.ndarray
+        :param  property_names:     particle properties to read
+        :type   property_names:     list
+        :param  numb_part_infile:   total number of particles to read from the file
+        :type   numb_part_infile:   int
+        """
+        file_particle_data = {}
+
+        with h5py.File(filename, "r") as infile:
+            # set max number of particles that can be read from file
+            numb_all_infile = np.sum(infile["Header"].attrs["NumPart_ThisFile"][:])
+            if self.unit_registry is None:
+                    self._unit_metadata = sw_units.snapshot_unit_metadata(infile)
+                    self.unit_registry = sw_units.unit_registry_from_metadata(self._unit_metadata) #sw_units.unit_registry_from_snapshot(infile)
+            for prop in property_names:
+                # Find the dataset for this property
+                if prop in infile[ptype]:
+                    infile_dset = infile[ptype][prop] # read hdf5 type object
+                else:
+                    raise ValueError(f"{prop} not found")
+
+                # Create output array, if we didn't already
+                if self.particle_data[prop] is None:
+                    infile_shape = list(infile_dset.shape)
+                    infile_shape[0] = numb_part_infile
+                    
+                    # set property dtype
+                    if prop=="ParticleIDs":
+                        prop_dtype=np.int64
+                    else:
+                        prop_dtype=infile_dset.dtype
+
+                    #set property units
+                    # build unit register
+                    units = sw_units.units_from_attributes(dict(infile_dset.attrs), self.unit_registry)
+                    # set values = -1 unless assigned
+                    arr = unyt.unyt_array(-1*np.ones(infile_shape, dtype=prop_dtype), units) # data is array for all particles in the current file z1<z<z2
+                    if "a*" in str(units) or "*a" in str(units):
+                        arr = sw_units.drop_a_from_comoving_property(arr)
+
+                    ##set property units
+                    #if unyt is not None:
+                    #    # build unit register
+                    #    units = sw_units.units_from_attributes(dict(infile_dset.attrs), self.unit_registry)
+                    #    # set values = -1 unless assigned
+                    #    arr = unyt.unyt_array(-1*np.ones(infile_shape, dtype=prop_dtype), units) # data is array for all particles in the current file z1<z<z2
+                    #    if "a*" in str(units) or "*a" in str(units):
+                    #        arr = sw_units.drop_a_from_comoving_property(arr)
+                    #else:
+                    #    #self.particle_data[prop] = -1*np.ones(infile_shape, dtype=prop_dtype)
+                    #    arr = -1*np.ones(infile_shape, dtype=prop_dtype)
+
+                # to track that total added to file matches input total to read
+                num_added=0
+                offset = 0
+
+                for (clen, coff) in zip(infile_lengths, infile_offset):
+                    i1 = max((coff, 0)) # the starting index for infile data, either at start of file (=0, especially if global offset value is -ve relative to file), or offset further within the file if there are multiple sets fo adjacent cells
+                    i2 = min((coff+clen), int(numb_all_infile)) # final index for infile data, either for all particles within the file if all cells need to be read, or to end of where adjacent cells are within file
+                    num = i2 - i1 # number of particles to be read from the file
+
+                    if num > 0:
+                        arr[offset:offset+num] = infile_dset[i1:i2,...]
+                        offset += num
+                        num_added+=num
+
+                assert num_added == numb_part_infile
+                file_particle_data[prop] = arr
+            del num_added
+
+        return file_particle_data
 
     def __select_paticles_in_shell(self, coords, zmin, zmax, ang_radius_deg, method="exact", r_tol=2*unyt.Mpc):
         """
@@ -1773,6 +1985,7 @@ class SnapshotLightcone():
                                         tile this snapshot supplies to the last-gathered shell is used.
         :type   tile:               tuple
         """
+
         coords = np.asarray(coords, dtype=float)
         if coords.ndim != 2 or coords.shape[1] != 3:
             raise ValueError("coords must be a vector with shape (N, 3)")
@@ -1925,10 +2138,333 @@ class SnapshotLightcone():
 
         return results
 
-    def place_halos_in_shell(self, halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots=None):
+    def _halo_tile_to_lightcone(self, centres, tile):
+        """
+        
+        Move halo centres from the snapshot box into a tile of the lightcone, exactly as Snapshot2Lightcone would move a
+        particle. 
+        Use the cell metadata of gather_halo_catalogues.
+
+        Returns the lightcone coordinates [Mpc], shape (N, 3).
+
+        :param  centres:    comoving halo centres in the snapshot box [Mpc], shape (N, 3)
+        :type   centres:    np.ndarray
+        :param  tile:       periodic replica tile index
+        :type   tile:       tuple
+        """
+        cell_data = self._halo_cell_data
+        rot_angles, reflections, periodic_shift = self._snapshot_reorientation(tile)
+        oriented = self._transform_snapshot_coordinates(
+            centres, rot_angles, cell_data,
+            reflections=reflections, periodic_cell_shift=periodic_shift,
+            order="xyz", degrees=True, inplace=False,
+        )
+        return oriented + self.get_snapshot_reposition_coords(tile, cell_data["snap_boxsize"].to_value("Mpc"))
+
+    def gather_halo_catalogues(self, halo_format, shell_z, ang_radius_deg, use_snapshots=None, cell_snapshot=None):
+        """
+        Halo counterpart of gather_files: the dry run of place_halos_in_shell, without reading any haloes.
+
+        For every snapshot that populates the shell, find the tiles the snapshot is moved into, as for particles. 
+        The box and cell grid used to move haloes into the tiles are the same in every snapshot, so the cell metadata of
+        only one snapshot is read (cell_snapshot). 
+        
+        SOAP catalogues are not sorted by cell, so unlike for particles no cells are selected: every halo of a catalogue is tested.
+
+        Each SOAP catalogue to read is recorded with its tile and the tile's redshift range, 
+        as a HaloCatalogueSpec in self.halo_catalogues_to_read and its number of haloes in self.halo_catalogue_lengths. 
+        As for particles, the tiles are also recorded in self.last_snapshot_read, so Snapshot2Lightcone and Lightcone2Snapshot work on the
+        haloes' shell.
+
+        Returns self.halo_catalogues_to_read
+        
+        :param  halo_format:    format string of the SOAP catalogue filenames, using {snap_nr}
+        :type   halo_format:    str
+        :param  shell_z:        minimum and maximum redshift of the lightcone shell [z_min, z_max]
+        :type   shell_z:        sequence of two floats
+        :param  ang_radius_deg: angular radius [deg] of the beam (None for SnapshotAllSky)
+        :type   ang_radius_deg: float
+        :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
+        :type   use_snapshots:  list or np.ndarray
+        :param  cell_snapshot:  snapshot to read the box and cell metadata from. If None, the lowest redshift snapshot used
+        :type   cell_snapshot:  int
+        """
+        return self._gather_halo_catalogues(halo_format, shell_z, ang_radius_deg, use_snapshots, cell_snapshot)
+
+    def _gather_halo_catalogues(self, halo_format, shell_z, ang_radius_deg, use_snapshots=None, cell_snapshot=None):
+        """
+        Inner layer of gather_halo_catalogues. 
+
+        See gather_halo_catalogues, called by it and place_halos_in_shell with an angular radius for every lightcone
+        (SnapshotAllSky's gather_halo_catalogues takes none).
+
+        """
+        self._validate_ang_radius_deg(ang_radius_deg)
+
+        # new empty state
+        self.__clear_shell_read_state()
+        self.__clear_halo_read_state()
+        self.halo_catalogues_to_read=[]
+        self.halo_catalogue_lengths={}
+        self.last_snapshot_read=[]
+
+        if use_snapshots is None:
+            # every snapshot whose redshift range overlaps or touches the shell, from high to low redshift, compared
+            # exactly as for the particles
+            self.snapshots_to_read = self.simulation.snapshots_in_range(shell_z, atol=1e-6)[::-1]
+        else:
+            self.snapshots_to_read = np.asarray(use_snapshots)
+            self.__remove_snapshots_outside_shell(shell_z)
+        
+        self._gathered_halo_settings = self.__halo_settings(halo_format, shell_z, ang_radius_deg, use_snapshots, cell_snapshot)
+
+        if len(self.snapshots_to_read) == 0:
+            self._log("\nNo snapshots found in range for halo placement\n", level=1)
+            return self.halo_catalogues_to_read
+
+        # the box and cell grid, from one snapshot only
+        self.halo_cell_snapshot = int(self.snapshots_to_read[-1] if cell_snapshot is None else cell_snapshot)
+        self.__clear_snapshot_read_state()
+        self.__reset_cell_read_state(self.halo_cell_snapshot)
+        self._halo_cell_data = self.__snap_cell_data
+
+        for snap_nr in self.snapshots_to_read:
+            snap_nr = int(snap_nr)
+            snap_shell_z_range = self.__snapshot_shell_z_range(snap_nr, shell_z)
+            if snap_shell_z_range[0] > snap_shell_z_range[1]:
+                
+                # the snapshot only touches the shell
+                continue
+            
+            self.__log_snapshot_shell(snap_nr, snap_shell_z_range, "haloes")
+
+            filename = halo_format.format(snap_nr=snap_nr)
+            # iterate through pieces of the tile 
+            for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range, ang_radius_deg):
+                self.last_snapshot_read.append(SnapshotReadRecord(snap_nr, tile, (z_sub_min, z_sub_max)))
+                self.halo_catalogues_to_read.append(HaloCatalogueSpec(snap_nr, tile, filename, (z_sub_min, z_sub_max)))
+
+            if snap_nr not in self.halo_catalogue_lengths and any(spec.snap_nr == snap_nr for spec in self.halo_catalogues_to_read):
+                self.halo_catalogue_lengths[snap_nr] = soap_catalogue_length(filename)
+
+        self.__clear_snapshot_read_state()
+
+        snapshots_used = sorted(self.halo_catalogue_lengths)
+        self._log(f"haloes: {len(self.halo_catalogues_to_read)} catalogue tiles to read from snapshots {snapshots_used}, box from snapshot {self.halo_cell_snapshot}", level=1)
+        for spec in self.halo_catalogues_to_read:
+            self._log(f"\tsnap: {spec.snap_nr:<2},\ttile: {str(spec.tile):<10}, \tz: {spec.z_range[0]:.5f} - {spec.z_range[1]:.5f}", level=2)
+
+        return self.halo_catalogues_to_read
+
+    def __halo_read_pieces(self, chunk_size, nr_pieces_min=1):
+        """
+        
+        Split the SOAP catalogues to read into rows, in the order the haloes are placed.
+        
+        Returns a list of HaloReadPiece.
+        
+        :param  chunk_size:     number of rows per piece. If None, each catalogue is split into nr_pieces_min pieces
+        :type   chunk_size:     int
+        :param  nr_pieces_min:  number of pieces each catalogue is split into when chunk_size is None
+        :type   nr_pieces_min:  int
+        """
+        pieces = []
+        for snap_nr in dict.fromkeys(spec.snap_nr for spec in self.halo_catalogues_to_read):
+            nr_rows = self.halo_catalogue_lengths[snap_nr]
+            if chunk_size is None:
+                step = max(-(-nr_rows // nr_pieces_min), 1)
+            else:
+                step = int(chunk_size)
+                if step < 1:
+                    raise ValueError(f"soap_chunk_size must be at least 1, not {chunk_size}")
+            for start in range(0, nr_rows, step):
+                # add new pieces 
+                pieces.append(HaloReadPiece(snap_nr, start, min(start + step, nr_rows)))
+        return pieces
+
+    def __read_and_place_halos(self, pieces, ang_radius_deg):
+        """
+        Read the pieces of the SOAP catalogues and place their haloes in the lightcone. 
+        Every halo is moved into each tile of its snapshot and kept if it is in the tile's part of the shell, same as the particles.
+        
+        Returns 
+            (
+                centres [Mpc], snapshot numbers, 
+                catalogue indices, 
+                SOAP rows, number of haloes read
+            ), 
+        
+        Note: the returned tuple is in the order of self.halo_catalogues_to_read, then of the rows in the catalogue.
+        
+        :param  pieces:         pieces of the catalogues to read
+        :type   pieces:         list of HaloReadPiece
+        :param  ang_radius_deg: angular radius [deg] of the beam
+        :type   ang_radius_deg: float
+        """
+        if not pieces:
+            return np.zeros((0, 3)), np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros(0, dtype=int), 0
+
+        to_read = ["InputHalos/HaloCentre", "InputHalos/HaloCatalogueIndex"]
+
+        specs_of_snapshot = {}
+        for spec_nr, spec in enumerate(self.halo_catalogues_to_read):
+            specs_of_snapshot.setdefault(spec.snap_nr, []).append((spec_nr, spec))
+
+        kept = {spec_nr: [] for spec_nr in range(len(self.halo_catalogues_to_read))}
+        nr_read = 0
+
+        for piece in pieces:
+            specs = specs_of_snapshot[piece.snap_nr]
+            halo_data = read_soap_rows(specs[0][1].filename, to_read, piece.start, piece.stop)
+            halo_index = halo_data["InputHalos/HaloCatalogueIndex"].value.astype(int)
+            if halo_index.shape[0] == 0:
+                continue
+            nr_read += halo_index.shape[0]
+
+            # get halo centres in snapshot frame 
+            halo_centre_box = sw_units.drop_a_from_comoving_property(halo_data["InputHalos/HaloCentre"]).to_value("Mpc")
+
+            for spec_nr, spec in specs:
+                # transform halo centres from snapshot frame to lightcone frame
+                lightcone_coords = self._halo_tile_to_lightcone(halo_centre_box, spec.tile)
+                
+                # identify which haloes to keep
+                keep_idx, __ = self.__select_paticles_in_shell(
+                        lightcone_coords, zmin=spec.z_range[0], zmax=spec.z_range[1],
+                        ang_radius_deg=ang_radius_deg, method="exact", r_tol=0 * unyt.Mpc,
+                    )
+                if len(keep_idx) == 0:
+                    continue
+                
+                # add selected haloes to keep dict
+                kept[spec_nr].append((lightcone_coords[keep_idx], halo_index[keep_idx], piece.start + keep_idx))
+
+        # joined catalogue tile by catalogue tile, so the order is the same however the catalogues are read
+        joined = [piece for spec_nr in sorted(kept) for piece in kept[spec_nr]]
+        if not joined:
+            return np.zeros((0, 3)), np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros(0, dtype=int), nr_read
+        
+        snap_nr = np.concatenate([np.full(len(index), self.halo_catalogues_to_read[spec_nr].snap_nr, dtype=int)
+                                  for spec_nr in sorted(kept) for _, index, _ in kept[spec_nr]])
+        
+        return (np.concatenate([centres for centres, _, _ in joined], axis=0), snap_nr, np.concatenate([index for _, index, _ in joined]), np.concatenate([rows for _, _, rows in joined]), nr_read)
+
+    def place_halos_in_shell(self, halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots=None,
+                             soap_chunk_size=None, comm=None, redistribute_halos=False, cell_snapshot=None):
+        """
+        
+        Halo counterpart of place_snapshot_particles_in_shell. 
+        Place the haloes of SOAP catalogues in a lightcone shell, exactly as done for the particles. 
+
+        The first pass is gather_halo_catalogues. i.e. which SOAP catalogues to read and the tiles each
+        snapshot is moved into. If it has already been called with the same arguments it is not repeated. 
+        Then the catalogues are read, and their haloes moved into the lightcone exactly as particles are 
+        and kept if they are in the shell.
+
+        How the SOAP catalogues are read:
+          - in serial (no comm, one MPI rank):  soap_chunk_size rows at a time, or each catalogue as a whole if None.
+          - with MPI:    the catalogues are split into
+                pieces of soap_chunk_size rows (if None, each catalogue into one piece per rank), shared between the ranks
+                as particle files are. Each rank reads only its own pieces, and returns the haloes it placed. With
+                redistribute_halos, the haloes are then shared evenly between the ranks.
+        
+        The haloes placed are the same whichever way the catalogues are read (serial or MPI).
+        
+        Tracks the minimum number of properties needed to look up any other property in the SOAP catalogues later:
+            - Lightcone/HaloCentre: the halo's centre, transformed into the lightcone frame exactly like a particle's
+              Coordinates.
+            - Lightcone/ExpansionFactor: the expansion factor at the halo's lightcone comoving distance.
+            - Lightcone/SnapshotNumber: the snapshot the halo came from.
+            - InputHalos/HaloCatalogueIndex: the halo's index in that snapshot's SOAP catalogue, as written in it.
+            - InputHalos/SOAPIndex: the row of the halo in that snapshot's SOAP catalogue.
+          
+        Returns a LightconeOutput of these properties, one row per halo placed.
+
+        :param  halo_format:                format string for SOAP catalogue filenames (using {snap_nr})
+        :type   halo_format:                str
+        :param  lightcone_redshift_range:   minimum and maximum redshift of the shell to populate [z_min, z_max]
+        :type   lightcone_redshift_range:   sequence of two floats
+        :param  ang_radius_deg:             angular radius [deg] of the beam, passed through exactly like
+                                                place_snapshot_particles_in_shell (None for an all-sky
+                                                observer, see SnapshotAllSky's thin wrapper)
+        :type   ang_radius_deg:             float
+        :param  use_snapshots:              snapshot numbers to use, as in gather_files, bypassing the usual
+                                                redshift-range lookup
+        :type   use_snapshots:              list or np.ndarray
+        :param  soap_chunk_size:            number of rows of a SOAP catalogue read at a time. If None, see above
+        :type   soap_chunk_size:            int
+        :param  comm:                       MPI communicator. If None, MPI.COMM_WORLD when more than one rank is
+                                                running, otherwise serial
+        :type   comm:                       mpi4py.MPI.Comm
+        :param  redistribute_halos:         If True, with MPI, share the haloes placed evenly between the ranks
+        :type   redistribute_halos:         boolean
+        :param  cell_snapshot:              snapshot to read the box and cell metadata from, see gather_halo_catalogues
+        :type   cell_snapshot:              int
+        """
+
+        self._validate_ang_radius_deg(ang_radius_deg)
+
+        if comm is None and MPI.COMM_WORLD.Get_size() > 1:
+            comm = MPI.COMM_WORLD
+        self._define_mpi_mode(comm, redistribute_halos)
+
+        settings = self.__halo_settings(halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots, cell_snapshot)
+        if self.halo_catalogues_to_read is None or self._gathered_halo_settings != settings:
+            self._gather_halo_catalogues(halo_format, lightcone_redshift_range, ang_radius_deg,
+                                         use_snapshots=use_snapshots, cell_snapshot=cell_snapshot)
+
+        metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
+
+        if self.comm is None:
+            pieces = self.__halo_read_pieces(soap_chunk_size)
+            my_pieces = pieces
+        else:
+            # share the pieces between the ranks, as the particle files are
+            pieces = self.__halo_read_pieces(soap_chunk_size, nr_pieces_min=self.comm_size)
+            pieces_on_rank = phdf5.assign_files(len(pieces), self.comm_size)
+            first = (np.cumsum(pieces_on_rank) - pieces_on_rank)[self.comm_rank]
+            my_pieces = pieces[first:first + pieces_on_rank[self.comm_rank]]
+            self._log(f"\treading {len(my_pieces)}/{len(pieces)} pieces of the SOAP catalogues, "
+                      f"{sum(piece.stop - piece.start for piece in my_pieces)} haloes", level=1, every_rank=True)
+
+        centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(my_pieces, ang_radius_deg)
+
+        nr_kept = len(snap_nr)
+        if self.comm is not None:
+            nr_read = self.comm.allreduce(nr_read)
+            nr_kept = self.comm.allreduce(nr_kept)
+        if nr_read > 0:
+            self._log(f"\nHaloes read:\t{nr_read}\tkept in lightcone:\t{nr_kept} [{nr_kept/nr_read * 100:.3f}%]", level=1)
+        self._log(f"\nTotal halos placed in lightcone shell: {nr_kept}\n", level=1)
+
+        halos = {
+            "Lightcone/HaloCentre": centres,
+            "Lightcone/SnapshotNumber": snap_nr,
+            "InputHalos/HaloCatalogueIndex": halo_index,
+            "InputHalos/SOAPIndex": soap_index,
+        }
+        if self.comm is not None and self.redistibute_particles:
+            ntot = self.comm.allreduce(len(snap_nr))
+            ndesired = np.full(self.comm_size, ntot // self.comm_size, dtype=np.int64)
+            ndesired[: ntot % self.comm_size] += 1
+            halos = {name: psort.repartition(values, ndesired, comm=self.comm) for name, values in halos.items()}
+            self._log(f"Redistributed {ntot} haloes evenly across {self.comm_size} ranks", level=1)
+
+        r_comoving = np.linalg.norm(halos["Lightcone/HaloCentre"], axis=1)
+        expansion_factor = self.__comoving_distance_to_scalefactor(r_comoving) if len(r_comoving) > 0 else np.zeros(0)
+
+        return LightconeOutput({
+            "Lightcone/HaloCentre": unyt.unyt_array(halos["Lightcone/HaloCentre"], unyt.Mpc),
+            "Lightcone/SnapshotNumber": unyt.unyt_array(halos["Lightcone/SnapshotNumber"], unyt.dimensionless),
+            "InputHalos/HaloCatalogueIndex": unyt.unyt_array(halos["InputHalos/HaloCatalogueIndex"], unyt.dimensionless),
+            "InputHalos/SOAPIndex": unyt.unyt_array(halos["InputHalos/SOAPIndex"], unyt.dimensionless),
+            "Lightcone/ExpansionFactor": unyt.unyt_array(expansion_factor, unyt.dimensionless),
+            }, metadata) # include metadata
+
+    def place_halos_in_shell_DO_NOT_USE(self, halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots=None):
         """
         Halo counterpart of place_snapshot_particles_in_shell. 
-        Place haloes from SOAP catalogues into a lightcone shell using the same methods as used for particles and Snapshot2Lightcone.
+        Place haloes from SOAP catalogues into a lightcone shell using the same methods as used for particles.
 
         Read a snapshot's entire SOAP halo catalogue in one collective read. 
 
@@ -1967,13 +2503,16 @@ class SnapshotLightcone():
         self._validate_ang_radius_deg(ang_radius_deg)
 
         if use_snapshots is None:
-            snapshots_to_read = nz.snapshot_number_in_range(
-                    boxsize_resolution=self.box_res,
-                    redshift_range=lightcone_redshift_range,
-                    redshift_buffer=(0.025, 0.025),
-                    snapshot_buffer=(0, 0),
-                    bounds="strict", decimals=5
-                )[::-1]
+            #snapshots_to_read = nz.snapshot_number_in_range(
+            #snapshots_to_read = self.simulation.snapshots_in_range(
+            #        lightcone_redshift_range,
+            #        #boxsize_resolution=self.box_res,
+            #        #redshift_range=lightcone_redshift_range,
+            #        redshift_buffer=(0.025, 0.025),
+            #        snapshot_buffer=(0, 0),
+            #        bounds="strict", decimals=5
+            #    )[::-1]
+            snapshots_to_read = self.simulation.snapshots_in_range(lightcone_redshift_range)[::-1]
         else:
             snapshots_to_read = np.asarray(use_snapshots)
 
@@ -2003,7 +2542,8 @@ class SnapshotLightcone():
         for snap_nr in snapshots_to_read:
             snap_nr = int(snap_nr)
 
-            snapshot_z_range = nz.snapshot_redshift_range(snap_nr,self.box_res)
+            #snapshot_z_range = nz.snapshot_redshift_range(snap_nr,self.box_res)
+            snapshot_z_range = self.simulation.snapshot_redshift_range(snap_nr)
             snap_shell_z_range = (
                 max(snapshot_z_range[0], lightcone_redshift_range[0]),
                 min(snapshot_z_range[1], lightcone_redshift_range[1]),
@@ -2067,21 +2607,32 @@ class SnapshotBeam(SnapshotLightcone):
     Class for constructing a pencil beam lightcone, about a single line of sight, from snapshots.
     """
 
-    def __init__(self, boxsize_resolution, simulation_name, beam_vector, orientation_seed=0,orientation_lock=None,orientation_table=None,verbose=1):
+    def __init__(self, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None,
+                    beam_vector=None, 
+                    simulation_base_dir_format=None,
+                    orientation_seed=0,orientation_lock=None,orientation_table=None,verbose=1,
+                    simulation_object=None, ):
         """
         Define the beam.
 
-        :param  boxsize_resolution: FLAMINGO box size and resolution label, e.g. "L1000N1800"
-        :type   boxsize_resolution: str
-        :param  simulation_name:    name of the simulation, e.g. "HYDRO_FIDUCIAL"
-        :type   simulation_name:    str
-        :param  beam_vector:        direction vector of the line of sight as an array of 3 floats
-        :type   beam_vector:        numpy.ndarray
-        :param  orientation_seed:   seed used to select the rotation, reflection and periodic shift of each box tile
-        :type   orientation_seed:   int
-        :param  verbose:            amount printed. 0: nothing, only warnings. 1: a summary of each call. 
-                                        2: details of every snapshot, box tile and file
-        :type   verbose:            int
+        :param  simulation_suite_name:      "flamingo" or "colibre". 
+                                                If None, found from boxsize_resolution (see swift_snapshot_redshift_conversion.simulation_suite)
+        :type   simulation_suite_name:      str
+        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
+        :type   simulation_object:          Simulation
+        :param  boxsize_resolution:         FLAMINGO box size and resolution label, e.g. "L1000N1800"
+        :type   boxsize_resolution:         str
+        :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
+        :type   simulation_name:            str
+        :param  beam_vector:                direction vector of the line of sight as an array of 3 floats
+        :type   beam_vector:                numpy.ndarray
+        :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box tile
+        :type   orientation_seed:           int
+        :param  verbose:                    amount printed. 
+                                                0: nothing, only warnings. 
+                                                1: a summary of each call. 
+                                                2: details of every snapshot, box tile and file
+        :type   verbose:                    int
         :param  orientation_lock:           "none":   every box tile has its own orientation. 
                                             "cube": every box tile in a cube shell of boxes around the observer's box shares one 
                                                 orientation, so each shell is periodically continuous and the 
@@ -2093,10 +2644,26 @@ class SnapshotBeam(SnapshotLightcone):
                                                 sphere is used once for each shell, and tiles are labelled 
                                                 (nx, ny, nz, layer)
         :type   orientation_lock:           str
+        :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
+                                                the suite's directory (see simulations.SimulationSuite.directory_format)
+        :type   simulation_base_dir_format: str
         """
-        #super().__init__(boxsize_resolution, simulation_name, beam_vector, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock)
+
+        # build sim object
+        simulation_object = as_simulation(boxsize_resolution, simulation_name, simulation_suite_name, simulation_base_dir_format, simulation_object)
+
+        if beam_vector is None:
+            raise TypeError("SnapshotBeam needs a beam_vector, the direction of the line of sight")
         
-        super().__init__(boxsize_resolution, simulation_name, beam_vector, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock, orientation_table=orientation_table)
+        #pass to SnapshotLightcone class
+        super().__init__(
+                beam_vector=beam_vector, 
+                orientation_seed=orientation_seed, 
+                verbose=verbose, 
+                orientation_lock=orientation_lock, 
+                orientation_table=orientation_table,
+                simulation_object=simulation_object
+            )
         
         # set up orthonormal basis perpendicular to beam_vec, used to place tiles transverse to the line of sight once
         # the beam's diameter exceeds one box sidelength. 
@@ -2106,7 +2673,7 @@ class SnapshotBeam(SnapshotLightcone):
 
     def __init_tile_frame(self):
         """
-        Sets self._tile_frame, a signed permutation matrix mapping lattice positions to tile labels.
+        Sets self._tile_frame: a permutation matrix mapping lattice positions to tile labels.
 
         Tiles are placed on the lattice of whole box sidelengths along x, y and z, so they fill
         the beam exactly once for any beam direction. 
@@ -2230,7 +2797,6 @@ class SnapshotBeam(SnapshotLightcone):
         # order along the line of sight
         return sorted(tiles, key=lambda tile: (tile[2], tile[0], tile[1]))
 
-
     def _in_shell(self, coords, z_min, z_max, ang_radius_deg, buffer_length=0., buffer_shape="cube",  return_bool=False, cosmo=None):
         """
         Determine which points fall inside the lightcone shell defined by an angular radius and the redshift range (z_min, z_max).
@@ -2332,7 +2898,7 @@ class SnapshotBeam(SnapshotLightcone):
         
         # set cosmology
         if cosmo is not None:
-            self.cosmo = cosmo
+            self.cosmo = as_astropy_cosmology(cosmo)
 
         half_angle = np.deg2rad(ang_radius_deg)
         if use_comoving_dist:
@@ -2396,10 +2962,17 @@ class SnapshotAllSky(SnapshotLightcone):
     Class for constructing an all-sky lightcone from snapshots.
     """
 
-    def __init__(self, boxsize_resolution, simulation_name, orientation_seed=0, orientation_lock=None,orientation_table=None,verbose=1):
+    def __init__(self, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None, 
+                    simulation_base_dir_format=None,
+                    orientation_seed=0, orientation_lock=None, orientation_table=None,verbose=1,
+                    simulation_object=None, ):
         """
         Define the all-sky lightcone, passed to SnapshotLightcone with no beam vector.
-
+        :param  simulation_suite_name:      "flamingo" or "colibre". 
+                                                If None, found from boxsize_resolution (see swift_snapshot_redshift_conversion.simulation_suite)
+        :type   simulation_suite_name:      str
+        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
+        :type   simulation_object:          Simulation
         :param  boxsize_resolution: FLAMINGO box size and resolution label, e.g. "L1000N1800"
         :type   boxsize_resolution: str
         :param  simulation_name:    name of the simulation, e.g. "HYDRO_FIDUCIAL"
@@ -2420,9 +2993,24 @@ class SnapshotAllSky(SnapshotLightcone):
                                                 sphere is used once for each shell, and tiles are labelled 
                                                 (nx, ny, nz, layer)
         :type   orientation_lock:           str
+        :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
+                                                the suite's directory (see simulations.SimulationSuite.directory_format)
+        :type   simulation_base_dir_format: str
         """
-        
-        super().__init__(boxsize_resolution, simulation_name, beam_vector=None, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock,orientation_table=orientation_table)
+
+        #super().__init__(boxsize_resolution, simulation_name, beam_vector=None, orientation_seed=orientation_seed, verbose=verbose, orientation_lock=orientation_lock,orientation_table=orientation_table)
+        super().__init__(
+                simulation_name=simulation_name,  
+                boxsize_resolution=boxsize_resolution,            
+                beam_vector=None, 
+                orientation_seed=orientation_seed, 
+                verbose=verbose, 
+                orientation_lock=orientation_lock,
+                orientation_table=orientation_table,
+                simulation_suite_name=simulation_suite_name, 
+                simulation_object=simulation_object, 
+                simulation_base_dir_format=simulation_base_dir_format
+            )
 
     def _tiles_intersecting_shell(self, r_min, r_max, boxsize, ang_radius_deg=None):
         """
@@ -2474,7 +3062,7 @@ class SnapshotAllSky(SnapshotLightcone):
         return tiles
 
     def _in_shell(self, coords, z_min, z_max, ang_radius_deg=None, buffer_length=0.,
-                 buffer_shape="cube", return_bool=False, cosmo=None):
+                    buffer_shape="cube", return_bool=False, cosmo=None):
         """
         Returns a tuple of (indices inside the shell, indices outside the shell). If return_bool is True, 
         returns (boolean mask, None).
@@ -2496,8 +3084,10 @@ class SnapshotAllSky(SnapshotLightcone):
         :param  cosmo:          cosmology. If None, use the snapshot cosmology
         :type   cosmo:          astropy cosmology object
         """
-        if cosmo is None:
-            cosmo = self.cosmo
+        
+        #if cosmo is None:
+        #    cosmo = self.cosmo
+        cosmo = self.cosmo if cosmo is None else as_astropy_cosmology(cosmo)
 
         coords = np.asarray(coords)
         if coords.ndim != 2 or coords.shape[1] != 3:
@@ -2552,7 +3142,7 @@ class SnapshotAllSky(SnapshotLightcone):
         :type   use_comoving_dist:  boolean
         """
         if cosmo is not None:
-            self.cosmo = cosmo
+            self.cosmo = as_astropy_cosmology(cosmo)
 
         if use_comoving_dist:
             h = z
