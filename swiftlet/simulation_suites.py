@@ -130,9 +130,6 @@ class SimulationSuite:
         return self.base_dir_format
 
 
-
-
-
 # define FLAMINGO simulation suite
 FLAMINGO = SimulationSuite(
     name="flamingo",
@@ -182,7 +179,6 @@ def get_suite(suite):
     if name not in SUITES:
         raise ValueError(f"simulation_suite_name must be one of {tuple(SUITES)}, not {suite!r}")
     return SUITES[name]
-
 
 
 def suite_for_label(boxsize_resolution=None, simulation_suite_name=None):
@@ -376,7 +372,7 @@ class Simulation:
         """
         return snapshot_redshifts.snapshot_redshift_range(self.output_redshifts, snap_nr)
 
-    def snapshots_in_range(self, redshift_range, range_tol=1e-5):
+    def snapshots_in_range(self, redshift_range, range_tol=1e-5, strict=False):
         """
         Snapshots whose redshift ranges overlap a redshift range, including ranges that only touch it.
 
@@ -385,7 +381,7 @@ class Simulation:
         :param  redshift_range: minimum and maximum redshifts [z_min, z_max]
         :type   redshift_range: sequence of two floats
         """
-        return snapshot_redshifts.snapshots_in_range(self.output_redshifts, redshift_range,range_tol)
+        return snapshot_redshifts.snapshots_in_range(self.output_redshifts, redshift_range=redshift_range, range_tol=range_tol, strict=strict)
 
     @property
     def z0_snapshot(self):

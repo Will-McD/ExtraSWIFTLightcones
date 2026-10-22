@@ -62,7 +62,7 @@ def snapshot_redshift_range(redshifts, snapshot_number):
     return edges[snapshot_number + 1], edges[snapshot_number]
 
 
-def snapshots_in_range(redshifts, redshift_range, range_tol=1e-9):
+def snapshots_in_range(redshifts, redshift_range, range_tol=1e-9, strict=False):
     """
     Returns an array of snapshot numbers whose redshift ranges overlap with a given redshift range.
 
@@ -71,17 +71,27 @@ def snapshots_in_range(redshifts, redshift_range, range_tol=1e-9):
     :param  redshift_range: minimum and maximum redshift [z_min, z_max]
     :type   redshift_range: sequence of two floats
     """
+
     if range_tol < 0:
-        raise ValueError(f"atol must not be negative, not {atol}")
+        raise ValueError(f"range_tol must not be negative, not {range_tol}")
+    
     z_min, z_max = (float(z) for z in redshift_range)
-    if z_max < z_min:
+    if z_min <0 or z_max<0:
+         raise ValueError("redshifts must not be negative")
+    elif z_max < z_min:
         raise ValueError(f"redshift_range must be [z_min, z_max], not {redshift_range}")
+
+
     edges = redshift_edges(redshifts)
-    overlaps = (edges[1:] <= z_max+range_tol) & (edges[:-1] >= z_min-range_tol)
+
+    if strict:
+        overlaps = (edges[1:] < z_max - range_tol) & (edges[:-1] > z_min + range_tol)
+    else:
+        overlaps = (edges[1:] <= z_max + range_tol) & (edges[:-1] >= z_min - range_tol)
     return np.flatnonzero(overlaps)
 
 
-def snapshot_at_redshift(redshifts, redshift, atol=1e-6):
+def snapshot_at_redshift(redshifts, redshift, range_tol=1e-6):
     """
     Number of the snapshot whose output redshift is a given redshift.
 
@@ -91,11 +101,11 @@ def snapshot_at_redshift(redshifts, redshift, atol=1e-6):
     :type   redshifts:  array-like
     :param  redshift:   redshift of the snapshot
     :type   redshift:   float
-    :param  atol:       largest difference between the redshift and the snapshot's redshift
-    :type   atol:       float
+    :param  range_tol:       largest difference between the redshift and the snapshot's redshift
+    :type   range_tol:       float
     """
     redshifts = _as_redshifts(redshifts)
     nearest = int(np.argmin(np.abs(redshifts - redshift)))
-    if not np.isclose(redshifts[nearest], redshift, rtol=0., atol=atol):
+    if not np.isclose(redshifts[nearest], redshift, rtol=0., atol=range_tol):
         raise ValueError(f"no snapshot at redshift {redshift} (nearest is snapshot {nearest} at {redshifts[nearest]})")
     return nearest

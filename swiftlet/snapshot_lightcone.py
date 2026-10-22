@@ -4,6 +4,7 @@ import os
 import unyt
 import h5py
 import healpy as hp
+from mpi4py import MPI
 from collections import namedtuple
 from scipy.interpolate import CubicSpline
 from scipy.optimize import brentq
@@ -1663,7 +1664,7 @@ class SnapshotLightcone():
             jj = self.__last_snapshot_index(file_data.snap_nr, file_data.tile)
             total_ptype_to_read += self.npart_per_file[jj][file_data.file_nr]
 
-        self._rank_log(f"\treading {len(my_files)}/{nr_files} files, {total_ptype_to_read} particles", level=1)
+        self._log(f"\treading {len(my_files)}/{nr_files} files, {total_ptype_to_read} particles", level=1, every_rank=True)
 
         self.__read_and_place_particles(my_files, current_ptype, property_names, ang_radius_deg)
 
@@ -2784,7 +2785,7 @@ class SnapshotBeam(SnapshotLightcone):
         """
         # no radius given
         if ang_radius_deg is None:
-            raise TypeError("SnapshotBeam needs ang_radius_deg, the angular radius [deg] of the beam")
+            raise TypeError("SnapshotBeam needs ang_radius_deg")
         
         # radius is too large
         if ang_radius_deg > MAX_BEAM_ANG_RADIUS_DEG:
@@ -3083,7 +3084,7 @@ class SnapshotAllSky(SnapshotLightcone):
         """
         # given a radius when none is needed
         if ang_radius_deg is not None:
-            raise TypeError(f"SnapshotAllSky doesn't need an angular radius, but ang_radius_deg={ang_radius_deg!r}.")
+            raise TypeError("SnapshotAllSky doesn't need an angular radius")
 
     def _tiles_intersecting_shell(self, r_min, r_max, boxsize, ang_radius_deg=None):
         """

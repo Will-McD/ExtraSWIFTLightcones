@@ -1,14 +1,4 @@
 #!/bin/env python
-"""
-Place the particles of a fake snapshot in a lightcone shell in parallel, run under mpiexec by
-test_snapshot_lightcone_placement.test_mpi_matches_serial. Each rank saves the particles it placed to
-<output>.<rank>.npz.
-
-    mpiexec -n 2 python mpi_place_particles.py '<json arguments>'
-
-The json arguments are run_dir, sim_name, beam_vector (null for all-sky), ang_radius_deg, redshift_range,
-orientation_lock, redistribute and output.
-"""
 import json
 import os
 import sys
@@ -20,6 +10,17 @@ from mpi4py import MPI
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_snapshot_lightcone_placement as placement  # noqa: E402
+
+"""
+Place the particles of a fake snapshot in a lightcone shell in parallel, run under mpiexec by
+test_snapshot_lightcone_placement.test_mpi_matches_serial. Each rank saves the particles it placed to
+<output>.<rank>.npz.
+
+    mpiexec -n 2 python mpi_place_particles.py '<json arguments>'
+
+The json arguments are run_dir, sim_name, beam_vector (null for all-sky), ang_radius_deg, redshift_range,
+orientation_lock, redistribute and output.
+"""
 
 
 def main(args):

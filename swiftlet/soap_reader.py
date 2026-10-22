@@ -191,7 +191,7 @@ def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
                 for name, dataset in datasets.items()}
 
 
-def select_soap_rows(filename, select_name, select, property_names, chunk_size=2**22):
+def select_soap_rows(filename, select_name, select, property_names, chunk_size=2**22, units=None):
     """
     Index the SOAP catalogue, read the data from 'select_name' in chunks and then read the other properties only for the rows kept.
     The whole catalogue is never read or held in memory.
@@ -211,10 +211,12 @@ def select_soap_rows(filename, select_name, select, property_names, chunk_size=2
     :param  chunk_size:     number of rows of select_name read at a time
     :type   chunk_size:     int
     """
-    rows = [start + np.flatnonzero(select(comoving(chunk[select_name])))
-            for start, chunk in read_soap_in_chunks(filename, [select_name], chunk_size)]
+    # build list of row starting points to slice catalogue with. 
+    rows = [start + np.flatnonzero(select(comoving(chunk[select_name]))) for start, chunk in read_soap_in_chunks(filename, [select_name], chunk_size)]
     rows = np.concatenate(rows) if rows else np.zeros(0, dtype=np.int64)
     found = read_soap_selected_rows(filename, list(dict.fromkeys([select_name, *property_names])), rows)
+    if units is not None:
+        found = {name: comoving(values).to_value(units[name]) for name, values in found.items()}
     found["row"] = rows
     return found
 
@@ -239,3 +241,4 @@ def soap_unit_attributes(soap, name):
         physical = float(np.ravel(attrs["Conversion factor to physical CGS (including cosmological corrections)"])[0])
         attrs[comoving_cgs] = [physical / a**float(np.ravel(attrs["a-scale exponent"])[0])]
     return attrs
+
