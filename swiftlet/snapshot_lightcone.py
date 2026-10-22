@@ -231,7 +231,7 @@ ORIENTATION_LOCK_OPTIONS = (None, "none", "cube", "sphere")
 # esentially what is needed to perfectly reproduce the same lightcone
 LIGHTCONE_METADATA_NAMES = (
     "lightcone_type", 
-    "boxsize_resolution", "simulation_name", "simulation_suite_name" # simulation info 
+    "boxsize_resolution", "simulation_name", "simulation_suite_name", # simulation info 
     "orientation_seed", "orientation_lock",  # geometry info
     "orientation_table", "orientation_table_fingerprint",  # geomtry table info
     "beam_vector", "ang_radius_deg", "redshift_range", # beam info 
@@ -403,10 +403,9 @@ def as_simulation(boxsize_resolution=None, simulation_name=None, simulation_suit
     :param  simulation:                 the simulation
     :type   simulation:                 Simulation
     """
-    if isinstance(boxsize_resolution, Simulation):
-        if simulation_object is not None:
-            raise TypeError("a Simulation was given twice, as boxsize_resolution and as simulation_object")
-        simulation_object, boxsize_resolution = boxsize_resolution, None
+
+
+    #check sim object is exected class
     if simulation_object is not None:
         if not isinstance(simulation_object, Simulation):
             raise TypeError(f"simulation_object must be a swiftlet.Simulation, not {type(simulation_object).__name__}")
@@ -420,6 +419,7 @@ def as_simulation(boxsize_resolution=None, simulation_name=None, simulation_suit
         if extra:
             raise TypeError(f"{', '.join(extra)} given with a Simulation, which already sets them. With a Simulation, pass the other arguments (e.g. beam_vector) by keyword")
         return simulation_object
+    # check that correct info is given 
     if boxsize_resolution is None or simulation_name is None:
         raise TypeError("a lightcone needs a Simulation, or boxsize_resolution and simulation_name")
     return Simulation.from_label(
@@ -449,9 +449,9 @@ class SnapshotLightcone():
     snapshot box replication occurs is handled in the SnapshotBeam and SnapshotAllSky sub classes. 
     """
 
-    def __init__(self, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None, 
+    def __init__(self, simulation_object=None, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None, 
+                    simulation_base_dir_format=None,  
                     beam_vector=None, 
-                    simulation_base_dir_format=None,  simulation_object=None,
                     orientation_seed=0, orientation_lock=None, orientation_table=None,
                     verbose=1,):
         """
@@ -2687,8 +2687,8 @@ class SnapshotBeam(SnapshotLightcone):
     Class for constructing a pencil beam lightcone, about a single line of sight, from snapshots.
     """
 
-    def __init__(self, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None,
-                    simulation_base_dir_format=None,simulation_object=None,
+    def __init__(self, simulation_object=None, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None,
+                    simulation_base_dir_format=None,
                     beam_vector=None, 
                     orientation_seed=0,orientation_lock=None,orientation_table=None,verbose=1,
                     ):
@@ -2740,12 +2740,12 @@ class SnapshotBeam(SnapshotLightcone):
         
         #pass to SnapshotLightcone class
         super().__init__(
+                simulation_object=simulation_object,
                 beam_vector=beam_vector, 
                 orientation_seed=orientation_seed, 
-                verbose=verbose, 
                 orientation_lock=orientation_lock, 
                 orientation_table=orientation_table,
-                simulation_object=simulation_object
+                verbose=verbose, 
             )
         
         # set up orthonormal basis perpendicular to beam_vec, used to place tiles transverse to the line of sight once
@@ -3024,8 +3024,8 @@ class SnapshotAllSky(SnapshotLightcone):
     Class for constructing an all-sky lightcone from snapshots.
     """
 
-    def __init__(self, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None, 
-                    simulation_base_dir_format=None, simulation_object=None,
+    def __init__(self, simulation_object=None, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None, 
+                    simulation_base_dir_format=None, 
                     orientation_seed=0, orientation_lock=None, orientation_table=None,verbose=1,):
         """
         Define the all-sky lightcone, passed to SnapshotLightcone with no beam vector.
@@ -3064,14 +3064,14 @@ class SnapshotAllSky(SnapshotLightcone):
         super().__init__(
                 simulation_object=simulation_object, 
                 simulation_suite_name=simulation_suite_name, 
+                boxsize_resolution=boxsize_resolution,       
                 simulation_name=simulation_name,  
-                boxsize_resolution=boxsize_resolution,            
-                simulation_base_dir_format=simulation_base_dir_format,
+                simulation_base_dir_format=simulation_base_dir_format,     
                 beam_vector=None, # not required for all sky, ensure no information is passed for beam vectors
                 orientation_seed=orientation_seed, 
-                verbose=verbose, 
                 orientation_lock=orientation_lock,
                 orientation_table=orientation_table,
+                verbose=verbose, 
             )
 
     def _validate_ang_radius_deg(self, ang_radius_deg):

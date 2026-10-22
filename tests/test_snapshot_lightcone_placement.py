@@ -1,15 +1,4 @@
 #!/bin/env python
-"""
-Tests of where SnapshotLightcone places objects, using small fake snapshots and SOAP catalogues
-written to a temporary directory. 
-
-No simulation data is required.
-
-- Haloes placed from a SOAP catalogue (place_halos_in_shell) end up exactly where a particle at the
-  same position in the snapshot is placed (place_snapshot_particles_in_shell).
-- Particles on a uniform lattice across the whole snapshot, placed in a shell reaching just under
-  half a box length from the observer, end up on the same lattice centred on the observer, each once.
-"""
 import json
 import os
 import shutil
@@ -24,9 +13,24 @@ import unyt
 h5py = pytest.importorskip("h5py")
 astropy_cosmology = pytest.importorskip("astropy.cosmology")
 snapshot_lightcone = pytest.importorskip("swiftlet.snapshot_lightcone")
-from swiftlet import swift_snapshot_redshift_conversion as nz
+from swiftlet import snapshot_redshifts
+from swiftlet.simulation_suites import output_redshifts
 
+"""
+Tests of where SnapshotLightcone places objects, using small fake snapshots and SOAP catalogues
+written to a temporary directory. 
+
+No simulation data is required.
+
+- Haloes placed from a SOAP catalogue (place_halos_in_shell) end up exactly where a particle at the
+  same position in the snapshot is placed (place_snapshot_particles_in_shell).
+- Particles on a uniform lattice across the whole snapshot, placed in a shell reaching just under
+  half a box length from the observer, end up on the same lattice centred on the observer, each once.
+"""
+
+# make fake FLAMINGO snapshot data
 BOX_RES = "L1000N0900"
+OUTPUT_REDSHIFTS = output_redshifts(BOX_RES)
 SNAPSHOTS = range(69, 78)  # z = 0 to 0.425, out to about 1.65 box lengths from the observer
 BOXSIZE = 1000.
 NCELLS_AXIS = 10
@@ -89,7 +93,8 @@ def write_snapshot(snap_dir, snap_nr, ids, pos):
     """
     Write one fake snapshot of dark matter particles, split over files by cell.
     """
-    redshift = nz.snapshot_number_redshifts(snap_nr, BOX_RES)
+    #redshift = nz.snapshot_number_redshifts(snap_nr, BOX_RES)
+    redshift = OUTPUT_REDSHIFTS[snap_nr]
     centres = (np.indices((NCELLS_AXIS,)*3).reshape(3, -1).T + 0.5) * CELL_SIZE
     ncells = len(centres)
     cell_file = np.arange(ncells) % NFILES
@@ -141,7 +146,8 @@ def write_soap_catalogue(filename, snap_nr, halo_index, halo_centre):
     Write a fake SOAP catalogue holding the halo centres [comoving Mpc] and their catalogue indices,
     read with lightcone_io's SOAPCatalogue.
     """
-    redshift = nz.snapshot_number_redshifts(snap_nr, BOX_RES)
+    #redshift = nz.snapshot_number_redshifts(snap_nr, BOX_RES)
+    redshift = OUTPUT_REDSHIFTS[snap_nr]
     filename.parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(filename, "w") as f:
         write_metadata(f, redshift)
@@ -181,13 +187,20 @@ def lattice_positions():
 
 class Cosmology:
     """
-    Stand in for lightcone_io's Snapshot_Cosmology_For_Lightcone, the fake snapshots only have minimal metadata.
+    Stand in for swiftlet.cosmology.SnapshotCosmology, the fake snapshots only have minimal metadata.
     """
     COSMO = astropy_cosmology.FlatLambdaCDM(H0=68, Om0=0.3)
 
     def __init__(self, filename):
         pass
+    
+    @classmethod
+    def from_simulation(cls, simulation):
+        return cls(simulation.snapshot_file(simulation.z0_snapshot))
 
+    @classmethod
+    def from_path(cls, path):
+        return cls(path)
 
 def merge_cells(offsets, lengths):
     """
@@ -246,13 +259,17 @@ def patch_snapshot_lightcone(patch, run_dir):
     :param  run_dir:    directory the fake simulations were written to
     :type   run_dir:    pathlib.Path
     """
-    patch.setattr(snapshot_lightcone, "Snapshot_Cosmology_For_Lightcone", Cosmology)
+    #patch.setattr(snapshot_lightcone, "Snapshot_Cosmology_For_Lightcone", Cosmology)
+    patch.setattr(snapshot_lightcone, "SnapshotCosmology", Cosmology)
     if not callable(snapshot_lightcone.merge_cells):
         patch.setattr(snapshot_lightcone, "merge_cells", merge_cells)
-    init = snapshot_lightcone.SnapshotLightcone.__init__
-    defaults = list(init.__defaults__)
-    defaults[0] = str(run_dir) + "/{box_res}/{sim_name}"
-    patch.setattr(init, "__defaults__", tuple(defaults))
+    #init = snapshot_lightcone.SnapshotLightcone.__init__
+    #defaults = list(init.__defaults__)
+    #defaults[0] = str(run_dir) + "/{box_res}/{sim_name}"
+    #patch.setattr(init, "__defaults__", tuple(defaults))
+    
+    # FLAMINGO simulations are looked for in <SWIFTLET_FLAMINGO_DIR>/<box_res>/<sim_name>
+    patch.setenv("SWIFTLET_FLAMINGO_DIR", str(run_dir))
 
 
 # 'run' fake SWIFT simulations, 
@@ -288,8 +305,8 @@ def new_lightcone(sim_name, beam_vector, orientation_lock, **kwargs):
     SnapshotBeam along beam_vector, or SnapshotAllSky if beam_vector is None, using a fake simulation.
     """
     if beam_vector is None:
-        return snapshot_lightcone.SnapshotAllSky(BOX_RES, sim_name, verbose=0, orientation_lock=orientation_lock, **kwargs)
-    return snapshot_lightcone.SnapshotBeam(BOX_RES, sim_name, beam_vector, verbose=0, orientation_lock=orientation_lock, **kwargs)
+        return snapshot_lightcone.SnapshotAllSky(boxsize_resolution=BOX_RES, simulation_name=sim_name, verbose=0, orientation_lock=orientation_lock, **kwargs)
+    return snapshot_lightcone.SnapshotBeam(boxsize_resolution=BOX_RES, simulation_name=sim_name, beam_vector=beam_vector, verbose=0, orientation_lock=orientation_lock, **kwargs)
 
 
 def shell_args(lightcone, ang_radius_deg):
@@ -385,6 +402,45 @@ def test_haloes_on_cell_faces_placed_as_particles(fake_runs, beam_vector, ang_ra
                                                           orientation_lock, edge=True)
     assert len(halo_rows[0]) > 0
     assert_same_rows(halo_rows, particle_rows)
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube"])
+@pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range", LIGHTCONES)
+def test_haloes_read_in_chunks_as_whole(fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock):
+    """
+    Test that reading the SOAP catalogues in chunks places the same haloes, in the same order as when reading them whole catalogue.
+    Test in serial and for any chunk size.
+    """
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock)
+    whole = lightcone.place_halos_in_shell(fake_runs, redshift_range, **shell_args(lightcone, ang_radius_deg))
+    assert len(whole["Lightcone/SnapshotNumber"]) > 0
+    for chunk_size in (333, NHALOS - 1, 10 * NHALOS):
+        chunked = lightcone.place_halos_in_shell(fake_runs, redshift_range, soap_chunk_size=chunk_size,
+                                                 **shell_args(lightcone, ang_radius_deg))
+        assert set(chunked) == set(whole)
+        for name in whole:
+            assert chunked[name].units == whole[name].units, name
+            np.testing.assert_array_equal(chunked[name].value, whole[name].value, err_msg=f"{name}, chunks of {chunk_size}")
+        assert chunked.metadata == whole.metadata
+
+
+
+def test_read_soap_in_chunks(fake_runs):
+    """
+    Test that the chunks of a SOAP catalogue are in order + have the units lightcone_io reads them with.
+    """
+    hc = pytest.importorskip("lightcone_io.halo_catalogue")
+    snap_nr = SNAPSHOTS[-1]
+    names = ["InputHalos/HaloCentre", "InputHalos/HaloCatalogueIndex"]
+    whole = hc.SOAPCatalogue(fake_runs, snap_nr, snap_nr).read(snap_nr, names)
+    chunks = list(snapshot_lightcone.read_soap_in_chunks(fake_runs.format(snap_nr=snap_nr), names, 1000))
+    assert [start for start, _ in chunks] == list(range(0, NHALOS, 1000))
+    for name in names:
+        joined = unyt.uconcatenate([chunk[name] for _, chunk in chunks])
+        assert joined.units == whole[name].units
+        np.testing.assert_array_equal(joined.value, whole[name].value)
+    with pytest.raises(ValueError, match="at least 1"):
+        next(snapshot_lightcone.read_soap_in_chunks(fake_runs.format(snap_nr=snap_nr), names, 0))
 
 
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
