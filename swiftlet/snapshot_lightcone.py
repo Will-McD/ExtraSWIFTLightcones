@@ -403,7 +403,6 @@ class SnapshotLightcone():
                                                 reflections and cell shifts of the box tiles from. If None, the default
                                                 tables (79 rows). Each tile reads one row of every table, as for the default
         :type   orientation_table:          str
-
         """
 
         # simulation values

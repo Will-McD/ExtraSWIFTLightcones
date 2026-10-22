@@ -91,7 +91,6 @@ _SUBMODULES = (
     "snapshot_orientation",
     "snapshot_units",
     "snapshot_redshifts",
-    #"swift_snapshot_redshift_conversion",
     "threads",
 )
 

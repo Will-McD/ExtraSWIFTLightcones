@@ -29,4 +29,4 @@ tests/test_lightcone_projections.pytest_figures/
 lightcone_comp/
 talk_examples/
 colibre_test/
-swift_snapshot_redshift_conversion.py
+swiftlet/swift_snapshot_redshift_conversion.py
