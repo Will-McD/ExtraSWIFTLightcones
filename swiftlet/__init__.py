@@ -101,7 +101,9 @@ def __getattr__(name):
     """
     Import the public classes, functions and submodules of the package when first used, so that modules
     which don't need MPI (e.g. swiftlet.config) can be imported without it.
-
+    
+    Returns the class, function or submodule named.
+    
     :param  name:   name of the attribute
     :type   name:   str
     """

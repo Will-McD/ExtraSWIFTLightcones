@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 import unyt
 import virgo.formats.swift as virgo_swift
-
+import healpy as hp
 
 """
 Functions for reading SOAP halo catalogues, in serial, with h5py.
@@ -218,3 +218,25 @@ def select_soap_rows(filename, select_name, select, property_names, chunk_size=2
     found = read_soap_selected_rows(filename, list(dict.fromkeys([select_name, *property_names])), rows)
     found["row"] = rows
     return found
+
+
+def soap_unit_attributes(soap, name):
+    """
+    The SWIFT unit attributes of a SOAP dataset, as copied to a halo lightcone file. lightcone_io reads the units from
+    "Conversion factor to CGS (not including cosmological corrections)", so it is added from the physical conversion
+    factor and the expansion factor of the catalogue if the dataset doesn't have it.
+
+    Returns a dict of the attributes.
+
+    :param  soap:   open SOAP catalogue
+    :type   soap:   h5py.File
+    :param  name:   name of the dataset, e.g. "InputHalos/HaloCentre"
+    :type   name:   str
+    """
+    attrs = dict(soap[name].attrs)
+    comoving_cgs = "Conversion factor to CGS (not including cosmological corrections)"
+    if comoving_cgs not in attrs:
+        a = float(np.ravel(soap["Cosmology"].attrs["Scale-factor"])[0])
+        physical = float(np.ravel(attrs["Conversion factor to physical CGS (including cosmological corrections)"])[0])
+        attrs[comoving_cgs] = [physical / a**float(np.ravel(attrs["a-scale exponent"])[0])]
+    return attrs

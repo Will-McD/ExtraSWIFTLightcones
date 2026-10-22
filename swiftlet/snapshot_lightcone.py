@@ -15,7 +15,8 @@ from . import snapshot_orientation as box_structure
 from . import snapshot_units as sw_units
 from .simulation_suites import Simulation
 from .snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology
-from .soap_reader import soap_catalogue_length, read_soap_rows, read_soap_in_chunks  # noqa: F401
+from .soap_reader import soap_catalogue_length, read_soap_rows, read_soap_in_chunks, soap_unit_attributes # noqa: F401
+from .soap_reader import comoving as soap_comoving
 import builtins
 import datetime as dt
 import warnings
@@ -289,6 +290,85 @@ def read_lightcone_metadata(hdf5_object):
             metadata[name] = None if value == "none" and name != "orientation_lock" else value
     return metadata
 
+
+def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metadata, nside=16, order="nest"):
+    """
+    Write haloes placed in a lightcone to a .hdf5 file in the format of the lightcone_io (FLAMINGO) halo lightcones,
+    so lightcone_io.halo_reader.HaloLightconeFile can read it:
+
+    :param  filename:       path of the HDF5 file to write, e.g. lightcone_haloes_0127.hdf5
+    :type   filename:       str
+    :param  haloes:          haloes placed by place_haloes_in_shell, all of them on this rank
+    :type   haloes:          dict
+    :param  soap_filename:  SOAP catalogue of the haloes' snapshot, for the unit attributes and the Cosmology and
+                                Units groups
+    :type   soap_filename:  str
+    :param  properties:     {name: values} of SOAP properties of each halo to write, e.g. {"InputHalos/IsCentral": ...}
+    :type   properties:     dict
+    :param  metadata:       .metadata of the haloes placed, see SnapshotLightcone.lightcone_metadata
+    :type   metadata:       dict
+    :param  nside:          HEALPix resolution of the index, as lightcone_io uses (16)
+    :type   nside:          int
+    :param  order:          HEALPix pixel ordering of the index, "nest" or "ring"
+    :type   order:          str
+    """
+
+    centre = haloes["Lightcone/HaloCentre"].to_value("Mpc")
+    expansion_factor = haloes["Lightcone/ExpansionFactor"].value
+    pixel = hp.vec2pix(nside, centre[:, 0], centre[:, 1], centre[:, 2], nest=(order == "nest")) if len(centre) else \
+        np.zeros(0, dtype=int)
+    by_pixel = np.argsort(pixel, kind="stable")
+    num_per_pixel = np.bincount(pixel, minlength=hp.nside2npix(nside)).astype(np.int64)
+    first_in_pixel = (np.cumsum(num_per_pixel) - num_per_pixel).astype(np.int64)
+
+    dimensionless = {"Conversion factor to CGS (not including cosmological corrections)": [1.0],
+                     "Conversion factor to physical CGS (including cosmological corrections)": [1.0],
+                     **{f"{dim} exponent": [0.0] for dim in ("U_I", "U_L", "U_M", "U_T", "U_t", "a-scale", "h-scale")}}
+
+    with h5py.File(soap_filename, "r") as soap, h5py.File(filename, "w") as outfile:
+        for group_name in ("Cosmology", "Units"):
+            if group_name in soap:
+                group = outfile.create_group(group_name)
+                for name, value in soap[group_name].attrs.items():
+                    group.attrs[name] = value
+        index = outfile.create_group("Index")
+        index.attrs["nside"] = nside
+        index.attrs["order"] = order
+        index.create_dataset("FirstHaloInPixel", data=first_in_pixel)
+        index.create_dataset("NumHalosPerPixel", data=num_per_pixel)
+
+        def write(name, values, attrs, description):
+            dataset = outfile.create_dataset(name, data=np.asarray(values)[by_pixel], compression="gzip",
+                                             compression_opts=6)
+            for attr_name, attr_value in attrs.items():
+                dataset.attrs[attr_name] = attr_value
+            dataset.attrs["Description"] = description
+
+        # the halo centres in the units of SOAP's InputHalos/HaloCentre (comoving), with its attributes
+        centre_attrs = soap_unit_attributes(soap, "InputHalos/HaloCentre")
+        centre_units = soap_comoving(read_soap_rows(soap_filename, ["InputHalos/HaloCentre"], 0, 0)["InputHalos/HaloCentre"]).units
+        file_units_in_mpc = unyt.unyt_quantity(1., centre_units).to_value("Mpc")
+        write("Lightcone/HaloCentre", centre / file_units_in_mpc, centre_attrs,
+              "Comoving position of the halo centre relative to the observer, in the lightcone")
+        write("Lightcone/Redshift", 1. / expansion_factor - 1., dimensionless,
+              "Redshift of the halo at its comoving distance from the observer")
+        write("Lightcone/SnapshotNumber", haloes["Lightcone/SnapshotNumber"].value.astype(np.int64), dimensionless,
+              "Snapshot the halo was placed from")
+        write("InputHalos/SOAPIndex", haloes["InputHalos/SOAPIndex"].value.astype(np.int64), dimensionless,
+              "Index of the halo in the input SOAP catalogue")
+        write("InputHalos/HaloCatalogueIndex", haloes["InputHalos/HaloCatalogueIndex"].value.astype(np.int64),
+              soap_unit_attributes(soap, "InputHalos/HaloCatalogueIndex"), "Index of the halo in the input halo catalogue")
+        for name, values in properties.items():
+            write(name, np.asarray(values), soap_unit_attributes(soap, name), str(soap[name].attrs.get("Description", name)))
+
+        lightcone = outfile["Lightcone"]
+        lightcone.attrs["property_names"] = ["Lightcone/HaloCentre", "Lightcone/Redshift", "Lightcone/SnapshotNumber",
+                                             "InputHalos/SOAPIndex", "InputHalos/HaloCatalogueIndex", *properties]
+        write_lightcone_metadata(lightcone, metadata)
+
+
+
+
 ######################################################
 # SWIFT Simulation class funcitons
 
@@ -307,8 +387,8 @@ def as_simulation(boxsize_resolution=None, simulation_name=None, simulation_suit
     :type   boxsize_resolution:         str or Simulation
     :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
     :type   simulation_name:            str
-    :param  simulation_suite:           "flamingo" or "colibre". If None, found from boxsize_resolution
-    :type   simulation_suite:           str
+    :param  simulation_suite_name:           "flamingo" or "colibre". If None, found from boxsize_resolution
+    :type   simulation_suite_name:           str
     :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
                                             the suite's directory
     :type   simulation_base_dir_format: str
@@ -418,7 +498,7 @@ class SnapshotLightcone():
         # define all related sim names and paths
         self.box_res = self.simulation.box_res
         self.sim_name = self.simulation.name
-        self.simulation_suite = self.simulation.suite.name
+        self.simulation_suite_name = self.simulation.suite.name
         self.simulation_dir = self.simulation.directory
         self.snapshot_format = self.simulation.snapshot_format
         
@@ -2205,7 +2285,7 @@ class SnapshotLightcone():
         if use_snapshots is None:
             # every snapshot whose redshift range overlaps or touches the shell, from high to low redshift, compared
             # exactly as for the particles
-            self.snapshots_to_read = self.simulation.snapshots_in_range(shell_z, atol=1e-6)[::-1]
+            self.snapshots_to_read = self.simulation.snapshots_in_range(shell_z, range_tol=1e-6)[::-1]
         else:
             self.snapshots_to_read = np.asarray(use_snapshots)
             self.__remove_snapshots_outside_shell(shell_z)
@@ -2600,7 +2680,7 @@ class SnapshotBeam(SnapshotLightcone):
     """
 
     def __init__(self, simulation_suite_name=None, boxsize_resolution=None, simulation_name=None,
-                    simulation_base_dir_format=None,simulation_object=None
+                    simulation_base_dir_format=None,simulation_object=None,
                     beam_vector=None, 
                     orientation_seed=0,orientation_lock=None,orientation_table=None,verbose=1,
                     ):
@@ -2978,7 +3058,7 @@ class SnapshotAllSky(SnapshotLightcone):
                 simulation_suite_name=simulation_suite_name, 
                 simulation_name=simulation_name,  
                 boxsize_resolution=boxsize_resolution,            
-                simulation_base_dir_format=simulation_base_dir_format
+                simulation_base_dir_format=simulation_base_dir_format,
                 beam_vector=None, # not required for all sky, ensure no information is passed for beam vectors
                 orientation_seed=orientation_seed, 
                 verbose=verbose, 

@@ -178,17 +178,6 @@ class SnapshotCosmology:
         """
         return self.parameters.get(name)
 
-    @property
-    def AGN_delta_T_K(self):
-        """
-        Temperature change of gas heated by AGN feedback, unyt_quantity [K], from the thermal (EAGLEAGN) or jet
-        (SPINJETAGN) AGN model of the run, or None if the run has neither.
-        """
-        for name in ("EAGLEAGN:AGN_delta_T_K", "SPINJETAGN:AGN_delta_T_K"):
-            value = self.parameter(name)
-            if value is not None:
-                return unyt.unyt_quantity(float(value), "K")
-        return None
 
     def comoving_distance(self, z):
         """

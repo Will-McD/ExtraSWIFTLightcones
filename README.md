@@ -67,8 +67,6 @@ The [COLIBRE](https://colibre.strw.leidenuniv.nl/index.html) simulation suite do
 
 </details>
 
-
-
 <a id="use-with-cosma"></a>
 <details>
 <summary><b>Use with COSMA</b></summary>
@@ -174,11 +172,26 @@ The snapshot particles (and haloes) placed in the lightcone (`place_snapshot_par
 The reading and placing of particles into the lightcone is done first at the cell-level of the SWIFT snapshots. The cells from a given snapshot that overlap with the lightcone's footprint (including a $`1/2`$ cell length buffer) are flagged, then only the particles within the flagged cells are read from the corresponding SWIFT snapshot .hdf5 files. 
 Note that passing an MPI communicator (`comm`) reads the snapshot files in parallel.
 
-To limit memory use, the files containing particles within the lightcone's footprint can also be gathered and read from one at a time to place particles in the lightcone (`gather_files` and `place_file_in_shell`).  
-Haloes from SOAP catalogues can be placed in the same lightcone (`place_halos_in_shell`), and points can be mapped between the snapshot and the lightcone (`Snapshot2Lightcone` and `Lightcone2Snapshot`).
+Alternativley, and to limit peak memory use, the files containing particles within the lightcone's footprint can also be gathered first in a seperate step and then read individually, one at a time, to place particles in the lightcone (`gather_files` and `place_file_in_shell`).  
+Moreover, after building (or just applying a first pass at the cell level with `gather_files`), points can be mapped between the snapshot and the lightcone (`Snapshot2Lightcone` and `Lightcone2Snapshot`).
 
 A diagram of the complete workflow of `SnapshotLightcone` and its subclasses is shown in [docs/snapshot_lightcone_flow.md](./docs/snapshot_lightcone_workflow.md). 
 
+
+Haloes from SOAP catalogues, can be used to both construct halo lightcones and additionally be placed in the same lightcone as the particles. 
+In both cases the haloes are treated the same as particles (i.e. point masses) in how they are mapped between the snapshots and lightcone coordinate systems. The halo lightcones are therefore built exactly as the particle lightcones and we include halo equivalents of the aforementioned patrticle methods: 
+
+- `gather_halo_catalogues` (the halo equivalent of `gather_files`): identify all halo catalogues required to fill the lightcones redshift range and build the lightcone without reading any haloes from the catalogues, i.e. what tiles each snapshot's haloes will be placed into. The box and cell metadata are read from one snapshot file. Unlike the particles, the SOAP catalogues are not sorted by cells, so unlike for particles no cells are selected.
+- `place_halos_in_shell` (the halo equivalent of `place_file_in_shell`): reads the SOAP catalogues, places every halo into the tiles corresponding to the snapshot (exactly as particles are moved), and only keeps haloes that are within the lightcone. If the lightcone was not pre-built using a dry run (`gather_halo_catalogues`) or from populating it with particles, it runs `gather_halo_catalogues` with the same arguments. The reading of the SOAP catalogues is split into a serial and MPI (parallel) approach as done with the particles. `soap_chunk_size` sets the number of rows in the catalogue read at a time, so only one chunk is in memory at once. With MPI (`comm`), the catalogues are spread over the MPI ranks (as particle files are), and `redistribute_halos` shares the haloes placed evenly between the ranks.
+
+The returned halo lightcones store only the necessary information given by the following properties (same naming scheme as LightconeIO): 
+- `Lightcone/HaloCentre`            the lightcone-frame x,y,z coordinates of the haloes
+- `Lightcone/SnapshotNumber`        the number of the snapshot the haloes belongs to.
+- `InputHalos/HaloCatalogueIndex`   the index of the halo in the original halo finder catalogue that is unique to its snapshot (first halo has index=0).
+- `InputHalos/SOAPIndex`            the index of the halo in its snapshots SOAP catalogue. Note, that this is specific to the catalogues used to build the halo lightcone and will be different for full and downsampled SOAP catalogues.
+- `Lightcone/ExpansionFactor`       the particles scale factor ($`\frac{1}{z+1}`$) at their comoving distance from the observer
+
+With `Lightcone/SnapshotNumber` and `InputHalos/SOAPIndex` the haloes in the lightcone can all be mapped to the haloes correponsding properties stored within the SOAP catalogue. 
 
 </details>
 
@@ -202,6 +215,7 @@ from mpi4py import MPI
 from swiftlet import SnapshotAllSky
 
 snap_all_sky = SnapshotAllSky(
+    simulation_suite="flamingo",
     boxsize_resolution="L1000N1800",
     simulation_name="HYDRO_FIDUCIAL",
     orientation_seed=0,          # reproduces the same box orientations
@@ -229,6 +243,110 @@ for file_number in range(numb_files):
 ```
 
 `SnapshotBeam` is used in the same way, with a `beam_vector` when it is created and the beam's angular radius (`ang_radius_deg`) passed to each of these methods.
+
+</details>
+
+<details>
+<summary><b>Place SOAP haloes into a past lightcone</b></summary>
+
+As an example, to place the haloes from the SOAP catalogues in a beam of radius 5 degrees, sharing the catalogues between the MPI ranks:
+
+```python
+import numpy as np
+from mpi4py import MPI
+from swiftlet import SnapshotBeam
+from swiftlet.soap_reader import read_soap_selected_rows, comoving
+
+soap_format = "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"
+
+snap_beam = SnapshotBeam(
+    simulation_suite="flamingo",
+    boxsize_resolution="L1000N1800",
+    simulation_name="HYDRO_FIDUCIAL",
+    beam_vector=(1., 1., 1.),
+    orientation_seed=0,
+)
+
+# the dry run (optional): the SOAP catalogue and box tiles of each snapshot, no haloes are read
+catalogues = snap_beam.gather_halo_catalogues(soap_format, shell_z=(0.01, 0.1), ang_radius_deg=5.)
+
+halos = snap_beam.place_halos_in_shell(
+    soap_format,
+    lightcone_redshift_range=(0.01, 0.1),
+    ang_radius_deg=5.,
+    soap_chunk_size=2**22,       # rows of a catalogue read at a time
+)
+
+halos["Lightcone/HaloCentre"]           # lightcone positions, with the observer at the origin
+halos["Lightcone/ExpansionFactor"]      # expansion factor at each halo's distance from the observer
+halos["Lightcone/SnapshotNumber"]       # snapshot each halo was taken from
+halos["InputHalos/SOAPIndex"]           # index of each halo in its snapshot's SOAP catalogue
+halos.metadata                          # the settings that made the lightcone
+```
+
+All other properties for the returned haloes can then be read from the SOAP catalogues using each halo's snapshot and index values, e.g. for $`M_{200\mathrm{c}}`$:
+
+```python
+snap_nr = halos["Lightcone/SnapshotNumber"].value.astype(int)
+soap_index = halos["InputHalos/SOAPIndex"].value.astype(int)
+m200c = np.zeros(len(snap_nr))
+for snap in np.unique(snap_nr):
+    in_snap = snap_nr == snap
+    rows, locaiton = np.unique(soap_index[in_snap], return_inverse=True)  # each row read once, in order
+    soap = read_soap_selected_rows(soap_format.format(snap_nr=snap), ["SO/200_crit/TotalMass"], rows)
+    m200c[in_snap] = comoving(soap["SO/200_crit/TotalMass"]).to_value("Msun")[locaiton]
+```
+
+`SnapshotAllSky` is used in the same way, without `beam_vector` or `ang_radius_deg`.
+
+</details>
+
+<a id="flamingo-and-colibre-simulations"></a>
+<details>
+<summary><b>FLAMINGO and COLIBRE simulations</b></summary>
+
+For both FLAMINGO and COLIBRE simulaiton suites, to track a naming conventions, paths to the snapshots and SOAP catalogues and, to map a simulations snapshot number to redshift we have implemented a Snapshot Class.
+Accessing a simulation's snapshot, identifying how a simulation is named and computing the redshift ranges of each snapshot, is done through a `Simulation` object. This way each simulations key information is consistent within the same suite. 
+
+Moreover, lightcones can be built by passing a `Simulation` object instead of manually definging the individul paths for snapshots, SOAP catalogues and snapshot number to redshift conversions as shown below: 
+
+```python
+from swiftlet import Simulation, SnapshotAllSky, SnapshotBeam
+
+flamingo = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")    # the suite is found from the label
+colibre = Simulation.from_label("L0200N1504", "Thermal")
+colibre = Simulation.from_path("/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal")
+
+Snap_AllSky = SnapshotAllSky(colibre, orientation_lock="cube") # build full-sky lightcone object for colibre
+Snap_Beam = SnapshotBeam(flamingo, beam_vector=[0., 0., 1.])  # build a beam lightcone object for flamingo               
+
+colibre.snapshot_file(127)              # .../snapshots/colibre_0127/colibre_0127.0.hdf5
+colibre.snapshot_redshift_range(127)    # redshifts the snapshot fills in a lightcone
+```
+
+Otherwise, `SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL")` still works and makes a `Simulation` object witin `SnapshotAllSky` itself, with `simulation_suite_name="flamingo"` or `"colibre"` for a label that isn't recognised, and `simulation_base_dir_format` for a simulation somewhere else. 
+
+The table below outlines the recognised simualtion suites, names and expected file structures for both COLIBRE and FLAMINGO. 
+
+| | FLAMINGO | COLIBRE |
+|---|---|---|
+| Labels | `L1000N0900`, `L1000N1800`, `L1000N3600`, `L2800N5040` | box size zero padded, e.g. `L0200N1504`, or e.g. `L200m6` |
+| Directory | `/cosma8/data/dp004/flamingo/Runs/<box_res>/<sim_name>` | `/cosma8/data/dp004/colibre/Runs/<box_res>/<sim_name>` |
+| Snapshots | `snapshots/flamingo_XXXX/flamingo_XXXX.N.hdf5` | `snapshots/colibre_XXXX/colibre_XXXX.N.hdf5` |
+| Snapshot redshifts | `flamingo_L1.txt` (`L1000N0900`, `L1000N1800`), `flamingo_L2p8.txt` (`L1000N3600`, `L2800N5040`) | `colibre.txt` |
+
+To use simulations kept somewhere else, set the environmental variables `SWIFTLET_FLAMINGO_DIR` or `SWIFTLET_COLIBRE_DIR` to the directory holding them, each in `<box_res>/<sim_name>`.
+
+The method for converting between snapshot numbers and redshifts is stored in predetermined tables. By default the snapshot redshifts are text files of comma separated values in `swiftlet/data/output_redshifts`, one snapshot per line:
+
+```
+# snapshot_number, redshift
+0, 15.0
+1, 10.38
+...
+```
+
+`read_output_redshifts` reads them. You can provide your own, e.g. for a run with a different output list: `dataclasses.replace(COLIBRE, output_redshift_tables={"*": "/path/to/my_outputs.txt"})` gives a suite using it.
 
 </details>
 
@@ -260,7 +378,7 @@ To use more orientations, write a file of orientation tables and pass it as `ori
 from swiftlet import SnapshotAllSky, write_orientation_tables
 
 write_orientation_tables("orientation_tables.hdf5", seed=0)   # every distinct orientation, 48 x 7^3 = 16464 rows
-SA = SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL", orientation_seed=0, orientation_lock="cube",
+Snap_AllSky = SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL", orientation_seed=0, orientation_lock="cube",
                     orientation_table="orientation_tables.hdf5")
 ```
 
@@ -288,7 +406,7 @@ python3 examples/show_snapshot_orientation_lock.py
 </details>
 
 <details>
-<summary><b>Writing .hdf5 files</b></summary>
+<summary><b>Writing output .hdf5 files</b></summary>
 
 <details>
 <summary><b>HEALPix maps</b></summary>
@@ -334,6 +452,36 @@ L1000N1800/HYDRO_FIDUCIAL/lightcones/
 ```
 
 </details>
+
+<details>
+<summary><b>Halo lightcones</b></summary>
+
+The haloes placed from one snapshot can be written to a `.hdf5` file in the format of the `lightcone_io` (FLAMINGO) halo lightcones, with `write_halo_lightcone_file` of [`swiftlet.snapshot_lightcone`](./swiftlet/snapshot_lightcone.py). The haloes are sorted by HEALPix pixel (the `Index` group) with the `Lightcone` and `InputHalos` datasets and the units used by LightconeIO, and any SOAP properties given are written alongside, so `lightcone_io.halo_reader.HaloLightconeFile` can read the file and look up the rest from SOAP. 
+For example, as given in [`colibre_halo_lightcone_full_sky.py`](./examples/colibre_halo_lightcone_full_sky.py):
+
+```python
+from lightcone_io.halo_reader import HaloLightconeFile
+from swiftlet.soap_reader import write_halo_lightcone_file  
+
+snap = int(snap_nr.max())  # the lowest redshift snapshot
+keep = snap_nr == snap
+snapshot_halos = {name: values[keep] for name, values in halos.items()}
+soap_filename = soap_format.format(snap_nr=snap)
+
+# SOAP properties to write with the haloes, one value per halo
+rows, where = np.unique(soap_index[keep], return_inverse=True)
+is_central = read_soap_selected_rows(soap_filename, ["InputHalos/IsCentral"], rows)["InputHalos/IsCentral"][where]
+
+halo_filename = f"lightcone_halos_{snap:04d}.hdf5"
+write_halo_lightcone_file(halo_filename, snapshot_halos, soap_filename, {"InputHalos/IsCentral": is_central.value}, halos.metadata)
+
+# read it back with lightcone_io, the haloes in a region of the sky, and M200c from SOAP
+halo_file = HaloLightconeFile(halo_filename, soap_filename=soap_filename)
+haloes = halo_file.read_halos_in_radius(
+                            np.array([1., 1., 1.]) / np.sqrt(3.), np.radians(5.),
+                            ["Lightcone/HaloCentre", "Lightcone/Redshift", "InputHalos/IsCentral", "SO/200_crit/TotalMass"]
+                            )
+```
 
 </details>
 
@@ -461,9 +609,13 @@ The [examples](./examples) are named after the data they start from: `snapshot_`
 <details>
 <summary><b>Snapshots, redshifts and units</b></summary>
 
-- `swift_snapshot_redshift_conversion`:
-  - **Snapshot redshifts:** `snapshot_number_redshifts` gives the redshift of FLAMINGO (and COLIBRE) snapshots, or the snapshot at a redshift. `snapshot_redshift_range` gives the redshift range each snapshot covers, and `snapshot_number_in_range` the snapshots whose ranges overlap a redshift range.
-  - **Other:** `flamingo_shell_redshift_file` finds the shell redshift files, downloading them if needed. `flamingo_box_resolution` reads the box and resolution label (e.g. `L1000N1800`) from a path.
+- `simulation_suites`: everything that differs between FLAMINGO and COLIBRE, see [FLAMINGO and COLIBRE simulations](#flamingo-and-colibre-simulations).
+  - **`SimulationSuite`** (`FLAMINGO`, `COLIBRE`): the suite's box size and resolution labels, directory, snapshot file names and output redshift files (`swiftlet/data/output_redshifts`, read with `read_output_redshifts`). `suite_for_label` finds the suite of a label, and `output_redshifts(box_res)` gives its output redshifts when only those are needed.
+  - **`Simulation`**: one simulation. `output_redshifts`, `snapshot_redshift`, `snapshot_number` (the snapshot at a redshift), `snapshot_redshift_range`, `snapshots_in_range` and `z0_snapshot` use its suite's output redshifts.
+- `snapshot_redshifts`: funcitons to return a simulation's output redshifts, with nothing specific to the simulation suite. Each snapshot covers the redshifts between the midpoints to its neighbours, the first and last ending at their own redshifts (`redshift_edges`, `snapshot_redshift_range`). `snapshots_in_range` gives every snapshot whose range overlaps a redshift range. Edges within `range_tol` (1e-9) of the range count as touching it, so floating point noise doesn't decide which snapshots touch the lightcones redshift range. 
+- `snapshot_cosmology`: `SnapshotCosmology`, the cosmology of a FLAMINGO or COLIBRE simulation read from one of its snapshots (`SnapshotCosmology.from_simulation(sim)`, or `from_path` with a snapshot file or directory). `.COSMO` is the astropy w0waCDM of the snapshot's Cosmology group, including its neutrinos (`N_eff`, `N_ur`, and the masses `M_nu_eV` of the massive species with their degeneracies `deg_nu`, mapped to astropy as swiftsimio does), with H0 converted from the code's own time unit using the snapshot's unit registry (`.unit_registry`). It also gives `comoving_distance`, `redshift_with_time_offset`, `shell_comoving_radii` and `lightcone_volume`. The lightcones, `BeamProjection` and `BeamPlot` use it, and wherever they take a cosmology they take a `SnapshotCosmology`, an astropy cosmology or the path of a snapshot (`as_astropy_cosmology`).
+- `flamingo_lightcones`: FLAMINGO's own lightcone products. `flamingo_shell_redshift_file` finds the shell redshift files, downloading them if needed. `flamingo_box_resolution` reads the box and resolution label (e.g. `L1000N1800`) from a path.
+- `soap_reader`: reading SOAP halo catalogues, each reader applies the properties the units `lightcone_io`'s `SOAPCatalogue` gives them. `read_soap_rows` reads a range of rows, `read_soap_in_chunks` the whole catalogue a chunk at a time, `read_soap_selected_rows` only the given rows, and `select_soap_rows` the rows where one property passes a test (e.g. a mass range), reading that property in chunks and the others only for the rows kept. `soap_catalogue_length` gives the number of haloes without reading any, and `comoving` drops the expansion factor from a property's units (e.g. `a*snap_length` to comoving lengths). It also holds the patch letting virgodc (<= 1.0.5) read SOAP units with numpy >= 2.4. `place_halos_in_shell` and the halo zoom examples use it.
 - `snapshot_units`:
   - **Applying units:** `apply_expected_units` gives values the expected units, if they have none. `drop_a_from_comoving_property` gives comoving lengths in snapshot units without the scale factor.
 
