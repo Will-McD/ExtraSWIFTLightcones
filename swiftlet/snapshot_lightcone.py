@@ -3,6 +3,7 @@ import numpy as np
 import os
 import unyt
 import h5py
+import healpy as hp
 from collections import namedtuple
 from scipy.interpolate import CubicSpline
 from scipy.optimize import brentq
@@ -358,12 +359,19 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
               "Index of the halo in the input SOAP catalogue")
         write("InputHalos/HaloCatalogueIndex", haloes["InputHalos/HaloCatalogueIndex"].value.astype(np.int64),
               soap_unit_attributes(soap, "InputHalos/HaloCatalogueIndex"), "Index of the halo in the input halo catalogue")
-        for name, values in properties.items():
-            write(name, np.asarray(values), soap_unit_attributes(soap, name), str(soap[name].attrs.get("Description", name)))
+        
+        if properties is None:
+            lightcone = outfile["Lightcone"]
+            lightcone.attrs["property_names"] = ["Lightcone/HaloCentre", "Lightcone/Redshift", "Lightcone/SnapshotNumber",
+                                                 "InputHalos/SOAPIndex", "InputHalos/HaloCatalogueIndex"]
+        else:
+            for name, values in properties.items():
+                write(name, np.asarray(values), soap_unit_attributes(soap, name), str(soap[name].attrs.get("Description", name)))
 
-        lightcone = outfile["Lightcone"]
-        lightcone.attrs["property_names"] = ["Lightcone/HaloCentre", "Lightcone/Redshift", "Lightcone/SnapshotNumber",
-                                             "InputHalos/SOAPIndex", "InputHalos/HaloCatalogueIndex", *properties]
+            lightcone = outfile["Lightcone"]
+            lightcone.attrs["property_names"] = ["Lightcone/HaloCentre", "Lightcone/Redshift", "Lightcone/SnapshotNumber",
+                                                 "InputHalos/SOAPIndex", "InputHalos/HaloCatalogueIndex", *properties]
+
         write_lightcone_metadata(lightcone, metadata)
 
 

@@ -12,6 +12,7 @@ import re
 import h5py
 import numpy as np
 import unyt
+import astropy.units as astropy_units
 from astropy.cosmology import FLRW, w0waCDM, z_at_value
 
 from . import snapshot_units as sw_units
@@ -118,8 +119,10 @@ class SnapshotCosmology:
         if missing:
             raise KeyError(f"{self.snapshot_filename}: Cosmology has no {missing}")
 
+
         self.COSMO = w0waCDM(
-            H0=self.Hubble_const.to_astropy(),
+            # in km/s per the snapshot's megaparsec, which is astropy's
+            H0=self.Hubble_const.to_value("km/s/swift_mpc") * astropy_units.km / astropy_units.s / astropy_units.Mpc,
             Om0=self.cosmology["Omega_m"],  # Omega_m in SWIFT = cold dark matter and baryons, without the massive neutrinos
             Ode0=self.cosmology["Omega_lambda"],
             Ob0=self.cosmology["Omega_b"],
@@ -127,7 +130,7 @@ class SnapshotCosmology:
             wa=self.cosmology["w_a"],
             Tcmb0=unyt.unyt_quantity(self.cosmology["T_CMB_0 [K]"], "K").to_astropy(),
             Neff=self.cosmology.get("N_eff", 3.04),
-            m_nu=unyt.unyt_array(neutrino_masses(self.cosmology), units=unyt.eV).to_astropy(),
+            m_nu=neutrino_masses(self.cosmology) * astropy_units.eV,
         )
 
     @classmethod
@@ -165,7 +168,7 @@ class SnapshotCosmology:
         Hubble constant H0, unyt_quantity [km/s/Mpc], converted from the code's time unit.
         """
         h0 = unyt.unyt_quantity(self.cosmology["H0 [internal units]"], "1/code_time", registry=self.unit_registry)
-        return h0.to("km/s/Mpc")
+        return h0.to("km/s/swift_mpc")
 
     def parameter(self, name):
         """
@@ -199,8 +202,9 @@ class SnapshotCosmology:
         :param  dt: time before z [Myr], or a unyt quantity of time
         :type   dt: float or unyt.unyt_quantity
         """
+        
         dt = sw_units.apply_expected_units(dt, unyt.Myr)
-        earlier = self.age(z) - dt
+        earlier = unyt.unyt_array.from_astropy(self.COSMO.age(z)).to("Myr") - dt
         return float(z_at_value(self.COSMO.age, earlier.to_astropy()).value)
 
     def shell_comoving_radii(self, redshift_filename):

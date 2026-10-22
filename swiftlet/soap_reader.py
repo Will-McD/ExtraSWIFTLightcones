@@ -5,7 +5,6 @@ import h5py
 import numpy as np
 import unyt
 import virgo.formats.swift as virgo_swift
-import healpy as hp
 
 """
 Functions for reading SOAP halo catalogues, in serial, with h5py.

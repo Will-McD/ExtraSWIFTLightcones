@@ -40,12 +40,22 @@ def gather_snapshot_haloes(halos, properties, snap_nr):
     """
     keep = halos["Lightcone/SnapshotNumber"].value.astype(int) == snap_nr
     local_halos = {name: values[keep] for name, values in halos.items()}
-    local_properties = {name: np.asarray(values)[keep] for name, values in properties.items()}
-    all_halos, all_properties = comm.gather(local_halos), comm.gather(local_properties)
+    if properties is not None:
+        local_properties = {name: np.asarray(values)[keep] for name, values in properties.items()}
+        
+        all_halos, all_properties = comm.gather(local_halos), comm.gather(local_properties)
+    else:
+        all_halos = comm.gather(local_halos)
+
     if comm_rank != 0:
         return None, None
+    
     halos_out = {name: unyt.uconcatenate([rank[name] for rank in all_halos]) for name in local_halos}
-    properties_out = {name: np.concatenate([rank[name] for rank in all_properties]) for name in local_properties}
+    
+    if properties is not None:
+        properties_out = {name: np.concatenate([rank[name] for rank in all_properties]) for name in local_properties}
+    else:
+        properties_out=None
     return halos_out, properties_out
 
 
@@ -81,12 +91,11 @@ if __name__ == "__main__":
     # write the haloes of the lowest redshift snapshot to a in a lightcone_io halo lightcone file
     local_snapshots = halos["Lightcone/SnapshotNumber"].value.astype(int)
     lowest_z_snapshot = comm.allreduce(int(local_snapshots.max()) if len(local_snapshots) else -1, op=MPI.MAX)
-    snapshot_halos, snapshot_properties = gather_snapshot_haloes(halos, {CENTRAL_PROPERTY: properties[CENTRAL_PROPERTY]},
-                                                                 lowest_z_snapshot)
+    snapshot_halos, snapshot_properties = gather_snapshot_haloes(halos, None,lowest_z_snapshot)
     if comm_rank == 0:
         output_filename = f"{args.output_dir}/lightcone_halos_{lowest_z_snapshot:04d}.hdf5"
         write_halo_lightcone_file(output_filename, snapshot_halos, soap_format.format(snap_nr=lowest_z_snapshot),
                                   snapshot_properties, halos.metadata)
-    message(comm_rank, f"{len(snapshot_halos['Lightcone/SnapshotNumber'])} haloes of snapshot {lowest_z_snapshot} written to {output_filename}")
+        message(comm_rank, f"{len(snapshot_halos['Lightcone/SnapshotNumber'])} haloes of snapshot {lowest_z_snapshot} written to {output_filename}")
 
     message(comm_rank, "\nDONE :)\n")
