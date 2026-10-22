@@ -53,7 +53,7 @@ jobs:
 
     - name: Check the package imports
       run: |
-        python -c "import swiftlet.snapshot_lightcone, swiftlet.snapshot_orientation, swiftlet.snapshot_units"
+        python -c "import swiftlet.snapshot_lightcone, swiftlet.snapshot_orientation, swiftlet.snapshot_units, swiftlet.soap_reader, swiftlet.snapshot_cosmology, swiftlet.simulation_suites, swiftlet.snapshot_redshifts"
 
     - name: Test with pytest
       env:

@@ -674,6 +674,8 @@ Add `-v` to list every test case, `-x` to stop at the first failure, `--duration
 | `test_init.py` | the public classes and functions are imported from the package when first used, and importing the package doesn't load the modules that need MPI |
 | `test_orientation_tables.py` | the default orientation tables, generating tables with every distinct orientation, and writing, reading and checking table files |
 | `test_snapshot_lightcone_placement.py` | where `SnapshotBeam` and `SnapshotAllSky` place particles and haloes |
+| `test_cosmology.py` | `SnapshotCosmology` read from fake FLAMINGO and COLIBRE snapshots: H0 from the code units, the cosmological parameters, the neutrinos (checked against swiftsimio), distances, volumes and shells, finding the snapshot files, and the lightcones taking any cosmology |
+
 
 Note the lightcone placement tests are very extensive and can take a while (order of 20 minutes) to complete. Below is a list of the various tests within `test_snapshot_lightcone_placement.py`: 
 
