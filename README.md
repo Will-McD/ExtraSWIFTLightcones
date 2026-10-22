@@ -486,6 +486,7 @@ haloes = halo_file.read_halos_in_radius(
 </details>
 
 </details>
+</details>
 
 ---
 
