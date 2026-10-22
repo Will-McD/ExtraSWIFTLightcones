@@ -24,8 +24,7 @@ module load gnu_comp/14.1.0 openmpi/5.0.3
 module load python/3.12.4
 
 # virtual environment made with venv_scripts/make_cosma_env.sh
-#source "/cosma/apps/dp004/${USER}/swiftlet_env/bin/activate"
-source /cosma/apps/do012/dc-mcdo1/swiftlet_env2/bin/activate
+source "/cosma/apps/dp004/${USER}/swiftlet_env/bin/activate"
 
 # use the cores given to the job for the numba threads
 export SWIFTLET_MAX_THREADS=${SLURM_CPUS_PER_TASK}

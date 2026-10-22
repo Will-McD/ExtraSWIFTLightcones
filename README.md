@@ -675,9 +675,12 @@ Add `-v` to list every test case, `-x` to stop at the first failure, `--duration
 | `test_orientation_tables.py` | the default orientation tables, generating tables with every distinct orientation, and writing, reading and checking table files |
 | `test_snapshot_lightcone_placement.py` | where `SnapshotBeam` and `SnapshotAllSky` place particles and haloes |
 | `test_snapshot_cosmology.py` | `SnapshotCosmology` read from fake FLAMINGO and COLIBRE snapshots: H0 from the code units, the cosmological parameters, the neutrinos (checked against swiftsimio), distances, volumes and shells, finding the snapshot files, and the lightcones taking any cosmology |
+| `test_snapshot_redshifts.py` | the redshift range each snapshot covers, and `snapshots_in_range` giving every snapshot overlapping a redshift range and the tolerance, for the FLAMINGO and COLIBRE output redshifts |
 | `test_simulation_suites.py` | each simulation's paths and snapshot redshifts come from its suite, FLAMINGO or COLIBRE. Make a `Simulation` object from its label or path, finding the suite of a label, the directories (including `SWIFTLET_FLAMINGO_DIR` and `SWIFTLET_COLIBRE_DIR`), the output redshift files, and the lightcone classes taking a `Simulation` or a label and name |
+| `test_soap_reader.py` | the SOAP readers of `swiftlet.soap_reader` give the same rows and units whether reading a in chunks or selecting rows by a property, and correctly drops the expansion factor |
 
-Note the lightcone placement tests are very extensive and can take a while (order of 20 minutes) to complete. Below is a list of the various tests within `test_snapshot_lightcone_placement.py`: 
+
+Note the lightcone placement tests are very extensive and can take a while (order of 30 minutes) to complete. Below is a list of the various tests within `test_snapshot_lightcone_placement.py`: 
 
 - with a `"cube"` or `"sphere"` lock, a beam is exactly the part of the all-sky lightcone inside its cone;
 - particles on a uniform lattice are placed exactly once and the reconstructed lattice in the lightcone has no gaps or overlaps between them;
@@ -687,6 +690,9 @@ Note the lightcone placement tests are very extensive and can take a while (orde
 - re-orienting points on cell faces keeps them on cell faces.
 - an all-sky lightcone out to half a box length places every snapshot particle within it at its box position less half a box length, as the observer's box tile is not re-oriented;
 - haloes placed from SOAP catalogues end up exactly where particles at the same positions in the snapshots are placed, including haloes on cell faces;
+- the haloes placed are the same, in the same order, whether the SOAP catalogues are read whole or in chunks, and with MPI (on 1, 2 and 3 ranks, also with `redistribute_halos`) the same as in serial;
+- the halo dry run (`gather_halo_catalogues`) reads no haloes and the cell metadata of one snapshot only, and `place_halos_in_shell` reuses it, reading only the catalogues it found; with no snapshot in the shell no halo is placed;
+- `SnapshotBeam` needs an angular radius and `SnapshotAllSky` takes none, so arguments given by position in a beam's order are caught;
 - without the `"sphere"` lock, no particle or halo is placed twice in the same box tile, and across the lightcone none are placed more often than the number of tiles its snapshot fills.
 - the shortest distance between particles placed into the lightcone from the same tile is the same as in the snapshot, so each tile is the box moved as a whole;
 - the `ExpansionFactors` of the particles and haloes placed are 1 / (1 + z) at their comoving distance, with z found independently;
@@ -702,7 +708,7 @@ pytest tests/test_snapshot_lightcone_placement.py -k lattice_over_many_tiles --f
 ```
 
 
-The MPI test, `test_mpi_matches_serial`, runs [`mpi_place_particles.py`](./tests/mpi_place_particles.py) with `mpiexec -n 2` and `-n 3`. It uses the `mpiexec` next to the Python executable (where the `mpich` wheel installs it) if there is one, otherwise the one on the `PATH`, and is skipped if there is none or mpi4py can't be imported. The `mpiexec` must belong to the MPI library mpi4py was built with. On a cluster, run it on a compute node (e.g. in an interactive `salloc` or `srun` session), as login nodes may not allow `mpiexec`.
+The MPI tests, `test_mpi_matches_serial` and `test_mpi_haloes_match_serial`, runs [`mpi_place_particles.py`](./tests/mpi_place_particles.py) and [`mpi_place_halos.py`](./tests/mpi_place_halos.py) with `mpiexec -n 2` and `-n 3`. They use the `mpiexec` next to the Python executable (where the `mpich` wheel installs it) if there is one, otherwise the one on the `PATH`, and are skipped if there is none or mpi4py can't be imported. The `mpiexec` must belong to the MPI library mpi4py was built with. On a cluster, run them on a compute node (e.g. in an interactive `salloc` or `srun` session), as login nodes may not allow `mpiexec`.
 
 </details>
 
