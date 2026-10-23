@@ -10,7 +10,6 @@ import lightcone_io.kernel as kernel
 import virgo.mpi.parallel_hdf5 as phdf5
 from swiftlet.snapshot_lightcone import SnapshotAllSky, write_lightcone_metadata
 
-
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
@@ -243,3 +242,4 @@ if __name__ == "__main__":
         plot_filename = output_filename.replace(".hdf5", ".png")
         plot_map(output_filename, "SmoothedGasMass", plot_filename)
         message(f"Map plot saved as: {plot_filename}")
+

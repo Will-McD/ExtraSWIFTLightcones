@@ -11,7 +11,10 @@ import matplotlib.patheffects as pe
 import matplotlib as mpl
 import cmasher as cmr # noqa: F401 register "cmr.*" colour maps used
 from lightcone_io.units import units_from_attributes
-from swiftlet import swift_snapshot_redshift_conversion as nz
+from swiftlet.simulation_suites import output_redshifts
+from swiftlet.snapshot_redshifts import snapshot_redshift_range
+from swiftlet.flamingo_lightcones import flamingo_shell_redshift_file
+
 from pathlib import Path
 import hdfstream
 
@@ -23,16 +26,17 @@ pixel the halos centre of mass is found in and then making an image
 using a Gnomonic projection. 
 
 
-Note 1) This example uses Nside 16384 maps read from the remote comsa6 server, 
-to reduce memory required change nside_output to 4096. 
+Notes:
+    1) This example uses Nside 16384 maps read from the remote comsa6 server, 
+        to reduce memory required change nside_output to 4096. 
 
-Note 2) The centre of the zoomed image is on the halo lightcones "HaloCentre" values
-and/or the centre of the pixel containing that HaloCentre (depending on if centre_vector is passed to the plotting function). 
-The centre of the halo is not necesarily where it will appear to be brightest or most dense. 
+    2) The centre of the zoomed image is on the halo lightcones "HaloCentre" values
+        and/or the centre of the pixel containing that HaloCentre. 
+        The centre of the halo is not necesarily where it will appear to be brightest or most dense. 
 
-Note 3) The selected halo can be split across multiple redshift shells. If the halo doesn't apprear 
-in the loaded map you may have to change how the shell number used to select the HEALPix map if 
-the halo is near the edge of a lightcones redshift shell. 
+    3) The selected halo can be split across multiple redshift shells. If the halo doesn't apprear 
+        in the loaded map you may have to change how the shell number used to select the HEALPix map if 
+        the halo is near the edge of a lightcones redshift shell. 
 """
 
 def plot_settings():
@@ -297,7 +301,7 @@ def find_haloes_in_shell(halo_format, soap_format, shell_redshift_range, centre_
     overlapping = []
     for snap_nr in range(0, 1000):
         try:
-            snap_z_min, snap_z_max = nz.snapshot_redshift_range(snap_nr, boxsize_resolution)
+            snap_z_min, snap_z_max = snapshot_redshift_range(output_redshifts(boxsize_resolution), snap_nr)
         except (IndexError, KeyError, ValueError):
             break  # past the last snapshot
         last_snap_nr = snap_nr
@@ -655,7 +659,7 @@ if __name__ == "__main__":
     basename="lightcone{lightcone_nr}".format(lightcone_nr=lightcone_nr)
 
     # redshift range of selected shell
-    shell_redshift_range = np.loadtxt(nz.flamingo_shell_redshift_file('L1'), delimiter=",")[shell_nr]
+    shell_redshift_range = np.loadtxt(flamingo_shell_redshift_file('L1'), delimiter=",")[shell_nr]
 
     # halo lightcone and SOAP catalogue of each snapshot. 
     halo_format = basedir+"/halo_lightcone/lightcone{lc_nr}/lightcone_halos_{{snap_nr:04d}}.hdf5".format(lc_nr=lightcone_nr)

@@ -35,10 +35,6 @@ The count in each bin is compared with the number expected from the snapshot's m
 Rank 0 writes the counts of every seed to a comma separated .txt file, one row per (seed, bin).
 """
 
-# number of iterations 
-N_SEEDS_DEFAULT = 10
-
-
 def seed_row_vals(seed, edges, counts, expected, mean_density):
     """
     Rows of the .txt file for one orientation seed, one per bin of comoving distance.
@@ -72,7 +68,6 @@ def seed_row_vals(seed, edges, counts, expected, mean_density):
         for b in range(len(counts))]
     return row
 
-
 def read_density_file(filename):
     """
     Read the .txt file written by this example.
@@ -87,7 +82,6 @@ def read_density_file(filename):
     settings = dict(item.strip().split("=", 1) for item in comment.split(";") if "=" in item)
     data = np.genfromtxt(filename, delimiter=",", names=True, skip_header=1, dtype=None, encoding=None)
     return settings, data
-
 
 def plot_seed_densities(filenames, output_filename):
     """
@@ -132,7 +126,6 @@ def plot_seed_densities(filenames, output_filename):
     plt.savefig(output_filename, dpi=200, bbox_inches="tight")
     plt.close()
 
-
 def snapshot_mean_number_density(simulation, ptype="PartType1"):
     """
     Mean number density of a particle type in a whole snapshot. 
@@ -155,7 +148,6 @@ def snapshot_mean_number_density(simulation, ptype="PartType1"):
         boxsize = unyt.unyt_array(np.asarray(header["BoxSize"], dtype=float) * length_cgs, "cm").to_value("Mpc")
     return nr_part / np.prod(np.broadcast_to(boxsize, (3,))), nr_part
 
-
 def equal_volume_edges(r_min, r_max, nr_bins):
     """
     Edges of the comoving distance bins, that are all equal in volume. 
@@ -171,7 +163,6 @@ def equal_volume_edges(r_min, r_max, nr_bins):
     :type   nr_bins:    int
     """
     return np.cbrt(np.linspace(r_min**3, r_max**3, nr_bins + 1))
-
 
 def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radius_deg, ptype="PartType1"):
     """
@@ -283,13 +274,11 @@ if __name__ == "__main__":
     parser.add_argument("--zmin", type=float, default=0.0, help="minimum redshift")
     parser.add_argument("--zmax", type=float, default=0.15, help="maximum redshift")
     parser.add_argument("--nr_bins", type=int, default=25, help="number of bins of comoving distance, of equal volume")
-    parser.add_argument("--nr_seeds", type=int, default=N_SEEDS_DEFAULT, help="number of orientation seeds")
+    parser.add_argument("--nr_seeds", type=int, default=10, help="number of orientation seeds, i.e. number of iterations")
     parser.add_argument("--first_seed", type=int, default=0, help="first orientation seed")
-    parser.add_argument("--orientation_lock", default="cube", choices=["none", "cube", "sphere"],
-                        help="orientation lock of the box tiles")
+    parser.add_argument("--orientation_lock", default="cube", choices=["none", "cube", "sphere"], help="orientation lock of the box tiles")
     parser.add_argument("--output_dir", default="./example_outputs/number_density_seeds", help="output directory")
-    parser.add_argument("--plot_files", nargs="+", default=None,
-                        help="only plot these files written by this example, side by side")
+    parser.add_argument("--plot_files", nargs="+", default=None, help="only plot these files written by this example, side by side")
     parser.add_argument("--plot_output", default=None, help="plot to write, by default next to the first file")
     args = parser.parse_args()
     

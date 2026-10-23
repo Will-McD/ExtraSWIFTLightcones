@@ -291,6 +291,15 @@ def gnomonic_zoom(pix_values, selected_pix, nside, centre_vector, zoom_angle, di
     image = gnom.projmap(np.append(np.asarray(pix_values, dtype=np.float64), np.nan), vec2index)
     return image, np.asarray(gnom.get_extent()) * distance
 
+def rescale_temperature_to_lightcone_redshift(Temp_snap, z_snap, z_lc):
+    """
+    Approximate the gas temperature at the lightcone redshift (z_lc)
+    given the particle's actual temperature at its snapshot redshift (z_snap).
+
+    Assume purely adiabatic evolution over the gap between the
+    snapshot and lightcone redshift. 
+    """
+    return Temp_snap * ((1.0 + z_lc) / (1.0 + z_snap)) ** 2
 
 def halo_maps(beam_particles, nside, beam_pix, distance):
     """

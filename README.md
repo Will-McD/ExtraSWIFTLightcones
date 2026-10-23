@@ -365,7 +365,7 @@ The total number of unique orientations or snapshot box structures is $`N_{\math
 For a SWIFT simulation with a cosmological volume subdivided into $`32\times32\times32`$ cells, there are 16464 possible unique tiles, all of which are used with orientation tables made by `write_orientation_tables`. The default tables use 79 of them. 
 
 Which shift, reflection and rotation a tile gets is set by its position and the random number seed `orientation_seed`, so a lightcone can be reproduced exactly.
-[`show_snapshot_tile_reorientation.py`](./examples/show_snapshot_tile_reorientation.py) builds a diagram of how the cells of a box are moved by each step:
+[`snapshot_tile_reorientation_diagram.py`](./examples/snapshot_tile_reorientation_diagram.py) builds a diagram of how the cells of a box are moved by each step:
 
 ```
 python3 examples/show_snapshot_tile_reorientation.py
@@ -397,7 +397,7 @@ The `orientation_lock` parameter of `SnapshotLightcone` (and subclasses) sets wh
 
 Within a locked shell, the tiles are periodically continuous, so structures continue across the faces between them. With the `"cube"` or `"sphere"` lock and the same `orientation_seed`, a beam from `SnapshotBeam` is exactly the same as the matching patch of the `SnapshotAllSky` lightcone, whichever way it points. Without a lock, this is not the case.
 
-The diagram made by [`show_snapshot_orientation_lock.py`](./examples/show_snapshot_orientation_lock.py) shows which box tiles share an orientations for each lock, for an all-sky lightcone and for beams on and off the box axes:
+The diagram made by [`snapshot_orientation_lock_diagram.py`](./examples/snapshot_orientation_lock_diagram.py) shows which box tiles share an orientations for each lock, for an all-sky lightcone and for beams on and off the box axes:
 
 ```
 python3 examples/show_snapshot_orientation_lock.py
@@ -590,8 +590,11 @@ The [examples](./examples) are named after the data they start from: `snapshot_`
 | `integrated_lightcone_map.py` | integrates the rotated FLAMINGO HEALPix shell maps over a redshift range |
 | `map_zoom_on_halo.py` | reads only the pixels of a HEALPix map around a halo and images them with a gnomonic projection |
 | `snapshot_beam_zoom_on_haloes.py / .sh` | The same as above but using `SnapshotBeam` to build lightcone beams centred on a halo |
-| `show_snapshot_tile_reorientation.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
-| `show_snapshot_orientation_lock.py` | shows which box tiles share an orientation for each `orientation_lock`, for all-sky and on and off axis beams |
+| `snapshot_tile_reorientation_diagram.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
+| `snapshot_orientation_lock_diagram.py` | shows which box tiles share an orientation for each `orientation_lock`, for all-sky and on and off axis beams |
+| `snapshot_number_density_seeds.py` / `.sh` | Comapre the dark matter number density of snapshot full sky lightcones against the expected number density of the snapshot box,  in comoving distance bins of equal volume. The comparison is done for 10 orientation seeds with `orientation_lock="cube"`, for FLAMINGO (L1_m9) and COLIBRE (L400_m7), both for 0 < z <= 0.15. Run with `--plot_files`, it plots the two side by side: every seed, their mean and scatter, and the Poisson uncertainty of one seed. The job script runs both and the plot |
+| `make_colibre_halo_lightcone.py` / `.sh` | make a full sky halo lightcone of COLIBRE (L400_m7) for 0.001 < z < 0.1 and then write a catalogue of the haloes from the lowest redshift snapshot in the format of the `lightcone_io` halo lightcones (i.e. can be read with `lightcone_io.halo_reader.HaloLightconeFile`) |
+
 
 </details>
 
@@ -723,7 +726,7 @@ The MPI tests, `test_mpi_matches_serial` and `test_mpi_haloes_match_serial`, run
 
 </summary>
 
-We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing parts of this module, which included  most of the test suite (`tests/`), the documentation (the doc-strings and this `README.md` file), configuration code (`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`) and the diagram examples (`examples/show_snapshot_tile_reorientation.py` and `examples/show_snapshot_orientation_lock.py`). 
+We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing (and formatting) the documentation (the doc-strings and markdown documents, this `README.md` file included), the test suite (`tests/`), the general set-up scripts (`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`), the diagram examples (`examples/snapshot_tile_reorientation_diagram.py`, `examples/snapshot_orientation_lock_diagram.py` and `docs/snapshot_lightcone_flow.md`) and the placement examples (`examples/snapshot_beam_halo_placement.py`, `examples/snapshot_beam_particle_placement.py` and `examples/snapshot_number_density_seeds.py`). 
 All use of AI was supervised and any contribution to this module was first vetted by humans.
 
 </details>

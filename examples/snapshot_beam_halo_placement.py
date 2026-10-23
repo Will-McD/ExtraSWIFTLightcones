@@ -1,9 +1,9 @@
 #!/bin/env python
 import numpy as np
 from swiftlet.snapshot_lightcone import SnapshotBeam
-from swiftlet.swift_snapshot_redshift_conversion import flamingo_shell_redshift_file
+from swiftlet.flamingo_lightcones import flamingo_shell_redshift_file
 from pathlib import Path
-from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
+from swiftlet.cosmology import SnapshotCosmology
 
 import lightcone_io.halo_catalogue as hc
 import matplotlib.pyplot as plt
@@ -118,8 +118,8 @@ def plot_halos_in_beam_3panel(angular_radius_deg, z_min, z_max, cosmo,
     :type   show:               boolean
     """
     half_angle = np.deg2rad(angular_radius_deg)
-    chi_near = cosmo.z2r(z_min).to_value("Mpc")
-    chi_far = cosmo.z2r(z_max).to_value("Mpc")
+    chi_near = cosmo.comoving_distance(z_min).to_value("Mpc")
+    chi_far = cosmo.comoving_distance(z_max).to_value("Mpc")
 
     # only the haloes with a mass, drawn from low to high mass so the most massive are on top
     has_mass = halo_mass > 0
@@ -232,7 +232,7 @@ if __name__ == "__main__":
 
         base_dir = f"/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}"
         snapshot_dir = f"{base_dir}/snapshots"
-        plot_cosmo = Snapshot_Cosmology_For_Lightcone(snapshot_dir)
+        plot_cosmo = SnapshotCosmology.from_path(snapshot_dir)
         
         # look up the mass of each halo in the SOAP catalogue of its snapshot
         halo_mass = lookup_soap_property(halo_format, snap_numbers, halo_index, MASS_PROPERTY).to_value("Msun")

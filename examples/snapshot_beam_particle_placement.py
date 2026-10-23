@@ -5,8 +5,7 @@ import matplotlib as mpl
 import matplotlib.layout_engine
 import matplotlib.pyplot as plt
 from pathlib import Path
-from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
-
+from swiftlet.cosmology import SnapshotCosmology
 from swiftlet.snapshot_lightcone import SnapshotBeam
 
 
@@ -131,8 +130,8 @@ def in_lightcone(coords, angular_radius_deg, z_min, z_max, cosmo, buffer_length=
 
     half_angle = np.deg2rad(angular_radius_deg)
 
-    chi_inner = cosmo.z2r(z_min).to_value("Mpc")
-    chi_outer = cosmo.z2r(z_max).to_value("Mpc")
+    chi_inner = cosmo.comoving_distance(z_min).to_value("Mpc")
+    chi_outer = cosmo.comoving_distance(z_max).to_value("Mpc")
     r = np.sqrt(coords[:, 0]**2 + coords[:, 1]**2 + coords[:, 2]**2) # distance from observer
     #r_perp = np.sqrt(coords[:, 0]**2 + coords[:, 1]**2)  # transverse offset from the axis
     
@@ -283,8 +282,8 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
 
         if angular_radius_deg>=180:
             r = np.linalg.norm(coords, axis=1)
-            chi_inner = cosmo.z2r(z_min).to_value("Mpc")
-            chi_outer = cosmo.z2r(z_max).to_value("Mpc")
+            chi_inner = cosmo.comoving_distance(z_min).to_value("Mpc")
+            chi_outer = cosmo.comoving_distance(z_max).to_value("Mpc")
             inside_strict = (r >= chi_inner - coords_buffer) & (r <= chi_outer + coords_buffer)
             edge = (r==chi_inner) | (r==chi_outer)
         
@@ -298,8 +297,8 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
             axis_arr = np.asarray(beam_vector, dtype=float)
             axis_arr = axis_arr / np.linalg.norm(axis_arr)
             half_angle = np.deg2rad(angular_radius_deg)
-            chi_near = cosmo.z2r(z_min).to_value("Mpc")
-            chi_far = cosmo.z2r(z_max).to_value("Mpc")
+            chi_near = cosmo.comoving_distance(z_min).to_value("Mpc")
+            chi_far = cosmo.comoving_distance(z_max).to_value("Mpc")
 
             r = np.linalg.norm(coords, axis=1)
             along_axis = coords @ axis_arr
@@ -576,8 +575,8 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
             plot_status_points_or_contours(ax, test_coords[:, 0], test_coords[:, 1], status)
 
     half_angle = np.deg2rad(angular_radius_deg)
-    chi_near = cosmo.z2r(z_min).to_value("Mpc")
-    chi_far = cosmo.z2r(z_max).to_value("Mpc")
+    chi_near = cosmo.comoving_distance(z_min).to_value("Mpc")
+    chi_far = cosmo.comoving_distance(z_max).to_value("Mpc")
 
     if axes is None:
         fig = plt.figure(figsize=figsize, layout="constrained")
@@ -755,7 +754,7 @@ if __name__ == "__main__":
     # number of snapshot files to read before combining their particles
     files_per_chunk = 8
 
-    plot_cosmo=Snapshot_Cosmology_For_Lightcone("{base_dir}/snapshots".format(base_dir=base_dir))
+    plot_cosmo=SnapshotCosmology.from_path("{base_dir}/snapshots".format(base_dir=base_dir))
 
     for beam_vector in beam_vectors:
         print(f"\nbeam direction: {beam_vector}")
