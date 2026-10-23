@@ -326,7 +326,7 @@ class BeamProjection:
         self.axes_extent = list(self._projection_region)
         self.axis_buffer=axis_boundaries_buffer
 
-    def project_properties(self, project_particle_properties, snapshot_filename=None, resolution=1024, assign_units=None, ptype="Gas", periodic=True, parallel=False, weight=None):
+    def project_properties(self, project_particle_properties, snapshot_filename=None, resolution=1024, assign_units=None, ptype="Gas", periodic=False, parallel=False, weight=None):
         
         """
         Project the selected properties for a given particle type. Without a weight these projections are surface densities. 

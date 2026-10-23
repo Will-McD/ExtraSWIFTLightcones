@@ -3,9 +3,11 @@ import numpy as np
 import unyt
 import matplotlib.pyplot as plt
 from pathlib import Path
-
+import re
+from swiftlet.simulation_suites import Simulation
 from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.lightcone_projections import BeamProjection
+
 
 """
 Use SnapshotBeam to build a beam through a past lightcone of gas particles from the snapshots of the
@@ -59,16 +61,15 @@ def beam_properties(particle_data, property_names, ptype):
     return {prop: unyt.unyt_array(particle_data[prop].to_value(PROPERTY_UNITS[prop]), PROPERTY_UNITS[prop]) for prop in property_names}
 
 
-def beam_projection_lock_comparison(box_res, sim_name, snapshot_filename, beam_vector, ang_radius_deg, redshift_range,
+def beam_projection_lock_comparison(sim_object, snapshot_filename, beam_vector, ang_radius_deg, redshift_range,
                                     orientation_locks, slice_thickness, resolution, output_filename):
     """
     Build a beam of gas particles from the snapshots with SnapshotBeam for each orientation lock, project a slice
     through each beam with BeamProjection, and plot the gas surface densities one above the other.
 
-    :param  box_res:            box size and resolution label, e.g. "L1000N0900" (FLAMINGO) or "L0400N3008" (COLIBRE)
-    :type   box_res:            str
-    :param  sim_name:           name of the simulation, e.g. "HYDRO_FIDUCIAL"
-    :type   sim_name:           str
+
+    :param  sim_object:         The simulation to build a beam from  
+    :type   sim_object:         Simulation Class Object of swiftlet
     :param  snapshot_filename:  snapshot used for its metadata when projecting
     :type   snapshot_filename:  str
     :param  beam_vector:        direction of the beam
@@ -94,8 +95,7 @@ def beam_projection_lock_comparison(box_res, sim_name, snapshot_filename, beam_v
         print(f"\n{lock_title}")
 
         # build the pencil beam from the snapshots, for the gas particles
-        SB = SnapshotBeam(boxsize_resolution=box_res, simulation_name=sim_name, beam_vector=beam_vector, verbose=1,
-                          orientation_lock=orientation_lock)
+        SB = SnapshotBeam(simulation_object = sim_object, beam_vector=beam_vector, verbose=1, orientation_lock=orientation_lock)
 
         # Coordinates (and SmoothingLengths for gas) are always read, and ExpansionFactors are computed
         # from the position of each particle in the beam, so only the masses need to be requested
@@ -108,6 +108,7 @@ def beam_projection_lock_comparison(box_res, sim_name, snapshot_filename, beam_v
         gas_particle_data = beam_properties(beam_particles["PartType0"], gas_property_names, "PartType0")
         del beam_particles
         print(f"\n{len(gas_particle_data['Masses'])} gas particles in the beam\n")
+
         # project a slice through the beam, using the cosmology of the snapshots
         BP = BeamProjection(
             vector=beam_vector,
@@ -115,11 +116,11 @@ def beam_projection_lock_comparison(box_res, sim_name, snapshot_filename, beam_v
             redshift_range=redshift_range,
             slice_thickness=slice_thickness,
             cosmology=SB.cosmo,
-            store_snapshot_filename=snapshot_filename,
+            store_snapshot_filename=re.sub(r"\.0\.hdf5$", ".hdf5", snapshot_filename),
             )
         BP.place_particles_in_slice(gas_particle_data, gas_property_names)
         del gas_particle_data
-        gas_surface_density = BP.project_properties(["Masses"], ptype="Gas", assign_units=["Msun"], resolution=resolution)[0].to_value("Msun/Mpc**2")
+        gas_surface_density = BP.project_properties(["Masses"], ptype="Gas", assign_units=["Msun"], resolution=resolution, periodic=False)[0].to_value("Msun/Mpc**2")
         gas_surface_densities_per_locking.append(gas_surface_density)
 
     # compare the total surface density for each orientation lock, on one colour scale
@@ -140,34 +141,72 @@ def beam_projection_lock_comparison(box_res, sim_name, snapshot_filename, beam_v
     print(f"Orientation lock comparison saved as: {output_filename}")
 
 
-if __name__ == "__main__":
+def main_flamingo(simulation_object, output_dir):
 
-    # simulation to use
-    box_res = "L1000N0900"
-    sim_name = "HYDRO_FIDUCIAL"
-    base_dir = "/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}".format(box_res=box_res, sim_name=sim_name)
-
-    # snapshot used for its metadata when projecting
-    snapshot_filename = "{base_dir}/snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.hdf5".format(base_dir=base_dir, snap_nr=77)
-
-    # define output directory
-    output_dir = "./example_outputs/snapshot_beam_projection"
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    # snapshot used for its metadata when projecting, the redshift 0 snapshot
+    snapshot_filename = simulation_object.snapshot_file(simulation_object.z0_snapshot)
 
     # part of the sky and redshift range of the beam. The beam is tilted so that it crosses the box faces,
     # and reaches past half a box sidelength from the observer, where the
     # orientation of a locked layer first changes
-    beam_vector = (1.0, 1.0, 1.0)       # direction of the beam
+    beam_vector = (1.0, 2.0, 3.0)       # direction of the beam
     ang_radius_deg = 6.0                # angular radius of the beam [deg]
-    redshift_range = (0.05, 0.3)        # redshift range of the beam
+    redshift_range = (0.001, 0.3)        # redshift range of the beam
 
     # orientation locks to compare, see SnapshotBeam. Every lock builds the beam again,
     # so remove locks from the list to save time and memory
     orientation_locks = [None, "cube", "sphere"]
 
     # slice through the beam to project, and the resolution of the projections
-    slice_thickness = 15 * unyt.Mpc
+    slice_thickness = 10 * unyt.Mpc
     resolution = 1024
 
-    beam_projection_lock_comparison(box_res, sim_name, snapshot_filename, beam_vector, ang_radius_deg, redshift_range,
-                                    orientation_locks, slice_thickness, resolution, f"{output_dir}/snapshot_beam_surface_density_lock_comparison.png")
+    beam_projection_lock_comparison(
+                            simulation_object, snapshot_filename, beam_vector, ang_radius_deg, redshift_range,
+                            orientation_locks, slice_thickness, resolution, f"{output_dir}/flamingo_snapshot_beam_surface_density_lock_comparison.png"
+                            )
+
+
+def main_colibre(simulation_object, output_dir):
+    
+    # snapshot used for its metadata when projecting, the redshift 0 snapshot
+    snapshot_filename = simulation_object.snapshot_file(simulation_object.z0_snapshot)
+
+    # part of the sky and redshift range of the beam. The beam is tilted so that it crosses the box faces,
+    # and reaches past half a box sidelength from the observer, where the
+    # orientation of a locked layer first changes
+    beam_vector = (1.0, 2.0, 3.0)       # direction of the beam
+    ang_radius_deg = 6.0                # angular radius of the beam [deg]
+    redshift_range = (0.001, 0.15)        # redshift range of the beam
+
+    # orientation locks to compare, see SnapshotBeam. Every lock builds the beam again,
+    # so remove locks from the list to save time and memory
+    orientation_locks = [None, "cube", "sphere"]
+
+    # slice through the beam to project, and the resolution of the projections
+    slice_thickness = 10 * unyt.Mpc
+    resolution = 1024
+
+    beam_projection_lock_comparison(
+                            simulation_object, snapshot_filename, beam_vector, ang_radius_deg, redshift_range,
+                            orientation_locks, slice_thickness, resolution, f"{output_dir}/colibre_snapshot_beam_surface_density_lock_comparison.png"
+                            )
+
+if __name__ == "__main__":
+
+    # define output directory
+    output_dir = "./example_outputs/snapshot_beam_projection"
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # simulation to use: FLAMINGO L1_m9 Hydro Fiducial
+    box_res = "L1000N1800"
+    sim_name = "HYDRO_FIDUCIAL"
+    simulation = Simulation.from_label(box_res, sim_name)
+    main_flamingo(simulation, output_dir)
+
+    ## simulation to use: COLIBRE L400_m7 Thermal
+    #box_res = "L0400N3008"
+    #sim_name = "Thermal"
+    #simulation = Simulation.from_label(box_res, sim_name)
+    #main_colibre(simulation, output_dir)
+
