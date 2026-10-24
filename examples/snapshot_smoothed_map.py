@@ -6,6 +6,7 @@ import unyt
 import healpy as hp
 import matplotlib.pyplot as plt
 from pathlib import Path
+from mpi4py import MPI
 import lightcone_io.smoothed_map as smoothed_map
 import lightcone_io.kernel as kernel
 import virgo.mpi.parallel_hdf5 as phdf5
