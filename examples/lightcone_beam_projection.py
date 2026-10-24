@@ -195,5 +195,5 @@ if __name__ == "__main__":
 
     #Example 2 
     # Repeat the above example but now with custom datasets to show mass and redshift dependance
-    weighted_projection(BP, lightcone, gas_particle_data, gas_property_names)
+    temperature_projection(BP, lightcone, gas_particle_data, gas_property_names)
 
