@@ -356,12 +356,7 @@ class BeamProjection:
 
         # check ptype is ok. 
         check_ptype(ptype)
-        
-        #if self.cosmology is None:
-        #    self.cosmology=Snapshot_Cosmology_For_Lightcone(snapshot_filename).COSMO
-        #    # update snapshot name stored if used for cosmology
-        #    self._snapshot_filename = snapshot_filename
-        
+
         # update snapshot filename if a new one is passed 
         if snapshot_filename is not None:
             if snapshot_filename != self._snapshot_filename:
@@ -372,7 +367,7 @@ class BeamProjection:
 
         # update cosmology if needed
         if self.cosmology is None:
-            self.cosmology=Snapshot_Cosmology_For_Lightcone(self._snapshot_filename).COSMO
+            self.cosmology=SnapshotCosmology.from_path(self._snapshot_filename).COSMO
 
         if weight is None:
             return self._project(list(project_particle_properties), self._snapshot_filename, resolution, assign_units, ptype, periodic, parallel)
