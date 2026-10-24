@@ -181,7 +181,7 @@ Note that passing an MPI communicator (`comm`) reads the snapshot files in paral
 Alternativley, and to limit peak memory use, the files containing particles within the lightcone's footprint can also be gathered first in a seperate step and then read individually, one at a time, to place particles in the lightcone (`gather_files` and `place_file_in_shell`).  
 Moreover, after building (or just applying a first pass at the cell level with `gather_files`), points can be mapped between the snapshot and the lightcone (`Snapshot2Lightcone` and `Lightcone2Snapshot`).
 
-A diagram of the complete workflow of `SnapshotLightcone` and its subclasses is shown in [docs/snapshot_lightcone_flow.md](./docs/snapshot_lightcone_workflow.md). 
+A diagram of the complete workflow of `SnapshotLightcone` and its subclasses is shown in [docs/snapshot_lightcone_flow.md](./docs/snapshot_lightcone_flow.md). 
 
 
 Haloes from SOAP catalogues, can be used to both construct halo lightcones and additionally be placed in the same lightcone as the particles. 
@@ -463,7 +463,7 @@ L1000N1800/HYDRO_FIDUCIAL/lightcones/
 <summary><b>Halo lightcones</b></summary>
 
 The haloes placed from one snapshot can be written to a `.hdf5` file in the format of the `lightcone_io` (FLAMINGO) halo lightcones, with `write_halo_lightcone_file` of [`swiftlet.snapshot_lightcone`](./swiftlet/snapshot_lightcone.py). The haloes are sorted by HEALPix pixel (the `Index` group) with the `Lightcone` and `InputHalos` datasets and the units used by LightconeIO, and any SOAP properties given are written alongside, so `lightcone_io.halo_reader.HaloLightconeFile` can read the file and look up the rest from SOAP. 
-For example, as given in [`colibre_halo_lightcone_full_sky.py`](./examples/colibre_halo_lightcone_full_sky.py):
+For example, as given in [`make_colibre_halo_lightcone.py`](./examples/make_colibre_halo_lightcone.py):
 
 ```python
 from lightcone_io.halo_reader import HaloLightconeFile

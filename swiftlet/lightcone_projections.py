@@ -765,7 +765,6 @@ class BeamProjection:
             if self._snapshot_filename is None:
                 raise ValueError("Cosmology is not defined")
             
-            #self.cosmology = Snapshot_Cosmology_For_Lightcone(self._snapshot_filename).COSMO
             self.cosmology = SnapshotCosmology.from_path(self._snapshot_filename).COSMO
 
         # return plot 
