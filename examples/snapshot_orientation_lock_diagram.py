@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.lines import Line2D
 from pathlib import Path
+from swiftlet.example_plot_settings import plot_settings
 
 """
 Example script to show how the locking the orientation per layer with orientation_lock decides which
-periodic replicas (i.e. tiles) of the snapshot boxes share an orientation:
+periodic replicas (i.e. tiles) of the snapshot boxes share the same orientation:
     None or "none":         every box tile has its own orientation. Structures are cut at every tile face.
     "cube":                 every tile in a cube shell of boxes around the observer's box, max(|mx|, |my|, |mz|) = n,
                                 shares one orientation. The orientation only changes on the tile faces between shells.
@@ -30,29 +31,6 @@ COL_LAYER_EDGE = "black"
 COL_CHANGE = "black"
 COL_TEXT = "#0b0b0b"
 ###################################
-
-def plot_settings():
-    """
-    Set the matplotlib settings for this example.
-    """
-    # Line Properties
-    plt.rcParams["lines.linewidth"] = 1.5
-    # Font options
-    plt.rcParams["font.size"] = 9
-    plt.rcParams["font.family"] = "STIXGeneral"
-    plt.rcParams["mathtext.fontset"] = "stix"
-    plt.rcParams["text.usetex"] = False
-    plt.rcParams["legend.fontsize"] = 10
-    # axes font settings
-    mpl.rcParams['axes.labelsize'] = 10
-    mpl.rcParams['xtick.labelsize'] = 9
-    mpl.rcParams['ytick.labelsize'] = 9
-    # axes tick settings
-    plt.rcParams["xtick.direction"] = 'in'
-    plt.rcParams["ytick.direction"] = 'in'
-    plt.rcParams["xtick.top"] = True
-    plt.rcParams["ytick.right"] = True
-
 
 
 def slice_to_3d(x, z):
@@ -141,7 +119,7 @@ def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
 def beam_in_slice(beam_vector):
     """
     Returns the direction of a beam in the slice, as a unit vector in (x, z). 
-    The beam must lie in the plane y = 0.
+    The beam must lie in the plane defined for y = 0.
 
     :param  beam_vector:    direction of the beam
     :type   beam_vector:    array-like, shape (3,)
@@ -156,10 +134,7 @@ def box_label_positions(s, z, layer, inside, min_pixels=0):
     """
 
     Returns the label of each tile in the lightcone. 
-    Each tile is numbered as 1, 2, 3, 4, ect... 
     The label is placed as close to the centre of a tiles overlapping area with the lightcone.
-
-    Returns a list of (label, (s, z)).
 
     :param  s:          coordinate along x of each pixel
     :type   s:          np.ndarray
@@ -185,8 +160,8 @@ def box_label_positions(s, z, layer, inside, min_pixels=0):
 
 def layer_label_positions(ray_angle, L, r_max, orientation_lock):
     """
-    Returns the labels for each locked layer, placed half way through 
-    the layer along a ray from the observer.
+    
+    Returns the labels for each locked layer, placed half way through the layer.
 
     :param  ray_angle:          angle [rad] of the ray in the slice, from the s axis
     :type   ray_angle:          float
@@ -264,9 +239,6 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
             axis = beam_in_slice(beam_vector)
             ray_angle = np.arctan2(axis[1], axis[0]) - 0.55 * np.deg2rad(half_angle_deg)
         label_positions = layer_label_positions(ray_angle, L, r_max, orientation_lock)
-    #for text, position in label_positions:
-    #    ax.text(*position, text, ha="center", va="center", fontsize=8, color=COL_TEXT, zorder=5,
-    #            bbox=dict(facecolor="white", edgecolor="none", alpha=0.75, pad=0.8))
 
     # outline of the lightcone and the observer
     if beam_vector is None:
@@ -294,7 +266,7 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
 
 def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11), filename="./orientation_locks.png"):
     """
-    Plot the orientations of the box tiles for each orientation lock (rows), for an all-sky lightcone,
+    Plot the orientations of the box tiles for each orientation lock (rows), for a full sky lightcone,
     a beam along (0, 0, 1) and a beam along (1, 0, 1) (columns).
 
     :param  L:              box sidelength
@@ -308,6 +280,7 @@ def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11
     :param  filename:       path to write the plot to
     :type   filename:       str
     """
+    
     locks = [None, "cube", "sphere"]
     lock_titles = {None: "orientation_lock=None", "cube": 'orientation_lock="cube"', "sphere": 'orientation_lock="sphere"'}
     lightcones = [

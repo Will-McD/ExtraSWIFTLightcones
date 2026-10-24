@@ -9,9 +9,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from map_zoom_on_halo import plot_settings
+from swiftlet.example_plot_settings import plot_settings
 
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+comm_rank = comm.Get_rank()
+comm_size = comm.Get_size()
 
 """
 Compare the number density of dark matter particles from Snapshot lightcones against the mean number density
@@ -23,16 +26,7 @@ For each orientation seed (seeds 0 to nr_seeds - 1 by default) use SnapshotAllSk
 The dark matter particles are counted in bins of comoving distance from the observer. The bins are equal in volume.
 
 Each seed re-orients the box tiles differently, so each is the same shell built from the same snapshots with a 
-different arrangement of the cells.
-
-A full-sky lightcone holds more particle than fit in memory so as in every rank finds the same tile pieces, which 
-are then shared across the MPI ranks.
-Each rank places its pieces one at a time with place_file_in_shell and counts their own particles.
-
-The count in each bin is compared with the number expected from the snapshot's mean number density
-(NumPart_Total / BoxSize^3), times the volume of the bin. 
-
-Rank 0 writes the counts of every seed to a comma separated .txt file, one row per (seed, bin).
+different arrangement of the cells i.e. making lightcone redhisft shells for differet observers. 
 """
 
 def seed_row_vals(seed, edges, counts, expected, mean_density):
@@ -164,6 +158,51 @@ def equal_volume_edges(r_min, r_max, nr_bins):
     """
     return np.cbrt(np.linspace(r_min**3, r_max**3, nr_bins + 1))
 
+def share_pieces(npart_per_piece, nr_ranks):
+    """
+    Share the pieces between the ranks, giving each piece in turn, from the largest, to the rank with the fewest
+    particles so far.
+
+    Returns a list of the indices of the pieces given to each rank.
+
+    :param  npart_per_piece:    number of particles read for each piece
+    :type   npart_per_piece:    np.ndarray
+    :param  nr_ranks:           number of ranks
+    :type   nr_ranks:           int
+    """
+    pieces = [[] for _ in range(nr_ranks)]
+    npart_per_rank = np.zeros(nr_ranks, dtype=np.int64)
+    for piece in np.argsort(npart_per_piece, kind="stable")[::-1]:
+        rank = int(np.argmin(npart_per_rank))
+        pieces[rank].append(int(piece))
+        npart_per_rank[rank] += npart_per_piece[piece]
+    return pieces
+
+def count_in_bins(coords, edges, vector=None, ang_radius_rad=None):
+    """
+    Count the particles in each bin of comoving distance, keeping those within an angle of a direction if given.
+
+    Returns the counts, len(edges) - 1 values.
+
+    :param  coords:         comoving positions relative to the observer [Mpc], shape (N, 3)
+    :type   coords:         np.ndarray
+    :param  edges:          edges of the bins [Mpc]
+    :type   edges:          np.ndarray
+    :param  vector:         unit vector of the cone's axis, or None for the full sky
+    :type   vector:         np.ndarray
+    :param  ang_radius_rad: angular radius [rad] of the cone
+    :type   ang_radius_rad: float
+    """
+
+    r = np.linalg.norm(coords, axis=1)
+    if vector is not None:
+        with np.errstate(invalid="ignore", divide="ignore"):
+            keep = coords @ vector >= np.cos(ang_radius_rad) * r
+        r = r[keep]
+    # only r in [edges[0], edges[-1]], the last bin including its outer edge
+    return np.histogram(r, bins=edges)[0].astype(np.int64)
+
+
 def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radius_deg, ptype="PartType1"):
     """
     Count the particles of a lightcone in each bin. 
@@ -215,8 +254,6 @@ def write_counts(filename, rows, header):
         f.write(",".join(columns) + "\n")
         for row in rows:
             f.write(",".join(f"{row[c]:.10g}" if isinstance(row[c], float) else str(row[c]) for c in columns) + "\n")
-
-
 
 def run_seeds(args):
     """

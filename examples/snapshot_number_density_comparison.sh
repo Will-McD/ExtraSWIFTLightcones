@@ -18,6 +18,7 @@ module load python/3.12.4
 venv_name="/cosma/apps/dp004/${USER}/swiftlet_env"
 source "${venv_name}/bin/activate"
 
+
 # one numba thread per MPI rank, so the ranks don't compete for the cores
 export SWIFTLET_MAX_THREADS=1
 

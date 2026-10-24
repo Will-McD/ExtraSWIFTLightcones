@@ -4,47 +4,12 @@ import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 from matplotlib.lines import Line2D
 from pathlib import Path
+from swiftlet.example_plot_settings import plot_settings
 
 """
 Example script to highlilght how cells within the snaphots boxes (tiles in lightcone)
 are repositioned when creating new 'unique' snapshot tiles as they placed in to the lightcone (all-sky or beam). 
 """
-
-
-def plot_settings():
-    """
-    matplotlib settings for this example. 
-    """
-    import matplotlib as mpl
-    
-    # Line Properties
-    plt.rcParams["lines.linewidth"]=1.5 
-    # Font options
-    plt.rcParams["font.size"]=8
-    plt.rcParams["font.family"] = "STIXGeneral"
-    plt.rcParams["mathtext.fontset"] = "stix"
-    plt.rcParams["text.usetex"] = False
-    plt.rcParams["legend.labelspacing"]=0.25
-    plt.rcParams["legend.columnspacing"]=0.75
-    plt.rcParams["legend.borderpad"]=0.3
-    plt.rcParams["legend.borderaxespad"]=0.7
-    plt.rcParams["legend.fontsize"]=10
-    # Figure layour settings
-    plt.rcParams["figure.constrained_layout.use"] =True
-    plt.rcParams["figure.constrained_layout.h_pad"] =0.005
-    plt.rcParams["figure.constrained_layout.w_pad"] =0.005
-    plt.rcParams["figure.constrained_layout.hspace"]=0.005
-    plt.rcParams["figure.constrained_layout.wspace"]=0.005
-    # axes font settings
-    mpl.rcParams['axes.labelsize']=10
-    mpl.rcParams['figure.labelsize']=10
-    mpl.rcParams['xtick.labelsize']=10
-    mpl.rcParams['ytick.labelsize']=10
-    # axes tick settings
-    plt.rcParams["xtick.direction"] ='in'
-    plt.rcParams["ytick.direction"] ='in'
-    plt.rcParams["xtick.top"]=True
-    plt.rcParams["ytick.right"]= True
 
 ###################################
 # Colors for each stage of repositioning snapshot cells into the lightcone
@@ -88,7 +53,7 @@ def transform_point(p, reflection, angle_deg, centre):
 def wrap_point(p, shift, L):
     return np.mod(p + shift, L)
 
-def plot_transform_grid(examples, L=3.0, selected_cell_centre=(0.5, 0.5), ncols=3, nrows=None, figsize=(7,7), filename="./grid_transform_example.png"):
+def plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5), ncols=3, nrows=None, figsize=(7,7), filename="./grid_transform_example.png"):
     """
     Plot a grid of examples showing how a cell is repositioned by a periodic shift, reflection and rotation.
 
@@ -273,6 +238,7 @@ if __name__ == "__main__":
     plot_settings() # establish plot settings
     
     output_dir="example_outputs/snapshot_lightcone"
+    
     # ensure output directory exists
     directory_path = Path(output_dir)
     directory_path.mkdir(parents=True, exist_ok=True)
@@ -296,5 +262,5 @@ if __name__ == "__main__":
         ((-1, -2), (-1, 1),  0),
     ]
     
-    plot_transform_grid(examples, L=3.0, selected_cell_centre=(0.5, 0.5),ncols=4, nrows=4, figsize=(9,9), filename=output_dir+"/snapshot_tile_repositioning.png")
+    plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5),ncols=4, nrows=4, figsize=(9,9), filename=output_dir+"/snapshot_tile_repositioning.png")
 

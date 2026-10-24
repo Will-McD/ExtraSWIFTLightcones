@@ -14,6 +14,7 @@ from lightcone_io.units import units_from_attributes
 from swiftlet.simulation_suites import output_redshifts
 from swiftlet.snapshot_redshifts import snapshot_redshift_range
 from swiftlet.flamingo_lightcones import flamingo_shell_redshift_file
+from swiftlet.example_plot_settings import plot_settings
 
 from pathlib import Path
 import hdfstream
@@ -30,48 +31,12 @@ Notes:
     1) This example uses Nside 16384 maps read from the remote comsa6 server, 
         to reduce memory required change nside_output to 4096. 
 
-    2) The centre of the zoomed image is on the halo lightcones "HaloCentre" values
-        and/or the centre of the pixel containing that HaloCentre. 
+    2) The zoomed image is centred on the pixel containing the selected halo. 
         The centre of the halo is not necesarily where it will appear to be brightest or most dense. 
 
-    3) The selected halo can be split across multiple redshift shells. If the halo doesn't apprear 
-        in the loaded map you may have to change how the shell number used to select the HEALPix map if 
-        the halo is near the edge of a lightcones redshift shell. 
+    3) The selected halo can be split across multiple redshift shells. If the halo or part of the halo doesn't apprear 
+        in the loaded map you can change the shell number used. 
 """
-
-def plot_settings():
-    """
-    matplotlib settings for this example. 
-    """
-    # Line Properties
-    plt.rcParams["lines.linewidth"]=1.5 
-    # Font options
-    plt.rcParams["font.size"]=8
-    plt.rcParams["font.family"] = "STIXGeneral"
-    plt.rcParams["mathtext.fontset"] = "stix"
-    plt.rcParams["text.usetex"] = False
-    plt.rcParams["legend.labelspacing"]=0.25
-    plt.rcParams["legend.columnspacing"]=0.75
-    plt.rcParams["legend.borderpad"]=0.3
-    plt.rcParams["legend.borderaxespad"]=0.7
-    plt.rcParams["legend.fontsize"]=10
-    # Figure layour settings
-    plt.rcParams["figure.constrained_layout.use"] =True
-    plt.rcParams["figure.constrained_layout.h_pad"] =0.005
-    plt.rcParams["figure.constrained_layout.w_pad"] =0.005
-    plt.rcParams["figure.constrained_layout.hspace"]=0.005
-    plt.rcParams["figure.constrained_layout.wspace"]=0.005
-    # axes font settings
-    mpl.rcParams['axes.labelsize']=10
-    mpl.rcParams['figure.labelsize']=10
-    mpl.rcParams['xtick.labelsize']=10
-    mpl.rcParams['ytick.labelsize']=10
-    # axes tick settings
-    plt.rcParams["xtick.direction"] ='in'
-    plt.rcParams["ytick.direction"] ='in'
-    plt.rcParams["xtick.top"]=True
-    plt.rcParams["ytick.right"]= True
-
 
 def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False):
     """
@@ -87,7 +52,7 @@ def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False)
     input_redshifts = np.asarray(input_redshifts)
     redshifts = np.loadtxt(redshift_filename, delimiter=",")
     particle_shell_nr = np.zeros(len(input_redshifts), dtype=np.int16)
-    particle_shell_nr += int(999) # if not updated then assigned a shell then return one that does not exist. 
+    particle_shell_nr += int(999) # if not updated then the assigned a shell does not exist and exit.
     
     part_zmin=np.min(input_redshifts)
     part_zmax=np.max(input_redshifts)
@@ -105,19 +70,11 @@ def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False)
     else:
          return particle_shell_nr.astype(np.int32), redshifts[np.min(particle_shell_nr.astype(np.int32)):np.max(particle_shell_nr.astype(np.int32))+1, :]
 
-
-
 def read_selected_pixels(healpix_map, pixel_idx):
     """
     Read only the selected pixels of HEALPix map without reading the whole map.
-
-    The pixels are read as runs of consecutive pixel indices, assuming ring order.
-    
-    Read remote maps with hdfstream in one request. 
-    Local maps are read row by row of the selected pixels in the map. 
-
-    Uses the file names, pixels per file and dataset name of the lightcone_io HealpixMap, as lightcone_io has
-    no method to read several ranges of pixels in one request.
+    The pixels are read as runs of consecutive pixel indices, assuming ring order, 
+    in one request if using hdf5stream otherwise local maps are read row by row. 
 
     Returns the values of the pixels, in the order of the sorted pixel indices.
 
@@ -126,6 +83,7 @@ def read_selected_pixels(healpix_map, pixel_idx):
     :param  pixel_idx:      indices of the pixels to read
     :type   pixel_idx:      np.ndarray
     """
+    # sort pixel indices
     pixel_idx = np.sort(np.asarray(pixel_idx, dtype=int))
     healpix_map._set_metadata()
     pix_per_file, nr_files = healpix_map._pix_per_file, len(healpix_map._filenames)
@@ -151,12 +109,9 @@ def read_selected_pixels(healpix_map, pixel_idx):
                 values.append(np.concatenate([dataset[run] for run in runs_by_file[file_nr]]))
     return np.concatenate(values)
 
-
 def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, return_empty_map=False):
     """
-    Retrieve selected pixels from a map to make a zoomed in 
-    gnomview plot of a region on the sky.
-    
+    Retrieve selected pixels from a map to make a zoomed in gnomview plot. 
     For large or high Nside maps to reduce peak memory return_empty_map=False. 
     
     Returns a tuple of (map of the selected pixels, value of the centre pixel).
@@ -178,6 +133,7 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
     
     if isinstance(pixel_idx, list):
         pixel_idx = np.asarray(pixel_idx).astype(int)
+    
     if isinstance(filename, str):# assume string implies that the map is hdf5 object 
         with h5py.File(filename, 'r') as f:
             # define map array and units
@@ -219,16 +175,13 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
         else:
             pixel_idx=np.asarray(pixel_idx[np.argsort(pixel_idx)]).astype(int) # order and ensure order, is np.array and int 
             
-            # Now we gather the runs of consequtive pixels using read_selected_pixels instead of defining here. 
-            #runs = np.split(pixel_idx, np.flatnonzero(np.diff(pixel_idx) != 1) + 1) # combine slices of pixels to reduce number of server requests
+            # gather the runs of consequtive pixels using read_selected_pixels instead of defining here. 
             selected_pix_vals = read_selected_pixels(filename[map_name], pixel_idx)
             
             if return_empty_map is True:
-                #xmap[pixel_idx]+=np.concatenate([np.asarray(filename[map_name][run[0]:run[-1] + 1]) for run in runs])
                 xmap[pixel_idx]+=selected_pix_vals
             else:
                 # read only the selected pixels, in as few requests as possible
-                #xmap[:]+=np.concatenate([np.asarray(filename[map_name][run[0]:run[-1] + 1]) for run in runs])
                 xmap[:]+=selected_pix_vals
 
             # sanity check: are the selected pixels being read correctly? 
@@ -238,8 +191,6 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
                 if not np.isclose(selected_pix_vals[centre_in_selected], centre_pix_val, rtol=1e-6, atol=0, equal_nan=True):
                     raise RuntimeError(f"{map_name}: centre pixel read with the selected pixels differs from reading it on its own ({centre_pix_val} vs {selected_pix_vals[centre_in_selected]})")
  
-
-
     return xmap, centre_pix_val
 
 def no_frac_latex(unit_obj):
@@ -252,17 +203,17 @@ def no_frac_latex(unit_obj):
     """
     # latex expression from unyt object
     latex_expression = unit_obj.latex_repr
-    # replace \frac{}{} with /
+    # replace \frac{}{} with / in the maps unit label
     one_line_str = re.sub(r'\\frac\{(.+?)\}\{(.+?)\}', r'\1/\2', latex_expression)
     return one_line_str
 
 def find_haloes_in_shell(halo_format, soap_format, shell_redshift_range, centre_vector, radius, boxsize_resolution,
                         remote_dir=None, min_mass=1e13*unyt.Msun, extra_properties=("InputHalos/IsCentral", "BoundSubhalo/TotalMass")):
     """
-    Find the haloes of the halo lightcone around a direction on the sky in a lightcone redshift shell.
+    Find the haloes of the halo lightcone in the given on the sky area within a lightcones redshift shell.
     Haloes in one shell can come from mutiple halo lightcone files as each file contains haloes from only one snapshot. 
 
-    Returns a dict of arrays, one entry per halo: 
+    Returns a dict of arrays (one entry per halo): 
         {   
             "HaloCentre" [cMpc],
             "Redshift", 
@@ -676,8 +627,7 @@ if __name__ == "__main__":
     
     candidates = find_haloes_in_shell(halo_format, soap_format, shell_redshift_range, vector, radius, boxsize_resolution,remote_dir=root, min_mass=1e12*unyt.Msun, extra_properties=())
 
-
-    ## select a halo with M200c close to 5 x 10^14 Msun
+    # select a halo with M200c close to 5 x 10^14 Msun
     target_log_M200c = np.log10(5e14)
     
     selected_halo_idx = np.argmin(np.abs(target_log_M200c - np.log10(candidates["M200c"])))
@@ -712,12 +662,12 @@ if __name__ == "__main__":
     # Open the lightcone shell of healpix maps
     shell_arr = hm.Shell(basedir+"/healpix_maps/nside_{nside}".format(nside=output_nside), "lightcone{lc_nr}".format(lc_nr=lightcone_nr), shell_nr=shell_nr, remote_dir=root)
     
+    # make the plots
     plot_zoom_on_pixel(shell_arr, output_nside, ipix, map_names, 
                             axes_idx=None, output_filename=output_filename, r_npix=r_pixels, f_pixels=None, show_plot=False, 
                             colormap=colour_maps, bad_colours="grey",
                             length_scale=10*unyt.arcmin,
-                            highlight_centre_pixel=("cyan", "o", 30, 1.), # highlight the centre pixel with a cyan ring. 
+                            highlight_centre_pixel=("white", "o", 30, 1.), # highlight the centre pixel with a ring. 
                             centre_vector=halo_centre, # force the centre of zoom is pointed to the centre of the halo instead of pixels centre
                             )
-    
 

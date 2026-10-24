@@ -4,19 +4,36 @@ from pathlib import Path
 import hdfstream
 from swiftlet.healpix_map_utils import write_rotated_lightcone_chunks
 
-# rotation angles (in radian) for flamingo simualtions with sidelength of 1000Mpc
-ROTATIONS_L1=np.array(
-    [
-        [0., 0. ,3.26757547, 3.26757547, 3.26757547, 1.51289711, 1.51289711, 3.13885639, 3.13885639, 3.13885639, 2.17061318, 2.17061318, 2.17061318, 2.17061318, 4.59420579, 4.59420579, 4.59420579, 1.14273623, 1.14273623, 1.14273623, 1.14273623, 2.02717201, 2.02717201, 2.02717201, 2.02717201, 2.77675054, 2.77675054, 2.77675054, 2.77675054, 2.77675054, 0.83245259, 0.83245259, 0.83245259, 0.83245259, 0.83245259, 0.83245259, 4.95779263, 4.95779263, 4.95779263, 4.95779263, 4.95779263, 4.95779263, 4.95779263, 2.52359739, 2.52359739, 2.52359739, 2.52359739, 2.52359739, 2.52359739, 2.52359739, 2.52359739, 2.69301628, 2.69301628, 2.69301628, 2.69301628, 2.69301628, 2.69301628, 2.69301628, 2.69301628, 2.69301628], 
-        [0., 0., 1.41518902, 1.41518902,  1.41518902, 0.80580058, 0.80580058, 0.71830831, 0.71830831, 0.71830831, 1.77536892, 1.77536892, 1.77536892, 1.77536892, 0.62434822, 0.62434822, 0.62434822, 2.14076603, 2.14076603, 2.14076603, 2.14076603, 0.49840908, 0.49840908, 0.49840908, 0.49840908, 2.0136344, 2.0136344, 2.0136344 , 2.0136344, 2.0136344,  2.25356928, 2.25356928, 2.25356928 , 2.25356928 , 2.25356928,  2.25356928, 1.85187078, 1.85187078, 1.85187078, 1.85187078, 1.85187078, 1.85187078 , 1.85187078, 1.36014098, 1.36014098, 1.36014098, 1.36014098, 1.36014098, 1.36014098, 1.36014098, 1.36014098, 2.35895331, 2.35895331, 2.35895331, 2.35895331, 2.35895331, 2.35895331, 2.35895331, 2.35895331, 2.35895331]
-    ]
-)
-
-
 """
-For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create an intergrated 'TotalMass' and 'SmoothedGasMass' map over the redshift range 0.1-0.3. 
+For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create an intergrated 'TotalMass' and 'SmoothedGasMass' map 
+over the redshift range 0.1-0.3. 
 Write the intergrated maps as a hdf5 file and store the individually rotated redshift chunks used to create the intergrated map. 
 """
+
+# rotation angles (in radians) for the (1000 Mpc)^3 flamingo simualtions, 
+# as given by https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/integrated_lightcones.html
+ROTATIONS_L1=np.array(
+    [
+        [
+            0., 0. ,3.26757547, 3.26757547, 3.26757547, 1.51289711, 1.51289711, 3.13885639, 3.13885639, 3.13885639, 
+            2.17061318, 2.17061318, 2.17061318, 2.17061318, 4.59420579, 4.59420579, 4.59420579, 1.14273623, 1.14273623, 
+            1.14273623, 1.14273623, 2.02717201, 2.02717201, 2.02717201, 2.02717201, 2.77675054, 2.77675054, 2.77675054, 
+            2.77675054, 2.77675054, 0.83245259, 0.83245259, 0.83245259, 0.83245259, 0.83245259, 0.83245259, 4.95779263, 
+            4.95779263, 4.95779263, 4.95779263, 4.95779263, 4.95779263, 4.95779263, 2.52359739, 2.52359739, 2.52359739, 
+            2.52359739, 2.52359739, 2.52359739, 2.52359739, 2.52359739, 2.69301628, 2.69301628, 2.69301628, 2.69301628, 
+            2.69301628, 2.69301628, 2.69301628, 2.69301628, 2.69301628
+            ], 
+        [
+            0., 0., 1.41518902, 1.41518902,  1.41518902, 0.80580058, 0.80580058, 0.71830831, 0.71830831, 0.71830831, 
+            1.77536892, 1.77536892, 1.77536892, 1.77536892, 0.62434822, 0.62434822, 0.62434822, 2.14076603, 2.14076603,
+             2.14076603, 2.14076603, 0.49840908, 0.49840908, 0.49840908, 0.49840908, 2.0136344, 2.0136344, 2.0136344 , 
+             2.0136344, 2.0136344,  2.25356928, 2.25356928, 2.25356928 , 2.25356928 , 2.25356928,  2.25356928, 1.85187078, 
+             1.85187078, 1.85187078, 1.85187078, 1.85187078, 1.85187078 , 1.85187078, 1.36014098, 1.36014098, 1.36014098, 
+             1.36014098, 1.36014098, 1.36014098, 1.36014098, 1.36014098, 2.35895331, 2.35895331, 2.35895331, 2.35895331, 
+             2.35895331, 2.35895331, 2.35895331, 2.35895331, 2.35895331
+            ]
+    ]
+)
 
 
 if __name__ == "__main__":
@@ -39,18 +56,17 @@ if __name__ == "__main__":
     # lightcone number to use
     lightcone_nr=0
     
-    # optional, set maximum ell (smallest angular scale) for rotations
+    # optional, set maximum ell (smallest angular scale) for rotations. 
     # Intentionally made smaller for speed of exmaple
     ell_max=2*output_nside
 
-    # make path to healpix lightcone maps
-    # If the healpix maps are local then set root=None
+    # path to healpix lightcone maps. If the healpix maps are local then set root=None
     root = hdfstream.open("cosma", "/")
 
-    # Location of the lightcone output relative to the directory we opened
+    # location of the lightcone output relative to the directory we opened
     basedir="FLAMINGO/L1_m9/L1_m9/healpix_maps/nside_{nside}".format(nside=input_nside)
 
-    # Specify which observer's lightcone to read
+    # specify which observer's lightcone to read
     basename="lightcone{lightcone_nr}".format(lightcone_nr=lightcone_nr)
     
     # output filename
@@ -61,7 +77,8 @@ if __name__ == "__main__":
     longitudes = ROTATIONS_L1[1, :]*180/np.pi
 
     write_rotated_lightcone_chunks(
-        basedir, basename, remote_dir=root,
+        basedir, basename, 
+        remote_dir=root,
         map_names=["TotalMass", "SmoothedGasMass"], # the maps to sum along the line of sight
         theta_arr_deg=colatitiudes, phi_arr_deg=longitudes,  # rotate shells by these latitudes and longitudes
         output_filename=output_filename,    # write file to this location

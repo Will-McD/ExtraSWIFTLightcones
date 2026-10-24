@@ -11,12 +11,13 @@ from swiftlet.lightcone_projections import BeamProjection
 
 """
 Use SnapshotBeam to build a beam through a past lightcone of gas particles from the snapshots of the
-fiducial L1_m10 FLAMINGO simulation (i.e. L1000N0900/HYDRO_FIDUCIAL). 
-Then project a slice through the beam to show the gas surface density.
+fiducial L1_m10 FLAMINGO and L400_m7 COLIBRE simulations. 
+Project a slice through the beams to show the gas surface density.
 
-The beam is built for each orientation lock in orientation_locks, and the gas surface densities are
-plotted side by side. Without a lock (None) every snapshot box (or tile in the lightcone) has its own 
-orientation, so structures are cut at every tile face the beam crosses. With "cube" or "sphere" the tiles in each 
+For each simulation the beams are built for each orientation lock in orientation_locks ('none', 'cube', 'sphere'), 
+and the gas surface densities are plotted side by side. 
+Without a lock ('none') every snapshot tile has its own orientation, so discontinuities appear at every tile face 
+the beam crosses. With "cube" or "sphere" locks the tiles in each 
 layer share one orientation, so structures continue across the tiles faces within a layer.
 """
 
@@ -87,6 +88,8 @@ def beam_projection_lock_comparison(sim_object, snapshot_filename, beam_vector, 
     :param  output_filename:    path of the plot
     :type   output_filename:    str
     """
+    
+    # gas particle properties
     gas_property_names = ["Coordinates", "Masses", "SmoothingLengths", "ExpansionFactors"]
 
     gas_surface_densities_per_locking = []
@@ -128,6 +131,8 @@ def beam_projection_lock_comparison(sim_object, snapshot_filename, beam_vector, 
     pix_min, pix_max = np.percentile(all_totals[all_totals > 0], [10, 99.5])
 
     fig, axs = plt.subplots(len(orientation_locks), 1, figsize=(7, 2.6 * len(orientation_locks)))
+
+    # iterate through each lock and make split beam plots
     for ax, orientation_lock, surface_density in zip(np.atleast_1d(axs), orientation_locks, gas_surface_densities_per_locking):
         BP.split_beam_plot(
             1, [[surface_density, (pix_min, pix_max)]], ["magma"], axs=ax,
@@ -192,6 +197,7 @@ def main_colibre(simulation_object, output_dir):
                             orientation_locks, slice_thickness, resolution, f"{output_dir}/colibre_snapshot_beam_surface_density_lock_comparison.png"
                             )
 
+
 if __name__ == "__main__":
 
     # define output directory
@@ -204,9 +210,9 @@ if __name__ == "__main__":
     simulation = Simulation.from_label(box_res, sim_name)
     main_flamingo(simulation, output_dir)
 
-    ## simulation to use: COLIBRE L400_m7 Thermal
-    #box_res = "L0400N3008"
-    #sim_name = "Thermal"
-    #simulation = Simulation.from_label(box_res, sim_name)
-    #main_colibre(simulation, output_dir)
+    # simulation to use: COLIBRE L400_m7 Thermal
+    box_res = "L0400N3008"
+    sim_name = "Thermal"
+    simulation = Simulation.from_label(box_res, sim_name)
+    main_colibre(simulation, output_dir)
 

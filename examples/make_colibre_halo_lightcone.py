@@ -16,12 +16,8 @@ comm_rank = comm.Get_rank()
 
 
 """
-Build a full-sky halo lightcone from the snapshots and SOAP catalogues of the COLIBRE L400_m7 Thermal simulation
-(L0400N3008/Thermal) for 0.001 < z < 0.1, with SnapshotAllSky.
-
-    1. Place haloes from the SOAP catalogues into a lightcone with place_halos_in_shell.
-    2. Write the haloes from each snapshot to an output .hdf5 file (lightcone_halos_<snapshot>.hdf5) in the format of
-        the lightcone_io (FLAMINGO) halo lightcones
+Build a full sky halo lightcone from the snapshots and SOAP catalogues of the COLIBRE L400_m7 Thermal simulation
+(L0400N3008/Thermal) for redshifts 0.001 < z < 0.1. 
 """
 
 def gather_snapshot_haloes(halos, properties, snap_nr):
@@ -87,7 +83,6 @@ if __name__ == "__main__":
     
     halos = snap_all_sky.place_halos_in_shell(soap_format, redshift_range, ang_radius_deg=None, comm=comm)
     
-
     # write the haloes of the lowest redshift snapshot to a in a lightcone_io halo lightcone file
     local_snapshots = halos["Lightcone/SnapshotNumber"].value.astype(int)
     lowest_z_snapshot = comm.allreduce(int(local_snapshots.max()) if len(local_snapshots) else -1, op=MPI.MAX)

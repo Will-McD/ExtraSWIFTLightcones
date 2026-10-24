@@ -473,9 +473,9 @@ def test_angular_radius_checked(fake_runs):
     with pytest.raises(TypeError, match="SnapshotAllSky doesn't need an angular radius"):
         all_sky.gather_halo_catalogues(fake_runs, redshift_range, 10.)
     with pytest.raises(TypeError, match="SnapshotAllSky doesn't need an angular radius"):
-        all_sky.place_snapshot_particles_in_shell(redshift_range, ["Coordinates"],ang_radius_deg=10, particle_types=PTYPE)
+        all_sky.place_snapshot_particles_in_shell(redshift_range, ["Coordinates"], ang_radius_deg=10, particle_types=PTYPE)
     with pytest.raises(TypeError, match="needs property_names"):
-        all_sky.place_snapshot_particles_in_shell(redshift_range, particle_types=PTYPE)
+        all_sky.place_snapshot_particles_in_shell(redshift_range, property_names=None, particle_types=PTYPE)
     # without the radius, by position as before
     numb_files, _ = all_sky.gather_files(PTYPE, redshift_range)
     assert numb_files > 0
@@ -494,6 +494,93 @@ def test_no_haloes_without_snapshots_in_the_shell(fake_runs):
         halos = lightcone.place_halos_in_shell(fake_runs, (0., 0.01), 10., use_snapshots=[far_snapshot], comm=comm)
         assert all(len(values) == 0 for values in halos.values())
         assert halos["Lightcone/HaloCentre"].shape == (0, 3)
+
+# tests for when snapshots are missing
+class hidden:
+    """
+    Context manager hiding a file or directory of the fake simulations (renaming it), and restoring it on exit.
+    """
+    def __init__(self, path):
+        self.path = Path(path)
+        self.hidden_path = self.path.with_name("hidden_" + self.path.name)
+
+    def __enter__(self):
+        self.path.rename(self.hidden_path)
+        return self
+
+    def __exit__(self, *exc):
+        self.hidden_path.rename(self.path)
+
+
+def snapshot_dir(fake_run_dir, sim_name, snap_nr):
+    """
+    Directory of a snapshot of a fake simulation.
+    """
+    return fake_run_dir / BOX_RES / sim_name / "snapshots" / f"flamingo_{snap_nr:04d}"
+
+
+def test_missing_snapshot_filled_with_a_warning(fake_run_dir, fake_runs):
+    """
+    If the z = 0 snapshot is missing, test that the next snapshot (0.05 higher in redshift) fills the missing redshift range and gives with a warning. 
+    Additionally ensure that every point of the lattice in the shell is still placed exactly once.
+    """
+    redshift_range, beam_vector, ang_radius_deg = (0., 0.06), (0, 0, 1), 25.
+    with hidden(snapshot_dir(fake_run_dir, LATTICE_SIM, 77)):
+        lightcone = new_lightcone(LATTICE_SIM, beam_vector, None)
+        gap = "snapshots \\[77\\] are missing.*snapshot 77 by 76"
+        with pytest.warns(snapshot_lightcone.SnapshotGapWarning, match=gap):
+            particles = place_particles(lightcone, redshift_range, ang_radius_deg)
+    snap_nr, ids, coords = particle_rows(particles)
+    assert set(snap_nr.tolist()) == {76}
+    r_range = [Cosmology.COSMO.comoving_distance(z).to_value("Mpc") for z in redshift_range]
+    expected = np.unique(lattice_index(lattice_in_shell(*r_range, beam_vector, ang_radius_deg)), axis=0)
+    placed, counts = np.unique(lattice_index(coords), axis=0, return_counts=True)
+    assert np.all(counts == 1)
+    np.testing.assert_array_equal(placed, expected)
+
+
+def test_missing_snapshot_with_large_spacing_fails_early(fake_run_dir, fake_runs):
+    """
+    Test that without snapshot 73, its neighbours are 0.1 apart in redshift: the shell is not filled and nothing is read.
+    """
+    with hidden(snapshot_dir(fake_run_dir, LATTICE_SIM, 73)):
+        lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None)
+        with pytest.raises(ValueError, match="redshift spacing between snapshots is too large.*\\[73\\] are missing"):
+            lightcone.gather_files(PTYPE, (0.05, 0.3), ang_radius_deg=25.)
+        assert lightcone.snap_file_offset_lengths is None
+        # a shell the missing snapshot does not fill is not affected
+        numb_files, _ = lightcone.gather_files(PTYPE, (0.0, 0.1), ang_radius_deg=25.)
+        assert numb_files > 0
+
+
+def test_missing_snapshot_given_with_use_snapshots(fake_run_dir, fake_runs):
+    """
+    Test that a missing snapshot given with use_snapshots fails with the file missing, and the gaps left are
+    warned about but not filled.
+    """
+    with hidden(snapshot_dir(fake_run_dir, LATTICE_SIM, 73)):
+        lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None)
+        with pytest.raises(FileNotFoundError, match="snapshot files of snapshots \\[73\\] are missing"):
+            lightcone.gather_files(PTYPE, (0.05, 0.3), ang_radius_deg=25., use_snapshots=[72, 73, 74])
+    lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None)
+    with pytest.warns(snapshot_lightcone.SnapshotGapWarning, match="0.175 < z < 0.225 \\(snapshot 73\\)"):
+        lightcone.gather_files(PTYPE, (0.05, 0.3), ang_radius_deg=25., use_snapshots=[71, 72, 74, 75, 76])
+    assert 73 not in {spec.snap_nr for spec in lightcone.snap_file_offset_lengths}
+
+
+def test_missing_soap_catalogue_filled_with_a_warning(fake_run_dir, fake_runs):
+    """
+    Without the SOAP catalogue at z = 0, test that the next snapshots catalogue fills the missing redshifts, with a warning, and the
+    box and cells are read from the snapshot files, which are all there.
+    """
+    with hidden(fake_runs.format(snap_nr=77)):
+        lightcone = new_lightcone(HALO_SIM, (0, 0, 1), None)
+        with pytest.warns(snapshot_lightcone.SnapshotGapWarning, match="SOAP catalogues of snapshots \\[77\\]"):
+            halos = lightcone.place_halos_in_shell(fake_runs, (0., 0.06), 25.)
+    assert len(halos["Lightcone/SnapshotNumber"]) > 0
+    assert set(halos["Lightcone/SnapshotNumber"].value.astype(int).tolist()) == {76}
+    assert lightcone.halo_cell_snapshot == 76
+
 
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
 @pytest.mark.parametrize("beam_vector, ang_radius_deg", [

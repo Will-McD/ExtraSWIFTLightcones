@@ -154,3 +154,56 @@ def test_simulation_uses_its_tables():
     assert np.array_equal(Simulation.from_label("L1000N3600", "X").output_redshifts, FLAMINGO_L2P8_REDSHIFTS)
     assert np.array_equal(Simulation.from_label("L1000N0900", "X").output_redshifts, FLAMINGO_L1_REDSHIFTS)
     assert np.array_equal(Simulation.from_label("L200m6", "X").output_redshifts, COLIBRE_REDSHIFTS)
+    assert np.array_equal(Simulation.from_label("L200m6", "X").output_redshifts, COLIBRE_REDSHIFTS)
+
+
+@pytest.mark.parametrize("redshifts", TABLES.values(), ids=TABLES.keys())
+def test_coverage_without_missing_snapshots(redshifts):
+    # with every snapshot available, the snapshots of snapshots_in_range, each filling its own range
+    rng = np.random.default_rng(2)
+    for z_min, z_max in [tuple(sorted(rng.uniform(0., 2., 2))) for _ in range(100)]:
+        coverage = sr.snapshot_coverage(redshifts, (z_min, z_max))
+        assert coverage.snapshots == sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0.).tolist()
+        assert coverage.missing == [] and coverage.filled_by == {}
+        assert all(coverage.ranges[n] == sr.snapshot_redshift_range(redshifts, n) for n in coverage.snapshots)
+
+
+def test_coverage_fills_missing_snapshots():
+    available = [n for n in range(len(COLIBRE_REDSHIFTS)) if n not in (117, 120)]
+    coverage = sr.snapshot_coverage(COLIBRE_REDSHIFTS, (0.05, 0.2), available)
+    assert coverage.missing == [117, 120]
+    assert coverage.filled_by == {117: [116, 118], 120: [119, 121]}
+    assert 117 not in coverage.snapshots and 120 not in coverage.snapshots
+    # the ranges of the snapshots filling the shell meet without gaps or overlaps, and cover it
+    ranges = np.array([coverage.ranges[n] for n in coverage.snapshots])
+    assert np.array_equal(ranges[:-1, 0], ranges[1:, 1])
+    assert ranges[-1, 0] <= 0.05 and ranges[0, 1] >= 0.2
+    # each snapshot still holds its own redshift, and the missing snapshots' redshifts are covered
+    z = np.asarray(COLIBRE_REDSHIFTS)
+    assert all(lo <= z[n] <= hi for n, (lo, hi) in coverage.ranges.items())
+    for n in coverage.missing:
+        assert any(lo <= z[n] <= hi for lo, hi in coverage.ranges.values())
+
+
+def test_coverage_fills_missing_snapshots_at_the_ends():
+    # without the z = 0 snapshot, the last available one reaches down to z = 0 (0.05 below its own redshift)
+    coverage = sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0., 0.06), list(range(77)))
+    assert coverage.snapshots == [76] and coverage.missing == [77] and coverage.filled_by == {77: [76]}
+    np.testing.assert_allclose(coverage.ranges[76], (0., 0.075), rtol=0., atol=1e-12)
+
+
+def test_coverage_fails_for_large_redshift_spacing():
+    # FLAMINGO's snapshots are 0.05 apart at low redshift, so one missing leaves 0.1 between its neighbours
+    too_large = "redshift spacing between snapshots is too large.*snapshots \\[73\\] are missing"
+    with pytest.raises(ValueError, match=too_large):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.05, 0.3), [n for n in range(78) if n != 73])
+    # without the two lowest redshift snapshots, the last available one would reach 0.1 down to z = 0
+    with pytest.raises(ValueError, match="0.1 between snapshots 75"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0., 0.06), list(range(76)))
+    # the output redshifts themselves are 0.25 apart above z = 3
+    with pytest.raises(ValueError, match="output redshifts are spaced this widely"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (3.0, 3.5))
+    # a missing snapshot that does not fill the shell does not matter
+    assert sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0., 0.1), [n for n in range(78) if n != 73]).missing == []
+    with pytest.raises(ValueError, match="none of the snapshots are available"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0., 0.1), [])

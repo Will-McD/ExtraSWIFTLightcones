@@ -5,7 +5,7 @@ visualise SWIFT lightcones.
 The main classes and functions can be imported from the package:
 
     from swiftlet import SnapshotBeam, BeamProjection
-    snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS,
+    snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS, SnapshotGapWarning,
     snapshot_cosmology:                 SnapshotCosmology
     simulation_suites:                  Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
                                         read_output_redshifts
@@ -41,6 +41,7 @@ _PUBLIC_NAMES = {
     "ORIENTATION_LOCK_OPTIONS": "snapshot_lightcone",
     "write_lightcone_metadata": "snapshot_lightcone",
     "read_lightcone_metadata": "snapshot_lightcone",
+    "SnapshotGapWarning": "snapshot_lightcone",
     # the cosmology of a simulation given by the snapshot
     "SnapshotCosmology": "snapshot_cosmology",
     # the simulations: paths and snapshot redshifts of FLAMINGO and COLIBRE
