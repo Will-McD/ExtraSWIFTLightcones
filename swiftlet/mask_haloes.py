@@ -5,10 +5,14 @@ import healpy as hp
 import unyt
 from pathlib import Path
 from lightcone_io.units import units_from_attributes
-from . import swift_snapshot_redshift_conversion as nz
-import datetime as dt
+#from . import swift_snapshot_redshift_conversion as nz
+from . import snapshot_lightcone
+from .simulation_suites import output_redshifts
+from .flamingo_lightcones import flamingo_box_resolution, flamingo_shell_redshift_file
+from .snapshot_redshifts import snapshots_in_range
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
+import datetime as dt
 from contextlib import ExitStack
 
 from mpi4py import MPI
@@ -529,7 +533,8 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
             # Create directory and read redshifts on rank 0 before broadcasting
             directory_path = Path(output_dir)
             directory_path.mkdir(parents=True, exist_ok=True)
-            redshifts=np.loadtxt(nz.flamingo_shell_redshift_file('L2p8'), delimiter=",")[:nshell]
+            #redshifts=np.loadtxt(nz.flamingo_shell_redshift_file('L2p8'), delimiter=",")[:nshell]
+            redshifts=np.loadtxt(flamingo_shell_redshift_file('L2p8'), delimiter=",")[:nshell]
 
         else:
             redshifts = None
@@ -585,10 +590,13 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                 zmin = redshifts[shell_nr, 0]
                 zmax = redshifts[shell_nr, 1]
 
-                snapshot_numbers = nz.snapshot_number_in_range(
-                    redshift_range=(zmin, zmax), boxsize_resolution=nz.flamingo_box_resolution(halo_cat_format),
-                    redshift_buffer=(0.025, 0.025), snapshot_buffer=(0, 0),
-                    bounds="strict", decimals=5)[::-1]
+                #snapshot_numbers = nz.snapshot_number_in_range(
+                #    redshift_range=(zmin, zmax), boxsize_resolution=nz.flamingo_box_resolution(halo_cat_format),
+                #    redshift_buffer=(0.025, 0.025), snapshot_buffer=(0, 0),
+                #    bounds="strict", decimals=5)[::-1]
+                
+                # add a 0.025 redshift buffer to each end to ensure complete overlap of haloes with selected lightcone
+                snapshot_numbers = snapshots_in_range(output_redshifts(flamingo_box_resolution(halo_cat_format)), (zmin-0.025, zmax+0.025))[::-1]
 
                 message(f"\tredshift range:\t{zmin:.3f}-{zmax:.3f}, snapshot numbers:\t{snapshot_numbers[0]}-{snapshot_numbers[-1]}")
                 comm.barrier() # collect ranks after establishing shell redshifts

@@ -4,6 +4,9 @@ import numpy as np
 import re
 from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_redshifts, environment_data_dir
 
+
+# set of hard coded simulation numbers to redshift value conversion tables
+
 def flamingo_snapshot_redshift(boxsize_resolution):   
     """
     Snapshot numbers and their redshifts for the FLAMINGO simulations. 
@@ -50,6 +53,7 @@ def colibre_snapshot_redshift():
          0.0800,  0.0600,  0.0500,  0.0400,  0.0300,  0.0200,  0.0100,  0.0000,
     ])
     return snapshot_numbers, redshifts
+
 
 def snapshot_number_in_range(
                 redshift_range, boxsize_resolution=None,
@@ -151,7 +155,6 @@ def snapshot_number_redshifts(snapshot_number, boxsize_resolution=None, inverse=
     :param  use_colibre:        If True, use the COLIBRE snapshot redshifts instead of FLAMINGO
     :type   use_colibre:        boolean
     """
-
     if use_colibre:
         snapshot_numbers, redshift = colibre_snapshot_redshift()
     else:
@@ -203,7 +206,6 @@ def snapshot_redshift_range(snapshot_number, boxsize_resolution=None, use_colibr
 
     return edges[snapshot_number + 1], edges[snapshot_number]
 
-
 # FLAMINGO shell redshift files, downloaded into the Python environment by swiftlet-configure
 def flamingo_shell_redshift_file(box, download=True):
     """
@@ -250,11 +252,7 @@ def flamingo_shell_redshift_file(box, download=True):
             return download_shell_redshifts(verbose=False)[env_name]
         except OSError as error:
             download_error = f" Downloading them to {default_redshift_dir()} failed: {error}."
-    raise FileNotFoundError(
-        f"FLAMINGO shell redshifts for {box} not found (looked in: "
-        f"{[p for p in candidates if p]}).{download_error} Run swiftlet-configure "
-        f"on a machine with internet access, or set {env_name} to the path of the file"
-    )
+    raise FileNotFoundError(f"FLAMINGO shell redshifts for {box} not found (looked in: {[p for p in candidates if p]})" + f".{download_error} Run swiftlet-configure on a machine with internet access, or set {env_name} to the path of the file")
 
 
 _BOX_RES_PATTERN = re.compile(r"(?:^|/)(L(\d+)N(\d+))(?=/|$)")

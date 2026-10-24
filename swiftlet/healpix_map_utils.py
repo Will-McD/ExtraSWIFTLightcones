@@ -8,7 +8,7 @@ import unyt
 import lightcone_io.healpix_maps as hm
 from . import snapshot_units as sw_units
 from .threads import limit_openmp_threads
-from .swift_snapshot_redshift_conversion import flamingo_shell_redshift_file
+from .flamingo_lightcones import flamingo_shell_redshift_file
 
 """
 Utility functions for working with healpix maps. 

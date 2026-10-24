@@ -1,26 +1,26 @@
 #!/bin/env python
+import argparse
 import numpy as np
 import h5py
 import unyt
 import healpy as hp
 import matplotlib.pyplot as plt
 from pathlib import Path
+from mpi4py import MPI
 import lightcone_io.smoothed_map as smoothed_map
 import lightcone_io.kernel as kernel
 import virgo.mpi.parallel_hdf5 as phdf5
 from swiftlet.snapshot_lightcone import SnapshotAllSky, write_lightcone_metadata
+from swiftlet.simulation_suites import Simulation
 
+"""
+Make an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) for 0.05 < z < 0.1 of the 
+COLIBRE L400_m7 Thermal simulation or FLAMINGO L1_m9 fiducial simulation.
+"""
 
-from mpi4py import MPI
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
-
-"""
-Make an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) in a lightcone shell built from
-the snapshots. Adopt the same method as  lightcone_io.smoothed_map.make_sky_map except particles are 
-read from the snapshots instead of a particle lightcone. 
-"""
 
 
 def message(m):
@@ -32,6 +32,52 @@ def message(m):
     """
     if comm_rank == 0:
         print(m, flush=True)
+
+
+def share_pieces(npart_per_piece, nr_ranks):
+    """
+    Share pieces of the lightcones tiles between MPI ranks from the largest to the rank 
+    with the fewest particles so far.
+
+    Returns a list of the indices of the pieces given to each rank.
+
+    :param  npart_per_piece:    number of particles read for each piece
+    :type   npart_per_piece:    np.ndarray
+    :param  nr_ranks:           number of ranks
+    :type   nr_ranks:           int
+    
+    """
+    
+    pieces = [[] for _ in range(nr_ranks)]
+    npart_per_rank = np.zeros(nr_ranks, dtype=np.int64)
+    for piece in np.argsort(npart_per_piece, kind="stable")[::-1]:
+        rank = int(np.argmin(npart_per_rank))
+        pieces[rank].append(int(piece))
+        npart_per_rank[rank] += npart_per_piece[piece]
+    
+    return pieces
+
+
+def place_piece(lightcone, piece_nr, ptype="PartType0"):
+    """
+    Place the gas particles into the lightcones tiles. 
+
+    Returns a tuple (positions [Mpc], smoothing lengths [Mpc], masses [Msun]) 
+    The tiuple is empty if piece_nr is None or no particles are inside the lightcone.
+    
+    :param  lightcone:  serial SnapshotAllSky, after gather_files
+    :type   lightcone:  SnapshotAllSky
+    :param  piece_nr:   index of the piece into the pieces found by gather_files, or None for no piece
+    :type   piece_nr:   int
+    :param  ptype:      particle type
+    :type   ptype:      str
+    """
+
+    particles = {} if piece_nr is None else lightcone.place_file_in_shell(piece_nr, ptype, ["Masses"])
+    if len(particles) == 0:
+        return (unyt.unyt_array(np.zeros((0, 3)), "Mpc"), unyt.unyt_array(np.zeros(0), "Mpc"),
+                unyt.unyt_array(np.zeros(0), "Msun"))
+    return particles["Coordinates"].to("Mpc"), particles["SmoothingLengths"].to("Mpc"), particles["Masses"].to("Msun")
 
 
 def make_smoothed_sky_map(part_pos, part_hsml, part_val, nside, progress=False):
@@ -195,51 +241,81 @@ def plot_map(map_filename, dataset_name, plot_filename):
     plt.close()
 
 
-if __name__ == "__main__":
+def make_map(snap_all_sky, redshift_range, nside, output_filename, ptype="PartType0", dataset_name="SmoothedGasMass"):
+    """
+    Make, write and plot the smoothed gas mass map of the shell, placing its particles a round at a time (see the
+    module docstring).
+    :param  snap_all_sky:                 serial SnapshotAllSky, one on each rank, with the same orientation on every rank
+    :type   snap_all_sky:                 SnapshotAllSky
+    :param  redshift_range:     minimum and maximum redshift of the shell [z_min, z_max]
+    :type   redshift_range:     tuple
+    :param  nside:              HEALPix resolution of the map
+    :type   nside:              int
+    :param  output_filename:    path of the HDF5 file to write the map to
+    :type   output_filename:    str
+    :param  ptype:              particle type
+    :type   ptype:              str
+    :param  dataset_name:       name of the map dataset
+    :type   dataset_name:       str
+    """
+    # Every rank finds the same files of the snapshots that fill the shell, 
+    # Files are shared between the ranks
+    nr_pieces, pieces = snap_all_sky.gather_files(ptype, redshift_range)
+    npart_per_piece = np.array([int(np.sum(piece.lengths)) for piece in pieces], dtype=np.int64)
+    my_pieces = share_pieces(npart_per_piece, comm_size)[comm_rank] # get local files (i.e. pieces of the lightcone)
+    nr_rounds = comm.allreduce(len(my_pieces), op=MPI.MAX)
+    message(f"\n{nr_pieces} pieces (snapshot, tile, file) of gas to read, {np.sum(npart_per_piece)} particles in their cells, placed in {nr_rounds} rounds\n")
 
-    # simulation to use
-    box_res = "L1000N1800"
-    sim_name = "HYDRO_FIDUCIAL"
+    # add to the map one round at a time.
+    snap_all_sky.verbose = 0  # one line per round instead
+    map_data = None # local map
+    nr_placed = 0
+    for round_nr in range(nr_rounds):
+        part_pos, part_hsml, part_mass = place_piece(snap_all_sky, my_pieces[round_nr] if round_nr < len(my_pieces) else None, ptype)
+        nr_placed += len(part_mass)
+        round_map = make_smoothed_sky_map(part_pos, part_hsml, part_mass, nside)
+        map_data = round_map if map_data is None else map_data + round_map # update local map 
+        message(f"round {round_nr + 1}/{nr_rounds}: {comm.allreduce(len(part_mass))} gas particles smoothed onto the map")
+        del part_pos, part_hsml, part_mass, round_map
+    message(f"\n{comm.allreduce(nr_placed)} gas particles in the lightcone shell\n")
 
-    # lightcone shell and map resolution
-    redshift_range = (0.1, 0.15)
-    nside = 4096
-
-    # define output directory and file
-    output_dir = "./example_outputs/smoothed_maps"
-    if comm_rank == 0:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-    comm.barrier()
-    output_filename = f"{output_dir}/smoothed_gas_mass.z_{redshift_range[0]:.3f}_{redshift_range[1]:.3f}.nside_{nside}.hdf5"
-
-    # Place the gas particles from the snapshots in the all-sky shell. Passing comm reads the
-    # snapshot files in parallel, each rank keeping the particles from its own files
-    SA = SnapshotAllSky(boxsize_resolution=box_res, simulation_name=sim_name, verbose=1,orientation_lock="cube")
-    shell_particles = SA.place_snapshot_particles_in_shell(
-        lightcone_redshift_range=redshift_range,
-        property_names=["Masses"],
-        particle_types=["PartType0"],
-        comm=comm,
-        )
-    gas_particle_data = shell_particles["PartType0"]
-    if not gas_particle_data:
-        raise ValueError("no gas particles found in the lightcone shell")
-
-    part_pos = gas_particle_data["Coordinates"].to("Mpc")
-    part_hsml = gas_particle_data["SmoothingLengths"].to("Mpc")
-    part_mass = gas_particle_data["Masses"].to("Msun")
-    message(f"\n{comm.allreduce(len(part_mass))} gas particles in the lightcone shell\n")
-
-    # smooth the gas mass onto the map
-    map_data = make_smoothed_sky_map(part_pos, part_hsml, part_mass, nside, progress=True)
-
-    # write the map
-    write_map(output_filename, "SmoothedGasMass", map_data, nside, redshift_range, lightcone_metadata=shell_particles.metadata)
+    # write the map and plot it, read back from the file on rank 0
+    write_map(output_filename, dataset_name, map_data, nside, redshift_range, lightcone_metadata=snap_all_sky.lightcone_metadata(redshift_range))
     message(f"Map written to: {output_filename}")
-    
-    # plot the map, read back from the file on rank 0
     comm.barrier()
     if comm_rank == 0:
         plot_filename = output_filename.replace(".hdf5", ".png")
-        plot_map(output_filename, "SmoothedGasMass", plot_filename)
+        plot_map(output_filename, dataset_name, plot_filename)
         message(f"Map plot saved as: {plot_filename}")
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="All-sky smoothed gas mass map of a COLIBRE lightcone shell.")
+    parser.add_argument("--box_res", default="L0400N3008", help="box size and resolution label (L400_m7)")
+    parser.add_argument("--sim_name", default="Thermal", help="name of the simulation")
+    parser.add_argument("--zmin", type=float, default=0.05, help="minimum redshift of the shell")
+    parser.add_argument("--zmax", type=float, default=0.1, help="maximum redshift of the shell")
+    parser.add_argument("--nside", type=int, default=2048, help="HEALPix resolution of the map")
+    parser.add_argument("--orientation_seed", type=int, default=0, help="seed of the box tile orientations")
+    parser.add_argument("--orientation_lock", default="cube", choices=["none", "cube", "sphere"],help="orientation lock of the box tiles")
+    parser.add_argument("--output_dir", default="./example_outputs/colibre_smoothed_maps", help="output directory")
+    args = parser.parse_args()
+
+   # simulation to use, lightcone shell and map resolution
+    simulation = Simulation.from_label(args.box_res, args.sim_name)
+    redshift_range = (args.zmin, args.zmax)
+    nside = args.nside
+
+    # define output directory and file
+    if comm_rank == 0:
+        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    comm.barrier()
+    output_filename = (f"{args.output_dir}/smoothed_gas_mass.z_{args.zmin:.3f}_{args.zmax:.3f}.nside_{nside}.hdf5")
+
+    # gather_files and place_file_in_shell read in serial, so each rank has its own serial SnapshotAllSky
+    snap_all_sky = SnapshotAllSky(simulation_object=simulation, orientation_seed=args.orientation_seed,
+                        orientation_lock=args.orientation_lock, verbose=0)
+    message(f"{simulation.box_res}/{simulation.name} ({simulation.suite.name}): smoothed gas mass map of {args.zmin} < z < {args.zmax}, nside {nside}")
+    make_map(snap_all_sky, redshift_range, nside, output_filename)
+
+

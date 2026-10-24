@@ -1,9 +1,11 @@
 #!/bin/env python
-import sys
+import argparse
+import os
+
+import h5py
 import numpy as np
-import healpy as hp
 import unyt
-import lightcone_io.halo_catalogue as hc
+import healpy as hp
 import lightcone_io.smoothed_map as smoothed_map
 import lightcone_io.kernel as kernel
 import matplotlib.pyplot as plt
@@ -12,40 +14,36 @@ import matplotlib as mpl
 import cmasher as cmr  # noqa: F401 register "cmr.*" colour maps used
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib.ticker import NullFormatter
-from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from pathlib import Path
 
-
+from swiftlet.snapshot_cosmology import SnapshotCosmology
 from swiftlet.snapshot_lightcone import SnapshotBeam
-from swiftlet import snapshot_units as sw_units
-from swiftlet import swift_snapshot_redshift_conversion as nz
+from swiftlet.soap_reader import select_soap_rows
+from swiftlet.simulation_suites import Simulation, output_redshifts
+from swiftlet.snapshot_redshifts import snapshot_redshift_range
+from swiftlet.example_plot_settings import plot_settings
 
-from map_zoom_on_halo import plot_settings
 
 """
-The same as map_zoom_on_halo.py but for haloes from the snapshots and lightcones built from the snapshots with SnapshotBeam. 
-For the fiducial L1_m9 FLAMINGO simulation:
+The same as map_zoom_on_halo.py but for haloes from the snapshots using lightcones built with SnapshotBeam. 
+For the fiducial L1_m9 FLAMINGO simulation select haloes using the following criteria:
 
     1. Find haloes with M200c close to 10^14 Msun in the SOAP catalogues of the snapshots covering 0.1 < z < 0.2.
-        SnapshotBeam puts the observer at the centre of the box, and with orientation_seed=0 and no
-        orientation lock that tile is not re-oriented, so a halo's position relative to the box centre
-        (500, 500, 500) Mpc is its position in a SnapshotBeam lightcone.
-    2. Keep the haloes, if the zoomed region around them is inside the zero'th snapshot box, at distances SnapshotBeam fills from
+    2. Keep the haloes if the zoomed region around them is inside the zero'th snapshot box, at distances SnapshotBeam fills from
         the halo's own snapshot. Then select n_haloes from the remaining candidates
     3. For each halo, build a beam pointing at it, through a slab around the halo, and make small HEALPix maps of
         its particles around the halo:
             - SmoothedGasMass:  gas mass smoothed with the SPH kernel, as the lightcone's maps.
             - GasTemperature:   mass weighted temperature of the gas, smoothed with the SPH kernel.
-            - GasLOSVelocity:   mass weighted peculiar velocity of the gas along the line of sight (away from the
-                                    observer is positive), smoothed with the SPH kernel.
     4. Plot a row of the zooms for each halo. The masses are shown as the projected mass per comoving area at the
         distance of the halo.
 
-Note 1) SnapshotLightcone re-orients the coordinates of the box tiles but not the velocities, so the velocities are
+Notes 
+    1) SnapshotLightcone re-orients the coordinates of the box tiles but not the velocities, so the velocities are
 only along the right directions in the box tile (0, 0, 0), which is not re-oriented. The haloes are chosen so that
 every particle used is in that tile, and this is checked.
 
-Note 2) SnapshotBeam reads the snapshots and SOAP catalogues from the local FLAMINGO directories, so this needs to run
+    2) SnapshotBeam reads the snapshots and SOAP catalogues from the local FLAMINGO directories, so this needs to run
 on COSMA.
 """
 
@@ -56,12 +54,10 @@ MAPS = {
                         "label": "gas", "units": r"$\Sigma_{\rm gas}$ [M$_\odot$ Mpc$^{-2}$]"},
     "GasTemperature": {"ptype": "PartType0", "kind": "mass_weighted", "cmap": "cmr.ember",
                        "label": "gas temperature", "units": r"$T_{\rm gas}$ [K]"},
-    "GasLOSVelocity": {"ptype": "PartType0", "kind": "mass_weighted", "cmap": "RdBu_r",
-                       "label": "gas l.o.s. velocity", "units": r"$v_{\rm los}$ [km s$^{-1}$]"},
 }
 
 # particle properties to read for each particle type
-PROPERTIES = {"PartType0": ["Masses", "Temperatures", "Velocities"]}
+PROPERTIES = {"PartType0": ["Masses", "Temperatures"]}
 
 
 def comoving_distance_to_redshift(cosmo, distance, z_max=3.0, n_grid=20000):
@@ -79,10 +75,22 @@ def comoving_distance_to_redshift(cosmo, distance, z_max=3.0, n_grid=20000):
     :param  n_grid:     number of redshifts in the grid
     :type   n_grid:     int
     """
+
     z_grid = np.linspace(0., z_max, n_grid)
     r_grid = cosmo.comoving_distance(z_grid).to_value("Mpc")
     return np.interp(distance, r_grid, z_grid)
 
+def snapshot_boxsize(simulation):
+    """
+    Sidelength of the snapshot box of a simulation, from the header of its redshift 0 snapshot.
+    Returns the box sidelength [comoving Mpc].
+    :param  simulation: the simulation
+    :type   simulation: Simulation
+    """
+    with h5py.File(simulation.snapshot_file(simulation.z0_snapshot, 0), "r") as snapshot:
+        boxsize = np.ravel(snapshot["Header"].attrs["BoxSize"])[0]
+        length_cgs = float(np.ravel(snapshot["Units"].attrs["Unit length in cgs (U_L)"])[0])
+    return unyt.unyt_quantity(boxsize * length_cgs, "cm").to_value("Mpc")
 
 def bin_particles(part_pos, part_val, nside, selected_pix):
     """
@@ -100,6 +108,7 @@ def bin_particles(part_pos, part_val, nside, selected_pix):
     :param  selected_pix:   sorted indices of the selected pixels
     :type   selected_pix:   np.ndarray
     """
+
     map_values = np.zeros(len(selected_pix))
     pix = hp.vec2pix(nside, part_pos[:, 0], part_pos[:, 1], part_pos[:, 2])
     idx = np.clip(np.searchsorted(selected_pix, pix), 0, len(selected_pix) - 1)
@@ -108,7 +117,7 @@ def bin_particles(part_pos, part_val, nside, selected_pix):
     return map_values
 
 
-def find_candidate_haloes(soap_format, boxsize_resolution, z_max, log_mass_range, z_min=0.1):
+def find_candidate_haloes(soap_format, simulation, z_max, log_mass_range, z_min=0.):
     """
     Find the haloes with M200c in a range in the SOAP catalogues of the snapshots covering z <= z_max.
 
@@ -121,39 +130,47 @@ def find_candidate_haloes(soap_format, boxsize_resolution, z_max, log_mass_range
             "R200c" [cMpc],
         }
 
-    :param  soap_format:        format string of the SOAP catalogue filenames (using {snap_nr})
-    :type   soap_format:        str
-    :param  boxsize_resolution: FLAMINGO box size and resolution label, e.g. "L1000N1800"
-    :type   boxsize_resolution: str
-    :param  z_max:              largest redshift to search
-    :type   z_max:              float
-    :param  log_mass_range:     minimum and maximum log10(M200c / Msun)
-    :type   log_mass_range:     tuple
+    :param  soap_format:    format string of the SOAP catalogue filenames (using {snap_nr})
+    :type   soap_format:    str
+    :param  simulation:     the simulation, for its snapshots' redshifts
+    :type   simulation:     Simulation
+    :param  z_max:          largest redshift to search
+    :type   z_max:          float
+    :param  z_min:          lowest redshift to search
+    :type   z_min:          float
+    :param  log_mass_range: minimum and maximum log10(M200c / Msun)
+    :type   log_mass_range: tuple
     """
-    snapshot_numbers, _ = nz.flamingo_snapshot_redshift(boxsize_resolution)
+
     found = []
-    for snap_nr in snapshot_numbers:
-        z_lo, z_hi = nz.snapshot_redshift_range(int(snap_nr), boxsize_resolution)
+    for snap_nr in simulation.snapshots_in_range((0., z_max)):
+        z_lo, z_hi = simulation.snapshot_redshift_range(int(snap_nr))
+        # only the snapshots overlapping 0 < z < z_max, not those that only touch it
         if z_lo >= z_max or z_hi <= 0. or z_lo<z_min:
             continue
-        halo_cat = hc.SOAPCatalogue(soap_format, int(snap_nr), int(snap_nr))
-        soap = halo_cat.read(int(snap_nr), ["InputHalos/HaloCatalogueIndex", "InputHalos/HaloCentre",
-                                            "SO/200_crit/TotalMass", "SO/200_crit/SORadius"])
-        mass = soap["SO/200_crit/TotalMass"].to_value("Msun")
-        with np.errstate(divide="ignore"):
-            keep = (np.log10(mass) >= log_mass_range[0]) & (np.log10(mass) <= log_mass_range[1])
+        if not os.path.exists(soap_format.format(snap_nr=int(snap_nr))):
+            print("\tsnapshot {snap_nr}: no SOAP catalogue, skipped")
+            continue
+        units = {"SO/200_crit/TotalMass": "Msun", "InputHalos/HaloCatalogueIndex": "dimensionless",
+                 "InputHalos/HaloCentre": "Mpc", "SO/200_crit/SORadius": "Mpc"}
+        soap = select_soap_rows(
+            soap_format.format(snap_nr=int(snap_nr)), "SO/200_crit/TotalMass",
+            lambda mass: (mass.to_value("Msun") >= 10**log_mass_range[0]) & (mass.to_value("Msun") <= 10**log_mass_range[1]),
+            list(units), units=units)
         found.append({
-            "SnapshotNumber": np.full(np.count_nonzero(keep), int(snap_nr)),
-            "HaloCatalogueIndex": soap["InputHalos/HaloCatalogueIndex"].value.astype(int)[keep],
-            "SOAPCentre": sw_units.drop_a_from_comoving_property(soap["InputHalos/HaloCentre"][keep]).to_value("Mpc"),
-            "M200c": mass[keep],
-            "R200c": sw_units.drop_a_from_comoving_property(soap["SO/200_crit/SORadius"][keep]).to_value("Mpc"),
+            "SnapshotNumber": np.full(len(soap["row"]), int(snap_nr)),
+            "HaloCatalogueIndex": soap["InputHalos/HaloCatalogueIndex"].astype(int),
+            "SOAPCentre": soap["InputHalos/HaloCentre"],
+            "M200c": soap["SO/200_crit/TotalMass"],
+            "R200c": soap["SO/200_crit/SORadius"],
         })
-        print(f"\tsnapshot {snap_nr}: {np.count_nonzero(keep)} haloes in the mass range")
+        print(f"\tsnapshot {snap_nr}: {len(soap['row'])} haloes in the mass range")
+    if not found:
+        raise FileNotFoundError(f"no SOAP catalogues found ({soap_format}) of the snapshots at z < {z_max}")
     return {name: np.concatenate([haloes[name] for haloes in found]) for name in found[0]}
 
 
-def select_haloes(candidates, box_centre, boxsize, cosmo, boxsize_resolution, z_max, margin, n_haloes, target_log_mass):
+def select_haloes(candidates, box_centre, boxsize, cosmo, simulation, z_max, margin, n_haloes, target_log_mass, z_min=0.):
     """
     Choose the haloes to zoom on. 
     Keep the haloes whose surrounding zoomed in region are
@@ -172,8 +189,8 @@ def select_haloes(candidates, box_centre, boxsize, cosmo, boxsize_resolution, z_
     :type   boxsize:            float
     :param  cosmo:              cosmology of the snapshots
     :type   cosmo:              astropy.cosmology.FLRW
-    :param  boxsize_resolution: FLAMINGO box size and resolution label, e.g. "L1000N1800"
-    :type   boxsize_resolution: str
+    :param  simulation:         the simulation, for its snapshots' redshifts
+    :type   simulation:         Simulation
     :param  z_max:              largest redshift of the haloes in the SnapshotBeam
     :type   z_max:              float
     :param  margin:             comoving distance [Mpc] around each halo that must also fit
@@ -183,18 +200,19 @@ def select_haloes(candidates, box_centre, boxsize, cosmo, boxsize_resolution, z_
     :param  target_log_mass:    log10(M200c / Msun) to choose the haloes closest to
     :type   target_log_mass:    float
     """
-    offset = candidates["SOAPCentre"] - box_centre
-    distance = np.linalg.norm(offset, axis=1)
-    in_box = np.all(np.abs(offset) + margin[:, None] < 0.5 * boxsize, axis=1)
 
-    snap_z_range = np.array([nz.snapshot_redshift_range(int(s), boxsize_resolution) for s in candidates["SnapshotNumber"]])
+    # haloes offset from the centre of the box
+    offset = candidates["SOAPCentre"] - box_centre
+    distance = np.linalg.norm(offset, axis=1) # distance to the haloes
+    #in_box = np.all(np.abs(offset) + margin[:, None] < 0.5 * boxsize, axis=1) # check if in tile (0,0,0)
+
+    snap_z_range = np.array([simulation.snapshot_redshift_range(int(s)) for s in candidates["SnapshotNumber"]])
     z_near = comoving_distance_to_redshift(cosmo, np.maximum(distance - margin, 0.))
     z_far = comoving_distance_to_redshift(cosmo, distance + margin)
-    same_snapshot = (z_near > snap_z_range[:, 0]) & (z_far <= snap_z_range[:, 1]) & (z_far <= z_max)
+    same_snapshot = (z_near > snap_z_range[:, 0]) & (z_far <= snap_z_range[:, 1]) & (z_far <= z_max) & (z_near >= z_min)
 
-    usable = np.flatnonzero(in_box & same_snapshot)
-    print(f"\n{len(distance)} candidate haloes: {np.count_nonzero(in_box)} away from the box faces, "
-          f"{np.count_nonzero(same_snapshot)} filled from their own snapshot, {len(usable)} with both")
+    usable = np.flatnonzero(same_snapshot)
+    print(f"\n{len(distance)} candidate haloes filled from their own snapshot, {len(usable)} with both")
     if len(usable) < n_haloes:
         raise ValueError(f"only {len(usable)} haloes can be used, try a wider mass range")
 
@@ -213,6 +231,7 @@ def select_haloes(candidates, box_centre, boxsize, cosmo, boxsize_resolution, z_
         if idx not in chosen:
             chosen.append(idx)
     return np.array(chosen)
+
 
 
 def smooth_weighted_particles(part_pos, part_hsml, part_weight, part_values, nside, selected_pix):
@@ -291,6 +310,15 @@ def gnomonic_zoom(pix_values, selected_pix, nside, centre_vector, zoom_angle, di
     image = gnom.projmap(np.append(np.asarray(pix_values, dtype=np.float64), np.nan), vec2index)
     return image, np.asarray(gnom.get_extent()) * distance
 
+def rescale_temperature_to_lightcone_redshift(Temp_snap, z_snap, z_lc):
+    """
+    Approximate the gas temperature at the lightcone redshift (z_lc)
+    given the particle's actual temperature at its snapshot redshift (z_snap).
+
+    Assume purely adiabatic evolution over the gap between the
+    snapshot and lightcone redshift. 
+    """
+    return Temp_snap * ((1.0 + z_lc) / (1.0 + z_snap)) ** 2
 
 def halo_maps(beam_particles, nside, beam_pix, distance):
     """
@@ -310,22 +338,17 @@ def halo_maps(beam_particles, nside, beam_pix, distance):
     gas = beam_particles["PartType0"]
     gas_pos = gas["Coordinates"].to("Mpc")
     gas_mass = gas["Masses"].to_value("Msun")
-    # peculiar velocity along the line of sight to each particle, away from the observer is positive
-    line_of_sight = gas_pos.value / np.linalg.norm(gas_pos.value, axis=1)[:, None]
-    gas_vlos = np.sum(gas["Velocities"].to_value("km/s") * line_of_sight, axis=1)
     gas_temperature = gas["Temperatures"].to_value("K")
 
-    gas_weight, gas_weighted = smooth_weighted_particles(gas_pos, gas["SmoothingLengths"].to("Mpc"), gas_mass,
-                                                         np.stack([gas_temperature, gas_vlos], axis=1), nside, beam_pix)
+    gas_weight, gas_weighted = smooth_weighted_particles(gas_pos, gas["SmoothingLengths"].to("Mpc"), gas_mass, np.stack([gas_temperature], axis=1), nside, beam_pix)
     with np.errstate(invalid="ignore", divide="ignore"):
         mean_values = gas_weighted / gas_weight[:, None]
 
     gas_surface_density=gas_weight / (hp.nside2pixarea(nside) * distance**2)
     return {
-        "SmoothedGasMass": gas_surface_density,
-        "GasTemperature": np.where(gas_weight > 0, mean_values[:, 0], np.nan),
-        "GasLOSVelocity": np.where(gas_weight > 0, mean_values[:, 1], np.nan),
-    }
+            "SmoothedGasMass": gas_surface_density,
+            "GasTemperature": np.where(gas_weight > 0, mean_values[:, 0], np.nan),
+        }
 
 
 def draw_scale_bar(ax, extent, distance, fraction=0.25, colour="white"):
@@ -423,31 +446,41 @@ def plot_halo_zooms(zooms, haloes, output_filename, percentiles=(1., 99.9), r200
 
 if __name__ == "__main__":
     
+    parser = argparse.ArgumentParser(description="Zoom on haloes in SnapshotBeam lightcones of a FLAMINGO or COLIBRE simulation")
+    parser.add_argument("--box_res", default="L1000N1800",
+                        help="box size and resolution label, e.g. L1000N1800 (FLAMINGO L1_m9) or L0400N3008 (COLIBRE L400_m7)")
+    parser.add_argument("--sim_name", default="HYDRO_FIDUCIAL", help="name of the simulation, e.g. HYDRO_FIDUCIAL or Thermal")
+    parser.add_argument("--soap_dir", default=None, help="directory of the SOAP catalogues, by default <simulation>/SOAP-HBT")
+    parser.add_argument("--n_haloes", type=int, default=3, help="number of haloes to zoom on")
+    parser.add_argument("--log_mass", type=float, default=14., help="target log10(M200c / Msun) of the haloes")
+    parser.add_argument("--log_mass_width", type=float, default=0.1, help="half width [dex] of the mass range")
+    parser.add_argument("--z_max", type=float, default=0.2, help="largest redshift of the haloes")
+    parser.add_argument("--pixel_size", type=float, default=0.02,
+                        help="size [cMpc] of the HEALPix pixels at the halo, which sets the nside of each map")
+    parser.add_argument("--output_dir", default="./example_outputs/snapshot_beam_zoom_on_haloes",
+                        help="output directory")
+    args = parser.parse_args()
     plot_settings()
 
-    # fiducial L1_m9 simulation
+    # the simulation: its paths, output redshifts, cosmology and box, read locally on COSMA
+    simulation = Simulation.from_label(args.box_res, args.sim_name)
+    soap_dir = args.soap_dir or f"{simulation.directory}/SOAP-HBT"
+    soap_format = f"{soap_dir}/halo_properties_{{snap_nr:04d}}.hdf5"
+    cosmo = SnapshotCosmology.from_simulation(simulation).COSMO
+    boxsize = snapshot_boxsize(simulation)  # [Mpc]
+    box_centre = np.full(3, 0.5 * boxsize)
+    print(f"{simulation.box_res}/{simulation.name} ({simulation.suite.name}): box {boxsize:g} cMpc, {len(simulation.output_redshifts)} snapshots, SOAP catalogues {soap_format}")
 
-    boxsize_resolution = "L1000N1800"
-    sim_name = "HYDRO_FIDUCIAL"
-    boxsize = 1000.  # [Mpc]
-    box_centre = np.full(3, 0.5 * boxsize)  # (500, 500, 500) [Mpc]
-
-    # update to local or remote path as needed...
-    # currently to local path on COSMA
-    sim_dir = f"/cosma8/data/dp004/flamingo/Runs/{boxsize_resolution}/{sim_name}"
-    soap_format = f"{sim_dir}/SOAP-HBT/halo_properties_{{snap_nr:04d}}.hdf5"
-    
     # output dir of image, update as needed
     output_dir = "./example_outputs/snapshot_beam_zoom_on_haloes"
     Path(output_dir).mkdir(parents=True, exist_ok=True) # ensure output dir exists
 
-    cosmo = Snapshot_Cosmology_For_Lightcone(f"{sim_dir}/snapshots").COSMO
-
     # haloes with M200c within 0.1 dex of 10^14 Msun at z < 0.2
-    n_haloes = 2
-    target_log_M200c = 14
-    log_mass_width = 0.1
-    z_max = 0.2
+    target_log_M200c = args.log_mass
+    log_mass_width = args.log_mass_width
+    z_box_corner = float(comoving_distance_to_redshift(cosmo, 0.5 * np.sqrt(3.) * boxsize))
+    z_max = min(args.z_max, z_box_corner)
+    n_haloes = args.n_haloes
 
     # half width of the zooms and half depth of the beam around each halo, in units of R200c
     zoom_r200c = 4.
@@ -456,20 +489,19 @@ if __name__ == "__main__":
     # resolution of the maps: nside of the pixels about pixel_size across at the halo
     pixel_size = 0.01  # [cMpc]
 
-
-    # 1. haloes near 10^14 Msun in the snapshots covering z < 0.2
-    # get ID, centre, mass and radii of candidate haloes
+    # Find haloes near 10^14 Msun in the snapshots
+    # Get ID, centre, mass and radii of candidate haloes
     print(f"\nHaloes with M200c within {log_mass_width} dex of 10^{target_log_M200c:g} Msun, snapshots at z < {z_max}:")
-    candidates = find_candidate_haloes(soap_format, boxsize_resolution, z_max, (target_log_M200c - log_mass_width, target_log_M200c + log_mass_width))
-
-    # 2. find the haloes to zoom on. 
+    candidates = find_candidate_haloes(soap_format, simulation, z_max, (target_log_M200c - log_mass_width, target_log_M200c + log_mass_width))
+    
+    # Find the haloes to zoom on. 
     # The region around each halo must stay in the box tile (0, 0, 0).
     # i.e. The beam around the halo + the zoom with the wider beam around it
     zoom_radius = zoom_r200c * candidates["R200c"]
     margin = np.sqrt((1.2 * zoom_radius)**2 + (depth_r200c * candidates["R200c"])**2)
-    chosen = select_haloes(candidates, box_centre, boxsize, cosmo, boxsize_resolution, z_max, margin, n_haloes, target_log_M200c)
+    chosen = select_haloes(candidates, box_centre, boxsize, cosmo, simulation, z_max, margin, n_haloes, target_log_M200c)
 
-    # 3. make a beam that points at each halo and then place beam onto a map
+    # Make a beam that points at each halo and then place beam onto a map
     zooms, haloes = [], []
     for idx in chosen:
         halo = {name: values[idx] for name, values in candidates.items()} # store ID, centre, radii and masses 
@@ -477,14 +509,14 @@ if __name__ == "__main__":
         offset = halo["SOAPCentre"] - box_centre # get offset of halo from the centre of the snapshot box
         distance = np.linalg.norm(offset) # dist from centre of snapshot to halo
         redshift = float(comoving_distance_to_redshift(cosmo, distance)) # redshift of the halo in the lightcone (from comoving distance to observer)
-        beam_vector = offset / distance # 
-        zoom_angle = zoom_r200c * halo["R200c"] / distance
-        depth = depth_r200c * halo["R200c"]
+        beam_vector = offset / distance # beams direction
+        zoom_angle = zoom_r200c * halo["R200c"] / distance # angular size of zoom region
+        depth = depth_r200c * halo["R200c"] # depth of zoom region 
         beam_redshift_range = tuple(comoving_distance_to_redshift(cosmo, np.array([distance - depth, distance + depth])))
-        nside = int(2**np.round(np.log2(hp.nside2resol(1) * distance / pixel_size)))
-        beam_pix = np.sort(hp.query_disc(nside, beam_vector, zoom_angle, inclusive=True))
+        nside = int(2**np.round(np.log2(hp.nside2resol(1) * distance / pixel_size))) # get 'nside' of zoomed region from pixel resolution
+        beam_pix = np.sort(hp.query_disc(nside, beam_vector, zoom_angle, inclusive=True)) # find pixels within the zoomed region. 
 
-        # give massive update on each selected candidate
+        # give update on each selected candidate:
         # show catalogue info
         print(f"\nhalo {halo['HaloCatalogueIndex']} of snapshot {snap_nr}:\tM200c {halo['M200c']:.4e} Msun, R200c {halo['R200c']:.3f} cMpc")
         # SOAP info 
@@ -495,9 +527,8 @@ if __name__ == "__main__":
         beam_str+=f"{np.degrees(1.2 * zoom_angle):.3f} deg, nside {nside}" # angular size
         print(beam_str)
 
-        # create specific beam for selected halo
-        SB = SnapshotBeam(boxsize_resolution=boxsize_resolution, simulation_name=sim_name, beam_vector=beam_vector,
-                          orientation_seed=0, orientation_lock=None, verbose=1)
+        # create a beam for selected halo
+        SB = SnapshotBeam(simulation_object=simulation, beam_vector=beam_vector, orientation_seed=0, orientation_lock=None, verbose=1)
         
         beam_particles = {}
         for ptype, property_names in PROPERTIES.items():
@@ -508,12 +539,8 @@ if __name__ == "__main__":
                 particle_types=[ptype],
                 )[ptype]
 
-            # every particle must come from the box tile (0, 0, 0), where the velocities are not re-oriented
-            coords = beam_particles[ptype]["Coordinates"].to_value("Mpc")
-            if np.any(np.abs(coords) >= 0.5 * boxsize):
-                raise RuntimeError(f"{ptype} particles placed outside the box tile (0, 0, 0)")
 
-        # check the halo is where we expect in the SnapshotBeam: in tile (0, 0, 0) and not re-oriented
+        # check the halo is where it is expected in the SnapshotBeam,  i.e., in tile (0, 0, 0) and not re-oriented
         beam_centre = SB.Snapshot2Lightcone(snap_nr, halo["SOAPCentre"][None, :], tile=(0, 0, 0))[(0, 0, 0)][0]
         if not np.allclose(beam_centre, offset, atol=1e-4):
             raise RuntimeError(f"halo placed at {beam_centre} in the SnapshotBeam, expected {offset}")
@@ -522,18 +549,17 @@ if __name__ == "__main__":
         maps = halo_maps(beam_particles, nside, beam_pix, distance)
         del beam_particles # no longer need particle data
 
-        # store the maps to plot later
-        zooms.append({name: gnomonic_zoom(values, beam_pix, nside, beam_vector, zoom_angle, distance)
-                      for name, values in maps.items()})
+        # store the maps to plotting
+        zooms.append({name: gnomonic_zoom(values, beam_pix, nside, beam_vector, zoom_angle, distance) for name, values in maps.items()})
         
-        # store halo info for plotting later
+        # store halo info for plotting
         haloes.append({
             "R200c": halo["R200c"],
             "distance": distance,
             "label": rf"$M_{{200c}}$ = {halo['M200c'] / 1e14:.2f}$\times 10^{{14}}$ M$_\odot$"+"\n"+rf"$z$ = {redshift:.3f}"
         })
 
-    # 4. a row of zooms for each halo
-    output_filename = f"{output_dir}/snapshot_beam_zoom_on_{n_haloes}_haloes.png"
+    # plot a row of zooms for each halo
+    output_filename = (f"{output_dir}/snapshot_beam_zoom_on_{len(chosen)}_haloes.{simulation.box_res}.{simulation.name}.png")
     plot_halo_zooms(zooms, haloes, output_filename)
-    print(f"\nZooms saved as: {output_filename}")
+    print(f"\nSaved as: {output_filename}")

@@ -5,71 +5,42 @@ import matplotlib as mpl
 import matplotlib.layout_engine
 import matplotlib.pyplot as plt
 from pathlib import Path
-from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
-
+from swiftlet.cosmology import SnapshotCosmology
 from swiftlet.snapshot_lightcone import SnapshotBeam
+from swiftlet.example_plot_settings import plot_settings
 
 
 """
-Place snapshot particles in pencil beam lightcone shells in serial, reading the snapshot files in chunks, 
-and plot where they are relative to the geometry of the beam, for beams pointing in different directions.
-The plots are drawn in the frame of each beam, with the line of sight along the horizontal axis.
+Place snapshot particles in pencil beam for a set lightcone redshift shell and plot where each particle is
+for beams pointing in different directions.
 """
-
-
-def plot_settings():
-    """
-    Set the matplotlib settings for this example. 
-    """
-    # Line Properties
-    plt.rcParams["lines.linewidth"]=1.5 
-    # Font options
-    plt.rcParams["font.size"]=8
-    plt.rcParams["font.family"] = "STIXGeneral"
-    plt.rcParams["mathtext.fontset"] = "stix"
-    plt.rcParams["text.usetex"] = False
-    plt.rcParams["legend.labelspacing"]=0.25
-    plt.rcParams["legend.columnspacing"]=0.75
-    plt.rcParams["legend.borderpad"]=0.3
-    plt.rcParams["legend.borderaxespad"]=0.7
-    plt.rcParams["legend.fontsize"]=9
-    # Figure layour settings
-    plt.rcParams["figure.constrained_layout.use"] =True
-    plt.rcParams["figure.constrained_layout.h_pad"] =0.005
-    plt.rcParams["figure.constrained_layout.w_pad"] =0.005
-    plt.rcParams["figure.constrained_layout.hspace"]=0.005
-    plt.rcParams["figure.constrained_layout.wspace"]=0.005
-    # axes font settings
-    mpl.rcParams['axes.labelsize']=9
-    mpl.rcParams['figure.labelsize']=9
-    mpl.rcParams['xtick.labelsize']=9
-    mpl.rcParams['ytick.labelsize']=9
-    # axes tick settings
-    plt.rcParams["xtick.direction"] ='in'
-    plt.rcParams["ytick.direction"] ='in'
-    plt.rcParams["xtick.top"]=True
-    plt.rcParams["ytick.right"]= True
-
 
 def beam_frame(beam_vector):
     """
     Orthonormal frame of a beam: two axes across the beam and the line of sight. For a beam along 
     the z-axis this is the x, y, z frame.
 
-    Returns a tuple of (frame, axis_names). frame has shape (3, 3), with rows (e1, e2, line of sight), 
-    so coords @ frame.T gives coordinates in the beam's frame. axis_names are the names of the 
-    three axes, x, y or z (with a minus sign if reversed) when the axis is along one, otherwise 
-    e1, e2 and "los".
+    Returns a tuple of (frame, axis_names). 
+        frame:          shape (3, 3), with rows (e1, e2, line of sight), so coords @ frame.T gives 
+                            coordinates in the beam's frame. 
+        axis_names:     names of the three axes, x, y or z (with a minus sign if reversed) when 
+                            the axis is along one, otherwise e1, e2 and "los".
 
     :param  beam_vector:    direction of the beam
     :type   beam_vector:    array-like, shape (3,)
     """
+
+    # line-of-sight vector as point of reference
     los = np.asarray(beam_vector, dtype=float)
     los = los / np.linalg.norm(los)
     reference = np.array([1.0, 0.0, 0.0]) if abs(los[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
+    
+    # make transverse vectors
     e1 = reference - (reference @ los) * los
     e1 = e1 / np.linalg.norm(e1)
     e2 = np.cross(los, e1)
+
+    # add all vectors to frame, line-of-sight is always z-axis 
     frame = np.array([e1, e2, los])
 
     axis_names = []
@@ -84,7 +55,7 @@ def beam_frame(beam_vector):
 
 def beam_label(beam_vector):
     """
-    Short label of a beam direction, used in titles and output filenames, e.g. "1_1_1".
+    label of a beams direction and used in titles + output filenames, e.g. "1_1_1".
 
     :param  beam_vector:    direction of the beam
     :type   beam_vector:    array-like, shape (3,)
@@ -94,10 +65,10 @@ def beam_label(beam_vector):
 
 def in_lightcone(coords, angular_radius_deg, z_min, z_max, cosmo, buffer_length=None, buffer_shape="cube", beam_vector=(0.0, 0.0, 1.0)):
     """
-    Determine which points fall inside the lightcone shell defined by an angular radius and a
-    redshift range [z_min, z_max].
+    Determine which points fall inside the lightcone shell defined by an angular radius and
+    redshift range (z_min, z_max).
 
-    Returns a boolean mask, shape (N,), True for points inside the lightcone wedge.
+    Returns a boolean mask. True for points inside the lightcone wedge.
 
     :param  coords:             Cartesian comoving coordinates [Mpc], shape (N, 3)
     :type   coords:             np.ndarray
@@ -116,10 +87,12 @@ def in_lightcone(coords, angular_radius_deg, z_min, z_max, cosmo, buffer_length=
     :param  beam_vector:        direction of the beam
     :type   beam_vector:        array-like, shape (3,)
     """
+
     coords = np.asarray(coords)
     if coords.ndim != 2 or coords.shape[1] != 3: # test for coords shape
         raise ValueError("coords must be a vector with shape (N, 3)")
     
+    # check shape of beam vector
     beam_vector = np.asarray(beam_vector, dtype=float)
     if beam_vector.shape != (3,): # test for vector shape
         raise ValueError("beam_vector must be a vector with shape (3,) ")
@@ -128,13 +101,11 @@ def in_lightcone(coords, angular_radius_deg, z_min, z_max, cosmo, buffer_length=
         raise ValueError("beam_vector must be a nonzero vector")
     axis = beam_vector / vector_norm  # ensure unit vector
     
+    half_angle = np.deg2rad(angular_radius_deg) # radius of the beam
 
-    half_angle = np.deg2rad(angular_radius_deg)
-
-    chi_inner = cosmo.z2r(z_min).to_value("Mpc")
-    chi_outer = cosmo.z2r(z_max).to_value("Mpc")
+    chi_inner = cosmo.comoving_distance(z_min).to_value("Mpc")
+    chi_outer = cosmo.comoving_distance(z_max).to_value("Mpc")
     r = np.sqrt(coords[:, 0]**2 + coords[:, 1]**2 + coords[:, 2]**2) # distance from observer
-    #r_perp = np.sqrt(coords[:, 0]**2 + coords[:, 1]**2)  # transverse offset from the axis
     
     along_axis = coords @ axis                      # scalar projection
     perp_vec = coords - along_axis[:, None] * axis   # vector rejection
@@ -182,28 +153,17 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
                                       contours=False, contour_bins=40,
                                       contour_levels=4, contour_min_points=10):
     """
-    Plot the lightcone's geometry across three stacked panels (one per
-    row), in the frame of the beam (see beam_frame): the projection onto 
-    the plane across the beam (e1-e2), and two slices along the beam (e1-los and e2-los). 
-    For a beam along the z-axis these are the x-y, x-z and y-z planes.
+    Plot the lightcone's foot print for a beam along the z-axis these are the x-y, x-z and y-z planes.
+    The panel across the beam shows the wedge's projected on-sky footprint as a filled disk.
+    All three panels share a single combined legend below the figure.
 
-    The two slices along the beam both use the beam's line-of-sight coordinate
-    as their horizontal axis and share that x-axis (only labeled on
-    the bottom panel). The panel across the beam
-    shows the wedge's projected on-sky footprint as a filled disk.
-
-    Each panel is labeled in its top-left corner with its projection
-    plane and the redshift range, and all three panels share a single
-    combined legend below the figure.
-
-    Test points are classified once (inside/outside/edge of the full 3D
-    lightcone) and displayed in all three panels using category-specific
-    rules:
+    The plotted points are classified as inside, outside and on the edge of the 3D lightcone. 
+    These points are drawn using the following criteria:
         "edge":     always individual scatter points, regardless of contours.
-        "inside":   density contours when contours=True (falling back to scatter if there are 
-                        too few points for a meaningful contour); plain scatter when contours=False.
-        "outside":  density contours when contours=True AND the group is large enough 
-                        (>= contour_min_points); otherwise scatter.
+        "inside":   as density contours when contours=True and falling back to scatter if there are 
+                        too few points for a meaningful contour. Otherwise as scatter points when contours=False.
+        "outside":  as density contours when contours=True AND the group is large enough 
+                        (>= contour_min_points). Otherwise scatter.
 
     Returns the three axes used for plotting (ax_xy, ax_xz, ax_yz).
 
@@ -251,12 +211,9 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
                          buffer_shape="sphere",
                          tol=1e-6, beam_vector=(0.0, 0.0, 1.0)):
         """
-        Classify Cartesian comoving points (N, 3) relative to the 3D
-        lightcone defined by angular_radius_deg, z_min, z_max, using in_lightcone
-        for the inside/outside test and a tolerance-based check for exact
-        boundary membership.
-
-        Returns an array of str, shape (N,), with values in {"inside", "outside", "edge"}.
+        Classify points as inside, outside or on the boundary (within a tolerance) of the lightcone. 
+        
+        Returns classification of each point: "inside", "outside", "edge"
 
         :param  coords:             Cartesian comoving coordinates [Mpc], shape (N, 3)
         :type   coords:             np.ndarray
@@ -283,8 +240,8 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
 
         if angular_radius_deg>=180:
             r = np.linalg.norm(coords, axis=1)
-            chi_inner = cosmo.z2r(z_min).to_value("Mpc")
-            chi_outer = cosmo.z2r(z_max).to_value("Mpc")
+            chi_inner = cosmo.comoving_distance(z_min).to_value("Mpc")
+            chi_outer = cosmo.comoving_distance(z_max).to_value("Mpc")
             inside_strict = (r >= chi_inner - coords_buffer) & (r <= chi_outer + coords_buffer)
             edge = (r==chi_inner) | (r==chi_outer)
         
@@ -298,8 +255,8 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
             axis_arr = np.asarray(beam_vector, dtype=float)
             axis_arr = axis_arr / np.linalg.norm(axis_arr)
             half_angle = np.deg2rad(angular_radius_deg)
-            chi_near = cosmo.z2r(z_min).to_value("Mpc")
-            chi_far = cosmo.z2r(z_max).to_value("Mpc")
+            chi_near = cosmo.comoving_distance(z_min).to_value("Mpc")
+            chi_far = cosmo.comoving_distance(z_max).to_value("Mpc")
 
             r = np.linalg.norm(coords, axis=1)
             along_axis = coords @ axis_arr
@@ -321,9 +278,6 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
 
     def corner_label(ax, text):
         """
-        Label the top-left corner of a panel with its projection plane, on a white background 
-        so it stays readable over the lightcone and the points.
-
         :param  ax:     axes to label
         :type   ax:     matplotlib.axes._axes.Axes
         :param  text:   projection plane, e.g. "x-y"
@@ -344,9 +298,10 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
         "alpha":0.5,
         "edgecolor":"none"
     }
+
     def plot_status_points_or_contours(ax, horiz_vals, vert_vals, status):
         """
-        Draw each status category with category-specific rules:
+        Draw each classification with specific rules:
             "edge":     always individual scatter points, regardless of contours.
             "inside":   density contours when contours=True (falling back to scatter if there are 
                             too few points for a meaningful contour); plain scatter otherwise.
@@ -435,8 +390,7 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
                           horiz_label, vert_label, panel_label, test_coords, status,
                           z_min, z_max, show_xlabel=True):
         """
-        Draw a wedge cross-section panel containing the beam axis
-        (used for the x-z and y-z panels).
+        Draw a wedge cross-section panel containing the beam axis. 
 
         :param  ax:                 axes to plot onto
         :type   ax:                 matplotlib.axes._axes.Axes
@@ -520,8 +474,7 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
     def draw_perpendicular_disk(ax, chi_near, chi_far, half_angle, test_coords, status,
                                  z_min, z_max, axis_names):
         """
-        Draw the on-sky projected footprint (x-y panel, perpendicular
-        to the beam axis).
+        Draw the on-sky projected footprint. 
 
         :param  ax:             axes to plot onto
         :type   ax:             matplotlib.axes._axes.Axes
@@ -576,8 +529,8 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
             plot_status_points_or_contours(ax, test_coords[:, 0], test_coords[:, 1], status)
 
     half_angle = np.deg2rad(angular_radius_deg)
-    chi_near = cosmo.z2r(z_min).to_value("Mpc")
-    chi_far = cosmo.z2r(z_max).to_value("Mpc")
+    chi_near = cosmo.comoving_distance(z_min).to_value("Mpc")
+    chi_far = cosmo.comoving_distance(z_max).to_value("Mpc")
 
     if axes is None:
         fig = plt.figure(figsize=figsize, layout="constrained")
@@ -597,6 +550,8 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
         status = classify_points(test_coords, angular_radius_deg, z_min, z_max, cosmo,
                                   tol=tol, beam_vector=(0.0, 0.0, 1.0),
                                   coords_buffer=test_coords_buffer)
+    
+    # draw each slice
 
     draw_perpendicular_disk(ax_xy, chi_near, chi_far, half_angle, test_coords, status,
                              z_min, z_max, axis_names=(e1_name, e2_name, los_name))
@@ -636,8 +591,8 @@ def plot_lightcone_projection_3panel(angular_radius_deg, z_min, z_max, cosmo,
 def plot_particles_in_beam(coords, shell_nr, redshift_range, ang_radius_deg, ptype, beam_vec, cosmo, 
     axes_plots=True, scatter_plots=True, output_dir='./'):
     """
-    Plot the radial distribution, coordinate distributions (along the axes of the beam's frame) 
-    and a 3-panel projection of the particles against the lightcone geometry. 
+    Plot the radial distribution, coordinate distributions and a 3-panel projection of the 
+    particles against the lightcone geometry. 
     The output filenames include the particle type, beam direction and shell number.
 
     :param  coords:         comoving coordinates [Mpc] of the particles in the beam, shape (N, 3)
@@ -714,9 +669,6 @@ def plot_particles_in_beam(coords, shell_nr, redshift_range, ang_radius_deg, pty
         plt.close()
 
 
-
-# 
-
 if __name__ == "__main__":
 
     plot_settings()
@@ -737,7 +689,7 @@ if __name__ == "__main__":
 
     # angular radius of the beam, set by the minimum multipole
 
-    ang_radius_deg=45
+    ang_radius_deg=5
     print(f"\nangular radius: {ang_radius_deg} [deg]\n", flush=True)
 
     # directions of the beams to make: along an axis, along a box diagonal and along a general direction.
@@ -755,7 +707,7 @@ if __name__ == "__main__":
     # number of snapshot files to read before combining their particles
     files_per_chunk = 8
 
-    plot_cosmo=Snapshot_Cosmology_For_Lightcone("{base_dir}/snapshots".format(base_dir=base_dir))
+    plot_cosmo=SnapshotCosmology.from_path("{base_dir}/snapshots".format(base_dir=base_dir))
 
     for beam_vector in beam_vectors:
         print(f"\nbeam direction: {beam_vector}")

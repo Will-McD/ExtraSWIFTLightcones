@@ -5,14 +5,17 @@ visualise SWIFT lightcones.
 The main classes and functions can be imported from the package:
 
     from swiftlet import SnapshotBeam, BeamProjection
-    snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS,
-                                        write_lightcone_metadata, read_lightcone_metadata
+    snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS, SnapshotGapWarning,
+    snapshot_cosmology:                 SnapshotCosmology
+    simulation_suites:                  Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
+                                        read_output_redshifts
+    snapshot_redshifts:                 redshift_edges, snapshots_in_range
     snapshot_orientation:               write_orientation_tables, read_orientation_tables, generate_orientation_tables
     lightcone_projections:              BeamProjection
     beam_plotting:                      BeamPlot
     healpix_map_utils:                  write_rotated_lightcone_chunks, sum_maps
     mask_haloes:                        write_binary_masks
-    swift_snapshot_redshift_conversion: flamingo_shell_redshift_file, snapshot_number_redshifts, snapshot_redshift_range
+    flamingo_lightcones:                flamingo_shell_redshift_file
     snapshot_units:                     apply_expected_units
     config:                             configure, download_shell_redshifts
     threads:                            set_max_threads, max_threads, thread_limit
@@ -38,6 +41,17 @@ _PUBLIC_NAMES = {
     "ORIENTATION_LOCK_OPTIONS": "snapshot_lightcone",
     "write_lightcone_metadata": "snapshot_lightcone",
     "read_lightcone_metadata": "snapshot_lightcone",
+    "SnapshotGapWarning": "snapshot_lightcone",
+    # the cosmology of a simulation given by the snapshot
+    "SnapshotCosmology": "snapshot_cosmology",
+    # the simulations: paths and snapshot redshifts of FLAMINGO and COLIBRE
+    "Simulation": "simulation_suites",
+    "SimulationSuite": "simulation_suites",
+    "FLAMINGO": "simulation_suites",
+    "COLIBRE": "simulation_suites",
+    "suite_for_label": "simulation_suites",
+    "output_redshifts": "simulation_suites",
+    "read_output_redshifts": "simulation_suites",
     # orientation tables of the box tiles
     "write_orientation_tables": "snapshot_orientation",
     "read_orientation_tables": "snapshot_orientation",
@@ -50,9 +64,9 @@ _PUBLIC_NAMES = {
     "sum_maps": "healpix_map_utils",
     "write_binary_masks": "mask_haloes",
     # snapshot and shell redshifts
-    "flamingo_shell_redshift_file": "swift_snapshot_redshift_conversion",
-    "snapshot_number_redshifts": "swift_snapshot_redshift_conversion",
-    "snapshot_redshift_range": "swift_snapshot_redshift_conversion",
+    "flamingo_shell_redshift_file": "flamingo_lightcones",
+    "redshift_edges": "snapshot_redshifts",
+    "snapshots_in_range": "snapshot_redshifts",
     # units
     "apply_expected_units": "snapshot_units",
     # setting up the environment
@@ -67,14 +81,17 @@ _PUBLIC_NAMES = {
 _SUBMODULES = (
     "beam_plotting",
     "config",
+    "snapshot_cosmology",
+    "flamingo_lightcones",
     "healpix_map_utils",
     "lightcone_projections",
     "mask_haloes",
     "property_to_field_names",
     "snapshot_lightcone",
+    "simulation_suites",
     "snapshot_orientation",
     "snapshot_units",
-    "swift_snapshot_redshift_conversion",
+    "snapshot_redshifts",
     "threads",
 )
 
@@ -85,7 +102,9 @@ def __getattr__(name):
     """
     Import the public classes, functions and submodules of the package when first used, so that modules
     which don't need MPI (e.g. swiftlet.config) can be imported without it.
-
+    
+    Returns the class, function or submodule named.
+    
     :param  name:   name of the attribute
     :type   name:   str
     """

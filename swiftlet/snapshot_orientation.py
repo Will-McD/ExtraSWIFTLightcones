@@ -8,6 +8,12 @@ try:
 except ImportError:
     _HAVE_NUMBA = False
 
+"""
+The orientation of the box tiles of a lightcone built from the snapshots: the rotations (quarter turns),
+reflections and periodic cell shifts that make each tile a new copy of the initial snapshot box, the tables they are
+chosen from (default, or written to and read from a file), and the rotation of coordinates with them.
+"""
+
 def _build_rotation_matrix(rot_angles, order="xyz", degrees=False):
     """
     Build 3x3 rotation matrix.

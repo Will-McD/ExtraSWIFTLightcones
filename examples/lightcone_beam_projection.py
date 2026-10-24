@@ -3,11 +3,12 @@ import numpy as np
 import unyt
 import lightcone_io.particle_reader as pr
 from swiftlet.lightcone_projections import BeamProjection
+from swiftlet.example_plot_settings import plot_settings
 import cmasher as cmr # noqa: F401 registers the "cmr.*" colour maps used by name
 from pathlib import Path
 
 """
-Create 2 different projections of slices through a beam from an observers past lightcone. 
+Create two different projections of slices through a beam from an observers past lightcone. 
 
 Read in gas and dark matter particles from a lightcone of the fiducial L1_m9 FLAMINGO simulation (i.e. L1000N1800/HYDRO_FIDUCIAL). 
 Create a split beam projection for:
@@ -16,7 +17,7 @@ Create a split beam projection for:
         This demonstrates the  mass weighting function of BeamProjection class. 
 """
 
-def example_fig1(BP, particle_lightcone, gas_particle_data, gas_property_names, dm_particle_data):
+def surface_density_projection(BP, particle_lightcone, gas_particle_data, gas_property_names, dm_particle_data):
     # project a slice through a beam to show the surface mass density within the lightcone
 
     # add particle data to the slice 
@@ -60,7 +61,7 @@ def example_fig1(BP, particle_lightcone, gas_particle_data, gas_property_names, 
     print(f"Example image 1 saved as: {output_filename}")
 
 
-def example_fig2(BP, particle_lightcone, gas_particle_data, gas_property_names):
+def temperature_projection(BP, particle_lightcone, gas_particle_data, gas_property_names):
     # Repeat example 1 but now with custom datasets to show mass and redshift dependance
     
     # add particle data to the slice 
@@ -122,10 +123,12 @@ def example_fig2(BP, particle_lightcone, gas_particle_data, gas_property_names):
         )
     print(f"Example image 2 saved as: {output_filename}")
 
+
 if __name__ == "__main__":
+    plot_settings()
 
     # sim base dir
-    boxsize_resolution="L1000N1800"
+    boxsize_resolution="L1000N0900"
     sim="HYDRO_FIDUCIAL"
     base_dir="/cosma8/data/dp004/flamingo/Runs/{LN}/{sim}".format(LN=boxsize_resolution, sim=sim)
 
@@ -157,7 +160,7 @@ if __name__ == "__main__":
     dm_property_names = ["Coordinates","Masses", "ExpansionFactors"]
     
     # define a slice through the same beam  
-    slice_z_width= 10 * unyt.Mpc # how thick the slice is 
+    slice_z_width= 12.5 * unyt.Mpc # how thick the slice is 
     
     print(snapshot_dir)
     
@@ -170,6 +173,7 @@ if __name__ == "__main__":
         store_snapshot_filename=snapshot_filename # store for later to generate metadata and mock snapshot objects. 
         )
 
+    # read in gas particles from the on-the-fly lightcone
     gas_particle_data = lightcone["Gas"].read(
         property_names=gas_property_names,
         redshift_range=redshift_range,
@@ -177,6 +181,7 @@ if __name__ == "__main__":
         radius=radius
     )
 
+    # read in dark matter particles from the on-the-fly lightcone
     dm_particle_data = lightcone["DM"].read(
         property_names=("Coordinates","Masses", "ExpansionFactors"),
         redshift_range=redshift_range,
@@ -186,10 +191,9 @@ if __name__ == "__main__":
 
     # Example 1 
     # project a slice through a beam to show the surface mass density within the lightcone
-    example_fig1(BP, lightcone, gas_particle_data, gas_property_names, dm_particle_data)
-
+    surface_density_projection(BP, lightcone, gas_particle_data, gas_property_names, dm_particle_data)
 
     #Example 2 
     # Repeat the above example but now with custom datasets to show mass and redshift dependance
-    example_fig2(BP, lightcone, gas_particle_data, gas_property_names)
+    temperature_projection(BP, lightcone, gas_particle_data, gas_property_names)
 
