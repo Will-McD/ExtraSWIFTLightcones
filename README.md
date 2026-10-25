@@ -3,7 +3,7 @@
 [![Build and test](https://github.com/Will-McD/ExtraSWIFTLightcones/actions/workflows/build_and_test.yml/badge.svg)](https://github.com/Will-McD/ExtraSWIFTLightcones/actions/workflows/build_and_test.yml)
 [![Version](https://img.shields.io/github/v/release/Will-McD/ExtraSWIFTLightcones?include_prereleases&sort=semver&label=version)](https://github.com/Will-McD/ExtraSWIFTLightcones/releases)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.12-blue)](https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/.github/workflows/build_and_test.yml)
-
+[![Build and test (latest release)](https://github.com/Will-McD/ExtraSWIFTLightcones/actions/workflows/build_and_test.yml/badge.svg?event=release)](https://github.com/Will-McD/ExtraSWIFTLightcones/actions/workflows/build_and_test.yml?query=event%3Arelease)
 
 Supplementary tools for the post-processing and visualisation of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) lightcones. This module includes tools to generate new lightcones from the SWIFT snapshots, and, project, plot and post process lightcones. It builds on [LightconeIO](https://lightconeio.readthedocs.io/en/latest/#) and [SWIFTsimIO](https://swiftsimio.readthedocs.io/en/latest/), which it requires.
 
