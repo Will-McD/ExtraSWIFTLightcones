@@ -1359,7 +1359,6 @@ class SnapshotLightcone():
         snapshots_used = sorted({int(file_data.snap_nr) for file_data in self.snap_file_offset_lengths})
         self._log(f"{current_ptype}: {len(self.snap_file_offset_lengths)} files to read from snapshots {snapshots_used}, {int(np.sum(self.npart_per_file))} particles in the selected cells", level=1)
 
-
         # print of all files to read from:
         for i in range(len(self.snap_file_offset_lengths)):
             file_data=self.snap_file_offset_lengths[i]
@@ -2491,12 +2490,14 @@ class SnapshotLightcone():
         Read the pieces of the SOAP catalogues and place their haloes in the lightcone. 
         Every halo is moved into each tile of its snapshot and kept if it is in the tile's part of the shell, same as the particles.
         
-        Returns 
+        Returns tuple: 
             (
-                centres [Mpc], snapshot numbers, 
-                catalogue indices, 
-                SOAP rows, number of haloes read
-            ), 
+                halo centres [Mpc], 
+                snapshot numbers, 
+                catalogue indices; HaloCatalogueIndex, 
+                SOAP rows; SOAPIndex, 
+                number of haloes read
+            )
         
         Note: the returned tuple is in the order of self.halo_catalogues_to_read, then of the rows in the catalogue.
         
@@ -2516,7 +2517,7 @@ class SnapshotLightcone():
 
         kept = {spec_nr: [] for spec_nr in range(len(self.halo_catalogues_to_read))}
         nr_read = 0
-
+        # iterate through pieces of the snapshot
         for piece in pieces:
             specs = specs_of_snapshot[piece.snap_nr]
             halo_data = read_soap_rows(specs[0][1].filename, to_read, piece.start, piece.stop)
@@ -2548,10 +2549,24 @@ class SnapshotLightcone():
         if not joined:
             return np.zeros((0, 3)), np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros(0, dtype=int), nr_read
         
-        snap_nr = np.concatenate([np.full(len(index), self.halo_catalogues_to_read[spec_nr].snap_nr, dtype=int)
-                                  for spec_nr in sorted(kept) for _, index, _ in kept[spec_nr]])
+        # join the 'kept' haloes by catalogue tile, so the order is the same however the catalogues are read
+        centres, snap_nr, index, rows = [], [], [], []
+        for spec_nr in sorted(kept):
+            # the snapshot of this catalogue tile, given to each of its haloes
+            spec_snap_nr = self.halo_catalogues_to_read[spec_nr].snap_nr
+            for piece_centres, piece_index, piece_rows in kept[spec_nr]:
+                centres.append(piece_centres)
+                snap_nr.append(np.full(len(piece_index), spec_snap_nr, dtype=int))
+                index.append(piece_index)
+                rows.append(piece_rows)
         
-        return (np.concatenate([centres for centres, _, _ in joined], axis=0), snap_nr, np.concatenate([index for _, index, _ in joined]), np.concatenate([rows for _, _, rows in joined]), nr_read)
+        # return empty structure if there are no haloes left 
+        if not centres:
+            return np.zeros((0, 3)), np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros(0, dtype=int), nr_read
+
+        # build output by concatenating values for the kept haloes
+        # centres [Mpc], snapshot numbers, catalogue indices (HaloCatalogueIndex), SOAP rows (SOAPIndex) and the number of haloes read
+        return (np.concatenate(centres, axis=0), np.concatenate(snap_nr), np.concatenate(index), np.concatenate(rows), nr_read)
 
     def place_halos_in_shell(self, halo_format, lightcone_redshift_range, ang_radius_deg=None, use_snapshots=None,
                              soap_chunk_size=None, comm=None, redistribute_halos=False, snapshot_number=None):
@@ -2612,8 +2627,7 @@ class SnapshotLightcone():
 
         settings = self.__halo_settings(halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots, snapshot_number)
         if self.halo_catalogues_to_read is None or self._gathered_halo_settings != settings:
-            self.gather_halo_catalogues(halo_format, lightcone_redshift_range, ang_radius_deg,
-                                         use_snapshots=use_snapshots, snapshot_number=snapshot_number)
+            self.gather_halo_catalogues(halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots=use_snapshots, snapshot_number=snapshot_number)
 
         metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
 
