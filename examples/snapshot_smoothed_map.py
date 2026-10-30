@@ -12,6 +12,7 @@ import lightcone_io.kernel as kernel
 import virgo.mpi.parallel_hdf5 as phdf5
 from swiftlet.snapshot_lightcone import SnapshotAllSky, write_lightcone_metadata
 from swiftlet.simulation_suites import Simulation
+from swiftlet.snapshot_units import apply_expected_units
 
 """
 Make an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) for 0.05 < z < 0.1 of the 
@@ -107,13 +108,13 @@ def make_smoothed_sky_map(part_pos, part_hsml, part_val, nside, progress=False):
     # Split the pixels of the map between the MPI ranks, in bands of colatitude
     nr_total_pixels, nr_local_pixels, local_offset, theta_boundary = smoothed_map.distribute_pixels(comm, nside)
     max_pixrad = hp.pixelfunc.max_pixrad(nside)
-    message(f"Total number of pixels = {nr_total_pixels}")
+    message(f"Total number of pixels = {nr_total_pixels:.4e}")
 
     # Angular smoothing lengths and the values to add to the map
     part_hsml = smoothed_map.find_angular_smoothing_length(part_pos, part_hsml)
-    part_val = unyt.unyt_array(part_val, dtype=float)
-    val_total_global = comm.allreduce(np.sum(part_val.value, dtype=float))
     map_units = part_val.units
+    part_val = unyt.unyt_array(part_val.to_value(map_units), units=map_units, dtype=float)
+    val_total_global = comm.allreduce(np.sum(part_val.to_value(map_units), dtype=float))
 
     # Determine which ranks each particle needs to be sent to, from the range of colatitude of
     # the pixels it could update. 
@@ -158,7 +159,7 @@ def make_smoothed_sky_map(part_pos, part_hsml, part_val, nside, progress=False):
                                            part_pos_view[single_pixel, 2]) - local_offset
     local = (local_pix_index >= 0) & (local_pix_index < nr_local_pixels)
     np.add.at(map_view, local_pix_index[local], part_val_view[single_pixel][local])
-    message(f"Applied {comm.allreduce(np.sum(single_pixel))} single pixel updates")
+    message(f"Applied {comm.allreduce(np.sum(single_pixel)):.4e} single pixel updates")
 
     # Particles larger than a pixel are smoothed over the pixels within their kernel
     multi_pixel = np.flatnonzero(single_pixel==False)
@@ -168,7 +169,7 @@ def make_smoothed_sky_map(part_pos, part_hsml, part_val, nside, progress=False):
         local = (local_pix_index >= 0) & (local_pix_index < nr_local_pixels)
         # pixel indexes are unique, so np.add.at is not needed
         map_view[local_pix_index[local]] += pix_val[local]
-    message(f"Applied {comm.allreduce(len(multi_pixel))} multi-pixel updates")
+    message(f"Applied {comm.allreduce(len(multi_pixel)):.4e} multi-pixel updates")
 
     # The sum over the map should equal the sum of the values added to the map
     map_sum = comm.allreduce(np.sum(map_view, dtype=float))
@@ -241,6 +242,30 @@ def plot_map(map_filename, dataset_name, plot_filename):
     plt.close()
 
 
+def ensure_map_units(part_pos, part_hsml, part_val, val_units="solMass"):
+    """
+    Put the particles going onto the map in the units the map expects. 
+    Positions & smoothing lengths are always in Mpc. 
+    
+    Arrays without units are given them; arrays with the wrong dimensions raise an error.
+
+    Returns a tuple (positions [Mpc], smoothing lengths [Mpc], values [val_units]).
+
+    :param  part_pos:   comoving positions of the particles relative to the observer, shape (N, 3)
+    :type   part_pos:   unyt.unyt_array or np.ndarray
+    :param  part_hsml:  smoothing lengths of the particles
+    :type   part_hsml:  unyt.unyt_array or np.ndarray
+    :param  part_val:   value of each particle to add to the map, e.g. masses
+    :type   part_val:   unyt.unyt_array or np.ndarray
+    :param  val_units:  units of the map
+    :type   val_units:  str
+    """
+    part_pos = apply_expected_units(part_pos, unyt.Unit("Mpc"))
+    part_hsml = apply_expected_units(part_hsml, unyt.Unit("Mpc"))
+    part_val = apply_expected_units(part_val, unyt.Unit(val_units))
+    return part_pos, part_hsml, part_val
+
+
 def make_map(snap_all_sky, redshift_range, nside, output_filename, ptype="PartType0", dataset_name="SmoothedGasMass"):
     """
     Make, write and plot the smoothed gas mass map of the shell, placing its particles a round at a time (see the
@@ -264,7 +289,7 @@ def make_map(snap_all_sky, redshift_range, nside, output_filename, ptype="PartTy
     npart_per_piece = np.array([int(np.sum(piece.lengths)) for piece in pieces], dtype=np.int64)
     my_pieces = share_pieces(npart_per_piece, comm_size)[comm_rank] # get local files (i.e. pieces of the lightcone)
     nr_rounds = comm.allreduce(len(my_pieces), op=MPI.MAX)
-    message(f"\n{nr_pieces} pieces (snapshot, tile, file) of gas to read, {np.sum(npart_per_piece)} particles in their cells, placed in {nr_rounds} rounds\n")
+    message(f"\n{nr_pieces} pieces (snapshot, tile, file) of gas to read, {np.sum(npart_per_piece):.4e} particles in their cells, placed in {nr_rounds} rounds\n")
 
     # add to the map one round at a time.
     snap_all_sky.verbose = 0  # one line per round instead
@@ -272,12 +297,13 @@ def make_map(snap_all_sky, redshift_range, nside, output_filename, ptype="PartTy
     nr_placed = 0
     for round_nr in range(nr_rounds):
         part_pos, part_hsml, part_mass = place_piece(snap_all_sky, my_pieces[round_nr] if round_nr < len(my_pieces) else None, ptype)
+        part_pos, part_hsml, part_val = ensure_map_units(part_pos, part_hsml, part_val) # unsure correct units
         nr_placed += len(part_mass)
         round_map = make_smoothed_sky_map(part_pos, part_hsml, part_mass, nside)
         map_data = round_map if map_data is None else map_data + round_map # update local map 
-        message(f"round {round_nr + 1}/{nr_rounds}: {comm.allreduce(len(part_mass))} gas particles smoothed onto the map")
+        message(f"round {round_nr + 1}/{nr_rounds}: {comm.allreduce(len(part_mass)):4e} gas particles smoothed onto the map")
         del part_pos, part_hsml, part_mass, round_map
-    message(f"\n{comm.allreduce(nr_placed)} gas particles in the lightcone shell\n")
+    message(f"\n{comm.allreduce(nr_placed):.4e} gas particles in the lightcone shell\n")
 
     # write the map and plot it, read back from the file on rank 0
     write_map(output_filename, dataset_name, map_data, nside, redshift_range, lightcone_metadata=snap_all_sky.lightcone_metadata(redshift_range))

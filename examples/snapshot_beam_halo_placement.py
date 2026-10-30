@@ -6,11 +6,10 @@ import h5py
 import argparse
 from pathlib import Path
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.simulation_suites import Simulation
 from swiftlet.soap_reader import read_soap_selected_rows, comoving
-from swiftlet.example_plot_settings import plot_settings
+from swiftlet.example_plot_settings import plot_settings, cmap_MCG
 
 
 """
@@ -22,7 +21,6 @@ Plot the central haloes, scale the size and shape of the marker used by M200c of
 # halo mass shown, and the colour map of its log10: one hue, from light (low mass) to dark (high mass)
 MASS_PROPERTY = "SO/200_crit/TotalMass"
 MASS_LABEL = r"$\log_{10}(M_{200\mathrm{c}}\,/\,\mathrm{M}_\odot)$"
-MASS_CMAP = LinearSegmentedColormap.from_list("magenta_cyan_gold", ["#8b008b", "#008c99", "#b8860b"])
 MARKER_SIZE_RANGE = (1., 150.)  # marker area [pt^2] of the least and most massive halo shown
 MARKER_SIZE_POWER = 2.  #
 
@@ -231,7 +229,7 @@ def plot_halos_in_beam_3panel(angular_radius_deg, z_min, z_max, cosmo,
     mass_min, mass_max = log_mass.min(), log_mass.max()
     size_scale = (log_mass - mass_min) / max(mass_max - mass_min, 1e-10)
     marker_size = MARKER_SIZE_RANGE[0] + size_scale**MARKER_SIZE_POWER * (MARKER_SIZE_RANGE[1] - MARKER_SIZE_RANGE[0])
-    scatter_style = dict(c=log_mass, s=marker_size, cmap=MASS_CMAP, vmin=mass_min, vmax=mass_max,
+    scatter_style = dict(c=log_mass, s=marker_size, cmap=cmap_MCG, vmin=mass_min, vmax=mass_max,
                          edgecolors="white", linewidths=0.3, zorder=10)
 
     # make fig

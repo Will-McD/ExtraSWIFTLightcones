@@ -228,16 +228,13 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
     ax.contour(s, z, changes.astype(float), levels=[0.5], colors=COL_LAYER_EDGE, linewidths=1.6, zorder=3)
 
     # number each region: each box without a lock, each layer with a lock
-    if orientation_lock is None:
-        label_positions = box_label_positions(s, z, layer, inside, min_pixels=0.002 * resolution**2)
-    else:
+    if orientation_lock is not None:
         # layers are shells around the observer, so label them along a ray from the observer
         if beam_vector is None:
             ray_angle = np.deg2rad(235.)
         else:
             axis = beam_in_slice(beam_vector)
             ray_angle = np.arctan2(axis[1], axis[0]) - 0.55 * np.deg2rad(half_angle_deg)
-        label_positions = layer_label_positions(ray_angle, L, r_max, orientation_lock)
 
     # outline of the lightcone and the observer
     if beam_vector is None:

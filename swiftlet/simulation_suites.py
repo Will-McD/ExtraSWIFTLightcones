@@ -8,11 +8,6 @@ from importlib import resources
 from pathlib import Path
 from . import snapshot_redshifts
 
-#from . import swift_snapshot_redshift_conversion as nz
-#from .swift_snapshot_redshift_conversion import colibre_snapshot_redshift
-#from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_redshifts, environment_data_dir
-
-
 """
 SimulationSuite:    what is the same for every simulation of a suite, FLAMINGO and COLIBRE
 Simulation:         one simulation, its suite, box size and resolution label, name and directory   
@@ -27,6 +22,9 @@ Note that the base directory of each suite's simulations are checked in this ord
 # the snapshot output redshift tables, see read_output_redshifts
 OUTPUT_REDSHIFT_DIR = resources.files(__package__) / "data" / "output_redshifts"
 
+# the columns of an output redshift table
+OUTPUT_REDSHIFT_COLUMNS = ("snapshot_number", "redshift")
+
 # make globally cached and callable read redshift tables function
 @lru_cache(maxsize=None)
 def _read_output_redshift_file(path):
@@ -34,12 +32,16 @@ def _read_output_redshift_file(path):
     Read an output redshift file. Cached so each file is read once.
     """
     source = OUTPUT_REDSHIFT_DIR / path if os.path.basename(path) == path else Path(path)
-    with source.open("r") as infile:
-        table = np.loadtxt(infile, delimiter=",", comments="#", ndmin=2)
-    if table.shape[1] != 2:
-        raise ValueError(f"{path}: expected 2 comma separated columns, snapshot_number and redshift, "
-                         f"not {table.shape[1]}")
-    snapshot_numbers, redshifts = table[:, 0], table[:, 1]
+    if path.lower().endswith((".yaml", ".yml")):
+        from .table_files import read_table_file
+        _, table = read_table_file(source, OUTPUT_REDSHIFT_COLUMNS)
+    else:
+        with source.open("r") as infile:
+            table = np.loadtxt(infile, delimiter=",", comments="#", ndmin=2)
+        if table.shape[1] != 2:
+            raise ValueError(f"{path}: expected 2 comma separated columns, snapshot_number and redshift, "
+                             f"not {table.shape[1]}")
+    snapshot_numbers, redshifts = table[:, 0], table[:, 1].astype(float)
     if not np.array_equal(snapshot_numbers, np.arange(len(table))):
         raise ValueError(f"{path}: the snapshot numbers must be 0, 1, 2, ... in order")
     return tuple(redshifts)
@@ -59,6 +61,28 @@ def read_output_redshifts(path):
     """
     return np.array(_read_output_redshift_file(str(path)), dtype=float)
 
+
+def write_output_redshifts(filename, redshifts, description=None, **header):
+    """
+    Write the output redshifts of a simulation's snapshots to a YAML file, 
+    one row per snapshot [snapshot_number, redshift]. 
+    The redshifts are written so they read back exactly.
+
+    :param  filename:       path of the .yaml file to write
+    :type   filename:       str or os.PathLike
+    :param  redshifts:      redshift of each snapshot, in order of snapshot number 0, 1, 2, ...
+    :type   redshifts:      array-like of float
+    :param  description:    what the redshifts are, e.g. the simulations they are for
+    :type   description:    str
+    :param  header:         more to write before the rows, e.g. suite="colibre"
+    """
+    from .table_files import write_table_file
+    redshifts = np.asarray(redshifts, dtype=float)
+    rows = np.empty((len(redshifts), 2), dtype=object)
+    rows[:, 0], rows[:, 1] = np.arange(len(redshifts)), redshifts
+    header = {**({"description": description} if description else {}), **header, "number_of_snapshots": len(redshifts)}
+    write_table_file(filename, header, OUTPUT_REDSHIFT_COLUMNS, rows, comment="SWIFTLET output redshifts of the snapshots, see docs/simulation_suites.md")
+
 ###################################################################################################
 # build FLAMINGO and COLIBRE simulation suites.
 # These are essentially objects to contain all the paths to snapshots and relevenat redshifts of each snapshot
@@ -68,7 +92,7 @@ class SimulationSuite:
     """
     Class to contain SWIFT simulation suites (i.e. FLAMINGO and COLIBRE) and handle what differs between them. 
 
-    :param  name:                       "flamingo" or "colibre", as used by swift_snapshot_redshift_conversion
+    :param  name:                       "flamingo" or "colibre"
     :type   name:                       str
     :param  base_dir_format:            directory of a simulation, with {box_res} and {sim_name} fields
     :type   base_dir_format:            str
@@ -138,13 +162,12 @@ FLAMINGO = SimulationSuite(
     base_dir_env="SWIFTLET_FLAMINGO_DIR",
     snapshot_format="snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5",
     output_redshift_tables={
-        "L1000N0900": "flamingo_L1.txt",
-        "L1000N1800": "flamingo_L1.txt",
-        # the highest resolution 1 Gpc box and the 2.8 Gpc box have an extra output at z = 12.26
-        "L1000N3600": "flamingo_L2p8.txt",
-        "L2800N5040": "flamingo_L2p8.txt",
-    },
-)
+        "L1000N0900": "flamingo_L1.yaml",
+        "L1000N1800": "flamingo_L1.yaml",
+        "L1000N3600": "flamingo_L2p8.yaml",
+        "L2800N5040": "flamingo_L2p8.yaml",
+        },
+    )
 
 # define COLIBRE simulation suite
 COLIBRE = SimulationSuite(
@@ -154,7 +177,7 @@ COLIBRE = SimulationSuite(
     base_dir_format="/cosma8/data/dp004/colibre/Runs/{box_res}/{sim_name}",
     base_dir_env="SWIFTLET_COLIBRE_DIR",
     snapshot_format="snapshots/colibre_{snap_nr:04d}/colibre_{snap_nr:04d}.{file_nr}.hdf5",
-    output_redshift_tables={"*": "colibre.txt"},
+    output_redshift_tables={"*": "colibre.yaml"},
 )
 
 
@@ -203,9 +226,10 @@ def suite_for_label(boxsize_resolution=None, simulation_suite_name=None):
             raise ValueError(f"can't tell which simulation suite boxsize_resolution={boxsize_resolution!r} belongs "
                              f"to ({patterns}). Pass simulation_suite_name='flamingo' or 'colibre'")
         return from_label
-    if from_label is not None and from_label is not named:
-        raise ValueError(f"boxsize_resolution {boxsize_resolution!r} is a {from_label.name.upper()} simulation, "
-                         f"but simulation_suite_name is {named.name!r}")
+    # compared by value (output_redshift_tables aside), so a suite made with dataclasses.replace, e.g. with output
+    # redshifts of your own, is taken for the labels of the suite it was made from
+    if from_label is not None and from_label != named:
+        raise ValueError(f"boxsize_resolution {boxsize_resolution!r} is a {from_label.name.upper()} simulation, but simulation_suite_name is {named.name!r}")
     return named
 
 
@@ -261,7 +285,7 @@ class Simulation:
         :param  simulation_name:    name of the simulation, e.g. "HYDRO_FIDUCIAL"
         :type   simulation_name:    str
         :param  simulation_suite:   "flamingo" or "colibre" (or a SimulationSuite). If None, found from
-                                        boxsize_resolution, see swift_snapshot_redshift_conversion.simulation_suite
+                                        boxsize_resolution
         :type   simulation_suite:   str or SimulationSuite
         :param  base_dir_format:    directory of the simulation, with {box_res} and {sim_name} fields. 
                                         If None, the suite's directory, see SimulationSuite.directory_format
