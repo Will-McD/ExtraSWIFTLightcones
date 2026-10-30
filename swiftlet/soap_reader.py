@@ -7,19 +7,11 @@ import unyt
 import virgo.formats.swift as virgo_swift
 
 """
-Functions for reading SOAP halo catalogues, in serial, with h5py.
-These reading functions give soap properties the units lightcone_io.halo_catalogue.SOAPCatalogue.read gives them
-(virgo.formats.swift), so the values are the same whichever reader is used:
+Functions for reading SOAP halo catalogues with h5py.
+These reading functions give soap properties the same units as lightcone_io.halo_catalogue.SOAPCatalogue.read() 
+so the values are the same regardles of the reader used. 
 
-    read_soap_rows:             a range of rows [start, stop)
-    read_soap_in_chunks:        the whole catalogue, chunk_size rows at a time
-    read_soap_selected_rows:    the given rows only
-    select_soap_rows:           the rows where one property passes a test, the property read in chunks and the other
-                                    properties only for the rows kept
-    soap_catalogue_length:      the number of haloes, without reading any
-
-Comoving properties keep the expansion factor a in their units (e.g. a*snap_length); comoving() drops it, giving the
-comoving values (e.g. comoving Mpc).
+Note that 'a' is dropped from all soap units. 
 """
 
 
@@ -46,8 +38,7 @@ virgo_swift.float = _float
 
 def _soap_datasets(infile, property_names):
     """
-    The datasets of a SOAP catalogue, with the units lightcone_io.halo_catalogue.SOAPCatalogue.read gives them
-    (virgo.formats.swift).
+    Get the datasets of a SOAP catalogue
 
     Returns (unit registry, {name: dataset}, {name: units}, number of rows).
 
@@ -86,11 +77,11 @@ def comoving(arr):
 
 def soap_catalogue_length(filename, property_name="InputHalos/HaloCatalogueIndex"):
     """
-    Number of haloes (rows) in a SOAP catalogue, without reading any of them.
+    Return length of catalogue 
 
-    :param  filename:       path of the SOAP catalogue
+    :param  filename:       filename of SOAP catalogue
     :type   filename:       str
-    :param  property_name:  dataset whose length is taken
+    :param  property_name:  property name to read from a SOAP catalogue
     :type   property_name:  str
     """
     with h5py.File(filename, "r") as infile:
@@ -113,19 +104,18 @@ def read_soap_rows(filename, property_names, start=0, stop=None):
     :param  stop:           row after the last one to read. If None, the end of the catalogue
     :type   stop:           int
     """
+
     with h5py.File(filename, "r") as infile:
         registry, datasets, units, nr_rows = _soap_datasets(infile, property_names)
         stop = nr_rows if stop is None else min(int(stop), nr_rows)
-        return {name: unyt.unyt_array(dataset[int(start):stop], units=units[name], registry=registry)
-                for name, dataset in datasets.items()}
+        return {name: unyt.unyt_array(dataset[int(start):stop], units=units[name], registry=registry) for name, dataset in datasets.items()}
 
 
 def read_soap_in_chunks(filename, property_names, chunk_size):
     """
     Read properties of a SOAP catalogue chunk_size rows at a time, in serial, so only one chunk of the catalogue
     is in memory at once. 
-    The units are made exactly as lightcone_io.halo_catalogue.SOAPCatalogue.read makes them
-    (virgo.formats.swift), so the values are the same as reading the whole catalogue.
+    The units are made exactly as lightcone_io.halo_catalogue.SOAPCatalogue.read
 
     Returns a tuple for each chunk: 
         (index of its first row in the catalogue, {name: unyt.unyt_array of its rows}).
@@ -137,6 +127,7 @@ def read_soap_in_chunks(filename, property_names, chunk_size):
     :param  chunk_size:     number of rows read at a time
     :type   chunk_size:     int
     """
+
     chunk_size = int(chunk_size)
     if chunk_size < 1:
         raise ValueError(f"chunk_size must be at least 1, not {chunk_size}")
@@ -144,8 +135,7 @@ def read_soap_in_chunks(filename, property_names, chunk_size):
         registry, datasets, units, nr_rows = _soap_datasets(infile, property_names)
         for start in range(0, nr_rows, chunk_size):
             stop = min(start + chunk_size, nr_rows)
-            yield start, {name: unyt.unyt_array(dataset[start:stop], units=units[name], registry=registry)
-                          for name, dataset in datasets.items()}
+            yield start, {name: unyt.unyt_array(dataset[start:stop], units=units[name], registry=registry) for name, dataset in datasets.items()}
 
 
 def _read_rows(dataset, rows, batch_size):
@@ -187,8 +177,7 @@ def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
         raise ValueError("rows must be sorted and unique")
     with h5py.File(filename, "r") as infile:
         registry, datasets, units, _ = _soap_datasets(infile, property_names)
-        return {name: unyt.unyt_array(_read_rows(dataset, rows, batch_size), units=units[name], registry=registry)
-                for name, dataset in datasets.items()}
+        return {name: unyt.unyt_array(_read_rows(dataset, rows, batch_size), units=units[name], registry=registry) for name, dataset in datasets.items()}
 
 
 def select_soap_rows(filename, select_name, select, property_names, chunk_size=2**22, units=None):
@@ -219,7 +208,6 @@ def select_soap_rows(filename, select_name, select, property_names, chunk_size=2
         found = {name: comoving(values).to_value(units[name]) for name, values in found.items()}
     found["row"] = rows
     return found
-
 
 def soap_unit_attributes(soap, name):
     """

@@ -24,6 +24,7 @@ dependencies = [
     "mpi4py",
     "virgodc>=1.0.2",
     "matplotlib",
+    "pyyaml",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -48,8 +49,9 @@ swiftlet-configure = "swiftlet.config:cli_configure"
 packages = ["swiftlet"]
 
 [tool.setuptools.package-data]
-# the output redshifts of the FLAMINGO and COLIBRE snapshots
-swiftlet = ["data/output_redshifts/*.txt"]
+
+# the output redshifts of the FLAMINGO and COLIBRE snapshots, and the installed orientation tables
+swiftlet = ["data/output_redshifts/*.txt", "data/orientation_tables/*.hdf5"]
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"

@@ -150,4 +150,5 @@ flowchart TD
     class A,A2,Z,GY out;
 ```
 
-Unlike the particles, each piece of a SOAP catalogue is read once and placed in every tile of its snapshot. The catalogues are not sorted by cell, so every halo is tested. Any other SOAP property can be looked up afterwards from `Lightcone/SnapshotNumber` and `InputHalos/SOAPIndex`.
+Unlike the particles, each SOAP catalogue is read once and haloes are placed in every tile where it overlaps with the corresponding snapshot redshift range. As the SOAP catalogues are not sorted by cells every halo must be spatially queried.
+The haloes in the `SnapshotLightcone` can be mapped back to original SOAP catalogue and all its associated properties properties via `Lightcone/SnapshotNumber` and `InputHalos/SOAPIndex`.

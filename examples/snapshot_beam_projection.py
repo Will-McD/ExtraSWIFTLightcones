@@ -41,7 +41,7 @@ def lock_label(orientation_lock):
     """
     if orientation_lock is None:
         return "no lock", "none"
-    return f"{orientation_lock} lock", orientation_lock
+    return f"{orientation_lock} lock"
 
 
 def beam_properties(particle_data, property_names, ptype):
@@ -94,7 +94,7 @@ def beam_projection_lock_comparison(sim_object, snapshot_filename, beam_vector, 
 
     gas_surface_densities_per_locking = []
     for orientation_lock in orientation_locks:
-        lock_title, lock_filename = lock_label(orientation_lock)
+        lock_title = lock_label(orientation_lock)
         print(f"\n{lock_title}")
 
         # build the pencil beam from the snapshots, for the gas particles
@@ -121,8 +121,11 @@ def beam_projection_lock_comparison(sim_object, snapshot_filename, beam_vector, 
             cosmology=SB.cosmo,
             store_snapshot_filename=re.sub(r"\.0\.hdf5$", ".hdf5", snapshot_filename),
             )
+        
         BP.place_particles_in_slice(gas_particle_data, gas_property_names)
+        
         del gas_particle_data
+        
         gas_surface_density = BP.project_properties(["Masses"], ptype="Gas", assign_units=["Msun"], resolution=resolution, periodic=False)[0].to_value("Msun/Mpc**2")
         gas_surface_densities_per_locking.append(gas_surface_density)
 

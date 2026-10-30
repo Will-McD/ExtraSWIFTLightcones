@@ -10,7 +10,9 @@ The main classes and functions can be imported from the package:
     simulation_suites:                  Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
                                         read_output_redshifts
     snapshot_redshifts:                 redshift_edges, snapshots_in_range
-    snapshot_orientation:               write_orientation_tables, read_orientation_tables, generate_orientation_tables
+    snapshot_orientation:               write_orientation_tables, read_orientation_tables, generate_orientation_tables,
+                                        check_neighbouring_tiles, default_orientation_tables, generate_clash_free_tables, tables_are_clash_free,
+    repeat_check:                       find_close_cell_repeats, CloseRepeatWarning
     lightcone_projections:              BeamProjection
     beam_plotting:                      BeamPlot
     healpix_map_utils:                  write_rotated_lightcone_chunks, sum_maps
@@ -56,6 +58,13 @@ _PUBLIC_NAMES = {
     "write_orientation_tables": "snapshot_orientation",
     "read_orientation_tables": "snapshot_orientation",
     "generate_orientation_tables": "snapshot_orientation",
+    "check_neighbouring_tiles": "snapshot_orientation",
+    "default_orientation_tables": "snapshot_orientation",
+    "generate_clash_free_tables": "snapshot_orientation",
+    "tables_are_clash_free": "snapshot_orientation",
+    # early detection of close repeats, from cell centres
+    "find_close_cell_repeats": "repeat_check",
+    "CloseRepeatWarning": "repeat_check",
     # projecting and plotting beams
     "BeamProjection": "lightcone_projections",
     "BeamPlot": "beam_plotting",
