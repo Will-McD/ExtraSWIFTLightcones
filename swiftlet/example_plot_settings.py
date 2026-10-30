@@ -1,6 +1,7 @@
 #!/bin/env python
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from matplotlib.colors import LinearSegmentedColormap
 
 """
 Function to import basic matplotlib settings for example scripts
@@ -36,3 +37,9 @@ def plot_settings():
     plt.rcParams["ytick.direction"] ='in'
     plt.rcParams["xtick.top"]=True
     plt.rcParams["ytick.right"]= True
+
+
+# new colour maps for examples: 
+
+cmap_MCG = LinearSegmentedColormap.from_list("magenta_cyan_gold", ["#8b008b", "#008c99", "#b8860b"])
+

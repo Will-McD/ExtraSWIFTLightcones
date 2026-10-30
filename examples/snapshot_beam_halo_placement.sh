@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH -J snapshot_beam_halo_placement
 #SBATCH -o ./logs/snapshot_beam_halo_placement.%j.out
-#SBATCH -p cosma8
+#SBATCH -p cosma8-serial
 #SBATCH -A dp004
 #SBATCH -t 02:00:00
 ########################

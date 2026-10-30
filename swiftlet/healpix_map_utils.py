@@ -370,8 +370,8 @@ def write_rotated_lightcone_chunks(
         numb_shells=len(shell_numbers)
     
     # update rotation angles 
-    theta_arr_deg = sw_units.apply_expected_units(theta_arr_deg, "degree")[shell_numbers]
-    phi_arr_deg = sw_units.apply_expected_units(phi_arr_deg, "degree")[shell_numbers]
+    theta_arr_deg = sw_units.apply_expected_units(theta_arr_deg, unyt.Unit("degree"))[shell_numbers]
+    phi_arr_deg = sw_units.apply_expected_units(phi_arr_deg,unyt.Unit("degree"))[shell_numbers]
     
     theta_unique, indices_theta = np.unique(theta_arr_deg, return_index = True)
     phi_unique, indices_phi = np.unique(phi_arr_deg, return_index = True)
@@ -477,7 +477,7 @@ def write_rotated_lightcone_chunks(
                 
                 # make a final write to the output file:
                 if save_chunks:
-                    print(f"\twriting lightcone chunk to file...")
+                    print("\twriting lightcone chunk to file...")
                     write_dataset(chunk_group, map_quantity, map_rot)
                 
                 integrated_map_stack[map_quantity] += map_rot

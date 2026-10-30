@@ -1,15 +1,11 @@
 #!/bin/env python
 import argparse
 from pathlib import Path
-
 import numpy as np
 import unyt
 from mpi4py import MPI
-
 from swiftlet.snapshot_lightcone import SnapshotAllSky, message, write_halo_lightcone_file
 from swiftlet.simulation_suites import Simulation
-from swiftlet.soap_reader import soap_unit_attributes, comoving
-#from colibre_halo_lightcone_hmf import place_and_count_haloes, CENTRAL_PROPERTY
 
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()

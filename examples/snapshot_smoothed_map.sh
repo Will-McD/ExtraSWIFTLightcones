@@ -1,14 +1,25 @@
 #!/bin/bash -l
 #
-#SBATCH --nodes=4
+#SBATCH --nodes=2
 #SBATCH --tasks-per-node=32
 #SBATCH --cpus-per-task=1
 #SBATCH -J smoothed_map
 #SBATCH -o ./logs/smoothed_map.%j.out
 #SBATCH -p cosma8
 #SBATCH -A dp004
-#SBATCH -t 72:00:00
+#SBATCH -t 06:00:00
 ########################
+
+###############################################
+#
+# CHANGE AS NEEDED.
+# This example is written to run on COSMA8, 
+# please update the paths for: 
+#   - the modules, 
+#   - the slurm job, 
+#   - virtual environment 
+#
+###############################################
 
 module purge
 module load gnu_comp/14.1.0 openmpi/5.0.3
@@ -23,7 +34,7 @@ export SWIFTLET_MAX_THREADS=1
 
 # redshift range of the lightcone shell, Nside of the maps and the orientation of the box tiles
 zmin=0.05
-zmax=0.1
+zmax=0.10
 nside=2048
 orientation_lock="cube"
 
@@ -41,4 +52,6 @@ for simulation in "L1000N1800 HYDRO_FIDUCIAL" "L0400N3008 Thermal"; do
         --nside=${nside} \
         --orientation_lock="${orientation_lock}" \
         --output_dir="${output_dir}"
+
 done
+

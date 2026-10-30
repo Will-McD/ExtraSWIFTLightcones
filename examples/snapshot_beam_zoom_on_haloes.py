@@ -1,7 +1,6 @@
 #!/bin/env python
 import argparse
 import os
-
 import h5py
 import numpy as np
 import unyt
@@ -15,12 +14,10 @@ import cmasher as cmr  # noqa: F401 register "cmr.*" colour maps used
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib.ticker import NullFormatter
 from pathlib import Path
-
 from swiftlet.snapshot_cosmology import SnapshotCosmology
 from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.soap_reader import select_soap_rows
-from swiftlet.simulation_suites import Simulation, output_redshifts
-from swiftlet.snapshot_redshifts import snapshot_redshift_range
+from swiftlet.simulation_suites import Simulation
 from swiftlet.example_plot_settings import plot_settings
 
 

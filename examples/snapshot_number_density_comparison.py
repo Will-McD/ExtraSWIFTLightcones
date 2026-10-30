@@ -1,5 +1,6 @@
 #!/bin/env python
 import sys
+import os
 import argparse
 from pathlib import Path
 import h5py
@@ -8,7 +9,6 @@ import unyt
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
 from swiftlet.example_plot_settings import plot_settings
 
 from mpi4py import MPI
@@ -20,13 +20,12 @@ comm_size = comm.Get_size()
 Compare the number density of dark matter particles from Snapshot lightcones against the mean number density
 of the snapshots. 
 Iterativley repeat this comparison for multiple different orientation seeds for both FLAMINGO and COLIBRE. 
-By default the redshift range is set to 0 < z <= 0.15
 
-For each orientation seed (seeds 0 to nr_seeds - 1 by default) use SnapshotAllSky with orientation_lock="cube". 
-The dark matter particles are counted in bins of comoving distance from the observer. The bins are equal in volume.
+    - For each orientation seed (seeds 0 to nr_seeds - 1 by default) use SnapshotAllSky with orientation_lock="cube". 
+    - The dark matter particles are counted in bins of comoving distance from the observer. The bins are equal in volume.
+    - Each seed re-orients the box tiles differently, so each is the same shell built from the same snapshots with a 
+        different arrangement of the cells i.e. making lightcone redhisft shells for differet observers. 
 
-Each seed re-orients the box tiles differently, so each is the same shell built from the same snapshots with a 
-different arrangement of the cells i.e. making lightcone redhisft shells for differet observers. 
 """
 
 def seed_row_vals(seed, edges, counts, expected, mean_density):
@@ -65,9 +64,7 @@ def seed_row_vals(seed, edges, counts, expected, mean_density):
 def read_density_file(filename):
     """
     Read the .txt file written by this example.
-
     Returns a tuple of (the settings of the comment line as {key: value}, the columns as a structured np.ndarray).
-
     :param  filename:   path of the .txt file
     :type   filename:   str
     """
@@ -90,6 +87,9 @@ def plot_seed_densities(filenames, output_filename):
     """
     fig, axs = plt.subplots(1, len(filenames), figsize=(4.6 * len(filenames), 3.8), squeeze=False)
     for ax, filename in zip(axs[0], filenames):
+        if not os.path.exists(filename):
+            print(f"cannot find: {filename}")
+            continue
         settings, data = read_density_file(filename)
         seeds = np.unique(data["orientation_seed"])
         r_mid = None
@@ -98,25 +98,25 @@ def plot_seed_densities(filenames, output_filename):
             rows = data[data["orientation_seed"] == seed]
             r_mid = 0.5 * (rows["r_min_cMpc"] + rows["r_max_cMpc"])
             ratios.append(rows["n_over_n_mean"])
-            ax.plot(r_mid, rows["n_over_n_mean"], color="#9a9a96", lw=0.7, alpha=0.8,
-                    label="each orientation seed" if i == 0 else None)
+            ax.plot(r_mid, rows["n_over_n_mean"], color="#9a9a96", lw=0.7, alpha=0.8, label="individual realisations" if i == 0 else None)
         ratios = np.array(ratios)
-        median, scatter = ratios.median(axis=0), ratios.std(axis=0)
+        #median, scatter = np.mean(ratios, axis=0), ratios.std(axis=0) # median and standard deviation
+        ratio_percentiles = np.percentile(ratios, [50-34.13, 50, 50+34.13], axis=0)
+        median=ratio_percentiles[1]
+        scatter = (ratio_percentiles[0], ratio_percentiles[2])
         expected = data[data["orientation_seed"] == seeds[0]]["count_snapshot_mean"]
         poisson = 1. / np.sqrt(expected)
 
-        ax.fill_between(r_mid, median - scatter, median + scatter, color="darkcyan", alpha=0.25, lw=0, label=r"median$~\pm \sigma$", zorder=-300)
-        ax.plot(r_mid, median, color="darkcyan", lw=2, label=f"median of {len(seeds)} seeds", zorder=-100)
-        ax.plot(r_mid, 1 + poisson, color="lightgrey", lw=0.9, ls="--", label="Poisson error (one seed)", zorder=-200)
-        ax.plot(r_mid, 1 - poisson, color="lightgrey", lw=0.9, ls="--", zorder=-200)
+        ax.plot(r_mid, median, color="darkcyan", lw=2, label=r"median of realisations, $(n_{\mathrm{DM},\,50})$", zorder=-100)
+        ax.fill_between(r_mid, scatter[0], scatter[1], color="darkcyan", alpha=0.25, lw=0, label=r"$n_{\mathrm{DM},\,50} \pm \sigma$", zorder=-300)
         ax.axhline(1., color="lightgrey", lw=0.8, ls=":", zorder=-200)
 
-        ax.set_title(f"{settings.get('simulation', Path(filename).stem)}\n"+f"{settings.get('zmin', '?')} < z <= {settings.get('zmax', '?')}, full sky"+f"\nmedian over all bins and seeds: {ratios.median():.5f}", fontsize=9)
-        ax.set_xlabel("comoving distance from the observer [Mpc]")
+        ax.set_title(f"{settings.get('simulation', Path(filename).stem)}\n"+f"{settings.get('zmin', '?')} < z <= {settings.get('zmax', '?')}, full sky"+f"\nmedian over all bins and seeds: {np.median(ratios):.5f}", fontsize=9)
+        ax.set_xlabel(r"comoving distance, $\chi$ [Mpc]")
         ax.set_axisbelow(True)
     axs[0, 0].set_ylabel(r"$n_{\rm DM}$ / snapshot mean")
     handles, labels = axs[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.0), ncol=4, fontsize=8, frameon=False)
+    axs[0,0].legend(handles, labels, loc="lower right", ncol=1, fontsize=8, frameon=False)
     plt.savefig(output_filename, dpi=200, bbox_inches="tight")
     plt.close()
 
@@ -157,6 +157,31 @@ def equal_volume_edges(r_min, r_max, nr_bins):
     :type   nr_bins:    int
     """
     return np.cbrt(np.linspace(r_min**3, r_max**3, nr_bins + 1))
+
+def subshell_redshift_ranges(cosmo, redshift_range, nr_shells, n_grid=20001):
+    """
+    Split a redshift range into consecutive thinner shells of equal comoving volume, so each holds a similar number of
+    particles. Neighbouring shells share their boundary redshift, so together they cover the range exactly once.
+
+    Returns a list of nr_shells (z_min, z_max) tuples, from low to high redshift.
+
+    :param  cosmo:          cosmology of the simulation (SnapshotCosmology)
+    :type   cosmo:          SnapshotCosmology
+    :param  redshift_range: minimum and maximum redshift [z_min, z_max]
+    :type   redshift_range: tuple
+    :param  nr_shells:      number of shells to split the range into
+    :type   nr_shells:      int
+    :param  n_grid:         number of redshifts of the grid the boundaries are interpolated from
+    :type   n_grid:         int
+    """
+    z_min, z_max = redshift_range
+    if nr_shells <= 1:
+        return [(z_min, z_max)]
+    z_grid = np.linspace(z_min, z_max, n_grid)
+    r_grid = cosmo.comoving_distance(z_grid).to_value("Mpc")
+    z_edges = np.interp(equal_volume_edges(r_grid[0], r_grid[-1], nr_shells), r_grid, z_grid)
+    z_edges[0], z_edges[-1] = z_min, z_max  # exactly the range asked for
+    return [(float(z_edges[i]), float(z_edges[i + 1])) for i in range(nr_shells)]
 
 def share_pieces(npart_per_piece, nr_ranks):
     """
@@ -202,13 +227,12 @@ def count_in_bins(coords, edges, vector=None, ang_radius_rad=None):
     # only r in [edges[0], edges[-1]], the last bin including its outer edge
     return np.histogram(r, bins=edges)[0].astype(np.int64)
 
-
 def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radius_deg, ptype="PartType1"):
     """
     Count the particles of a lightcone in each bin. 
     Share the snapshot pieces between the ranks (see snapshot_dark_matter_map.py).
 
-    Returns the counts summed over the ranks, on every rank.
+    Returns the counts summed over the ranks (on every rank), and the number of particles in the largest piece.
 
     :param  lightcone:      serial SnapshotBeam or SnapshotAllSky, one on each rank
     :type   lightcone:      SnapshotLightcone
@@ -227,6 +251,7 @@ def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radiu
     _, pieces = lightcone.gather_files(ptype, redshift_range, **beam_args)
     npart_per_piece = np.array([int(np.sum(piece.lengths)) for piece in pieces], dtype=np.int64)
     my_pieces = share_pieces(npart_per_piece, comm_size)[comm_rank]
+    largest_piece = int(npart_per_piece.max()) if len(npart_per_piece) else 0
 
     counts = np.zeros(len(edges) - 1, dtype=np.int64)
     for piece in my_pieces:
@@ -235,7 +260,7 @@ def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radiu
             continue
         # place_file_in_shell keeps only the particles in the beam and the redshift range of their snapshot
         counts += count_in_bins(particles["Coordinates"].to_value("Mpc"), edges)
-    return comm.allreduce(counts, op=MPI.SUM)
+    return comm.allreduce(counts, op=MPI.SUM), largest_piece
 
 def write_counts(filename, rows, header):
     """
@@ -263,7 +288,6 @@ def run_seeds(args):
     :param  args:   command line arguments, see __main__
     :type   args:   argparse.Namespace
     """
-    import sys
     from mpi4py import MPI
     from swiftlet.snapshot_lightcone import SnapshotAllSky, message
     from swiftlet.simulation_suites import Simulation
@@ -280,7 +304,17 @@ def run_seeds(args):
 
     mean_density, nr_part = snapshot_mean_number_density(simulation)
     expected = mean_density * shell_volume
-    message(comm_rank, f"{args.box_res}/{args.sim_name}: {nr_part} dark matter particles, mean number density {mean_density:.6e} cMpc^-3, {np.sum(expected):.6e} expected in the full sky for {args.zmin} < z <= {args.zmax}", time_date_update=True)
+    update_str=f"\n{args.box_res}/{args.sim_name}: {nr_part:.3e} DM particles\nmean numb density: {mean_density:.3e} cMpc^-3\n{np.sum(expected):.3e} expected in the full sky for {args.zmin} < z <= {args.zmax}"
+    message(comm_rank, update_str, time_date_update=True)
+
+    # thinner shells of equal volume, each placed on its own to limit the memory of each rank (see the docstring)
+    shells = subshell_redshift_ranges(cosmo, redshift_range, args.nr_shells)
+    if len(shells) > 1:
+        shell_ranges = []
+        for z0, z1 in shells:
+            shell_ranges.append(f"{z0:.4f}-{z1:.4f}")
+        update_str= f"{len(shells)} shells of equal volume, z = {', '.join(shell_ranges)}"
+        message(comm_rank, update_str)
 
     seeds = list(range(args.first_seed, args.first_seed + args.nr_seeds))
     rows = []
@@ -288,7 +322,15 @@ def run_seeds(args):
         message(comm_rank, f"\n=== orientation seed {seed} ({seeds.index(seed) + 1}/{len(seeds)}), lock {args.orientation_lock} === ", time_date_update=True)
         lightcone = SnapshotAllSky(simulation_object=simulation, orientation_seed=seed,
                                    orientation_lock=args.orientation_lock, verbose=0)
-        counts = count_snapshot_lightcone(lightcone, redshift_range, edges, None, None)
+        
+        # compute counts in thinner redshift shells when indicated 
+        counts = np.zeros(args.nr_bins, dtype=np.int64)
+        for shell_nr, shell_z in enumerate(shells):
+            shell_counts, largest_piece = count_snapshot_lightcone(lightcone, shell_z, edges, None, None)
+            counts += shell_counts
+            if len(shells) > 1:
+                update_str = f"\t[shell {shell_nr + 1}/{len(shells)}], {shell_z[0]:.4f} < z <= {shell_z[1]:.4f}:\t{np.sum(shell_counts):.3e} particles\t(largest piece: {largest_piece:.3e} particles)"
+                message(comm_rank, update_str,time_date_update=True)
         message(comm_rank, f"seed {seed}: {np.sum(counts)} particles, n / n_mean = {np.sum(counts) / np.sum(expected):.6f}, bins from {np.min(counts / expected):.5f} to {np.max(counts / expected):.5f}")
         rows += seed_row_vals(seed, edges, counts, expected, mean_density)
 
@@ -298,7 +340,7 @@ def run_seeds(args):
                     f".z_{args.zmin:.3f}_{args.zmax:.3f}.txt")
         
         # the comment line holds the settings as key=value; read back by read_density_file
-        write_counts(filename, rows, f"simulation={args.box_res}/{args.sim_name}; zmin={args.zmin:g}; " f"zmax={args.zmax:g}; orientation_lock={args.orientation_lock}; " f"nr_bins={args.nr_bins}; n in cMpc^-3")
+        write_counts(filename, rows, f"simulation={args.box_res}/{args.sim_name}; zmin={args.zmin:g}; " f"zmax={args.zmax:g}; orientation_lock={args.orientation_lock}; " f"nr_bins={args.nr_bins}; nr_shells={args.nr_shells}; n in cMpc^-3")
         message(comm_rank, f"\ncounts of {len(seeds)} seeds written to {filename}", time_date_update=True)
 
 
@@ -311,6 +353,8 @@ if __name__ == "__main__":
     parser.add_argument("--zmin", type=float, default=0.0, help="minimum redshift")
     parser.add_argument("--zmax", type=float, default=0.15, help="maximum redshift")
     parser.add_argument("--nr_bins", type=int, default=25, help="number of bins of comoving distance, of equal volume")
+    parser.add_argument("--nr_shells", type=int, default=1,
+        help="number of thinner sub shells (of equal volume) to split the redshift range into, each is placed one at a time, to limit the peak memory of each rank")
     parser.add_argument("--nr_seeds", type=int, default=10, help="number of orientation seeds, i.e. number of iterations")
     parser.add_argument("--first_seed", type=int, default=0, help="first orientation seed")
     parser.add_argument("--orientation_lock", default="cube", choices=["none", "cube", "sphere"], help="orientation lock of the box tiles")
@@ -319,7 +363,7 @@ if __name__ == "__main__":
     parser.add_argument("--plot_output", default=None, help="plot to write, by default next to the first file")
     args = parser.parse_args()
     
-    plot_settings() # use consistent plot settings
+    plot_settings() 
 
     if args.plot_files:
         output = args.plot_output or str(Path(args.plot_files[0]).with_name("dark_matter_number_density_seeds.png"))

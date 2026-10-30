@@ -5,8 +5,6 @@ import healpy as hp
 import unyt
 from pathlib import Path
 from lightcone_io.units import units_from_attributes
-#from . import swift_snapshot_redshift_conversion as nz
-from . import snapshot_lightcone
 from .simulation_suites import output_redshifts
 from .flamingo_lightcones import flamingo_box_resolution, flamingo_shell_redshift_file
 from .snapshot_redshifts import snapshots_in_range
@@ -526,8 +524,6 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
     chunk_pixels = max(1, nr_total_pixels // comm_size)
 
     for lightcone_nr in lightcone_numbers:
-        lc_total = 0
-        kept_total = 0
 
         if comm_rank == 0:
             # Create directory and read redshifts on rank 0 before broadcasting
@@ -624,8 +620,6 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                 shell_kept = comm.allreduce(int(np.sum(m_redshift)))
                 message(f"shell:\t{shell_nr}, keep:\t{shell_kept}/{shell_total}")
 
-                lc_total += shell_total
-                kept_total += shell_kept
 
                 if shell_kept == 0:
                     # No kept halos anywhere in this shell so skip the
