@@ -17,7 +17,7 @@ Create a split beam projection for:
         This demonstrates the  mass weighting function of BeamProjection class. 
 """
 
-def surface_density_projection(BP, particle_lightcone, gas_particle_data, gas_property_names, dm_particle_data):
+def surface_density_projection(BP, gas_particle_data, gas_property_names, dm_particle_data):
     # project a slice through a beam to show the surface mass density within the lightcone
 
     # add particle data to the slice 
@@ -51,7 +51,8 @@ def surface_density_projection(BP, particle_lightcone, gas_particle_data, gas_pr
         "cmr.eclipse"
     ]
     output_filename = "./example_outputs/beam_projection/split_beam_surface_density_example.png"
-    wedge_imgs = BP.split_beam_plot(
+
+    __ = BP.split_beam_plot(
         numb_wedges, projection_data, colour_maps, filename=output_filename, 
         minor_tick_kwargs={"color":"k", "lw":0.6}, tick_label_kwargs={"rotation":"auto"}, overlay_grid=(True, False, False),
         titles=["Gas", "Gas+DM", "DM"]
@@ -61,7 +62,7 @@ def surface_density_projection(BP, particle_lightcone, gas_particle_data, gas_pr
     print(f"Example image 1 saved as: {output_filename}")
 
 
-def temperature_projection(BP, particle_lightcone, gas_particle_data, gas_property_names):
+def temperature_projection(BP, gas_particle_data, gas_property_names):
     # Repeat example 1 but now with custom datasets to show mass and redshift dependance
     
     # add particle data to the slice 
@@ -115,12 +116,13 @@ def temperature_projection(BP, particle_lightcone, gas_particle_data, gas_proper
     
     output_filename = "./example_outputs/beam_projection/split_beam_temp_example.png"
 
-    wedge_imgs = BP.split_beam_plot(
+    __ = BP.split_beam_plot(
         numb_wedges, projection_data, colour_maps, filename=output_filename,
         minor_tick_kwargs={"color":"k", "lw":0.6}, tick_label_kwargs={"rotation":0}, overlay_grid=(True, False, False), major_tick_length=3.5,
         titles=["Temperature", "Mass weighted\nTemperature", r"Temperature$\,/\,$Redshift$^2$"],
         redshift_label_offset=(0,-15,0), comoving_label_offset=(0,15,0), title_kwargs={'fontsize':5}
         )
+    
     print(f"Example image 2 saved as: {output_filename}")
 
 
@@ -162,8 +164,6 @@ if __name__ == "__main__":
     # define a slice through the same beam  
     slice_z_width= 12.5 * unyt.Mpc # how thick the slice is 
     
-    print(snapshot_dir)
-    
     BP=BeamProjection(
         vector=vector, 
         angular_diameter=np.rad2deg(2*radius), 
@@ -191,9 +191,9 @@ if __name__ == "__main__":
 
     # Example 1 
     # project a slice through a beam to show the surface mass density within the lightcone
-    surface_density_projection(BP, lightcone, gas_particle_data, gas_property_names, dm_particle_data)
+    surface_density_projection(BP, gas_particle_data, gas_property_names, dm_particle_data)
 
     #Example 2 
     # Repeat the above example but now with custom datasets to show mass and redshift dependance
-    temperature_projection(BP, lightcone, gas_particle_data, gas_property_names)
+    temperature_projection(BP, gas_particle_data, gas_property_names)
 

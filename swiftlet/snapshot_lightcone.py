@@ -8,7 +8,6 @@ from mpi4py import MPI
 from collections import namedtuple
 from scipy.interpolate import CubicSpline
 from scipy.optimize import brentq
-import virgo.formats.swift as virgo_swift
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
 from lightcone_io.particle_reader import merge_cells
@@ -17,10 +16,9 @@ from . import snapshot_orientation as box_structure
 from . import snapshot_units as sw_units
 from .simulation_suites import Simulation
 from .snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology
-from .soap_reader import soap_catalogue_length, read_soap_rows, read_soap_in_chunks, soap_unit_attributes # noqa: F401
+from .soap_reader import soap_catalogue_length, read_soap_rows, soap_unit_attributes # noqa: F401
 from .soap_reader import comoving as soap_comoving
 from . import snapshot_redshifts
-import builtins
 import datetime as dt
 import warnings
 
@@ -764,8 +762,6 @@ class SnapshotLightcone():
             snap_offsets={}
             snap_lengths={}
 
-            ptype_in_file_boolean = f["Header"].attrs["NumPart_ThisFile"][:]>0
-
             for ptype_i in range(7):
                 if f["Header"].attrs['NumPart_Total'][ptype_i]>0:
                     cells_in_file_dict[f"PartType{ptype_i}"] = f[f"Cells/Files/PartType{ptype_i}"][...]
@@ -912,7 +908,6 @@ class SnapshotLightcone():
         # if missing / filling gaps then give warnings
         if coverage.missing and MPI.COMM_WORLD.Get_rank() == 0:
             filled = "; ".join(f"snapshot {n} by {' and '.join(str(m) for m in by)}" for n, by in coverage.filled_by.items())
-            example = (self.simulation.snapshot_file(coverage.missing[0], 0) if halo_format is None else halo_format.format(snap_nr=coverage.missing[0]))
             warning_str = f"{label}: the {data_type} of snapshots {coverage.missing} are missing."
             warning_str+=f"Filling the gaps with neighbouring snapshots: {filled}"
             warnings.warn(warning_str, SnapshotGapWarning, stacklevel=3)
@@ -937,8 +932,7 @@ class SnapshotLightcone():
             example = (self.simulation.snapshot_file(missing[0], 0) if halo_format is None
                        else halo_format.format(snap_nr=missing[0]))
             what = "snapshot files" if halo_format is None else "SOAP catalogues"
-            raise FileNotFoundError(f"{self.simulation.box_res}/{self.simulation.name}: the {what} of snapshots "
-                                    f"{missing} are missing (e.g. {example})")
+            raise FileNotFoundError(f"{self.simulation.box_res}/{self.simulation.name}: the {what} of snapshots {missing} are missing (e.g. {example})")
 
     def __warn_use_snapshots_gaps(self, shell_z):
         """
@@ -1466,9 +1460,9 @@ class SnapshotLightcone():
 
         # sanity check snapshot specific values
         if self.__snap_cell_data is not None:
-            raise ValueError(f"snapshot specific values are not being cleared after iterations (__snap_cell_data)")
+            raise ValueError("snapshot specific values are not being cleared after iterations (__snap_cell_data)")
         elif self.__cell_data_snap_nr is not None:
-            raise ValueError(f"snapshot specific values are not being cleared after iterations (__cell_data_snap_nr)")
+            raise ValueError("snapshot specific values are not being cleared after iterations (__cell_data_snap_nr)")
 
         snap_shell_z_range = self.__snapshot_shell_z_range(snapshot_number, shell_z)
 

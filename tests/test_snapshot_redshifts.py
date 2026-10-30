@@ -72,17 +72,6 @@ def test_strict_bounds_leave_out_touching_snapshots(redshifts):
         assert sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0., strict=True).tolist() == brute_force
 
 
-#def test_bounds_examples():
-#    # a shell exactly one snapshot wide: "equal" also takes the two snapshots it touches, "strict" only the one
-#    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.175, 0.225), bounds="equal").tolist() == [72, 73, 74]
-#    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.175, 0.225), bounds="strict").tolist() == [73]
-#    assert Simulation.from_label("L1000N1800", "X").snapshots_in_range((0.175, 0.225), bounds="strict").tolist() == [73]
-#    # away from the edges they agree
-#    assert sr.snapshots_in_range(COLIBRE_REDSHIFTS, (0.1, 0.2), bounds="strict").tolist() == list(range(114, 120))
-#    with pytest.raises(ValueError, match="bounds must be 'equal' or 'strict'"):
-#        sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1, 0.2), bounds="loose")
-
-
 def test_redshift_buffer():
     sim = Simulation.from_label("L1000N1800", "X")
     # 0.1 < z < 0.2 is snapshots 73 to 75; widened by 0.025 either side it touches 72 and 76 too
@@ -104,7 +93,7 @@ def test_redshift_buffer():
     # below z = 0 there are no more snapshots
     redshift_buffer=0.5
     assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0., 0.01+redshift_buffer)).tolist() == list(range(67, 78))  # up to z = 0.51
-    with pytest.raises(ValueError, match=f"redshifts must not be negative"):
+    with pytest.raises(ValueError, match="redshifts must not be negative"):
         redshift_buffer=-0.3
         sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1-redshift_buffer, 0.2+redshift_buffer) )
 

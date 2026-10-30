@@ -9,7 +9,6 @@ from swiftlet.simulation_suites import Simulation
 from swiftlet.snapshot_cosmology import SnapshotCosmology
 from swiftlet.snapshot_lightcone import SnapshotAllSky, SnapshotBeam
 from swiftlet.snapshot_orientation import write_orientation_tables
-from swiftlet.example_plot_settings import plot_settings
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
