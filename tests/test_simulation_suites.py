@@ -12,9 +12,9 @@ Test each simulation's paths and snapshot redshifts come from its suite and the
 that lightcone classes take a Simulation or the box size and resolution label and name.
 """
 
-FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.txt")
-FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.txt")
-COLIBRE_REDSHIFTS = read_output_redshifts("colibre.txt")
+FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.yaml")
+FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.yaml")
+COLIBRE_REDSHIFTS = read_output_redshifts("colibre.yaml")
 
 
 @pytest.fixture(autouse=True)
@@ -148,7 +148,7 @@ def test_colibre_and_flamingo_differ():
 
 
 @pytest.mark.parametrize("filename, nr_snapshots, first, last", [
-    ("flamingo_L1.txt", 78, 15., 0.), ("flamingo_L2p8.txt", 79, 15., 0.), ("colibre.txt", 128, 30., 0.),
+    ("flamingo_L1.yaml", 78, 15., 0.), ("flamingo_L2p8.yaml", 79, 15., 0.), ("colibre.yaml", 128, 30., 0.),
 ])
 def test_output_redshift_files(filename, nr_snapshots, first, last):
     redshifts = read_output_redshifts(filename)
@@ -168,6 +168,12 @@ def test_output_redshifts_from_a_file_of_your_own(tmp_path):
     sim = Simulation(suite, "L0050N0752", "MY_RUN", str(tmp_path))
     assert sim.z0_snapshot == 2 and sim.snapshot_redshift_range(1) == (0.5, 1.5)
 
+    # given by name with its label
+    sim = Simulation.from_label("L0050N0752", "MY_RUN", simulation_suite_name=suite, base_dir_format=str(tmp_path))
+    assert sim.suite is suite and sim.output_redshifts.tolist() == [2., 1., 0.]
+    with pytest.raises(ValueError, match="is a COLIBRE simulation"):
+        Simulation.from_label("L0050N0752", "MY_RUN", simulation_suite_name=replace(FLAMINGO, output_redshift_tables={"*": str(good)}))
+
     one_column = tmp_path / "one_column.txt"
     one_column.write_text("2.0\n1.0\n0.0\n")
     with pytest.raises(ValueError, match="expected 2 comma separated columns"):
@@ -176,6 +182,37 @@ def test_output_redshifts_from_a_file_of_your_own(tmp_path):
     out_of_order.write_text("0, 2.0\n2, 1.0\n1, 0.0\n")
     with pytest.raises(ValueError, match="snapshot numbers must be 0, 1, 2"):
         read_output_redshifts(out_of_order)
+
+def test_output_redshifts_in_yaml(tmp_path):
+    """
+    Output redshifts written to a YAML file read back exactly, also with yaml.safe_load, and work as a suite's table;
+    the installed tables are YAML files of the same layout.
+    """
+    yaml = pytest.importorskip("yaml")
+    from dataclasses import replace
+    from swiftlet.simulation_suites import OUTPUT_REDSHIFT_DIR, write_output_redshifts
+    redshifts = [15.0, 1. / 3., 1.0e-5, 0.0]
+    filename = tmp_path / "my_run.yaml"
+    write_output_redshifts(filename, redshifts, description="my run", suite="colibre")
+    assert read_output_redshifts(filename).tolist() == redshifts
+    with open(filename) as f:
+        contents = yaml.safe_load(f)
+    assert contents["description"] == "my run" and contents["number_of_snapshots"] == 4
+    assert contents["columns"] == ["snapshot_number", "redshift"]
+    assert contents["rows"] == [[0, 15.0], [1, 1. / 3.], [2, 1.0e-5], [3, 0.0]]
+    suite = replace(COLIBRE, output_redshift_tables={"*": str(filename)})
+    assert Simulation(suite, "L0050N0752", "MY_RUN", str(tmp_path)).output_redshifts.tolist() == redshifts
+
+    out_of_order = tmp_path / "out_of_order.yaml"
+    out_of_order.write_text("columns: [snapshot_number, redshift]\nrows:\n  - [0, 2.0]\n  - [2, 1.0]\n")
+    with pytest.raises(ValueError, match="snapshot numbers must be 0, 1, 2"):
+        read_output_redshifts(out_of_order)
+
+    for name in ("colibre.yaml", "flamingo_L1.yaml", "flamingo_L2p8.yaml"):
+        with (OUTPUT_REDSHIFT_DIR / name).open() as f:
+            contents = yaml.safe_load(f)
+        assert [row[0] for row in contents["rows"]] == list(range(contents["number_of_snapshots"]))
+        assert read_output_redshifts(name).tolist() == [row[1] for row in contents["rows"]]
 
 
 class _CosmologyFrom:
