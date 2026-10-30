@@ -216,29 +216,22 @@ def test_shell_redshift_file_lookup(file_server, fake_venv, tmp_path, monkeypatc
     env_file = tmp_path / "from_env.txt"
     env_file.write_text("0.0, 0.1\n")
     monkeypatch.setenv("L1_REDSHIFTS_FILENAME", str(env_file))
-    #assert nz.flamingo_shell_redshift_file("L1") == str(env_file)
     assert flamingo_lightcones.flamingo_shell_redshift_file("L1") == str(env_file)
     monkeypatch.delenv("L1_REDSHIFTS_FILENAME")
 
     # otherwise the files are downloaded into the environment when they are first needed, and found there after
     monkeypatch.setattr(os.path, "expanduser", lambda path: path.replace("~", str(tmp_path / "home")))
-    #monkeypatch.setattr(nz, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
-    #path = nz.flamingo_shell_redshift_file("L2p8")
     monkeypatch.setattr(flamingo_lightcones, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
     path = flamingo_lightcones.flamingo_shell_redshift_file("L2p8")
     assert path == str(fake_venv / "share" / "swiftlet" / "redshifts" / "L2p8_shell_redshifts_z5.txt")
-    #assert nz.flamingo_shell_redshift_file("L2p8") == path
     assert flamingo_lightcones.flamingo_shell_redshift_file("L2p8") == path
     assert requests == {"L1": 1, "L2p8": 1}
 
     with pytest.raises(ValueError, match="box must be one of"):
-        #nz.flamingo_shell_redshift_file("L5")
         flamingo_lightcones.flamingo_shell_redshift_file("L5")
 
 def test_shell_redshift_file_not_found(fake_venv, tmp_path, monkeypatch):
     monkeypatch.setattr(os.path, "expanduser", lambda path: path.replace("~", str(tmp_path / "home")))
-    #monkeypatch.setattr(nz, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
     monkeypatch.setattr(flamingo_lightcones, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
     with pytest.raises(FileNotFoundError, match="swiftlet-configure"):
-        #nz.flamingo_shell_redshift_file("L1", download=False)
         flamingo_lightcones.flamingo_shell_redshift_file("L1", download=False)

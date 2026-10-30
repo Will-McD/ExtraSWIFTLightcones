@@ -504,11 +504,6 @@ class SnapshotLightcone():
 
         # simulation values
 
-        #self.box_res=boxsize_resolution
-        #self.sim_name=simulation_name
-        #self.simulation_dir=simulation_base_dir_format.format(box_res=self.box_res, sim_name=self.sim_name)
-        #self.snapshot_format = self.simulation_dir+'/snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5'
-        
         # use the simulation class to define + format all needed paths, names and the snapshot-redshift table
         self.simulation = as_simulation(boxsize_resolution, simulation_name, simulation_suite_name, simulation_base_dir_format, simulation_object)
         
@@ -521,13 +516,6 @@ class SnapshotLightcone():
         
         # how much to print the individual outputs
         self.verbose = int(verbose)
-        
-        # define the cosmology from the snapshots
-        #self.__define_snapshot_cosmology(int(nz.snapshot_number_redshifts(snapshot_number=0, boxsize_resolution=self.box_res, inverse=True)), 0)
-        #try:
-        #    self.cosmo = Snapshot_Cosmology_For_Lightcone(self.simulation.snapshot_file(self.simulation.z0_snapshot, 0)).COSMO
-        #except Exception or (FileNotFoundError, OSError) as e:
-        #    self.cosmo = Snapshot_Cosmology_For_Lightcone(self.simulation_dir+'/snapshots').COSMO
         
         # define the cosmology from the snapshots
         # the cosmology of the simulation, from its snapshots (FLAMINGO or COLIBRE)
@@ -550,15 +538,23 @@ class SnapshotLightcone():
 
         # define where to read orientation instructions from: default or user defined table...
         # quarter turns, reflections and cell shifts of the box tiles: from a file, or the default tables
-        if orientation_table is None:
-            self.orientation_table = None
-            self._orientation_tables = box_structure.default_orientation_tables()
+        if orientation_table is None or str(orientation_table) == "default":
+            orientation_table = box_structure.DEFAULT_ORIENTATION_TABLE
+
+        if str(orientation_table) in box_structure.INSTALLED_ORIENTATION_TABLES:
+            # tables installed with SWIFTLET, recorded by name
+            self.orientation_table = str(orientation_table)
+            self._orientation_tables = box_structure.default_orientation_tables(self.orientation_table)
         else:
             self.orientation_table = os.path.abspath(str(orientation_table))
             self._orientation_tables = box_structure.read_orientation_tables(self.orientation_table)
         
         # define tables finger print so it can be recovered as needed. 
         self.orientation_table_fingerprint = box_structure.orientation_tables_fingerprint(self._orientation_tables)
+
+        # if a dict, gather_files records in it the cells of each (snapshot, tile) piece that overlap the shell, as
+        # {(snapshot, tile): cell indices}; repeat_check.find_close_cell_repeats sets it to use them
+        self._tile_cells = None
 
         # values & caches to compute once and reuse for every call
         self.unit_registry=None # place holder 
@@ -605,7 +601,7 @@ class SnapshotLightcone():
             "simulation_name": self.sim_name,
             "orientation_seed": self.orientation_seed,
             "orientation_lock": "none" if self.orientation_lock is None else self.orientation_lock,
-            "orientation_table": "default" if self.orientation_table is None else self.orientation_table,
+            "orientation_table": self.orientation_table,
             "orientation_table_fingerprint": self.orientation_table_fingerprint,
             "beam_vector": None if self.beam_vec is None else [float(x) for x in np.ravel(self.beam_vec)],
             "ang_radius_deg": None if ang_radius_deg is None else float(ang_radius_deg),
@@ -651,7 +647,6 @@ class SnapshotLightcone():
         # points to state of current snapshot and cell data
         self.__snap_cell_data=None
         self.__cell_data_snap_nr=None
-        #self.__snap_redshift_range_to_populate=None
 
     def __clear_halo_read_state(self, ):
         """
@@ -1168,14 +1163,13 @@ class SnapshotLightcone():
 
         return ang, ref, shift
 
-    def _cell_shift_to_vector(self, cell_shift, n_cells_per_axis, cell_sidelength,
-                              snapshot_sidelength):
+    def _cell_shift_to_vector(self, cell_shift, n_cells_per_axis, cell_sidelength, snapshot_sidelength):
         """
         Convert cell shift to a comoving distance vector.
 
         Returns the shift vector as an np.ndarray, shape (3,).
 
-        :param  cell_shift:             number of cells to shift along x, y, z. If None, no shift
+        :param  cell_shift:             shift along x, y, z. If None, no shift
         :type   cell_shift:             array-like of int, shape (3,)
         :param  n_cells_per_axis:       number of cells per sidelength
         :type   n_cells_per_axis:       int or array-like, shape (3,)
@@ -1193,6 +1187,10 @@ class SnapshotLightcone():
             raise ValueError("cell_shift must have shape (3,)")
 
         n_cells_per_axis = np.broadcast_to(np.asarray(n_cells_per_axis), (3,)).astype(np.int64)
+        
+        # the shift in whole cells, from the unit of the tables
+        cell_shift = box_structure.cell_shifts_in_cells(cell_shift, n_cells_per_axis)
+
         cell_sidelength = np.broadcast_to(np.asarray(cell_sidelength, dtype=np.float64), (3,))
         snapshot_sidelength = np.broadcast_to(np.asarray(snapshot_sidelength, dtype=np.float64), (3,))
 
@@ -1471,39 +1469,14 @@ class SnapshotLightcone():
             raise ValueError(f"snapshot specific values are not being cleared after iterations (__snap_cell_data)")
         elif self.__cell_data_snap_nr is not None:
             raise ValueError(f"snapshot specific values are not being cleared after iterations (__cell_data_snap_nr)")
-        #elif self.__snap_redshift_range_to_populate is not None:
-        #    raise ValueError(f"snapshot specific values are not being cleared after iterations (__snap_redshift_range_to_populate)")
-
-        ##snapshot_z_range = nz.snapshot_redshift_range(snapshot_number, self.box_res)
-        #snapshot_z_range = self.simulation.snapshot_redshift_range(snapshot_number)
-        #
-        ## print out of the snapshots redshift info
-        #snapshot_to_shell_str=(f"snapshot: {snapshot_number}"+f"\n\tcentre redshift {self.simulation.snapshot_redshift(snapshot_number)}"+f"\n\tredshift range: {snapshot_z_range[0]} - {snapshot_z_range[1]}")
-        #self._log(snapshot_to_shell_str, level=2)
-        #
-        #snap_shell_z_range=tuple(
-        #            [snapshot_z_range[0] if snapshot_z_range[0] > shell_z[0] else shell_z[0],
-        #            snapshot_z_range[1] if snapshot_z_range[1] < shell_z[1] else shell_z[1]]
-        #        )
 
         snap_shell_z_range = self.__snapshot_shell_z_range(snapshot_number, shell_z)
 
         # write new snapshot specific values, reuse of data is stored in cache
         self.__reset_cell_read_state(snapshot_number)
 
-        #self.__snap_redshift_range_to_populate=snap_shell_z_range
-
         # give read out of max beam diameter for snapshots redshift range in shell
         self.__log_snapshot_shell(snapshot_number, snap_shell_z_range, "particles")
-
-        #r_beam = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
-        #add_part_from_snap_str=(
-        #    f"add particles from snapshot {snapshot_number} to lightcone shell" +
-        #    f"\n\tredshift:\t{snap_shell_z_range[0]:.5f} - {snap_shell_z_range[1]:.5f}" +
-        #    f"\n\tradii:\t{r_beam[0]:.5f} - {r_beam[1]:.5f} [Mpc]" 
-        #    )
-        #self._log(add_part_from_snap_str, level=2)
-        #del r_beam #, max_diameter
 
         # set up dictionary of ptypes in snapshot files:
         ptypes_in_current_snap = self.__files_with_ptype(snapshot_number, self.__snap_cell_data["nr_files"])
@@ -1513,42 +1486,9 @@ class SnapshotLightcone():
             
             # read in the instructions for how to reconstruct the snapshot box
             beam_idx = self.__cells_in_tile(snapshot_number, tile, z_sub_min, z_sub_max, ang_radius_deg)
-
-            #snapshot_rotation_angles, snapshot_rotation_reflections, snapshot_periodic_shifts = self._snapshot_reorientation(tile)
-            #orientation_str=(f"Reorienting snapshot {snapshot_number} (tile {tile}, z={z_sub_min:.5f}-{z_sub_max:.5f}"+
-            #    (f", orientation layer {self._orientation_layer(tile)}" if self.orientation_lock else "")+"):"
-            #    f"\n\tRotation:\t{snapshot_rotation_angles} [deg]"+
-            #    f"\n\tReflection:\t{snapshot_rotation_reflections}"+
-            #    f"\n\tPeriodic Shift:\t{snapshot_periodic_shifts}")
-            #self._log(orientation_str, level=2)
-            #
-            #repositioned_cell_centres=np.empty(np.shape(self.__snap_cell_data["cell_centres"]))
-            #__ = self._transform_snapshot_coordinates(
-            #                                coords=self.__snap_cell_data["cell_centres"].to_value("Mpc"), # convert to Mpc when doing re-orientation
-            #                                rot_angles=snapshot_rotation_angles,
-            #                                reflections=snapshot_rotation_reflections,
-            #                                periodic_cell_shift=snapshot_periodic_shifts,
-            #                                cell_data=self.__snap_cell_data,
-            #                                order="xyz",
-            #                                degrees=True,
-            #                                out=repositioned_cell_centres,
-            #                                inplace=False
-            #                            )
-            #repositioned_cell_centres += self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"].to_value("Mpc"))
-            #beam_idx, __ = self._in_shell(
-            #        coords=repositioned_cell_centres,
-            #        ang_radius_deg=ang_radius_deg,
-            #        z_min=z_sub_min,
-            #        z_max=z_sub_max,
-            #        buffer_length=self.__snap_cell_data["cell_size"][0].to_value("Mpc"),
-            #        buffer_shape="cube",
-            #        return_bool=False
-            #    )
-            #
-            #self._log(f"\nnumber of cells in beam: {np.shape(beam_idx)[0]}", level=2)
-            #
-            #if len(beam_idx) > 0:
-            #    self._log_coord_ranges("coordinates range of cell centres in beam", repositioned_cell_centres[beam_idx,:])
+            
+            if self._tile_cells is not None:
+                self._tile_cells[(snapshot_number, tile)] = np.asarray(beam_idx, dtype=np.int32)
 
             # unique files to read
             file_numbers = np.unique(self.__snap_cell_data["cells_in_file"][current_ptype][beam_idx])
@@ -1602,6 +1542,7 @@ class SnapshotLightcone():
         :param  ang_radius_deg:     angular radius [deg] of the beam
         :type   ang_radius_deg:     float
         """
+        
         # read in the instructions for how to reconstruct the snapshot box
         snapshot_rotation_angles, snapshot_rotation_reflections, snapshot_periodic_shifts = self._snapshot_reorientation(tile)
         orientation_str=(f"Reorienting snapshot {snapshot_number} (tile {tile}, z={z_sub_min:.5f}-{z_sub_max:.5f}"+

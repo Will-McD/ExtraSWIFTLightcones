@@ -1,7 +1,6 @@
 #!/bin/env python
 import numpy as np
 import pytest
-
 from swiftlet import snapshot_redshifts as sr
 from swiftlet.simulation_suites import Simulation, read_output_redshifts
 
@@ -9,9 +8,9 @@ from swiftlet.simulation_suites import Simulation, read_output_redshifts
 Tests of swiftlet.snapshot_redshifts, the redshift ranges snapshots cover.
 """
 
-FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.txt")
-FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.txt")
-COLIBRE_REDSHIFTS = read_output_redshifts("colibre.txt")
+FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.yaml")
+FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.yaml")
+COLIBRE_REDSHIFTS = read_output_redshifts("colibre.yaml")
 
 TABLES = {"FLAMINGO L1": FLAMINGO_L1_REDSHIFTS, "FLAMINGO L2p8": FLAMINGO_L2P8_REDSHIFTS, "COLIBRE": COLIBRE_REDSHIFTS}
 
@@ -154,8 +153,6 @@ def test_simulation_uses_its_tables():
     assert np.array_equal(Simulation.from_label("L1000N3600", "X").output_redshifts, FLAMINGO_L2P8_REDSHIFTS)
     assert np.array_equal(Simulation.from_label("L1000N0900", "X").output_redshifts, FLAMINGO_L1_REDSHIFTS)
     assert np.array_equal(Simulation.from_label("L200m6", "X").output_redshifts, COLIBRE_REDSHIFTS)
-    assert np.array_equal(Simulation.from_label("L200m6", "X").output_redshifts, COLIBRE_REDSHIFTS)
-
 
 @pytest.mark.parametrize("redshifts", TABLES.values(), ids=TABLES.keys())
 def test_coverage_without_missing_snapshots(redshifts):
