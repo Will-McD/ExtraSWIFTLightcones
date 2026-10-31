@@ -1,0 +1,94 @@
+#
+# Check the code style, docstrings, comments and spelling on every push to any branch.
+#
+# Each check is its own job, so a pull request lists which pass and which fail. 
+# The settings are in pyproject.toml ([tool.ruff], [tool.codespell], [tool.interrogate]) 
+# and .flake8. Run the same checks locally with:
+#
+
+name: Style
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "main" ]
+  # a "Run workflow" button in the Actions tab, to check any branch by hand
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# a new push to a branch cancels the checks still running on its previous push
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ruff-format:
+    name: Code formatting (ruff format)
+    runs-on: ubuntu-latest
+    # report without failing until the code has been reformatted once. Remove this line then
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - run: pip install ruff
+    - name: Check the formatting
+      run: ruff format --check --diff .
+
+  ruff-check:
+    name: Lint, docstring layout and comments (ruff check)
+    runs-on: ubuntu-latest
+    # report without failing until the existing problems are fixed. Remove this line then
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - run: pip install ruff
+    - name: Check the code
+      run: ruff check . --output-format=github --statistics
+
+  docstrings:
+    name: Docstrings are valid reStructuredText and match the signatures (flake8)
+    runs-on: ubuntu-latest
+    # report without failing until the existing problems are fixed. Remove this line then
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - run: pip install flake8 flake8-rst-docstrings pydoclint
+    - name: Check the docstrings
+      run: flake8 swiftlet --show-source --statistics
+
+  spelling:
+    name: Spelling (codespell)
+    runs-on: ubuntu-latest
+    # report without failing until the existing typos are fixed. Remove this line then
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - run: pip install codespell
+    - name: Check the spelling
+      run: codespell
+
+  docstring-coverage:
+    name: Docstring coverage (interrogate)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - run: pip install interrogate
+    - name: Check the share of functions and classes with a docstring
+      run: interrogate swiftlet

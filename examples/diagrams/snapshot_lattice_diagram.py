@@ -16,8 +16,8 @@ from matplotlib.lines import Line2D
 from swiftlet.example_plot_settings import plot_settings, cmap_MCG
 
 """
-Build a fake FLAMINGO-like simulation (write to a temporary directory, or --run_dir) using a box sidelength of 1Gpc, 
-placeing all particles placed in a regular lattice and write snapshots for z=0 - 0.425, with a dz=0.05.
+Build fake FLAMINGO snapshots (redshift 0 - 0.425, written to a temporary directory) using a box sidelength of 1Gpc and 
+placeing all particles in a regular lattice write snapshots .
 
 Repeat this for when we do and do-not re-orient the tiles:
     - not re-oriented:  every box tile is the snapshot box as it is (no rotation, reflection or shift). To do this 
@@ -37,6 +37,7 @@ A correct lightcone will replicate the lattice structure exactly and places ever
 
 """
 
+############################################################################################################
 # DEFINE GLOBAL VARIABLES FOR THE FAKE SNAPSHOTS
 
 # the fake simulation: a FLAMINGO 1 Gpc box label, so its snapshots have FLAMINGO's output redshifts
@@ -48,7 +49,7 @@ NCELLS_AXIS = 8 # cell number per axis in box
 #CELL_SIZE = BOXSIZE / NCELLS_AXIS # size of fake cell structure. 
 NFILES = 2 # split the cells over this many temp files
 PTYPE = "PartType1" # use fake dark matter particles
-LATTICE_SPACING = 25.  # [Mpc], distance between particles in the regular lattice
+LATTICE_SPACING = 50.  # [Mpc], distance between particles in the regular lattice
 
 # use FLAMINGO like units for fake snapshot
 # units of the fake snapshots: Mpc, 1e10 Msun and Mpc / (km/s), so H0 in internal units is H0 in km/s/Mpc
@@ -97,6 +98,8 @@ CASES = [(NOT_REORIENTED, None)] + [(REORIENTED, lock) for lock in LOCKS]
 
 # one orientation that leaves the box unchanged: no quarter turns, no reflections and no cell shift
 UNCHANGED_TABLES = {"QuarterTurns": [[0, 0, 0]], "Reflections": [[1, 1, 1]], "CellShifts": [[0, 0, 0]]}
+
+############################################################################################################
 
 def set_unit_attrs(dset, length_exponent, a_exponent, conversion=None):
     """
@@ -817,19 +820,12 @@ def run(run_dir, output_dir):
 
 if __name__ == "__main__":
 
-    example_summary = "Place a fake lattice simulation in all-sky and beam lightcones, as particles and haloes, then show every point is placed once"
-    parser = argparse.ArgumentParser(description=example_summary)
-    parser.add_argument("--output_dir", default="./example_outputs/lattice_placement",
-                        help="directory to save the figures to")
-    parser.add_argument("--run_dir", default=None,
-                        help="directory to write the fake simulation to and keep; by default a temporary directory")
-    args = parser.parse_args()
+    output_dir="example_outputs/diagrams"
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     plot_settings() 
 
-    if args.run_dir is None:
-        with tempfile.TemporaryDirectory() as run_dir:
-            problems = run(run_dir, args.output_dir)
-    else:
-        problems = run(args.run_dir, args.output_dir)
+    with tempfile.TemporaryDirectory() as run_dir:
+        problems = run(run_dir, output_dir)
+
     print("every lattice point placed exactly once" if problems == 0 else f"{problems} problems found")

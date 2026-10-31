@@ -8,7 +8,7 @@ dynamic = ["version"]
 authors = [
   { name="William McDonald", email="mcdonald@strw.leidenuniv.nl" },
 ]
-description = "SWIFTLET: SWIFT Lightcone Extension Tools. Add ons for the post processing of SWIFT lightcones and building new lightcones from SWIFT snapshots"
+description = "SWIFTLET: SWIFT Lightcone Extension Tools. A set of generalised tools for building lightcones from SWIFT simulation snapshots and halo catalogues"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -41,6 +41,7 @@ all = ["swiftlet-lightcones[test,examples]"]
 Homepage = "https://github.com/Will-McD/ExtraSWIFTLightcones"
 Repository = "https://github.com/Will-McD/ExtraSWIFTLightcones.git"
 Issues = "https://github.com/Will-McD/ExtraSWIFTLightcones/issues"
+Documentation = "https://<project-name>.readthedocs.io"
 
 [project.scripts]
 swiftlet-configure = "swiftlet.config:cli_configure"
@@ -56,3 +57,60 @@ swiftlet = ["data/output_redshifts/*.txt", "data/orientation_tables/*.hdf5"]
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Style checks (run by .github/workflows/styles.yml). Run them locally with:
+#     pip install ruff codespell interrogate flake8 flake8-rst-docstrings pydoclint
+#     ruff format . && ruff check .
+#     codespell
+#     interrogate
+#     flake8 swiftlet        (settings in .flake8: ruff has no reStructuredText or :param: checks)
+# ---------------------------------------------------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["docs/conf.py", "docs/_build"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = false
+
+[tool.ruff.lint]
+select = [
+    "E9", "F63", "F7", "F82",   # syntax errors and undefined names (the checks of the old flake8 step)
+    "E501",                     # code lines longer than line-length that ruff format couldn't wrap
+    "W505",                     # docstring and comment lines longer than max-doc-length
+    "D",                        # docstring layout (pydocstyle)
+    "ERA",                      # commented-out code
+]
+ignore = [
+    "D401",                     # first line in the imperative mood ("Return", not "Returns")
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"           # the layout rules only: the docstrings use Sphinx :param: fields, not NumPy sections
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 120
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+"examples/*" = ["D", "ERA"]
+
+[tool.codespell]
+skip = "*.yaml,*.txt,*.hdf5,*.ipynb,./docs/_build,./data"
+# words codespell flags that are correct here: add to this list, comma-separated
+ignore-words-list = "nd,ans"
+check-filenames = true
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-private = false
+fail-under = 85
+exclude = ["tests", "examples", "docs", "build"]
+verbose = 1
+

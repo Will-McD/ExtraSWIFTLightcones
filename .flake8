@@ -1,0 +1,17 @@
+# flake8 runs only the docstring checks ruff doesn't have. Everything else is in [tool.ruff] in pyproject.toml
+[flake8]
+select = RST,DOC
+
+# --- flake8-rst-docstrings: docstrings must be valid reStructuredText (what Sphinx renders) ---
+rst-roles = func,class,meth,mod,attr,data,obj,exc,math,ref,doc
+rst-directives = note,warning,seealso,math,code-block,versionadded,versionchanged,deprecated
+
+# --- pydoclint: :param: entries must match the function signature ---
+style = sphinx
+arg-type-hints-in-signature = False
+arg-type-hints-in-docstring = True
+check-return-types = False
+skip-checking-raises = True
+skip-checking-short-docstrings = True
+# DOC201: no :returns: section. Turn on once the existing docstrings have one
+extend-ignore = DOC201,DOC203

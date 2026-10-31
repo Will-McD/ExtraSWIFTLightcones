@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.lines import Line2D
 from pathlib import Path
-from swiftlet.example_plot_settings import plot_settings
+from swiftlet.example_plot_settings import plot_settings, cmap_MCG
 
 """
 Example script to show how the locking the orientation per layer with orientation_lock decides which
@@ -18,18 +18,6 @@ periodic replicas (i.e. tiles) of the snapshot boxes share the same orientation:
 The diagram is a slice through the x-z plane, which holds the observer.
 As in SnapshotLightcone, the tiles sit on a regular lattice of whole box sidelengths, centred on (mx, my, mz) * L.
 """
-###################################
-
-# build colour map for tiles
-ORIENTATION_CMAP = LinearSegmentedColormap.from_list("cyan_magenta_gold", ["darkcyan", "darkmagenta", "darkgoldenrod"])
-ORIENTATION_ALPHA = 0.7
-MAX_LAYER = 3
-GOLDEN_RATIO = 0.5 * (1 + np.sqrt(5))
-COL_BOX_EDGE = "#52514e"
-COL_LAYER_EDGE = "black"
-COL_CHANGE = "black"
-COL_TEXT = "#0b0b0b"
-###################################
 
 
 def slice_to_3d(x, z):
@@ -87,11 +75,11 @@ def orientation_layer(pos, L, orientation_lock):
 
 def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
     """
-
-
-    Returns a boolean array.
-    True if in the lightcone, within r_max of the observer, 
-    and within half_angle_deg of the beam axis.
+    Check if point is inside the lightcone by comparing against the maximum comoving
+    distance from the observer and if a beam, compare against the
+    direction of the beam and the beams angular radius. 
+    
+    Returns a boolean array, True if in the lightcone and False otherwise
 
     :param  s:              coordinate along x
     :type   s:              np.ndarray
@@ -104,14 +92,22 @@ def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
     :param  half_angle_deg: angular radius [deg] of the beam
     :type   half_angle_deg: float
     """
-    pos = slice_to_3d(s, z)
-    r = np.linalg.norm(pos, axis=-1)
-    inside = r <= r_max
-    if beam_vector is not None:
+    
+    # make position on x-z plane to 3D by adding dimension of 0's
+    pos = slice_to_3d(s, z) 
+    
+    # check if inside max comoving dist
+    r = np.linalg.norm(pos, axis=-1) # dist from observer
+    inside = r <= r_max 
+
+    if beam_vector is not None: 
+        # if a beam compare against beams radius and direction
         v = np.asarray(beam_vector, dtype=float) / np.linalg.norm(beam_vector)
         with np.errstate(invalid="ignore", divide="ignore"):
             cos_angle = np.where(r > 0, (pos @ v) / r, 1.0)
         inside &= cos_angle >= np.cos(np.deg2rad(half_angle_deg))
+    
+    # return mask
     return inside
 
 
@@ -151,7 +147,8 @@ def box_label_positions(s, z, layer, inside, min_pixels=0):
         in_box = inside & (layer == key)
         points = np.stack([s[in_box], z[in_box]], axis=-1)
         if len(points) < max(min_pixels, 1):
-            continue # too small to label
+            # too small to label, so skip
+            continue 
         centre = points[np.argmin(np.sum((points - points.mean(axis=0))**2, axis=1))]
         positions.append((f"{n + 1}", centre))
     return positions
@@ -171,9 +168,11 @@ def layer_label_positions(ray_angle, L, r_max, orientation_lock):
     :param  orientation_lock:   "cube" or "sphere"
     :type   orientation_lock:   str
     """
+    
     t = np.linspace(0, r_max, 4000)
     ray = np.stack([t * np.cos(ray_angle), t * np.sin(ray_angle)], axis=-1)
     ray_layer = orientation_layer(slice_to_3d(ray[:, 0], ray[:, 1]), L, orientation_lock)
+    
     return [(f"{key}", ray[ray_layer == key].mean(axis=0)) for key in np.unique(ray_layer)]
 
 
@@ -198,6 +197,7 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
     :param  resolution:         number of pixels along each axis
     :type   resolution:         int
     """
+
     s_min, s_max, z_min, z_max = extent
     s, z = np.meshgrid(np.linspace(s_min, s_max, resolution), np.linspace(z_min, z_max, resolution))
     pos = slice_to_3d(s, z)
@@ -208,24 +208,24 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
     if orientation_lock is None:
         # every box its own colour, the n-th box (as numbered by box_label_positions) at (n * golden ratio) mod 1
         box_number = np.searchsorted(np.unique(layer[inside]), layer)
-        colour = np.mod(box_number / GOLDEN_RATIO, 1.0)
+        colour = np.mod(box_number / (0.5 * (1 + np.sqrt(5))), 1.0)
     else:
-        colour = np.clip(layer, 0, MAX_LAYER) / MAX_LAYER
+        colour = np.clip(layer, 0, 3) / 3 # only allow 3 layers of colours
     image = np.where(inside, colour, np.nan)
-    ax.pcolormesh(s, z, image, cmap=ORIENTATION_CMAP, vmin=0, vmax=1,
-                  alpha=ORIENTATION_ALPHA, shading="auto", rasterized=True, zorder=1)
+    ax.pcolormesh(s, z, image, cmap=cmap_MCG, vmin=0, vmax=1,
+                  alpha=0.7, shading="auto", rasterized=True, zorder=1)
 
     # box tiles crossed by the plane y = 0: L x L squares
     for mx in range(int(np.floor(s_min / L)) - 1, int(np.ceil(s_max / L)) + 2):
-        ax.axvline((mx - 0.5) * L, color=COL_BOX_EDGE, lw=0.6, zorder=2)
+        ax.axvline((mx - 0.5) * L, color="#52514e", lw=0.6, zorder=2)
     for mz in range(int(np.floor(z_min / L)) - 1, int(np.ceil(z_max / L)) + 2):
-        ax.axhline((mz - 0.5) * L, color=COL_BOX_EDGE, lw=0.6, zorder=2)
+        ax.axhline((mz - 0.5) * L, color="#52514e", lw=0.6, zorder=2)
 
     # boundaries between orientations, where the layer of neighbouring pixels in the lightcone differs
     changes = np.zeros_like(inside)
     changes[:, 1:] |= (layer[:, 1:] != layer[:, :-1]) & inside[:, 1:] & inside[:, :-1]
     changes[1:, :] |= (layer[1:, :] != layer[:-1, :]) & inside[1:, :] & inside[:-1, :]
-    ax.contour(s, z, changes.astype(float), levels=[0.5], colors=COL_LAYER_EDGE, linewidths=1.6, zorder=3)
+    ax.contour(s, z, changes.astype(float), levels=[0.5], colors='k', linewidths=1.6, zorder=3)
 
     # number each region: each box without a lock, each layer with a lock
     if orientation_lock is not None:
@@ -239,21 +239,21 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
     # outline of the lightcone and the observer
     if beam_vector is None:
         theta = np.linspace(0, 2 * np.pi, 400)
-        ax.plot(r_max * np.cos(theta), r_max * np.sin(theta), color=COL_TEXT, lw=1.0, zorder=4)
+        ax.plot(r_max * np.cos(theta), r_max * np.sin(theta), color='k', lw=1.0, zorder=4)
     else:
         axis = beam_in_slice(beam_vector)
         half_angle = np.deg2rad(half_angle_deg)
         angles = np.arctan2(axis[1], axis[0]) + np.linspace(-half_angle, half_angle, 100)
         edge = r_max * np.stack([np.cos(angles), np.sin(angles)], axis=-1)
-        ax.plot(np.concatenate([[0], edge[:, 0], [0]]), np.concatenate([[0], edge[:, 1], [0]]), color=COL_TEXT, lw=1.0, zorder=4)
+        ax.plot(np.concatenate([[0], edge[:, 0], [0]]), np.concatenate([[0], edge[:, 1], [0]]), color='k', lw=1.0, zorder=4)
 
         # where the orientation changes along the beam axis
         t = np.linspace(0, r_max, 4000)
         axis_layer = orientation_layer(slice_to_3d(t * axis[0], t * axis[1]), L, orientation_lock)
         change = np.flatnonzero(np.diff(axis_layer) != 0)
-        ax.plot(t * axis[0], t * axis[1], color=COL_CHANGE, lw=1.2, ls="--", zorder=4)
-        ax.plot(t[change] * axis[0], t[change] * axis[1], "o", ms=5, mfc="white", mec=COL_CHANGE, mew=1.2, zorder=6)
-    ax.plot(0, 0, "o", ms=6, mfc="white", mec=COL_TEXT, mew=1.2, zorder=7)
+        ax.plot(t * axis[0], t * axis[1], color='k', lw=1.2, ls="--", zorder=4)
+        ax.plot(t[change] * axis[0], t[change] * axis[1], "o", ms=5, mfc="white", mec='k', mew=1.2, zorder=6)
+    ax.plot(0, 0, "o", ms=6, mfc="white", mec='k', mew=1.2, zorder=7)
 
     ax.set_xlim(s_min, s_max)
     ax.set_ylim(z_min, z_max)
@@ -279,22 +279,35 @@ def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11
     
     locks = [None, "cube", "sphere"]
     lock_titles = {None: "orientation_lock=None", "cube": 'orientation_lock="cube"', "sphere": 'orientation_lock="sphere"'}
-    lightcones = [
-        ("SnapshotAllSky", None, (-r_max * 1.05, r_max * 1.05, -r_max * 1.05, r_max * 1.05)),
-        ("SnapshotBeam (0, 0, 1)", (0, 0, 1), (-1.6 * L, 1.6 * L, -0.3 * L, r_max * 1.05)),
-        ("SnapshotBeam (1, 0, 1)", (1, 0, 1), (-0.3 * L, r_max * 0.95, -0.3 * L, r_max * 0.95)),
-    ]
+    
+    # the z range shared by the beam panels: from just below the observer to the far end of the beams
 
-    fig, axs = plt.subplots(len(locks), len(lightcones), figsize=figsize, layout="constrained",
-                            gridspec_kw={"width_ratios": [1.15, 0.65, 1.0]})
+    beam_z_range = (-0.3 * L, r_max * 1.05 * L)
+    lightcones = [
+        ("SnapshotAllSky", None, (-r_max * 1.05 * L, r_max * 1.05 * L, -r_max * 1.05 * L, r_max * 1.05 * L)),
+        ("SnapshotBeam (0, 0, 1)", (0, 0, 1), (-1.6 * L, 1.6 * L) + beam_z_range),
+        ("SnapshotBeam (1, 0, 1)", (1, 0, 1), (-0.3 * L, r_max * 0.95 * L) + beam_z_range),
+    ]
+    
+    # make sure each panel has the same height by adjusting width ratios in proportion to their x/z axis range
+    width_ratios = [(extent[1] - extent[0]) / (extent[3] - extent[2]) for _, _, extent in lightcones]
+
+    # build fig
+    fig, axs = plt.subplots(len(locks), len(lightcones), figsize=figsize, layout="constrained", gridspec_kw={"width_ratios": width_ratios})
+    
     for i, lock in enumerate(locks):
+        # the second beam panel shares the first beam panel's y-axis
+        axs[i, 2].sharey(axs[i, 1])
         for j, (name, beam_vector, extent) in enumerate(lightcones):
             ax = axs[i, j]
             draw_lock_panel(ax, lock, L, r_max * L, extent, beam_vector=beam_vector, half_angle_deg=half_angle_deg)
             if j == 0:
                 ax.set_ylabel(f"{lock_titles[lock]}\n\n" + r"$z$ [$L$]", fontsize=10)
-            else:
+            elif j == 1:
                 ax.set_ylabel(r"$z$ [$L$]")
+            else:
+                ax.tick_params(labelleft=False) # shared with the panel to its left
+
             if i == len(locks) - 1:
                 ax.set_xlabel(r"$x$ [$L$]")
 
@@ -305,11 +318,6 @@ def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11
         box = ax.get_position()
         fig.text(0.5 * (box.x0 + box.x1), title_y + 0.008, name, ha="center", va="bottom", fontsize=11, fontweight="bold")
 
-    handles = [
-        Line2D([], [], color=COL_CHANGE, lw=1.2, ls="--", marker="o", ms=5, mfc="white", mec=COL_CHANGE, label="beam axis, dots where the orientation changes"),
-        Line2D([], [], ls="none", marker="o", ms=6, mfc="white", mec=COL_TEXT, label="observer"),
-    ]
-    fig.legend(handles=handles, loc="outside lower center", ncol=2, frameon=False)
 
     plt.savefig(filename, dpi=300, bbox_inches="tight")
     plt.close()
@@ -319,7 +327,7 @@ if __name__ == "__main__":
 
     plot_settings() # establish plot settings
 
-    output_dir = "example_outputs/snapshot_lightcone"
+    output_dir = "example_outputs/diagrams"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., filename=output_dir + "/snapshot_orientation_locks.png")

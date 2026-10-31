@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 from matplotlib.lines import Line2D
 from pathlib import Path
-from swiftlet.example_plot_settings import plot_settings
+from swiftlet.example_plot_settings import plot_settings, cmap_MCG
 
 """
-Example script to highlilght how cells within the snaphots boxes (tiles in lightcone)
-are repositioned when creating new 'unique' snapshot tiles as they placed in to the lightcone (all-sky or beam). 
+Example script to highlilght how cells within the snaphots boxes (and tiles in lightcone)
+are repositioned when creating new 'unique' tiles as they placed in to the lightcone. 
 """
 
 ###################################
@@ -177,8 +177,6 @@ def plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5), ncols=
         shift_wrapped = not np.allclose(p1_raw, p1)
         if shift_wrapped:
             draw_outline(ax, p1_raw, COL_GHOST, fill=False, ls='--')
-            #draw_step_arrow(ax, p0, p1_raw, COL_GHOST, style='--')
-            #draw_step_arrow(ax, p1_raw, p1, COL_GHOST, style='--')
             draw_step_arrow(ax, p0, p1, COL_GHOST, style='-')
             draw_step_arrow(ax, p0, p1_raw, COL_GHOST, style='--')
         else:
@@ -191,8 +189,6 @@ def plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5), ncols=
         rotate_wrapped = not np.allclose(p3_raw, p3)
         if rotate_wrapped:
             draw_rotation_arc(ax, p2, angle, COL_GHOST)
-            #draw_outline(ax, p3_raw, COL_GHOST, fill=False, ls='--')
-            #draw_step_arrow(ax, p3_raw, p3, COL_GHOST, style='--')
             draw_step_arrow(ax, p3_raw, p3, COL_GHOST, style='--')
         else:
             draw_rotation_arc(ax, p2, angle, COL_ROTATE)
@@ -216,9 +212,6 @@ def plot_transform_grid(examples, L=4.0, selected_cell_centre=(0.5, 0.5), ncols=
                markersize=12, label='original'),
         Line2D([0], [0], marker='s', color='none', markerfacecolor='none',
                markeredgecolor=COL_SHIFT, markersize=12, label='[1] after shift'),
-        #Line2D([0], [0], marker='s', color='none', markerfacecolor='none',
-        #       markeredgecolor=COL_GHOST, markersize=12, linestyle='--',
-        #       label='shift ghost'),
         Line2D([0], [0], marker='s', color='none', markerfacecolor='none',
                markeredgecolor=COL_REFLECT, markersize=12, label='[2] after reflect'),
         Line2D([0], [0], marker='s', color='none', markerfacecolor=COL_FINAL,
@@ -237,11 +230,9 @@ if __name__ == "__main__":
     
     plot_settings() # establish plot settings
     
-    output_dir="example_outputs/snapshot_lightcone"
-    
     # ensure output directory exists
-    directory_path = Path(output_dir)
-    directory_path.mkdir(parents=True, exist_ok=True)
+    output_dir="example_outputs/diagrams"
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     examples = [
         ((0, 0),   (1, 1),   0),
