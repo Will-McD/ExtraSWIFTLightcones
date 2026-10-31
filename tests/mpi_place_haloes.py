@@ -21,6 +21,7 @@ soap_chunk_size, redistribute and output.
 
 """
 
+
 def main(args):
     """
     Place the haloes on every rank and save them.
@@ -33,17 +34,23 @@ def main(args):
     placement.patch_snapshot_lightcone(patch, run_dir)
 
     lightcone = placement.new_lightcone(placement.HALO_SIM, args["beam_vector"], args["orientation_lock"])
-    halos = lightcone.place_halos_in_shell(placement.soap_format(run_dir), tuple(args["redshift_range"]),
-                                           soap_chunk_size=args["soap_chunk_size"], comm=comm,
-                                           redistribute_halos=args["redistribute"],
-                                           **placement.shell_args(lightcone, args["ang_radius_deg"]))
+    halos = lightcone.place_halos_in_shell(
+        placement.soap_format(run_dir),
+        tuple(args["redshift_range"]),
+        soap_chunk_size=args["soap_chunk_size"],
+        comm=comm,
+        redistribute_halos=args["redistribute"],
+        **placement.shell_args(lightcone, args["ang_radius_deg"]),
+    )
 
-    np.savez(f"{args['output']}.{comm.Get_rank()}.npz",
-             snap_nr=halos["Lightcone/SnapshotNumber"].value.astype(int),
-             index=halos["InputHalos/HaloCatalogueIndex"].value.astype(int),
-             soap_index=halos["InputHalos/SOAPIndex"].value.astype(int),
-             centre=halos["Lightcone/HaloCentre"].to_value("Mpc"),
-             a=halos["Lightcone/ExpansionFactor"].value)
+    np.savez(
+        f"{args['output']}.{comm.Get_rank()}.npz",
+        snap_nr=halos["Lightcone/SnapshotNumber"].value.astype(int),
+        index=halos["InputHalos/HaloCatalogueIndex"].value.astype(int),
+        soap_index=halos["InputHalos/SOAPIndex"].value.astype(int),
+        centre=halos["Lightcone/HaloCentre"].to_value("Mpc"),
+        a=halos["Lightcone/ExpansionFactor"].value,
+    )
     patch.undo()
 
 

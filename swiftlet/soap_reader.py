@@ -33,6 +33,7 @@ def _float(value):
         return builtins.float(np.asarray(value).reshape(-1)[0])
     return builtins.float(value)
 
+
 virgo_swift.float = _float
 
 
@@ -49,8 +50,9 @@ def _soap_datasets(infile, property_names):
     """
     registry = virgo_swift.soap_unit_registry_from_snapshot(infile)
     datasets = {name: infile[name] for name in property_names}
-    units = {name: virgo_swift.soap_units_from_attributes(dataset.attrs, registry)
-             for name, dataset in datasets.items()}
+    units = {
+        name: virgo_swift.soap_units_from_attributes(dataset.attrs, registry) for name, dataset in datasets.items()
+    }
     nr_rows = {dataset.shape[0] for dataset in datasets.values()}
     if len(nr_rows) != 1:
         raise ValueError(f"{infile.filename}: {property_names} have different numbers of rows")
@@ -77,7 +79,7 @@ def comoving(arr):
 
 def soap_catalogue_length(filename, property_name="InputHalos/HaloCatalogueIndex"):
     """
-    Return length of catalogue 
+    Return length of catalogue
 
     :param  filename:       filename of SOAP catalogue
     :type   filename:       str
@@ -108,16 +110,19 @@ def read_soap_rows(filename, property_names, start=0, stop=None):
     with h5py.File(filename, "r") as infile:
         registry, datasets, units, nr_rows = _soap_datasets(infile, property_names)
         stop = nr_rows if stop is None else min(int(stop), nr_rows)
-        return {name: unyt.unyt_array(dataset[int(start):stop], units=units[name], registry=registry) for name, dataset in datasets.items()}
+        return {
+            name: unyt.unyt_array(dataset[int(start) : stop], units=units[name], registry=registry)
+            for name, dataset in datasets.items()
+        }
 
 
 def read_soap_in_chunks(filename, property_names, chunk_size):
     """
     Read properties of a SOAP catalogue chunk_size rows at a time, in serial, so only one chunk of the catalogue
-    is in memory at once. 
+    is in memory at once.
     The units are made exactly as lightcone_io.halo_catalogue.SOAPCatalogue.read
 
-    Returns a tuple for each chunk: 
+    Returns a tuple for each chunk:
         (index of its first row in the catalogue, {name: unyt.unyt_array of its rows}).
 
     :param  filename:       path of the SOAP catalogue
@@ -135,7 +140,13 @@ def read_soap_in_chunks(filename, property_names, chunk_size):
         registry, datasets, units, nr_rows = _soap_datasets(infile, property_names)
         for start in range(0, nr_rows, chunk_size):
             stop = min(start + chunk_size, nr_rows)
-            yield start, {name: unyt.unyt_array(dataset[start:stop], units=units[name], registry=registry) for name, dataset in datasets.items()}
+            yield (
+                start,
+                {
+                    name: unyt.unyt_array(dataset[start:stop], units=units[name], registry=registry)
+                    for name, dataset in datasets.items()
+                },
+            )
 
 
 def _read_rows(dataset, rows, batch_size):
@@ -153,7 +164,7 @@ def _read_rows(dataset, rows, batch_size):
     """
     if len(rows) == 0:
         return np.zeros((0,) + dataset.shape[1:], dtype=dataset.dtype)
-    return np.concatenate([dataset[rows[i:i + batch_size]] for i in range(0, len(rows), batch_size)])
+    return np.concatenate([dataset[rows[i : i + batch_size]] for i in range(0, len(rows), batch_size)])
 
 
 def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
@@ -177,7 +188,10 @@ def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
         raise ValueError("rows must be sorted and unique")
     with h5py.File(filename, "r") as infile:
         registry, datasets, units, _ = _soap_datasets(infile, property_names)
-        return {name: unyt.unyt_array(_read_rows(dataset, rows, batch_size), units=units[name], registry=registry) for name, dataset in datasets.items()}
+        return {
+            name: unyt.unyt_array(_read_rows(dataset, rows, batch_size), units=units[name], registry=registry)
+            for name, dataset in datasets.items()
+        }
 
 
 def select_soap_rows(filename, select_name, select, property_names, chunk_size=2**22, units=None):
@@ -200,14 +214,18 @@ def select_soap_rows(filename, select_name, select, property_names, chunk_size=2
     :param  chunk_size:     number of rows of select_name read at a time
     :type   chunk_size:     int
     """
-    # build list of row starting points to slice catalogue with. 
-    rows = [start + np.flatnonzero(select(comoving(chunk[select_name]))) for start, chunk in read_soap_in_chunks(filename, [select_name], chunk_size)]
+    # build list of row starting points to slice catalogue with.
+    rows = [
+        start + np.flatnonzero(select(comoving(chunk[select_name])))
+        for start, chunk in read_soap_in_chunks(filename, [select_name], chunk_size)
+    ]
     rows = np.concatenate(rows) if rows else np.zeros(0, dtype=np.int64)
     found = read_soap_selected_rows(filename, list(dict.fromkeys([select_name, *property_names])), rows)
     if units is not None:
         found = {name: comoving(values).to_value(units[name]) for name, values in found.items()}
     found["row"] = rows
     return found
+
 
 def soap_unit_attributes(soap, name):
     """
@@ -227,6 +245,5 @@ def soap_unit_attributes(soap, name):
     if comoving_cgs not in attrs:
         a = float(np.ravel(soap["Cosmology"].attrs["Scale-factor"])[0])
         physical = float(np.ravel(attrs["Conversion factor to physical CGS (including cosmological corrections)"])[0])
-        attrs[comoving_cgs] = [physical / a**float(np.ravel(attrs["a-scale exponent"])[0])]
+        attrs[comoving_cgs] = [physical / a ** float(np.ravel(attrs["a-scale exponent"])[0])]
     return attrs
-

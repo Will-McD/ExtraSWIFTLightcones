@@ -3,11 +3,13 @@ import warnings
 from dataclasses import dataclass, field
 import numpy as np
 
+
 class CloseRepeatWarning(UserWarning):
     """
-    Warning for when copies of the same snapshot cell lie next to each other, or are close together, 
-    but in different tile layers along a line of sight, in a lightcone. 
+    Warning for when copies of the same snapshot cell lie next to each other, or are close together,
+    but in different tile layers along a line of sight, in a lightcone.
     """
+
 
 @dataclass
 class CloseRepeatReport:
@@ -32,6 +34,7 @@ class CloseRepeatReport:
     cells:                  every repeated (snapshot, cell): "snapshot", "cell", "nr_copies" and
                                 "closest_separation" [Mpc] to its own copies
     """
+
     nr_tiles: int
     nr_cells: int
     nr_cell_copies: int
@@ -51,13 +54,17 @@ class CloseRepeatReport:
         """
         Summary message describing the close repeats found.
         """
-        summary_message = f"{self.nr_touching} pairs of cell replicas sharing a face" # main message
-        summary_message+= f"\n{self.nr_line_of_sight} pairs are with {self.angle_deg:g} deg on the sky" # closeness as an angular separation 
-        summary_message+= f" and closer than {self.max_los_separation:g} Mpc along line of sight" # closeness in comoving distance 
-        summary_message+= f"\n{self.nr_cells_repeated} of the cells are repeated, from {self.nr_cell_copies} cell;" # numb repeats 
-        summary_message+= f" closest copies {self.closest_separation:.1f} Mpc apart, cells {self.cell_size:g} Mpc" #how close repeats are
+        summary_message = f"{self.nr_touching} pairs of cell replicas sharing a face"  # main message
+        summary_message += f"\n{self.nr_line_of_sight} pairs are with {self.angle_deg:g} deg on the sky"  # closeness as an angular separation
+        summary_message += (
+            f" and closer than {self.max_los_separation:g} Mpc along line of sight"  # closeness in comoving distance
+        )
+        summary_message += (
+            f"\n{self.nr_cells_repeated} of the cells are repeated, from {self.nr_cell_copies} cell;"  # numb repeats
+        )
+        summary_message += f" closest copies {self.closest_separation:.1f} Mpc apart, cells {self.cell_size:g} Mpc"  # how close repeats are
 
-        return (summary_message)
+        return summary_message
 
 
 def _tile_label(tile):
@@ -69,19 +76,18 @@ def _tile_label(tile):
 
 
 def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_range=None):
-
     """
-    Overlap every cell centre from each tile with the last gathered pieces and then keep the cells overlapping 
-    with the tile's part of the lightcone . 
+    Overlap every cell centre from each tile with the last gathered pieces and then keep the cells overlapping
+    with the tile's part of the lightcone .
 
     Returns arrays:
 
-        for the kept cells: 
+        for the kept cells:
             - snapshot number
-            - cell index 
+            - cell index
             - tile label (N, 4)
-            - centre [Mpc] (N, 3) 
-        
+            - centre [Mpc] (N, 3)
+
         - cell size  [Mpc]
         - box size   [Mpc]
 
@@ -100,48 +106,50 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
     snap_nr, cell, tiles, orientation, centres = [], [], [], [], []
     orientation_ids = {}
     cell_size = boxsize = None
-    
+
     beam_vec = None if ang_radius_deg is None else np.asarray(lightcone.beam_vec, dtype=float)
 
-    #for record in lightcone.last_snapshot_read:
+    # for record in lightcone.last_snapshot_read:
     for record in records:
         cell_data = lightcone._cell_data_cache[record.snap_nr]
         box_centres = cell_data["cell_centres"].to_value("Mpc")
         cell_size = float(np.max(cell_data["cell_size"].to_value("Mpc")))
         boxsize = float(np.max(cell_data["snap_boxsize"].to_value("Mpc")))
-        half_diagonal = 0.5 * np.sqrt(3.) * cell_size
+        half_diagonal = 0.5 * np.sqrt(3.0) * cell_size
 
         # the cells gather_files found,
         # tests them with a 1 cell buffer
         if tile_cells is None:
-            candidates=(np.arange(len(box_centres)))
+            candidates = np.arange(len(box_centres))
         else:
-             candidates = (tile_cells.get((record.snap_nr, record.tile), np.zeros(0, dtype=np.int32)).astype(np.int64))
+            candidates = tile_cells.get((record.snap_nr, record.tile), np.zeros(0, dtype=np.int32)).astype(np.int64)
 
         if cell_range is not None:
-            candidates = candidates[np.searchsorted(candidates, cell_range[0]):np.searchsorted(candidates, cell_range[1])]
+            candidates = candidates[
+                np.searchsorted(candidates, cell_range[0]) : np.searchsorted(candidates, cell_range[1])
+            ]
         if len(candidates) == 0:
             continue
         coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres[candidates], tile=record.tile)[record.tile]
 
-        # get lightcone coords from last run 
-        #coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres, tile=record.tile)[record.tile]
+        # get lightcone coords from last run
+        # coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres, tile=record.tile)[record.tile]
         r = np.linalg.norm(coords, axis=1)
         r_in, r_out = lightcone.cosmo.comoving_distance(list(record.z_updated)).to_value("Mpc")
-        
+
         # make mask to keep cells close to the lightcones footprint
         keep = (r >= r_in - half_diagonal) & (r <= r_out + half_diagonal)
 
         if beam_vec is not None:
             with np.errstate(invalid="ignore", divide="ignore"):
-                angle = np.arccos(np.clip(coords @ beam_vec / r, -1., 1.))
-                buffer = np.arcsin(np.clip(half_diagonal / r, 0., 1.))
+                angle = np.arccos(np.clip(coords @ beam_vec / r, -1.0, 1.0))
+                buffer = np.arcsin(np.clip(half_diagonal / r, 0.0, 1.0))
             keep &= (r <= half_diagonal) | (angle <= np.deg2rad(ang_radius_deg) + buffer)
 
         n = int(np.sum(keep))
-        # add kept cells 
+        # add kept cells
         snap_nr.append(np.full(n, record.snap_nr, dtype=np.int64))
-        #cell.append(np.flatnonzero(keep).astype(np.int64))
+        # cell.append(np.flatnonzero(keep).astype(np.int64))
         cell.append(candidates[keep].astype(np.int64))
         tiles.append(np.tile(np.asarray(_tile_label(record.tile), dtype=np.int64), (n, 1)))
         key = tuple(tuple(int(x) for x in np.ravel(part)) for part in lightcone._snapshot_reorientation(record.tile))
@@ -151,10 +159,10 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
     if not snap_nr:
         empty = np.zeros(0, dtype=np.int64)
         return empty, empty, np.zeros((0, 4), dtype=np.int64), empty, np.zeros((0, 3)), cell_size, boxsize
-    
+
     snap_nr, cell, tiles = np.concatenate(snap_nr), np.concatenate(cell), np.concatenate(tiles)
     orientation, centres = np.concatenate(orientation), np.concatenate(centres)
-    
+
     if lightcone.orientation_lock != "sphere":
         return snap_nr, cell, tiles, orientation, centres, cell_size, boxsize
 
@@ -166,15 +174,24 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
     return snap_nr[first], cell[first], tiles[first], orientation[first], centres[first], cell_size, boxsize
 
 
-def find_close_cell_repeats(lightcone, redshift_range, ang_radius_deg=None, ptype="PartType1", angle_deg=1.,
-                            max_los_separation=None, max_separation=None, output_file=None, warn=True,
-                            copies_per_block=4_000_000):
+def find_close_cell_repeats(
+    lightcone,
+    redshift_range,
+    ang_radius_deg=None,
+    ptype="PartType1",
+    angle_deg=1.0,
+    max_los_separation=None,
+    max_separation=None,
+    output_file=None,
+    warn=True,
+    copies_per_block=4_000_000,
+):
     """
     Find copies of the same cell of a snapshot that lie next to each other (i.e. share a face), or are close together
-    along a line of sight.  
-    Computed using only the cell centres (i.e. no particles are read). 
+    along a line of sight.
+    Computed using only the cell centres (i.e. no particles are read).
 
-    Works for any simulation, orientation table, orientation_lock and orientation_seed, but is serial 
+    Works for any simulation, orientation table, orientation_lock and orientation_seed, but is serial
     only (a lightcone without a communicator).
 
     Returns a CloseRepeatReport.
@@ -202,39 +219,46 @@ def find_close_cell_repeats(lightcone, redshift_range, ang_radius_deg=None, ptyp
     :param  copies_per_block:   most cell copies compared at once, to limit the memory needed
     :type   copies_per_block:   int
     """
-    
+
     from scipy.spatial import cKDTree
     from .threads import thread_limit
-    
+
     # find the pieces of the shell, and the cells of each piece that overlap it
     beam_args = {} if ang_radius_deg is None else {"ang_radius_deg": ang_radius_deg}
     lightcone._tile_cells = {}
-    # attempt to gather files 
+    # attempt to gather files
     try:
         lightcone.gather_files(ptype, redshift_range, **beam_args)
         tile_cells = lightcone._tile_cells
     finally:
         lightcone._tile_cells = None
-    
+
     records_of_snapshot = {}
     for record in lightcone.last_snapshot_read or []:
         records_of_snapshot.setdefault(int(record.snap_nr), []).append(record)
 
     row_property_names = (
-        "snapshot", "cell", 
-        "tile_a", "tile_b", 
-        "centre_a", "centre_b", 
-        "separation", "angle_deg", 
-        "los_separation", "touching", 
-        "line_of_sight"
+        "snapshot",
+        "cell",
+        "tile_a",
+        "tile_b",
+        "centre_a",
+        "centre_b",
+        "separation",
+        "angle_deg",
+        "los_separation",
+        "touching",
+        "line_of_sight",
     )
-    
+
     rows = {name: [] for name in row_property_names}
     cell_rows = {name: [] for name in ("snapshot", "cell", "nr_copies", "closest_separation")}
-    
-    #nr_cell_copies = nr_line_of_sight = 0
+
+    # nr_cell_copies = nr_line_of_sight = 0
     nr_cell_copies = nr_cells_in_shell = nr_cell_pairs = nr_line_of_sight = 0
-    nr_tiles = len({tuple(_tile_label(record.tile)[:3]) for records in records_of_snapshot.values() for record in records})
+    nr_tiles = len(
+        {tuple(_tile_label(record.tile)[:3]) for records in records_of_snapshot.values() for record in records}
+    )
     cell_size = boxsize = None
     workers = thread_limit() or -1
 
@@ -242,30 +266,34 @@ def find_close_cell_repeats(lightcone, redshift_range, ang_radius_deg=None, ptyp
     # copies (estimated from the cells gather_files found)
     blocks = []
     for snapshot in sorted(records_of_snapshot):
-        selected = [tile_cells.get((record.snap_nr, record.tile), np.zeros(0, dtype=np.int64))
-                    for record in records_of_snapshot[snapshot]]
+        selected = [
+            tile_cells.get((record.snap_nr, record.tile), np.zeros(0, dtype=np.int64))
+            for record in records_of_snapshot[snapshot]
+        ]
         nr_cells = len(lightcone._cell_data_cache[snapshot]["cell_centres"])
         copies_of_cell = np.bincount(np.concatenate(selected), minlength=nr_cells) if selected else np.zeros(nr_cells)
-        edges = np.searchsorted(np.cumsum(copies_of_cell), np.arange(copies_per_block, copies_of_cell.sum(),
-                                                                      copies_per_block))
+        edges = np.searchsorted(
+            np.cumsum(copies_of_cell), np.arange(copies_per_block, copies_of_cell.sum(), copies_per_block)
+        )
         bounds = np.unique(np.concatenate([[0], edges, [nr_cells]]))
         blocks += [(snapshot, (int(first), int(last))) for first, last in zip(bounds[:-1], bounds[1:])]
 
     for snapshot, cell_range in blocks:
         snap_nr, cell, tiles, orientation, centres, size, box = _cells_in_shell(
-            lightcone, ang_radius_deg, records_of_snapshot[snapshot], tile_cells, cell_range)
+            lightcone, ang_radius_deg, records_of_snapshot[snapshot], tile_cells, cell_range
+        )
         cell_size, boxsize = (size, box) if size is not None else (cell_size, boxsize)
         nr_cell_copies += len(cell)
-        #if len(cell) < 2:
+        # if len(cell) < 2:
         if len(cell) == 0:
             continue
         if max_los_separation is None:
             max_los_separation = boxsize
-        half_diagonal = 0.5 * np.sqrt(3.) * cell_size
+        half_diagonal = 0.5 * np.sqrt(3.0) * cell_size
 
         # the copies of each cell
         cells_here, copy_of, copies = np.unique(cell, return_inverse=True, return_counts=True)
-        
+
         nr_cells_in_shell += len(cells_here)
         nr_cell_pairs += int(np.sum(copies * (copies - 1) // 2))
 
@@ -275,9 +303,9 @@ def find_close_cell_repeats(lightcone, redshift_range, ang_radius_deg=None, ptyp
 
         # copies of different cells are kept far apart by a fourth coordinate, the cell's number times a spacing larger
         # than any distance between copies, so neighbours in the tree are always copies of the same cell
-        search_radius = max(max_los_separation + 2. * half_diagonal, 1.000001 * cell_size, max_separation or 0.)
+        search_radius = max(max_los_separation + 2.0 * half_diagonal, 1.000001 * cell_size, max_separation or 0.0)
         r = np.linalg.norm(centres, axis=1)
-        spacing = 4. * float(r.max()) + 2. * search_radius + 1.
+        spacing = 4.0 * float(r.max()) + 2.0 * search_radius + 1.0
         tree = cKDTree(np.column_stack([centres, copy_of * spacing]))
 
         # the closest copy of each copy: its nearest neighbour, a copy of the same cell if the cell has more than one
@@ -297,16 +325,20 @@ def find_close_cell_repeats(lightcone, redshift_range, ang_radius_deg=None, ptyp
         a, b = pairs_here[:, 0], pairs_here[:, 1]
         offset = centres[b] - centres[a]
         separation = np.linalg.norm(offset, axis=1)
-        direction = centres / np.where(r > 0., r, 1.)[:, None]
-        cell_angle = np.arcsin(np.clip(half_diagonal / np.where(r > 0., r, np.inf), 0., 1.))
-        centre_angle = np.arccos(np.clip(np.sum(direction[a] * direction[b], axis=1), -1., 1.))
+        direction = centres / np.where(r > 0.0, r, 1.0)[:, None]
+        cell_angle = np.arcsin(np.clip(half_diagonal / np.where(r > 0.0, r, np.inf), 0.0, 1.0))
+        centre_angle = np.arccos(np.clip(np.sum(direction[a] * direction[b], axis=1), -1.0, 1.0))
         # copies with the same orientation a whole number of box lengths apart: the box repeated periodically
-        periodic = ((orientation[a] == orientation[b])
-                    & np.all(np.abs(offset / boxsize - np.rint(offset / boxsize)) < 1e-6, axis=1))
-        touching = np.isclose(separation, cell_size, rtol=1e-6, atol=0.)
+        periodic = (orientation[a] == orientation[b]) & np.all(
+            np.abs(offset / boxsize - np.rint(offset / boxsize)) < 1e-6, axis=1
+        )
+        touching = np.isclose(separation, cell_size, rtol=1e-6, atol=0.0)
         # could the two copies hold copies of a particle within angle_deg and closer than max_los_separation
-        line_of_sight = (~periodic & (centre_angle <= np.deg2rad(angle_deg) + cell_angle[a] + cell_angle[b])
-                         & (separation < max_los_separation + 2. * half_diagonal))
+        line_of_sight = (
+            ~periodic
+            & (centre_angle <= np.deg2rad(angle_deg) + cell_angle[a] + cell_angle[b])
+            & (separation < max_los_separation + 2.0 * half_diagonal)
+        )
         report = touching | line_of_sight
         if max_separation is not None:
             report |= separation < max_separation
@@ -324,53 +356,74 @@ def find_close_cell_repeats(lightcone, redshift_range, ang_radius_deg=None, ptyp
         rows["touching"].append(touching[report])
         rows["line_of_sight"].append(line_of_sight[report])
     if max_los_separation is None:
-        max_los_separation = boxsize if boxsize is not None else 0.
+        max_los_separation = boxsize if boxsize is not None else 0.0
 
     def joined(arrays, dtype, shape=(0,)):
         return np.concatenate(arrays).astype(dtype) if arrays else np.zeros(shape, dtype=dtype)
 
     pairs = {
-        "snapshot": joined(rows["snapshot"], np.int64), "cell": joined(rows["cell"], np.int64),
-        "tile_a": joined(rows["tile_a"], np.int64, (0, 4)), "tile_b": joined(rows["tile_b"], np.int64, (0, 4)),
-        "centre_a": joined(rows["centre_a"], float, (0, 3)), "centre_b": joined(rows["centre_b"], float, (0, 3)),
-        "separation": joined(rows["separation"], float), "angle_deg": joined(rows["angle_deg"], float),
+        "snapshot": joined(rows["snapshot"], np.int64),
+        "cell": joined(rows["cell"], np.int64),
+        "tile_a": joined(rows["tile_a"], np.int64, (0, 4)),
+        "tile_b": joined(rows["tile_b"], np.int64, (0, 4)),
+        "centre_a": joined(rows["centre_a"], float, (0, 3)),
+        "centre_b": joined(rows["centre_b"], float, (0, 3)),
+        "separation": joined(rows["separation"], float),
+        "angle_deg": joined(rows["angle_deg"], float),
         "los_separation": joined(rows["los_separation"], float),
-        "touching": joined(rows["touching"], bool), "line_of_sight": joined(rows["line_of_sight"], bool),
+        "touching": joined(rows["touching"], bool),
+        "line_of_sight": joined(rows["line_of_sight"], bool),
     }
     cells = {
-        "snapshot": joined(cell_rows["snapshot"], np.int64), "cell": joined(cell_rows["cell"], np.int64),
+        "snapshot": joined(cell_rows["snapshot"], np.int64),
+        "cell": joined(cell_rows["cell"], np.int64),
         "nr_copies": joined(cell_rows["nr_copies"], np.int64),
         "closest_separation": joined(cell_rows["closest_separation"], float),
-
     }
     # a touching pair whose cells straddle a snapshot hand-over is kept by each snapshot: count it once, by its cell
     # and its two tiles
     touching = pairs["touching"]
-    nr_touching = len({(int(c), frozenset([tuple(a), tuple(b)]))
-                       for c, a, b in zip(pairs["cell"][touching], pairs["tile_a"][touching], pairs["tile_b"][touching])})
+    nr_touching = len(
+        {
+            (int(c), frozenset([tuple(a), tuple(b)]))
+            for c, a, b in zip(pairs["cell"][touching], pairs["tile_a"][touching], pairs["tile_b"][touching])
+        }
+    )
     report = CloseRepeatReport(
-        nr_tiles=nr_tiles, nr_cells=nr_cells_in_shell, nr_cell_copies=nr_cell_copies, nr_cell_pairs=nr_cell_pairs,
-        nr_cells_repeated=len(cells["cell"]), nr_touching=nr_touching,
+        nr_tiles=nr_tiles,
+        nr_cells=nr_cells_in_shell,
+        nr_cell_copies=nr_cell_copies,
+        nr_cell_pairs=nr_cell_pairs,
+        nr_cells_repeated=len(cells["cell"]),
+        nr_touching=nr_touching,
         nr_line_of_sight=nr_line_of_sight,
         closest_separation=float(cells["closest_separation"].min()) if len(cells["cell"]) else np.inf,
-        cell_size=cell_size if cell_size is not None else np.nan, boxsize=boxsize if boxsize is not None else np.nan,
-        angle_deg=float(angle_deg), max_los_separation=float(max_los_separation), pairs=pairs, cells=cells)
+        cell_size=cell_size if cell_size is not None else np.nan,
+        boxsize=boxsize if boxsize is not None else np.nan,
+        angle_deg=float(angle_deg),
+        max_los_separation=float(max_los_separation),
+        pairs=pairs,
+        cells=cells,
+    )
 
     if output_file is not None:
         write_close_repeats(output_file, report, lightcone, redshift_range, ang_radius_deg)
     if warn and (nr_touching > 0 or nr_line_of_sight > 0):
-        warnings.warn(f"close repeats in the lightcone (orientation_lock={lightcone.orientation_lock!r}, "
-                      f"orientation_seed={lightcone.orientation_seed}): {report.summary()}", CloseRepeatWarning,
-                      stacklevel=2)
+        warnings.warn(
+            f"close repeats in the lightcone (orientation_lock={lightcone.orientation_lock!r}, "
+            f"orientation_seed={lightcone.orientation_seed}): {report.summary()}",
+            CloseRepeatWarning,
+            stacklevel=2,
+        )
     return report
 
 
 def write_close_repeats(filename, report, lightcone, redshift_range, ang_radius_deg=None):
     """
-    Write a report on the number of touching and close cell pairs (CloseRepeatReport) to a HDF5 file. 
-    
-        - The "pairs" and "cells" groups hold arrays of report.pairs and report.cells. 
-        - The file's attributes store the counts, the settings of the check, and the 
+    Write a report on the number of touching and close cell pairs (CloseRepeatReport) to a HDF5 file.
+
+        - The "pairs" and "cells" groups hold arrays of report.pairs and report.cells.
+        - The file's attributes store the counts, the settings of the check, and the
             lightcone's metadata (simulation, orientation seed, lock and table)
 
     :param  filename:       path of the HDF5 file
@@ -392,18 +445,35 @@ def write_close_repeats(filename, report, lightcone, redshift_range, ang_radius_
             group = f.create_group(group_name)
             for name, values in arrays.items():
                 group.create_dataset(name, data=values)
-        
-        f["pairs"].attrs["description"] = ("pairs of copies of the same cell that share a face (touching), lie on the "
-                                           "same line of sight closer than max_los_separation (line_of_sight), or are "
-                                           "closer than max_separation; distances in comoving Mpc")
-        
-        f["cells"].attrs["description"] = "every repeated (snapshot, cell): number of copies and closest separation [Mpc]"
 
-        attrs_properties=("nr_tiles", "nr_cells", "nr_cell_copies", "nr_cell_pairs", "nr_cells_repeated", 
-                "nr_touching", "nr_line_of_sight", "closest_separation", "cell_size", "boxsize", "angle_deg", "max_los_separation")
-        
+        f["pairs"].attrs["description"] = (
+            "pairs of copies of the same cell that share a face (touching), lie on the "
+            "same line of sight closer than max_los_separation (line_of_sight), or are "
+            "closer than max_separation; distances in comoving Mpc"
+        )
+
+        f["cells"].attrs["description"] = (
+            "every repeated (snapshot, cell): number of copies and closest separation [Mpc]"
+        )
+
+        attrs_properties = (
+            "nr_tiles",
+            "nr_cells",
+            "nr_cell_copies",
+            "nr_cell_pairs",
+            "nr_cells_repeated",
+            "nr_touching",
+            "nr_line_of_sight",
+            "closest_separation",
+            "cell_size",
+            "boxsize",
+            "angle_deg",
+            "max_los_separation",
+        )
+
         for name in attrs_properties:
             f.attrs[name] = getattr(report, name)
 
-        write_lightcone_metadata(f.create_group("lightcone"), lightcone.lightcone_metadata(redshift_range, ang_radius_deg))
-
+        write_lightcone_metadata(
+            f.create_group("lightcone"), lightcone.lightcone_metadata(redshift_range, ang_radius_deg)
+        )

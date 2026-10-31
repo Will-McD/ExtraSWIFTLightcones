@@ -21,11 +21,11 @@ Plot the central haloes, scale the size and shape of the marker used by M200c of
 # halo mass shown, and the colour map of its log10: one hue, from light (low mass) to dark (high mass)
 MASS_PROPERTY = "SO/200_crit/TotalMass"
 MASS_LABEL = r"$\log_{10}(M_{200\mathrm{c}}\,/\,\mathrm{M}_\odot)$"
-MARKER_SIZE_RANGE = (1., 150.)  # marker area [pt^2] of the least and most massive halo shown
-MARKER_SIZE_POWER = 2.  #
+MARKER_SIZE_RANGE = (1.0, 150.0)  # marker area [pt^2] of the least and most massive halo shown
+MARKER_SIZE_POWER = 2.0  #
 
 
-# remote server and FLAMINGO's directory for use when the simulation is not on local disk. 
+# remote server and FLAMINGO's directory for use when the simulation is not on local disk.
 REMOTE_SERVER = "cosma"
 REMOTE_BASE_DIR = "FLAMINGO/L1_m10/L1_m10"
 REMOTE_CACHE_DIR = "example_outputs/remote_cache"
@@ -38,9 +38,8 @@ SOAP_METADATA_GROUPS = ["Header", "Cosmology", "Units", "InternalCodeUnits", "Ph
 
 
 def lookup_soap_property(halo_format, snap_numbers, soap_index, property_name):
-    
     """
-    For haloes in the lightcone, look up a properties in the SOAP catalogue by matching 
+    For haloes in the lightcone, look up a properties in the SOAP catalogue by matching
     their InputHalos/SOAPIndex.
 
     Returns the property of each halo, in the units given by SOAP.
@@ -54,23 +53,25 @@ def lookup_soap_property(halo_format, snap_numbers, soap_index, property_name):
     :param  property_name:  SOAP property, e.g. "SO/200_crit/TotalMass"
     :type   property_name:  str
     """
-    #halo_cat = hc.SOAPCatalogue(halo_format, int(snap_numbers.min()), int(snap_numbers.max()))
+    # halo_cat = hc.SOAPCatalogue(halo_format, int(snap_numbers.min()), int(snap_numbers.max()))
     values = None
     for snap_nr in np.unique(snap_numbers):
-    #    soap = halo_cat.read(int(snap_nr), ["InputHalos/HaloCatalogueIndex", property_name])
-    #    soap_index = soap["InputHalos/HaloCatalogueIndex"].value.astype(int)
-    #    order = np.argsort(soap_index)
-    #    in_snap = snap_numbers == snap_nr
-    #    rows = order[np.searchsorted(soap_index, halo_index[in_snap], sorter=order)]
-        
+        #    soap = halo_cat.read(int(snap_nr), ["InputHalos/HaloCatalogueIndex", property_name])
+        #    soap_index = soap["InputHalos/HaloCatalogueIndex"].value.astype(int)
+        #    order = np.argsort(soap_index)
+        #    in_snap = snap_numbers == snap_nr
+        #    rows = order[np.searchsorted(soap_index, halo_index[in_snap], sorter=order)]
+
         in_snap = np.flatnonzero(snap_numbers == snap_nr)
         rows, where = np.unique(soap_index[in_snap], return_inverse=True)
-        column = comoving(read_soap_selected_rows(halo_format.format(snap_nr=int(snap_nr)), [property_name], rows)[property_name])
+        column = comoving(
+            read_soap_selected_rows(halo_format.format(snap_nr=int(snap_nr)), [property_name], rows)[property_name]
+        )
 
         if values is None:
-            #values = np.zeros(len(halo_index)) * soap[property_name].units
+            # values = np.zeros(len(halo_index)) * soap[property_name].units
             values = np.zeros(len(snap_numbers)) * column.units
-        #values[in_snap] = soap[property_name][rows]     
+        # values[in_snap] = soap[property_name][rows]
         values[in_snap] = column[where]
     return values
 
@@ -118,13 +119,20 @@ def copy_remote_soap_catalogue(remote_file, local_filename, property_names):
     os.replace(partial, local_filename)
 
 
-def fetch_remote_simulation(box_res, sim_name, redshift_range, property_names, remote_base_dir=REMOTE_BASE_DIR,
-                            server=REMOTE_SERVER, cache_dir=REMOTE_CACHE_DIR):
+def fetch_remote_simulation(
+    box_res,
+    sim_name,
+    redshift_range,
+    property_names,
+    remote_base_dir=REMOTE_BASE_DIR,
+    server=REMOTE_SERVER,
+    cache_dir=REMOTE_CACHE_DIR,
+):
     """
     Copy what placing the haloes of a redshift range needs from the remote server (hdfstream) into a local cache,
-    laid out as the simulation's directory, the SOAP catalogues of the snapshots covering the redshift range, and 
-    the metadata of one snapshot file. 
-    
+    laid out as the simulation's directory, the SOAP catalogues of the snapshots covering the redshift range, and
+    the metadata of one snapshot file.
+
     Files already in the cache are not copied again.
 
     Returns (simulation_base_dir_format, halo_format) of the local copy, for SnapshotBeam and place_halos_in_shell.
@@ -173,13 +181,18 @@ def fetch_remote_simulation(box_res, sim_name, redshift_range, property_names, r
         try:
             on_server = set(root[f"{remote_base_dir}/snapshots"].keys())
         except KeyError:
-            raise FileNotFoundError(f"no snapshots directory {remote_base_dir}/snapshots on the {server} server: check "
-                                    "REMOTE_BASE_DIR") from None
-        on_server = [n for n in snapshot_numbers
-                     if os.path.basename(os.path.dirname(remote_sim.snapshot_file(n, 0))) in on_server]
+            raise FileNotFoundError(
+                f"no snapshots directory {remote_base_dir}/snapshots on the {server} server: check REMOTE_BASE_DIR"
+            ) from None
+        on_server = [
+            n
+            for n in snapshot_numbers
+            if os.path.basename(os.path.dirname(remote_sim.snapshot_file(n, 0))) in on_server
+        ]
         if not on_server:
-            raise FileNotFoundError(f"no snapshots of {box_res}/{sim_name} in {remote_base_dir}/snapshots on the "
-                                    f"{server} server")
+            raise FileNotFoundError(
+                f"no snapshots of {box_res}/{sim_name} in {remote_base_dir}/snapshots on the {server} server"
+            )
         snap_nr = on_server[-1]
         print(f"\tcopying the metadata of snapshot {snap_nr}", flush=True)
         copy_remote_snapshot_metadata(root[remote_sim.snapshot_file(snap_nr, 0)], local_sim.snapshot_file(snap_nr, 0))
@@ -187,12 +200,20 @@ def fetch_remote_simulation(box_res, sim_name, redshift_range, property_names, r
     return local_base_dir, f"{local_base_dir}/{soap_path}"
 
 
-def plot_halos_in_beam_3panel(angular_radius_deg, z_min, z_max, cosmo,
-                               halo_coords, halo_mass, beam_vector=(0.0, 0.0, 1.0),
-                               figsize=(7, 7), show=False):
+def plot_halos_in_beam_3panel(
+    angular_radius_deg,
+    z_min,
+    z_max,
+    cosmo,
+    halo_coords,
+    halo_mass,
+    beam_vector=(0.0, 0.0, 1.0),
+    figsize=(7, 7),
+    show=False,
+):
     """
-    Scatter plot of halo centres placed into the beam, projected onto the 
-    x-y, x-z, y-z planes, coloured and sized by the log of their mass. 
+    Scatter plot of halo centres placed into the beam, projected onto the
+    x-y, x-z, y-z planes, coloured and sized by the log of their mass.
     Haloes without a mass are not shown, e.g. satellites, which have no SO masses in SOAP-HBT.
 
     Returns the figure.
@@ -229,22 +250,38 @@ def plot_halos_in_beam_3panel(angular_radius_deg, z_min, z_max, cosmo,
     mass_min, mass_max = log_mass.min(), log_mass.max()
     size_scale = (log_mass - mass_min) / max(mass_max - mass_min, 1e-10)
     marker_size = MARKER_SIZE_RANGE[0] + size_scale**MARKER_SIZE_POWER * (MARKER_SIZE_RANGE[1] - MARKER_SIZE_RANGE[0])
-    scatter_style = dict(c=log_mass, s=marker_size, cmap=cmap_MCG, vmin=mass_min, vmax=mass_max,
-                         edgecolors="white", linewidths=0.3, zorder=10)
+    scatter_style = dict(
+        c=log_mass,
+        s=marker_size,
+        cmap=cmap_MCG,
+        vmin=mass_min,
+        vmax=mass_max,
+        edgecolors="white",
+        linewidths=0.3,
+        zorder=10,
+    )
 
     # make fig
     fig = plt.figure(figsize=figsize, layout="constrained")
     ax_xy = fig.add_subplot(3, 1, 1)
     ax_xz = fig.add_subplot(3, 1, 2)
     ax_yz = fig.add_subplot(3, 1, 3, sharex=ax_xz)
-    
+
     # space between the panels, and for the colour bar below them
     fig.get_layout_engine().set(h_pad=0.06)
 
     def corner_label(ax, text):
-        ax.text(0.02, 0.96, text, transform=ax.transAxes, ha="left", va="top",
-                fontweight="bold", zorder=20,
-                bbox=dict(facecolor="white", edgecolor="none", alpha=0.8, pad=2))
+        ax.text(
+            0.02,
+            0.96,
+            text,
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontweight="bold",
+            zorder=20,
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.8, pad=2),
+        )
 
     def draw_wedge(ax, horiz, vert, vert_label, panel_label, show_xlabel):
         theta = np.linspace(-half_angle, half_angle, 200)
@@ -293,7 +330,6 @@ def plot_halos_in_beam_3panel(angular_radius_deg, z_min, z_max, cosmo,
 
 
 if __name__ == "__main__":
-    
     parser = argparse.ArgumentParser(description="Place SOAP haloes in a SnapshotBeam and plot them.")
     parser.add_argument("--box_res", default="L1000N1800", help="box size and resolution label")
     parser.add_argument("--sim_name", default="HYDRO_FIDUCIAL", help="name of the simulation")
@@ -301,12 +337,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     plot_settings()
-    
+
     output_dir = args.output_dir
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    
-    # define the beam: redshift, radius and vector. 
-    redshift_range=(0.05, 0.15)
+
+    # define the beam: redshift, radius and vector.
+    redshift_range = (0.05, 0.15)
     print(f"\nredshift: {redshift_range[0]} - {redshift_range[1]}")
 
     ang_radius_deg = np.rad2deg(np.pi / 24)
@@ -325,11 +361,17 @@ if __name__ == "__main__":
     else:
         warning_str = f"{' and '.join(missing)} not found locally: the SOAP catalogues and snapshot metadata will be accessed remotely, copied from {REMOTE_BASE_DIR} on the {REMOTE_SERVER} server with hdfstream to {REMOTE_CACHE_DIR}."
         warnings.warn(warning_str)
-        base_dir_format, halo_format = fetch_remote_simulation(args.box_res, args.sim_name, redshift_range, SOAP_PROPERTIES)
+        base_dir_format, halo_format = fetch_remote_simulation(
+            args.box_res, args.sim_name, redshift_range, SOAP_PROPERTIES
+        )
     print(f"SOAP catalogues: {halo_format}")
 
-
-    snap_beam = SnapshotBeam(boxsize_resolution=args.box_res, simulation_name=args.sim_name, beam_vector=beam_vector, simulation_base_dir_format=base_dir_format)
+    snap_beam = SnapshotBeam(
+        boxsize_resolution=args.box_res,
+        simulation_name=args.sim_name,
+        beam_vector=beam_vector,
+        simulation_base_dir_format=base_dir_format,
+    )
 
     halos = snap_beam.place_halos_in_shell(
         halo_format=halo_format,
@@ -341,32 +383,35 @@ if __name__ == "__main__":
     print(f"\nPlaced {n_halos} halos in the lightcone beam")
 
     if n_halos > 0:
-
         snap_numbers = halos["Lightcone/SnapshotNumber"].value.astype(int)
         halo_index = halos["InputHalos/HaloCatalogueIndex"].value.astype(int)
         expansion_factor = halos["Lightcone/ExpansionFactor"].value
 
         print(f"Spanning snapshots: {sorted(np.unique(snap_numbers))}")
-        
 
         # look up the mass of each halo in the SOAP catalogue of its snapshot, from its row there
         soap_index = halos["InputHalos/SOAPIndex"].value.astype(int)
         halo_mass = lookup_soap_property(halo_format, snap_numbers, soap_index, MASS_PROPERTY).to_value("Msun")
 
         print(f"\n{np.count_nonzero(halo_mass > 0)} of the halos have a {MASS_PROPERTY}")
-        
+
         # the lightcone's own cosmology, from the snapshots
         plot_cosmo = snap_beam.snapshot_cosmology
 
         fig = plot_halos_in_beam_3panel(
-            ang_radius_deg, redshift_range[0], redshift_range[1], plot_cosmo,
-            halo_coords=halos["Lightcone/HaloCentre"].to_value("Mpc"), halo_mass=halo_mass,
-            beam_vector=beam_vector, figsize=(7, 7), show=False,
+            ang_radius_deg,
+            redshift_range[0],
+            redshift_range[1],
+            plot_cosmo,
+            halo_coords=halos["Lightcone/HaloCentre"].to_value("Mpc"),
+            halo_mass=halo_mass,
+            beam_vector=beam_vector,
+            figsize=(7, 7),
+            show=False,
         )
-        fig_name = output_dir+"/halos_in_beam.png"
+        fig_name = output_dir + "/halos_in_beam.png"
         plt.savefig(fig_name, dpi=300, bbox_inches="tight")
         plt.close(fig)
         print(f"\nSaved plot: {fig_name}")
     else:
         print("No halos found in this shell/beam")
-

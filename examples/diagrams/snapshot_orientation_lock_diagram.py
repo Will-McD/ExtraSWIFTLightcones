@@ -22,9 +22,9 @@ As in SnapshotLightcone, the tiles sit on a regular lattice of whole box sidelen
 
 def slice_to_3d(x, z):
     """
-    3D position of points in the plane y = 0. 
+    3D position of points in the plane y = 0.
 
-    Returns the positions. 
+    Returns the positions.
 
     :param  x:  coordinate along x
     :type   x:  np.ndarray
@@ -37,7 +37,7 @@ def slice_to_3d(x, z):
 def box_lattice_position(pos, L):
     """
 
-    Returns the lattice positions (mx, my, mz) of the tile holding 
+    Returns the lattice positions (mx, my, mz) of the tile holding
     each position for a side length of L. Each tile is centred on (mx, my, mz) * L.
 
     :param  pos:    positions, shape (..., 3)
@@ -52,8 +52,8 @@ def orientation_layer(pos, L, orientation_lock):
     """
     The orientation each position in the lattice is given.
 
-    Returns an integer array: 
-        orientation_lock=None:      a different number for every box. 
+    Returns an integer array:
+        orientation_lock=None:      a different number for every box.
         orientation_lock="cube":    the cube shell of the box, max(|mx|, |my|, |mz|).
         orientation_lock="sphere":  the spherical shell, floor(r / L + 1/2).
 
@@ -77,8 +77,8 @@ def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
     """
     Check if point is inside the lightcone by comparing against the maximum comoving
     distance from the observer and if a beam, compare against the
-    direction of the beam and the beams angular radius. 
-    
+    direction of the beam and the beams angular radius.
+
     Returns a boolean array, True if in the lightcone and False otherwise
 
     :param  s:              coordinate along x
@@ -92,35 +92,35 @@ def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
     :param  half_angle_deg: angular radius [deg] of the beam
     :type   half_angle_deg: float
     """
-    
-    # make position on x-z plane to 3D by adding dimension of 0's
-    pos = slice_to_3d(s, z) 
-    
-    # check if inside max comoving dist
-    r = np.linalg.norm(pos, axis=-1) # dist from observer
-    inside = r <= r_max 
 
-    if beam_vector is not None: 
+    # make position on x-z plane to 3D by adding dimension of 0's
+    pos = slice_to_3d(s, z)
+
+    # check if inside max comoving dist
+    r = np.linalg.norm(pos, axis=-1)  # dist from observer
+    inside = r <= r_max
+
+    if beam_vector is not None:
         # if a beam compare against beams radius and direction
         v = np.asarray(beam_vector, dtype=float) / np.linalg.norm(beam_vector)
         with np.errstate(invalid="ignore", divide="ignore"):
             cos_angle = np.where(r > 0, (pos @ v) / r, 1.0)
         inside &= cos_angle >= np.cos(np.deg2rad(half_angle_deg))
-    
+
     # return mask
     return inside
 
 
 def beam_in_slice(beam_vector):
     """
-    Returns the direction of a beam in the slice, as a unit vector in (x, z). 
+    Returns the direction of a beam in the slice, as a unit vector in (x, z).
     The beam must lie in the plane defined for y = 0.
 
     :param  beam_vector:    direction of the beam
     :type   beam_vector:    array-like, shape (3,)
     """
     v = np.asarray(beam_vector, dtype=float) / np.linalg.norm(beam_vector)
-    if not np.isclose(v[1], 0.):
+    if not np.isclose(v[1], 0.0):
         raise ValueError("the beam must lie in the plane y = 0 to be drawn in this slice")
     return np.array([v[0], v[2]])
 
@@ -128,7 +128,7 @@ def beam_in_slice(beam_vector):
 def box_label_positions(s, z, layer, inside, min_pixels=0):
     """
 
-    Returns the label of each tile in the lightcone. 
+    Returns the label of each tile in the lightcone.
     The label is placed as close to the centre of a tiles overlapping area with the lightcone.
 
     :param  s:          coordinate along x of each pixel
@@ -148,15 +148,15 @@ def box_label_positions(s, z, layer, inside, min_pixels=0):
         points = np.stack([s[in_box], z[in_box]], axis=-1)
         if len(points) < max(min_pixels, 1):
             # too small to label, so skip
-            continue 
-        centre = points[np.argmin(np.sum((points - points.mean(axis=0))**2, axis=1))]
+            continue
+        centre = points[np.argmin(np.sum((points - points.mean(axis=0)) ** 2, axis=1))]
         positions.append((f"{n + 1}", centre))
     return positions
 
 
 def layer_label_positions(ray_angle, L, r_max, orientation_lock):
     """
-    
+
     Returns the labels for each locked layer, placed half way through the layer.
 
     :param  ray_angle:          angle [rad] of the ray in the slice, from the s axis
@@ -168,11 +168,11 @@ def layer_label_positions(ray_angle, L, r_max, orientation_lock):
     :param  orientation_lock:   "cube" or "sphere"
     :type   orientation_lock:   str
     """
-    
+
     t = np.linspace(0, r_max, 4000)
     ray = np.stack([t * np.cos(ray_angle), t * np.sin(ray_angle)], axis=-1)
     ray_layer = orientation_layer(slice_to_3d(ray[:, 0], ray[:, 1]), L, orientation_lock)
-    
+
     return [(f"{key}", ray[ray_layer == key].mean(axis=0)) for key in np.unique(ray_layer)]
 
 
@@ -210,10 +210,9 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
         box_number = np.searchsorted(np.unique(layer[inside]), layer)
         colour = np.mod(box_number / (0.5 * (1 + np.sqrt(5))), 1.0)
     else:
-        colour = np.clip(layer, 0, 3) / 3 # only allow 3 layers of colours
+        colour = np.clip(layer, 0, 3) / 3  # only allow 3 layers of colours
     image = np.where(inside, colour, np.nan)
-    ax.pcolormesh(s, z, image, cmap=cmap_MCG, vmin=0, vmax=1,
-                  alpha=0.7, shading="auto", rasterized=True, zorder=1)
+    ax.pcolormesh(s, z, image, cmap=cmap_MCG, vmin=0, vmax=1, alpha=0.7, shading="auto", rasterized=True, zorder=1)
 
     # box tiles crossed by the plane y = 0: L x L squares
     for mx in range(int(np.floor(s_min / L)) - 1, int(np.ceil(s_max / L)) + 2):
@@ -225,13 +224,13 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
     changes = np.zeros_like(inside)
     changes[:, 1:] |= (layer[:, 1:] != layer[:, :-1]) & inside[:, 1:] & inside[:, :-1]
     changes[1:, :] |= (layer[1:, :] != layer[:-1, :]) & inside[1:, :] & inside[:-1, :]
-    ax.contour(s, z, changes.astype(float), levels=[0.5], colors='k', linewidths=1.6, zorder=3)
+    ax.contour(s, z, changes.astype(float), levels=[0.5], colors="k", linewidths=1.6, zorder=3)
 
     # number each region: each box without a lock, each layer with a lock
     if orientation_lock is not None:
         # layers are shells around the observer, so label them along a ray from the observer
         if beam_vector is None:
-            ray_angle = np.deg2rad(235.)
+            ray_angle = np.deg2rad(235.0)
         else:
             axis = beam_in_slice(beam_vector)
             ray_angle = np.arctan2(axis[1], axis[0]) - 0.55 * np.deg2rad(half_angle_deg)
@@ -239,28 +238,30 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
     # outline of the lightcone and the observer
     if beam_vector is None:
         theta = np.linspace(0, 2 * np.pi, 400)
-        ax.plot(r_max * np.cos(theta), r_max * np.sin(theta), color='k', lw=1.0, zorder=4)
+        ax.plot(r_max * np.cos(theta), r_max * np.sin(theta), color="k", lw=1.0, zorder=4)
     else:
         axis = beam_in_slice(beam_vector)
         half_angle = np.deg2rad(half_angle_deg)
         angles = np.arctan2(axis[1], axis[0]) + np.linspace(-half_angle, half_angle, 100)
         edge = r_max * np.stack([np.cos(angles), np.sin(angles)], axis=-1)
-        ax.plot(np.concatenate([[0], edge[:, 0], [0]]), np.concatenate([[0], edge[:, 1], [0]]), color='k', lw=1.0, zorder=4)
+        ax.plot(
+            np.concatenate([[0], edge[:, 0], [0]]), np.concatenate([[0], edge[:, 1], [0]]), color="k", lw=1.0, zorder=4
+        )
 
         # where the orientation changes along the beam axis
         t = np.linspace(0, r_max, 4000)
         axis_layer = orientation_layer(slice_to_3d(t * axis[0], t * axis[1]), L, orientation_lock)
         change = np.flatnonzero(np.diff(axis_layer) != 0)
-        ax.plot(t * axis[0], t * axis[1], color='k', lw=1.2, ls="--", zorder=4)
-        ax.plot(t[change] * axis[0], t[change] * axis[1], "o", ms=5, mfc="white", mec='k', mew=1.2, zorder=6)
-    ax.plot(0, 0, "o", ms=6, mfc="white", mec='k', mew=1.2, zorder=7)
+        ax.plot(t * axis[0], t * axis[1], color="k", lw=1.2, ls="--", zorder=4)
+        ax.plot(t[change] * axis[0], t[change] * axis[1], "o", ms=5, mfc="white", mec="k", mew=1.2, zorder=6)
+    ax.plot(0, 0, "o", ms=6, mfc="white", mec="k", mew=1.2, zorder=7)
 
     ax.set_xlim(s_min, s_max)
     ax.set_ylim(z_min, z_max)
     ax.set_aspect("equal")
 
 
-def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11), filename="./orientation_locks.png"):
+def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20.0, figsize=(11, 11), filename="./orientation_locks.png"):
     """
     Plot the orientations of the box tiles for each orientation lock (rows), for a full sky lightcone,
     a beam along (0, 0, 1) and a beam along (1, 0, 1) (columns).
@@ -276,10 +277,14 @@ def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11
     :param  filename:       path to write the plot to
     :type   filename:       str
     """
-    
+
     locks = [None, "cube", "sphere"]
-    lock_titles = {None: "orientation_lock=None", "cube": 'orientation_lock="cube"', "sphere": 'orientation_lock="sphere"'}
-    
+    lock_titles = {
+        None: "orientation_lock=None",
+        "cube": 'orientation_lock="cube"',
+        "sphere": 'orientation_lock="sphere"',
+    }
+
     # the z range shared by the beam panels: from just below the observer to the far end of the beams
 
     beam_z_range = (-0.3 * L, r_max * 1.05 * L)
@@ -288,13 +293,15 @@ def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11
         ("SnapshotBeam (0, 0, 1)", (0, 0, 1), (-1.6 * L, 1.6 * L) + beam_z_range),
         ("SnapshotBeam (1, 0, 1)", (1, 0, 1), (-0.3 * L, r_max * 0.95 * L) + beam_z_range),
     ]
-    
+
     # make sure each panel has the same height by adjusting width ratios in proportion to their x/z axis range
     width_ratios = [(extent[1] - extent[0]) / (extent[3] - extent[2]) for _, _, extent in lightcones]
 
     # build fig
-    fig, axs = plt.subplots(len(locks), len(lightcones), figsize=figsize, layout="constrained", gridspec_kw={"width_ratios": width_ratios})
-    
+    fig, axs = plt.subplots(
+        len(locks), len(lightcones), figsize=figsize, layout="constrained", gridspec_kw={"width_ratios": width_ratios}
+    )
+
     for i, lock in enumerate(locks):
         # the second beam panel shares the first beam panel's y-axis
         axs[i, 2].sharey(axs[i, 1])
@@ -306,7 +313,7 @@ def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11
             elif j == 1:
                 ax.set_ylabel(r"$z$ [$L$]")
             else:
-                ax.tick_params(labelleft=False) # shared with the panel to its left
+                ax.tick_params(labelleft=False)  # shared with the panel to its left
 
             if i == len(locks) - 1:
                 ax.set_xlabel(r"$x$ [$L$]")
@@ -316,19 +323,21 @@ def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., figsize=(11, 11
     title_y = max(ax.get_position().y1 for ax in axs[0])
     for ax, (name, _, _) in zip(axs[0], lightcones):
         box = ax.get_position()
-        fig.text(0.5 * (box.x0 + box.x1), title_y + 0.008, name, ha="center", va="bottom", fontsize=11, fontweight="bold")
-
+        fig.text(
+            0.5 * (box.x0 + box.x1), title_y + 0.008, name, ha="center", va="bottom", fontsize=11, fontweight="bold"
+        )
 
     plt.savefig(filename, dpi=300, bbox_inches="tight")
     plt.close()
 
 
 if __name__ == "__main__":
-
-    plot_settings() # establish plot settings
+    plot_settings()  # establish plot settings
 
     output_dir = "example_outputs/diagrams"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20., filename=output_dir + "/snapshot_orientation_locks.png")
+    plot_orientation_locks(
+        L=1.0, r_max=3.2, half_angle_deg=20.0, filename=output_dir + "/snapshot_orientation_locks.png"
+    )
     print(f"Orientation lock diagram saved as: {output_dir}/snapshot_orientation_locks.png")

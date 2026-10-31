@@ -4,6 +4,7 @@ import numpy as np
 import unyt
 import unyt.dimensions as dim
 
+
 def apply_expected_units(x, expected_units):
     """
     Convert input to expected units. If the input has no units, the expected units are applied.
@@ -17,18 +18,21 @@ def apply_expected_units(x, expected_units):
     """
     # check if output spectrum has units
     if hasattr(x, "units") or isinstance(x, unyt.unyt_array):
-        # if correct dimensions convert to expected units otherwise raise error 
-        if x.units.dimensions==expected_units.dimensions:
+        # if correct dimensions convert to expected units otherwise raise error
+        if x.units.dimensions == expected_units.dimensions:
             x.convert_to_units(expected_units)
         else:
-            raise unyt.exceptions.UnytError(f"units do not match expected dimensions ({x.units}, {expected_units.units})")
+            raise unyt.exceptions.UnytError(
+                f"units do not match expected dimensions ({x.units}, {expected_units.units})"
+            )
     else:
-        # apply units if no units found 
-        if isinstance(x,  (list, np.ndarray)):
-            x=unyt.unyt_array(x, units=expected_units)
+        # apply units if no units found
+        if isinstance(x, (list, np.ndarray)):
+            x = unyt.unyt_array(x, units=expected_units)
         else:
-            x=unyt.unyt_quantity(x, units=expected_units)
+            x = unyt.unyt_quantity(x, units=expected_units)
     return x
+
 
 def astropy_to_unyt(a):
     """
@@ -39,9 +43,10 @@ def astropy_to_unyt(a):
     """
     return unyt.unyt_array.from_astropy(a)
 
+
 def snapshot_unit_metadata(snap):
     """
-    Extract the plain-float metadata needed to build a snapshot's unit registry: 
+    Extract the plain-float metadata needed to build a snapshot's unit registry:
     physical constants, cosmology, and the Units/InternalCodeUnits CGS conversion factors.
 
     Returns plain dicts of Python floats/strings (no unyt objects).
@@ -61,6 +66,7 @@ def snapshot_unit_metadata(snap):
         "units_cgs": units_cgs,
     }
 
+
 def unit_registry_from_metadata(metadata):
     """
     Create a unyt UnitRegistry from the metadata extracted by snapshot_unit_metadata.
@@ -70,10 +76,10 @@ def unit_registry_from_metadata(metadata):
     :param  metadata:   physical constants, cosmology and CGS unit conversion factors of the snapshot
     :type   metadata:   dict
     """
-    
+
     # Create a new registry
     reg = unyt.unit_registry.UnitRegistry()
-    
+
     physical_constants_cgs = metadata["physical_constants_cgs"]
     cosmology = metadata["cosmology"]
     a = unyt.unyt_quantity(cosmology["Scale-factor"])
@@ -81,7 +87,6 @@ def unit_registry_from_metadata(metadata):
 
     # Define code and snapshot base units
     for group_name, prefix in (("Units", "snap"), ("InternalCodeUnits", "code")):
-
         units_cgs = metadata["units_cgs"][group_name]
 
         unyt.define_unit(
@@ -89,12 +94,8 @@ def unit_registry_from_metadata(metadata):
             units_cgs["Unit length in cgs (U_L)"] * unyt.cm,
             registry=reg,
         )
-        unyt.define_unit(
-            prefix + "_mass", units_cgs["Unit mass in cgs (U_M)"] * unyt.g, registry=reg
-        )
-        unyt.define_unit(
-            prefix + "_time", units_cgs["Unit time in cgs (U_t)"] * unyt.s, registry=reg
-        )
+        unyt.define_unit(prefix + "_mass", units_cgs["Unit mass in cgs (U_M)"] * unyt.g, registry=reg)
+        unyt.define_unit(prefix + "_time", units_cgs["Unit time in cgs (U_t)"] * unyt.s, registry=reg)
         unyt.define_unit(
             prefix + "_temperature",
             units_cgs["Unit temperature in cgs (U_T)"] * unyt.K,
@@ -127,18 +128,15 @@ def unit_registry_from_metadata(metadata):
     reg = unyt.unit_registry.UnitRegistry(lut=reg.lut, unit_system=us)
 
     # Add some units which might be useful for dealing with input halo catalogues
-    unyt.define_unit(
-        "swift_mpc", 1.0e6 * physical_constants_cgs["parsec"] * unyt.cm, registry=reg
-    )
-    unyt.define_unit(
-        "swift_msun", physical_constants_cgs["solar_mass"] * unyt.g, registry=reg
-    )
+    unyt.define_unit("swift_mpc", 1.0e6 * physical_constants_cgs["parsec"] * unyt.cm, registry=reg)
+    unyt.define_unit("swift_msun", physical_constants_cgs["solar_mass"] * unyt.g, registry=reg)
     unyt.define_unit(
         "newton_G",
         physical_constants_cgs["newton_G"] * unyt.cm**3 / unyt.g / unyt.s**2,
         registry=reg,
     )
     return reg
+
 
 def unit_registry_from_snapshot(snap):
     """
@@ -148,6 +146,7 @@ def unit_registry_from_snapshot(snap):
     :type   snap:   h5py.File
     """
     return unit_registry_from_metadata(snapshot_unit_metadata(snap))
+
 
 def units_from_attributes(attrs, registry):
     """
@@ -205,6 +204,7 @@ def units_from_attributes(attrs, registry):
 
     return unyt.Unit(u, registry=registry)
 
+
 def attributes_from_units(units, physical, a_exponent):
     """
     Given a unyt.Unit object, generate SWIFT dataset attributes.
@@ -220,7 +220,7 @@ def attributes_from_units(units, physical, a_exponent):
     """
     attrs = {}
 
-    # Get CGS conversion factor. 
+    # Get CGS conversion factor.
     cgs_factor, offset = units.get_conversion_factor(units.get_cgs_equivalent())
 
     # Get a exponent
@@ -251,9 +251,7 @@ def attributes_from_units(units, physical, a_exponent):
     attrs["Conversion factor to CGS (not including cosmological corrections)"] = [
         float(cgs_factor / (a_val**a_exponent_in_units) / (h_val**h_exponent))
     ]
-    attrs["Conversion factor to physical CGS (including cosmological corrections)"] = [
-        float(cgs_factor)
-    ]
+    attrs["Conversion factor to physical CGS (including cosmological corrections)"] = [float(cgs_factor)]
     attrs["U_I exponent"] = [float(powers[unyt.dimensions.current_mks])]
     attrs["U_L exponent"] = [float(powers[unyt.dimensions.length])]
     attrs["U_M exponent"] = [float(powers[unyt.dimensions.mass])]
@@ -266,6 +264,7 @@ def attributes_from_units(units, physical, a_exponent):
     attrs["Property can be converted to comoving"] = [0 if a_exponent is None else 1]
 
     return attrs
+
 
 def drop_a_from_comoving_property(arr):
     """
@@ -293,17 +292,16 @@ def drop_a_from_comoving_property(arr):
     reg = arr.units.registry
 
     unit_str = str(arr.units)
-    if unit_str == "a*snap_length": #lengths
+    if unit_str == "a*snap_length":  # lengths
         target = "snap_length"
-    elif unit_str == "snap_mass/(a**3*snap_length**3)": # densities
+    elif unit_str == "snap_mass/(a**3*snap_length**3)":  # densities
         target = "snap_mass/(snap_length**3)"
-    elif unit_str=="a**2*snap_length**2": # areas
-        target="snap_length**2"
-    elif unit_str=="a**3*snap_length**3": # volumes
-        target="snap_length**3"
-    elif unit_str=='snap_mass/(a**5*snap_length*snap_time**2)': # pressures
-        target='snap_mass/(snap_length*snap_time**2)'
+    elif unit_str == "a**2*snap_length**2":  # areas
+        target = "snap_length**2"
+    elif unit_str == "a**3*snap_length**3":  # volumes
+        target = "snap_length**3"
+    elif unit_str == "snap_mass/(a**5*snap_length*snap_time**2)":  # pressures
+        target = "snap_mass/(snap_length*snap_time**2)"
     else:
         raise ValueError(f"drop_a_from_comoving_property: unrecognised comoving units '{unit_str}'")
     return arr.value * unyt.Unit(target, registry=reg)
-

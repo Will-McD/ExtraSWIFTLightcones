@@ -19,7 +19,7 @@ Every reader gives the same rows and values, matching the units from lightcone_i
 
 SNAP_NR = 75
 NHALOS = 5000
-MSUN_G = unyt.unyt_quantity(1., "Msun").to_value("g")  # unyt's solar mass, so masses read in Msun are as written
+MSUN_G = unyt.unyt_quantity(1.0, "Msun").to_value("g")  # unyt's solar mass, so masses read in Msun are as written
 # the fake catalogues' Mpc (placement.MPC_CM) differs from unyt's by 3e-10, so values converted to Mpc agree to this
 RTOL = 1e-9
 
@@ -27,40 +27,47 @@ RTOL = 1e-9
 @pytest.fixture(scope="module")
 def catalogue(tmp_path_factory):
     """
-    Build a fake SOAP catalogue of haloes, with centres, indices, M200c [1e10 Msun] and comoving R200c. 
+    Build a fake SOAP catalogue of haloes, with centres, indices, M200c [1e10 Msun] and comoving R200c.
     Include the attrs for the conversion factors to physical CGS units.
-    
+
     Returns (filename, {name: values written, in Msun and comoving Mpc}).
-    
+
     """
 
-    rng = np.random.default_rng(1) # set random seed to use consistent sampling
-    filename = tmp_path_factory.mktemp("soap") / f"halo_properties_{SNAP_NR:04d}.hdf5" # get temp filename
-    redshift = placement.OUTPUT_REDSHIFTS[SNAP_NR] 
-    
+    rng = np.random.default_rng(1)  # set random seed to use consistent sampling
+    filename = tmp_path_factory.mktemp("soap") / f"halo_properties_{SNAP_NR:04d}.hdf5"  # get temp filename
+    redshift = placement.OUTPUT_REDSHIFTS[SNAP_NR]
+
     # set catalogue values
     # randomly sample coords, M200c and R200c values
-    values = {"InputHalos/HaloCentre": rng.uniform(0, placement.BOXSIZE, (NHALOS, 3)),
-              "InputHalos/HaloCatalogueIndex": np.arange(NHALOS),
-              "SO/200_crit/TotalMass": 10**rng.uniform(12, 15, NHALOS),
-              "SO/200_crit/SORadius": rng.uniform(0.1, 2., NHALOS)}
+    values = {
+        "InputHalos/HaloCentre": rng.uniform(0, placement.BOXSIZE, (NHALOS, 3)),
+        "InputHalos/HaloCatalogueIndex": np.arange(NHALOS),
+        "SO/200_crit/TotalMass": 10 ** rng.uniform(12, 15, NHALOS),
+        "SO/200_crit/SORadius": rng.uniform(0.1, 2.0, NHALOS),
+    }
     # write fake SOAP catalogue
-    placement.write_soap_catalogue(filename, SNAP_NR, values["InputHalos/HaloCatalogueIndex"],
-                                   values["InputHalos/HaloCentre"])
-    
+    placement.write_soap_catalogue(
+        filename, SNAP_NR, values["InputHalos/HaloCatalogueIndex"], values["InputHalos/HaloCentre"]
+    )
+
     with h5py.File(filename, "a") as f:
         mass = f.create_dataset("SO/200_crit/TotalMass", data=values["SO/200_crit/TotalMass"] / 1e10)
         placement.set_unit_attrs(mass, 0, 0, conversion=1e10 * MSUN_G)
-        mass.attrs["U_M exponent"] = [1.]
-        placement.set_unit_attrs(f.create_dataset("SO/200_crit/SORadius", data=values["SO/200_crit/SORadius"]), 1, 1,
-                                 conversion=placement.MPC_CM / (1. + redshift))
+        mass.attrs["U_M exponent"] = [1.0]
+        placement.set_unit_attrs(
+            f.create_dataset("SO/200_crit/SORadius", data=values["SO/200_crit/SORadius"]),
+            1,
+            1,
+            conversion=placement.MPC_CM / (1.0 + redshift),
+        )
     return str(filename), values
 
 
 def test_comoving_drops_the_expansion_factor(catalogue):
     """
-    Test that we remove the scalefactor symbol without affecting the values. 
-    
+    Test that we remove the scalefactor symbol without affecting the values.
+
     Comoving lengths read in as a*snap_length become comoving Mpc, without changing their values; properties without a
     in their units are unchanged.
 
@@ -103,11 +110,20 @@ def test_select_soap_rows(catalogue, chunk_size):
     values in the units asked for.
     """
     filename, values = catalogue
-    units = {"SO/200_crit/TotalMass": "Msun", "InputHalos/HaloCentre": "Mpc", "SO/200_crit/SORadius": "Mpc",
-             "InputHalos/HaloCatalogueIndex": "dimensionless"}
-    found = soap_reader.select_soap_rows(filename, "SO/200_crit/TotalMass",
-                                         lambda mass: (mass.to_value("Msun") >= 1e14) & (mass.to_value("Msun") < 3e14),
-                                         list(units), chunk_size=chunk_size, units=units)
+    units = {
+        "SO/200_crit/TotalMass": "Msun",
+        "InputHalos/HaloCentre": "Mpc",
+        "SO/200_crit/SORadius": "Mpc",
+        "InputHalos/HaloCatalogueIndex": "dimensionless",
+    }
+    found = soap_reader.select_soap_rows(
+        filename,
+        "SO/200_crit/TotalMass",
+        lambda mass: (mass.to_value("Msun") >= 1e14) & (mass.to_value("Msun") < 3e14),
+        list(units),
+        chunk_size=chunk_size,
+        units=units,
+    )
     expected = np.flatnonzero((values["SO/200_crit/TotalMass"] >= 1e14) & (values["SO/200_crit/TotalMass"] < 3e14))
     assert len(expected) > 0
     np.testing.assert_array_equal(found["row"], expected)

@@ -14,6 +14,7 @@ import datetime as dt
 from contextlib import ExitStack
 
 from mpi4py import MPI
+
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
@@ -31,9 +32,10 @@ def message(m):
     :type   m:  str
     """
     if comm_rank == 0:
-        current_time=dt.datetime.now()
-        time_str=current_time.strftime("%H:%M:%S")
-        print("[@{print_time}]:\t".format(print_time=time_str)+m)
+        current_time = dt.datetime.now()
+        time_str = current_time.strftime("%H:%M:%S")
+        print("[@{print_time}]:\t".format(print_time=time_str) + m)
+
 
 def rank_message(m, rank):
     """
@@ -44,21 +46,24 @@ def rank_message(m, rank):
     :param  rank:   rank number
     :type   rank:   int
     """
-    current_time=dt.datetime.now()
-    time_str=current_time.strftime("%H:%M:%S")
-    print('[Rank {rank_nr:03d}] [@{print_time}]'.format(rank_nr=rank,print_time=time_str) + m)
+    current_time = dt.datetime.now()
+    time_str = current_time.strftime("%H:%M:%S")
+    print("[Rank {rank_nr:03d}] [@{print_time}]".format(rank_nr=rank, print_time=time_str) + m)
+
 
 def get_num(x):
-   return int(x.split('/')[-2].lstrip().split('_')[-1])
+    return int(x.split("/")[-2].lstrip().split("_")[-1])
+
 
 def attr_scalar(value):
     """
-    Correctly return HDF5 attributes that are conceptually scalar but are stored as a length-1 array. 
+    Correctly return HDF5 attributes that are conceptually scalar but are stored as a length-1 array.
 
     :param  value:  HDF5 attribute value
     :type   value:  scalar or np.ndarray
     """
     return np.asarray(value).flat[0]
+
 
 def native_endian(arr):
     """
@@ -69,12 +74,13 @@ def native_endian(arr):
     """
     return arr.astype(arr.dtype.newbyteorder("="))
 
+
 def exchange_particles(part_dest, arrays):
     """
     Verbatim copy of lightcone_io.smoothed_map.exchange_particles that cannot be simply imported, hence local duplication.
 
     Send each element of the arrays to its destination rank.
-    
+
     Returns a list of the arrays received by this rank.
 
     :param  part_dest:  destination rank of each element
@@ -102,18 +108,23 @@ def exchange_particles(part_dest, arrays):
 
     for sendbuf, recvbuf in zip(send_arrays, recv_arrays):
         if len(sendbuf.shape) == 1:
-            psort.my_alltoallv(sendbuf, send_count, send_offset,
-                               recvbuf, recv_count, recv_offset,
-                               comm=comm)
+            psort.my_alltoallv(sendbuf, send_count, send_offset, recvbuf, recv_count, recv_offset, comm=comm)
         elif len(sendbuf.shape) == 2:
             ndims = sendbuf.shape[1]
-            psort.my_alltoallv(sendbuf.ravel(), ndims * send_count, ndims * send_offset,
-                               recvbuf.ravel(), ndims * recv_count, ndims * recv_offset,
-                               comm=comm)
+            psort.my_alltoallv(
+                sendbuf.ravel(),
+                ndims * send_count,
+                ndims * send_offset,
+                recvbuf.ravel(),
+                ndims * recv_count,
+                ndims * recv_offset,
+                comm=comm,
+            )
         else:
             raise RuntimeError("Can only exchange arrays with 1 or 2 dimensions")
 
     return recv_arrays
+
 
 def get_map_rotation_angles(fn):
     """
@@ -124,18 +135,19 @@ def get_map_rotation_angles(fn):
     :param  fn: path to the .hdf5 file containing the rotation angles
     :type   fn: str
     """
-    with h5py.File(fn, 'r') as rotation_data:
-        rot_val=rotation_data['shells']
-        latitude  = (rot_val['phi'][:]*180/np.pi * unyt.deg).astype(np.float64)
-        longitude = (rot_val['theta'][:]*180/np.pi * unyt.deg).astype(np.float64)
-    
+    with h5py.File(fn, "r") as rotation_data:
+        rot_val = rotation_data["shells"]
+        latitude = (rot_val["phi"][:] * 180 / np.pi * unyt.deg).astype(np.float64)
+        longitude = (rot_val["theta"][:] * 180 / np.pi * unyt.deg).astype(np.float64)
+
     return latitude, longitude
+
 
 def rotate_cluster_coords(cluster_coords, map_rotator_object):
     """
     Rotate cluster 3D Cartesian comoving positions to match a sky
     rotation already applied to a HEALPix map via rotate_map_fast.
-    Each cluster's comoving distance from the observer is preserved. 
+    Each cluster's comoving distance from the observer is preserved.
 
     Returns the cluster positions in the rotated frame, shape (N, 3), with the same distances and rotated directions.
 
@@ -160,10 +172,13 @@ def rotate_cluster_coords(cluster_coords, map_rotator_object):
 
     return rotated_coords
 
-def read_shell_halo_properties(halo_filenames, soap_filenames, snapshot_numbers, radius_prop, mass_prop, mass_unit_str, comm):
+
+def read_shell_halo_properties(
+    halo_filenames, soap_filenames, snapshot_numbers, radius_prop, mass_prop, mass_unit_str, comm
+):
     """
-    MPI-parallel replacement for looping over each snapshot contributing to a shell. 
-    
+    MPI-parallel replacement for looping over each snapshot contributing to a shell.
+
     Per shell:
 
     1. read a shell's halo lightcone files in a single collective read
@@ -190,43 +205,48 @@ def read_shell_halo_properties(halo_filenames, soap_filenames, snapshot_numbers,
 
     comm_rank = comm.Get_rank()
     comm_size = comm.Get_size()
-    
+
     # halo lightcone properties to read
-    halo_lightcone_datasets = ("Lightcone/HaloCentre", "Lightcone/Redshift", "InputHalos/IsCentral",
-                                "Lightcone/SnapshotNumber", "InputHalos/SOAPIndex")
+    halo_lightcone_datasets = (
+        "Lightcone/HaloCentre",
+        "Lightcone/Redshift",
+        "InputHalos/IsCentral",
+        "Lightcone/SnapshotNumber",
+        "InputHalos/SOAPIndex",
+    )
     # collective multifile read of halo lightcones
     mf = phdf5.MultiFile(halo_filenames, comm=comm)
     # load halo lightcone dataset
     halo_data = mf.read(halo_lightcone_datasets, group="/", read_attributes=True)
-    
+
     # number of haloes
     nr_halos = len(halo_data["Lightcone/SnapshotNumber"])
     halo_data[radius_prop] = None
     halo_data[mass_prop] = None
 
     # Sort locally by snapshot number so each snapshot's halos are contiguous,
-    # then find each present snapshot's slice 
+    # then find each present snapshot's slice
     order = np.argsort(halo_data["Lightcone/SnapshotNumber"])
     for name in halo_data:
         if halo_data[name] is not None:
             halo_data[name] = halo_data[name][order, ...]
 
-    unique_snap, snap_offset, snap_count = np.unique(halo_data["Lightcone/SnapshotNumber"],
-                                                      return_index=True, return_counts=True)
-    snap_slice = {int(us): (int(so), int(so) + int(sc))
-                  for us, so, sc in zip(unique_snap, snap_offset, snap_count)}
+    unique_snap, snap_offset, snap_count = np.unique(
+        halo_data["Lightcone/SnapshotNumber"], return_index=True, return_counts=True
+    )
+    snap_slice = {int(us): (int(so), int(so) + int(sc)) for us, so, sc in zip(unique_snap, snap_offset, snap_count)}
 
     for snapnum, soap_fn in zip(snapshot_numbers, soap_filenames):
         i1, i2 = snap_slice.get(int(snapnum), (0, 0))
 
         message(f"\treading soap file(s):\t{snapnum}")
-        
+
         # collective multifile read of soap catalogues
         mf_soap = phdf5.MultiFile([soap_fn], comm=comm)
         # load soap dataset
         soap_data = mf_soap.read((radius_prop, mass_prop), read_attributes=True)
 
-        #cheeky gathering of soap files
+        # cheeky gathering of soap files
         if comm_rank == 0:
             with h5py.File(soap_fn, "r") as f:
                 a = float(attr_scalar(f["SWIFT"]["Header"].attrs["Scale-factor"]))
@@ -241,29 +261,32 @@ def read_shell_halo_properties(halo_filenames, soap_filenames, snapshot_numbers,
         # convert units for mass and radius
         soap_data[radius_prop] = phdf5.AttributeArray(
             unyt.unyt_array(soap_data[radius_prop], units_from_attributes(soap_data[radius_prop])).to_value("Mpc"),
-            attrs=radius_attrs)
-        
+            attrs=radius_attrs,
+        )
+
         soap_data[mass_prop] = phdf5.AttributeArray(
             unyt.unyt_array(soap_data[mass_prop], units_from_attributes(soap_data[mass_prop])).to_value(mass_unit_str),
-            attrs=mass_attrs)
+            attrs=mass_attrs,
+        )
 
-        
         # Ensure radius is comoving
         radius_a_exponent = float(attr_scalar(radius_attrs["a-scale exponent"]))
         radius_physical = bool(attr_scalar(mass_attrs.get("Value stored as physical", 0)))
         if radius_physical:
             soap_data[radius_prop] = soap_data[radius_prop] / a
         else:
-            soap_data[radius_prop] = soap_data[radius_prop] * a**(radius_a_exponent - 1.0)
+            soap_data[radius_prop] = soap_data[radius_prop] * a ** (radius_a_exponent - 1.0)
 
         if halo_data[radius_prop] is None:
-            halo_data[radius_prop] = phdf5.AttributeArray(-np.ones(nr_halos, dtype=soap_data[radius_prop].dtype),
-                                                            attrs=soap_data[radius_prop].attrs)
-            halo_data[mass_prop] = phdf5.AttributeArray(-np.ones(nr_halos, dtype=soap_data[mass_prop].dtype),
-                                                          attrs=soap_data[mass_prop].attrs)
+            halo_data[radius_prop] = phdf5.AttributeArray(
+                -np.ones(nr_halos, dtype=soap_data[radius_prop].dtype), attrs=soap_data[radius_prop].attrs
+            )
+            halo_data[mass_prop] = phdf5.AttributeArray(
+                -np.ones(nr_halos, dtype=soap_data[mass_prop].dtype), attrs=soap_data[mass_prop].attrs
+            )
 
         ptr = halo_data["InputHalos/SOAPIndex"][i1:i2]
-        assert np.all(ptr>=0) # All halos in the lightcone should be found in SOAP
+        assert np.all(ptr >= 0)  # All halos in the lightcone should be found in SOAP
         psort.fetch_elements(soap_data[radius_prop], ptr, result=halo_data[radius_prop][i1:i2], comm=comm)
         psort.fetch_elements(soap_data[mass_prop], ptr, result=halo_data[mass_prop][i1:i2], comm=comm)
 
@@ -272,13 +295,13 @@ def read_shell_halo_properties(halo_filenames, soap_filenames, snapshot_numbers,
 
     return halo_data
 
-def distribute_pixels(comm, nside):
 
+def distribute_pixels(comm, nside):
     """
     Verbatim copy of lightcone_io.smoothed_map.distribute_pixels that cannot be simply imported, hence local duplication.
-    
+
     Split the HEALPix pixels between ranks.
-    
+
     Returns (nr_total_pixels, nr_local_pixels, local_offset, theta_boundary).
 
     :param  comm:   MPI communicator
@@ -307,11 +330,12 @@ def distribute_pixels(comm, nside):
 
     return nr_total_pixels, nr_local_pixels, local_offset, theta_boundary
 
+
 def mask_cluster_apertures_local(nside, cluster_coords, radius_mpc, local_offset, nr_local_pixels):
     """
-    Stamp each halo's aperture onto only a given rank's slice of the sky (global pixel indices [local_offset, local_offset + nr_local_pixels)). 
+    Stamp each halo's aperture onto only a given rank's slice of the sky (global pixel indices [local_offset, local_offset + nr_local_pixels)).
 
-    Returns the local mask, 0 inside a halo aperture and 1 otherwise. If zero haloes on rank, returns an all 1's mask. 
+    Returns the local mask, 0 inside a halo aperture and 1 otherwise. If zero haloes on rank, returns an all 1's mask.
 
     :param  nside:              nside of the map
     :type   nside:              int
@@ -331,8 +355,7 @@ def mask_cluster_apertures_local(nside, cluster_coords, radius_mpc, local_offset
     if radius_mpc.size == 1 and n_clusters > 1:
         radius_mpc = np.full(n_clusters, radius_mpc[0])
     elif radius_mpc.size not in (0, n_clusters):
-        raise ValueError(
-            f"radius_mpc must be a scalar or have length {n_clusters}, got length {radius_mpc.size}")
+        raise ValueError(f"radius_mpc must be a scalar or have length {n_clusters}, got length {radius_mpc.size}")
 
     local_mask = np.ones(nr_local_pixels, dtype=np.int32)
     for i in range(n_clusters):
@@ -348,18 +371,19 @@ def mask_cluster_apertures_local(nside, cluster_coords, radius_mpc, local_offset
         local_mask[local_idx[local]] = 0
     return local_mask
 
+
 def route_halos_to_pixel_owners(theta_boundary, cluster_coords, radius_mpc, extra_arrays, comm):
     """
-    Determine which rank(s) each halo's angular aperture could reach and send the halo to them. 
+    Determine which rank(s) each halo's angular aperture could reach and send the halo to them.
 
-    Returns (recv_coords, recv_radius, recv_extra_arrays): this rank's own halos plus every halo 
+    Returns (recv_coords, recv_radius, recv_extra_arrays): this rank's own halos plus every halo
     forwarded to it by other ranks whose aperture reaches this rank's band.
 
     :param  theta_boundary: theta boundaries of each rank's band of pixels, from distribute_pixels
     :type   theta_boundary: np.ndarray
     :param  cluster_coords: comoving positions, shape (N, 3), of this rank's local halos only
     :type   cluster_coords: np.ndarray
-    :param  radius_mpc:     comoving aperture radius, shape (N,), for each halo. 
+    :param  radius_mpc:     comoving aperture radius, shape (N,), for each halo.
     :type   radius_mpc:     np.ndarray
     :param  extra_arrays:   additional 1D/2D per-halo arrays to carry
     :type   extra_arrays:   list
@@ -388,7 +412,7 @@ def route_halos_to_pixel_owners(theta_boundary, cluster_coords, radius_mpc, extr
     offset = np.cumsum(nr_copies) - nr_copies
     dest = -np.ones(np.sum(nr_copies), dtype=int)
     for fr, nc, off in zip(first_rank, nr_copies, offset):
-        dest[off:off + nc] = np.arange(fr, fr + nc, dtype=int)
+        dest[off : off + nc] = np.arange(fr, fr + nc, dtype=int)
     assert np.all(dest >= 0) & np.all(dest < comm_size)
 
     arrays_to_send = [cluster_coords[index, :], radius_mpc[index]] + [a[index, ...] for a in extra_arrays]
@@ -397,28 +421,41 @@ def route_halos_to_pixel_owners(theta_boundary, cluster_coords, radius_mpc, extr
     recv_extra = recv[2:]
     return recv_coords, recv_radius, recv_extra
 
+
 _UNSET = object()
-def write_binary_masks(halo_cat_format, soap_cat_format, 
-                            mass_poperty, radius_poperty, 
-                            nshell, nside, 
-                            latitudes, longitudes,
-                            lightcone_numbers, mask_filename, output_dir,
-                            comm, 
-                            bin_method="both", mass_units="Msun", 
-                            log_mass_bin_range=None, log_mass_bin_width=None, scale_radius=None,
-                            hdf5_dset_kwargs=_UNSET
-                            ):
+
+
+def write_binary_masks(
+    halo_cat_format,
+    soap_cat_format,
+    mass_poperty,
+    radius_poperty,
+    nshell,
+    nside,
+    latitudes,
+    longitudes,
+    lightcone_numbers,
+    mask_filename,
+    output_dir,
+    comm,
+    bin_method="both",
+    mass_units="Msun",
+    log_mass_bin_range=None,
+    log_mass_bin_width=None,
+    scale_radius=None,
+    hdf5_dset_kwargs=_UNSET,
+):
     """
-    Write binary halo masks per shell to a .hdf5 file. 
+    Write binary halo masks per shell to a .hdf5 file.
 
     :param  halo_cat_format:    formatted path to the halo lightcone files, with {lightcone_nr} and {snap_nr} fields
     :type   halo_cat_format:    str
     :param  soap_cat_format:    formatted path to the SOAP catalogues, with a {snap_nr} field
     :type   soap_cat_format:    str
-    :param  mass_poperty:       path to SOAP catalogue values to use for the selection of haloes on the sky 
+    :param  mass_poperty:       path to SOAP catalogue values to use for the selection of haloes on the sky
                                     e.g. 'SO/500_crit/TotalMass' for M500c
     :type   mass_poperty:       str
-    :param  radius_poperty:     path to values to use as the radius of each halo in the SOAP catalogue 
+    :param  radius_poperty:     path to values to use as the radius of each halo in the SOAP catalogue
                                     e.g. 'SO/500_crit/SORadius' for R500c
     :type   radius_poperty:     str
     :param  nshell:             number of shells to make masks for
@@ -446,61 +483,61 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
     :type   bin_method:         str
     :param  mass_units:         units of the mass property given. Default is solar masses 'Msun'
     :type   mass_units:         str
-    :param  log_mass_bin_range: log10 min and max values of the mass_poperty to bin haloes by. 
+    :param  log_mass_bin_range: log10 min and max values of the mass_poperty to bin haloes by.
                                     If None, then use default range of 12-16
     :type   log_mass_bin_range: tuple
     :param  log_mass_bin_width: log10 width of the log10 mass bins. If None, then default is 0.5
     :type   log_mass_bin_width: float
-    :param  scale_radius:       coefficients to scale the given radius property by when drawing apertures about 
+    :param  scale_radius:       coefficients to scale the given radius property by when drawing apertures about
                                     each halo. If None, then assume coefficients of 0.2, 0.5, 1.0, 2.0 and 5.0
     :type   scale_radius:       list or np.ndarray
-    :param  hdf5_dset_kwargs:   keyword arguments passed to h5py create_dataset. 
+    :param  hdf5_dset_kwargs:   keyword arguments passed to h5py create_dataset.
                                     If not given, use gzip compression level 9 with shuffle. If None, no compression
     :type   hdf5_dset_kwargs:   dict
     """
     if bin_method not in ("discrete", "cumulative", "both"):
         raise ValueError(f"bin_method must be 'discrete', 'cumulative', or 'both', got {bin_method!r}")
-    
+
     if hdf5_dset_kwargs is _UNSET:
-        hdf5_dset_kwargs={
-                "compression": "gzip",
-                "compression_opts": 9,
-                "shuffle": True,
-            }
+        hdf5_dset_kwargs = {
+            "compression": "gzip",
+            "compression_opts": 9,
+            "shuffle": True,
+        }
     elif hdf5_dset_kwargs is None:
-        hdf5_dset_kwargs={}
+        hdf5_dset_kwargs = {}
 
     mass_unit_str = mass_units
-    mass_prop=mass_poperty
-    radius_prop=radius_poperty
+    mass_prop = mass_poperty
+    radius_prop = radius_poperty
 
     def radius_values(r_soap, scale_radius=None):
         if scale_radius is None:
             r_modify = np.array([0.2, 0.5, 1.0, 2.0, 5.0])
         else:
-            r_modify= np.asarray(scale_radius)
+            r_modify = np.asarray(scale_radius)
 
         return r_soap[:, None] * r_modify[None, :]
 
     def discrete_mass_bins(mass_bin_range=None, mass_bin_width=None):
         if mass_bin_range is None:
-            mass_bin_range=(12,16)
+            mass_bin_range = (12, 16)
         if mass_bin_width is None:
-            mass_bin_width=0.5
-        lo=float(mass_bin_range[0])
-        hi=float(mass_bin_range[1])
-        dm=float(mass_bin_width)
+            mass_bin_width = 0.5
+        lo = float(mass_bin_range[0])
+        hi = float(mass_bin_range[1])
+        dm = float(mass_bin_width)
 
-        return np.vstack((np.arange(lo, hi, dm), np.arange(lo+dm, hi+dm, dm))).T
+        return np.vstack((np.arange(lo, hi, dm), np.arange(lo + dm, hi + dm, dm))).T
 
     def cumulative_mass_bins(mass_bin_range=None, mass_bin_width=None):
         if mass_bin_range is None:
-            mass_bin_range=(12,16)
+            mass_bin_range = (12, 16)
         if mass_bin_width is None:
-            mass_bin_width=0.5
-        lo=float(mass_bin_range[0])
-        hi=float(mass_bin_range[1])
-        dm=float(mass_bin_width)
+            mass_bin_width = 0.5
+        lo = float(mass_bin_range[0])
+        hi = float(mass_bin_range[1])
+        dm = float(mass_bin_width)
         low = np.arange(lo, hi, dm)
         high = np.full_like(low, hi)
         return np.vstack((low, high)).T
@@ -516,46 +553,47 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
     radius_scalings = radius_values(np.ones(1), scale_radius).flatten()
     n_radius = len(radius_scalings)
 
-    # Pixel decomposition 
+    # Pixel decomposition
     nr_total_pixels, nr_local_pixels, local_offset, theta_boundary = distribute_pixels(comm, nside)
     assert nr_total_pixels == hp.nside2npix(nside)
 
     assert nr_local_pixels > 0, f"rank {comm_rank} has 0 local pixels (nside={nside}, comm_size={comm_size})"
 
-    # Chunk boundaries aligned to per-rank pixel range. 
-    #'chunk_pixels' is the number of pixels on every rank, except the last. 
+    # Chunk boundaries aligned to per-rank pixel range.
+    #'chunk_pixels' is the number of pixels on every rank, except the last.
     chunk_pixels = max(1, nr_total_pixels // comm_size)
 
     for lightcone_nr in lightcone_numbers:
-
         if comm_rank == 0:
             # Create directory and read redshifts on rank 0 before broadcasting
             directory_path = Path(output_dir)
             directory_path.mkdir(parents=True, exist_ok=True)
-            #redshifts=np.loadtxt(nz.flamingo_shell_redshift_file('L2p8'), delimiter=",")[:nshell]
-            redshifts=np.loadtxt(flamingo_shell_redshift_file('L2p8'), delimiter=",")[:nshell]
+            # redshifts=np.loadtxt(nz.flamingo_shell_redshift_file('L2p8'), delimiter=",")[:nshell]
+            redshifts = np.loadtxt(flamingo_shell_redshift_file("L2p8"), delimiter=",")[:nshell]
 
         else:
             redshifts = None
         redshifts = comm.bcast(redshifts)
 
-        # With mpio driver, open files, create groups and 
-        # write datasets + attributes on every rank. 
-        with ExitStack() as stack: #use stack as safety net
+        # With mpio driver, open files, create groups and
+        # write datasets + attributes on every rank.
+        with ExitStack() as stack:  # use stack as safety net
             outfiles = {}
             MASKS = {}
             for method_name, log_mass_bins, prefix in method_specs:
                 n_mass = np.shape(log_mass_bins)[0]
                 output_filename = output_dir + f"/lightcone{lightcone_nr}." + prefix + mask_filename
                 message(output_dir)
-                message(f"lightcone:\t{lightcone_nr}\nbin_method:\t{method_name}\nwriting to outputfile:\t{output_filename}")
-                
+                message(
+                    f"lightcone:\t{lightcone_nr}\nbin_method:\t{method_name}\nwriting to outputfile:\t{output_filename}"
+                )
+
                 # build output on each rank
                 outfile = stack.enter_context(h5py.File(output_filename, "w", driver="mpio", comm=comm))
-                #outfile = h5py.File(output_filename, "w", driver="mpio", comm=comm)
-                #with h5py.File(output_filename, "w", driver="mpio", comm=comm) as outfile:
+                # outfile = h5py.File(output_filename, "w", driver="mpio", comm=comm)
+                # with h5py.File(output_filename, "w", driver="mpio", comm=comm) as outfile:
                 outfiles[method_name] = outfile
-                # store mask metadata 
+                # store mask metadata
                 meta_data = outfile.create_group("metadata")
                 meta_data.attrs["shells"] = np.arange(0, nshell, 1)
                 meta_data.attrs["redshift"] = np.arange(0, nshell * 0.05, 0.05)
@@ -563,24 +601,24 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                 meta_data.attrs["log_mass_bins"] = log_mass_bins
                 meta_data.attrs["radius_coef"] = radius_scalings
                 meta_data.attrs["mass_property"] = [mass_prop]
-                meta_data.attrs["mass_units"]=[mass_unit_str]
+                meta_data.attrs["mass_units"] = [mass_unit_str]
                 meta_data.attrs["radius_property"] = [radius_prop]
                 meta_data.attrs["bin_method"] = [method_name]
 
                 mask_data = outfile.create_group("mask")
 
-                comm.barrier() # collect ranks after building output and meta data
+                comm.barrier()  # collect ranks after building output and meta data
 
                 MASK = {}
                 for ri in range(n_radius):
                     for mj in range(n_mass):
-                        mask_str = f"R{ri:d}_M{mj:d}" # name of mask based on bin indices
+                        mask_str = f"R{ri:d}_M{mj:d}"  # name of mask based on bin indices
                         MASK[mask_str] = mask_data.create_dataset(
                             mask_str,
                             shape=(nshell, nr_total_pixels),
                             dtype=np.int32,
                             chunks=(1, chunk_pixels),
-                            **hdf5_dset_kwargs
+                            **hdf5_dset_kwargs,
                         )
                 MASKS[method_name] = MASK
 
@@ -589,23 +627,31 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                 zmin = redshifts[shell_nr, 0]
                 zmax = redshifts[shell_nr, 1]
 
-                #snapshot_numbers = nz.snapshot_number_in_range(
+                # snapshot_numbers = nz.snapshot_number_in_range(
                 #    redshift_range=(zmin, zmax), boxsize_resolution=nz.flamingo_box_resolution(halo_cat_format),
                 #    redshift_buffer=(0.025, 0.025), snapshot_buffer=(0, 0),
                 #    bounds="strict", decimals=5)[::-1]
-                
-                # add a 0.025 redshift buffer to each end to ensure complete overlap of haloes with selected lightcone
-                snapshot_numbers = snapshots_in_range(output_redshifts(flamingo_box_resolution(halo_cat_format)), (zmin-0.025, zmax+0.025))[::-1]
 
-                message(f"\tredshift range:\t{zmin:.3f}-{zmax:.3f}, snapshot numbers:\t{snapshot_numbers[0]}-{snapshot_numbers[-1]}")
-                comm.barrier() # collect ranks after establishing shell redshifts
+                # add a 0.025 redshift buffer to each end to ensure complete overlap of haloes with selected lightcone
+                snapshot_numbers = snapshots_in_range(
+                    output_redshifts(flamingo_box_resolution(halo_cat_format)), (zmin - 0.025, zmax + 0.025)
+                )[::-1]
+
+                message(
+                    f"\tredshift range:\t{zmin:.3f}-{zmax:.3f}, snapshot numbers:\t{snapshot_numbers[0]}-{snapshot_numbers[-1]}"
+                )
+                comm.barrier()  # collect ranks after establishing shell redshifts
 
                 # generate list of halo lightcone and soap catalogue filenames from snapshot numbers
-                halo_filenames = [halo_cat_format.format(lightcone_nr=lightcone_nr, snap_nr=ii) for ii in snapshot_numbers]
+                halo_filenames = [
+                    halo_cat_format.format(lightcone_nr=lightcone_nr, snap_nr=ii) for ii in snapshot_numbers
+                ]
                 soap_filenames = [soap_cat_format.format(snap_nr=ii) for ii in snapshot_numbers]
 
                 # shared reading of all catalogues for this shell
-                halo_data = read_shell_halo_properties(halo_filenames, soap_filenames, snapshot_numbers, radius_prop, mass_prop, mass_unit_str, comm)
+                halo_data = read_shell_halo_properties(
+                    halo_filenames, soap_filenames, snapshot_numbers, radius_prop, mass_prop, mass_unit_str, comm
+                )
 
                 # get local redshifts and central masks
                 local_redshift = np.asarray(halo_data["Lightcone/Redshift"])
@@ -623,10 +669,9 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                 shell_kept = comm.allreduce(int(np.sum(m_redshift)))
                 message(f"shell:\t{shell_nr}, keep:\t{shell_kept}/{shell_total}")
 
-
                 if shell_kept == 0:
                     # No kept halos anywhere in this shell so skip the
-                    # rotation, routing and mass-bin work 
+                    # rotation, routing and mass-bin work
                     ones = np.ones(nr_local_pixels, dtype=np.int32)
                     for method_name, log_mass_bins, prefix in method_specs:
                         n_mass = np.shape(log_mass_bins)[0]
@@ -635,7 +680,7 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                             for mj in range(n_mass):
                                 mask_str = f"R{ri:d}_M{mj:d}"
                                 with MASK[mask_str].collective:
-                                    MASK[mask_str][shell_nr, local_offset:local_offset + nr_local_pixels] = ones
+                                    MASK[mask_str][shell_nr, local_offset : local_offset + nr_local_pixels] = ones
                     continue
 
                 # store local halo centres on the sky
@@ -643,39 +688,50 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                 local_radius_1d = np.asarray(halo_data[radius_prop])[m_redshift]
                 local_mass = np.asarray(halo_data[mass_prop])[m_redshift]
 
-                # if no need to rotate coordinates on the sky then skip this step, i.e., theta==phi==0 
+                # if no need to rotate coordinates on the sky then skip this step, i.e., theta==phi==0
                 if latitudes[shell_nr] == 0 and longitudes[shell_nr] == 0:
                     map_rotator_object = None
                 else:
-                    # rotate halo coords on the sky the same as done when rotating maps for integrated lightcones. 
+                    # rotate halo coords on the sky the same as done when rotating maps for integrated lightcones.
                     map_rotator_object = hp.Rotator(
                         rot=[latitudes[shell_nr].to_value(unyt.deg), longitudes[shell_nr].to_value(unyt.deg)],
-                        inv=True, deg=True)
+                        inv=True,
+                        deg=True,
+                    )
                 if map_rotator_object is not None and local_centre.shape[0] > 0:
                     local_centre = rotate_cluster_coords(local_centre, map_rotator_object)
 
                 # iterate through radii to draw apertures
                 for ri in range(n_radius):
                     radius_this_ri = local_radius_1d * radius_scalings[ri]
-                    recv_coords, recv_radius, (recv_mass,) = route_halos_to_pixel_owners(theta_boundary, local_centre, radius_this_ri, [local_mass], comm)
+                    recv_coords, recv_radius, (recv_mass,) = route_halos_to_pixel_owners(
+                        theta_boundary, local_centre, radius_this_ri, [local_mass], comm
+                    )
 
-                    #iterate through mass bins per bin method 
+                    # iterate through mass bins per bin method
                     for method_name, log_mass_bins, prefix in method_specs:
                         n_mass = np.shape(log_mass_bins)[0]
                         MASK = MASKS[method_name]
                         for mj in range(n_mass):
-                            mask_str = f"R{ri:d}_M{mj:d}" # output mask name 
-                            m_mass = (recv_mass > 10**log_mass_bins[mj][0]) & (recv_mass <= 10**log_mass_bins[mj][1]) # transform bin edges from log10 to real 
+                            mask_str = f"R{ri:d}_M{mj:d}"  # output mask name
+                            m_mass = (recv_mass > 10 ** log_mass_bins[mj][0]) & (
+                                recv_mass <= 10 ** log_mass_bins[mj][1]
+                            )  # transform bin edges from log10 to real
 
                             # local mask for haloes in redshift range and mass bin
-                            local_mask = mask_cluster_apertures_local(nside, recv_coords[m_mass], recv_radius[m_mass], local_offset, nr_local_pixels)
+                            local_mask = mask_cluster_apertures_local(
+                                nside, recv_coords[m_mass], recv_radius[m_mass], local_offset, nr_local_pixels
+                            )
 
                             # Each rank writes into the same collective dataset
                             with MASK[mask_str].collective:
-                                MASK[mask_str][shell_nr, local_offset:local_offset + nr_local_pixels] = local_mask
+                                MASK[mask_str][shell_nr, local_offset : local_offset + nr_local_pixels] = local_mask
 
-                    rank_message(f"lightcone {lightcone_nr},\t{ri+1:d}/{n_radius:d} masks completed [radius < {radius_scalings[ri]} {radius_prop}]", comm_rank)
-                
-                comm.barrier() # use barrier to collect ranks per shell iteration
-            
+                    rank_message(
+                        f"lightcone {lightcone_nr},\t{ri + 1:d}/{n_radius:d} masks completed [radius < {radius_scalings[ri]} {radius_prop}]",
+                        comm_rank,
+                    )
+
+                comm.barrier()  # use barrier to collect ranks per shell iteration
+
             rank_message(f"Completed {mass_prop} masks for lightcone {lightcone_nr} shells 0 - {nshell}", comm_rank)

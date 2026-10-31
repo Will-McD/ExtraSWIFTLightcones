@@ -39,8 +39,12 @@ def main(args):
     if args["beam_vector"] is not None:
         kwargs["ang_radius_deg"] = args["ang_radius_deg"]
         kwargs["redistibute_particles"] = args["redistribute"]
-    particles = lightcone.place_snapshot_particles_in_shell(tuple(args["redshift_range"]), property_names=["ParticleIDs", "Coordinates"],
-                                                            particle_types=placement.PTYPE, **kwargs)[placement.PTYPE]
+    particles = lightcone.place_snapshot_particles_in_shell(
+        tuple(args["redshift_range"]),
+        property_names=["ParticleIDs", "Coordinates"],
+        particle_types=placement.PTYPE,
+        **kwargs,
+    )[placement.PTYPE]
 
     if particles and particles.get("Coordinates") is not None and len(particles["Coordinates"]) > 0:
         snap_nr, ids, coords = placement.particle_rows(particles)

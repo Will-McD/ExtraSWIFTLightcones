@@ -20,6 +20,7 @@ MAX_SNAPSHOT_SPACING = 0.1
 # the snapshots filling a redshift range, see snapshot_coverage
 SnapshotCoverage = namedtuple("SnapshotCoverage", ["snapshots", "ranges", "missing", "filled_by"])
 
+
 def _as_redshifts(redshifts):
     """
     Check for one redshift per snapshot and that they are decreasing with snapshot number.
@@ -36,6 +37,7 @@ def _as_redshifts(redshifts):
         raise ValueError("the output redshifts must decrease with snapshot number")
     return redshifts
 
+
 def redshift_edges(redshifts):
     """
     The edges of each snapshots redshift range.
@@ -49,10 +51,11 @@ def redshift_edges(redshifts):
     midpoints = 0.5 * (redshifts[:-1] + redshifts[1:])
     return np.concatenate([[redshifts[0]], midpoints, [redshifts[-1]]])
 
+
 def snapshot_redshift_range(redshifts, snapshot_number):
     """
     Redshift range covered by a snapshot, with edges at the midpoints between neighbouring snapshots.
-    
+
     Returns a tuple, (minimum redshift, maximum redshift)
 
     :param  redshifts:          redshift of each snapshot, in order of snapshot number
@@ -67,6 +70,7 @@ def snapshot_redshift_range(redshifts, snapshot_number):
     snapshot_number = int(snapshot_number) % nr_snapshots
     return edges[snapshot_number + 1], edges[snapshot_number]
 
+
 def snapshots_in_range(redshifts, redshift_range, range_tol=1e-9, strict=False):
     """
     Returns an array of snapshot numbers whose redshift ranges overlap with a given redshift range.
@@ -79,13 +83,12 @@ def snapshots_in_range(redshifts, redshift_range, range_tol=1e-9, strict=False):
 
     if range_tol < 0:
         raise ValueError(f"range_tol must not be negative, not {range_tol}")
-    
+
     z_min, z_max = (float(z) for z in redshift_range)
-    if z_min <0 or z_max<0:
-         raise ValueError("redshifts must not be negative")
+    if z_min < 0 or z_max < 0:
+        raise ValueError("redshifts must not be negative")
     elif z_max < z_min:
         raise ValueError(f"redshift_range must be [z_min, z_max], not {redshift_range}")
-
 
     edges = redshift_edges(redshifts)
 
@@ -94,6 +97,7 @@ def snapshots_in_range(redshifts, redshift_range, range_tol=1e-9, strict=False):
     else:
         overlaps = (edges[1:] <= z_max + range_tol) & (edges[:-1] >= z_min - range_tol)
     return np.flatnonzero(overlaps)
+
 
 def snapshot_at_redshift(redshifts, redshift, range_tol=1e-6):
     """
@@ -110,13 +114,14 @@ def snapshot_at_redshift(redshifts, redshift, range_tol=1e-6):
     """
     redshifts = _as_redshifts(redshifts)
     nearest = int(np.argmin(np.abs(redshifts - redshift)))
-    if not np.isclose(redshifts[nearest], redshift, rtol=0., atol=range_tol):
+    if not np.isclose(redshifts[nearest], redshift, rtol=0.0, atol=range_tol):
         raise ValueError(f"no snapshot at redshift {redshift} (nearest is snapshot {nearest} at {redshifts[nearest]})")
     return nearest
 
+
 def available_redshift_edges(redshifts, available):
     """
-    Edges of the available snapshots redshift ranges when some snapshots are missing. 
+    Edges of the available snapshots redshift ranges when some snapshots are missing.
 
     Returns a tuple, (the available snapshot numbers in increasing order, the redshift edges of each snapshot)
 
@@ -136,21 +141,22 @@ def available_redshift_edges(redshifts, available):
     edges = np.concatenate([[redshifts[0]], 0.5 * (z[:-1] + z[1:]), [redshifts[-1]]])
     return snapshots, edges
 
-def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX_SNAPSHOT_SPACING, range_tol=0.):
-    """
-    The snapshots that fill a redshift range when some snapshots are missing. 
 
-    Without missing snapshots, each snapshot fills its own range. 
+def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX_SNAPSHOT_SPACING, range_tol=0.0):
+    """
+    The snapshots that fill a redshift range when some snapshots are missing.
+
+    Without missing snapshots, each snapshot fills its own range.
     If any snapshots are missing, the available snapshots fill the range instead, each covering the redshifts
-    closer to its own than to its available neighbours. 
+    closer to its own than to its available neighbours.
 
     Returns a SnapshotCoverage of:
         snapshots:  the snapshot numbers filling the range (from high to low redshift)
-        ranges:     {snapshot number: (minimum redshift, maximum redshift)} 
+        ranges:     {snapshot number: (minimum redshift, maximum redshift)}
         missing:    the snapshot numbers that would have filled the range but are not available (from high to low redshift)
         filled_by:  {missing snapshot number: the snapshot numbers whose ranges now cover its redshifts}
 
-    Raise a ValueError if the redshift spacing between neighbouring snapshots filling the range is greater than max_spacing. 
+    Raise a ValueError if the redshift spacing between neighbouring snapshots filling the range is greater than max_spacing.
 
     :param  redshifts:      redshift of each snapshot, in order of snapshot number
     :type   redshifts:      array-like
@@ -175,7 +181,9 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
         spacings = [(int(a), int(b), redshifts[a] - redshifts[b]) for a, b in zip(snapshots[:-1], snapshots[1:])]
     else:
         if not np.any(np.isin(available, np.arange(len(redshifts)))):
-            raise ValueError(f"none of the snapshots are available, the redshift range {z_min} - {z_max} needs snapshots {needed.tolist()}")
+            raise ValueError(
+                f"none of the snapshots are available, the redshift range {z_min} - {z_max} needs snapshots {needed.tolist()}"
+            )
         avail, edges = available_redshift_edges(redshifts, available)
         overlaps = (edges[1:] <= z_max + range_tol) & (edges[:-1] >= z_min - range_tol)
         snapshots = avail[overlaps]
@@ -191,14 +199,21 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
     # 0.15 - 0.05) is not let through by its floating point representation
     too_wide = [(a, b, dz) for a, b, dz in spacings if dz >= max_spacing - 1e-9]
     if too_wide:
-        gaps = ", ".join(f"{dz:.4g} between snapshots {a} (z = {redshifts[a]:.4g}) and {b} (z = {redshifts[b]:.4g})" for a, b, dz in too_wide)
-        cause = (f"snapshots {missing.tolist()} are missing" if len(missing) else "the output redshifts are spaced this widely")
-        raise ValueError(f"the redshift spacing between snapshots is too large to fill {z_min} < z < {z_max}: {gaps} as {cause}")
+        gaps = ", ".join(
+            f"{dz:.4g} between snapshots {a} (z = {redshifts[a]:.4g}) and {b} (z = {redshifts[b]:.4g})"
+            for a, b, dz in too_wide
+        )
+        cause = (
+            f"snapshots {missing.tolist()} are missing"
+            if len(missing)
+            else "the output redshifts are spaced this widely"
+        )
+        raise ValueError(
+            f"the redshift spacing between snapshots is too large to fill {z_min} < z < {z_max}: {gaps} as {cause}"
+        )
 
     filled_by = {}
     for n in missing:
         lo, hi = snapshot_redshift_range(redshifts, n)
         filled_by[int(n)] = [int(m) for m in snapshots if ranges[int(m)][0] < hi and ranges[int(m)][1] > lo]
     return SnapshotCoverage([int(n) for n in snapshots], ranges, [int(n) for n in missing], filled_by)
-
-

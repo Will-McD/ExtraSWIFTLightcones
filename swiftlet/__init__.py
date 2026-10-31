@@ -25,10 +25,12 @@ The main classes and functions can be imported from the package:
 Each is imported when first used, so importing the package doesn't need MPI, matplotlib or lightcone_io
 until something needing them is used. The submodules can also be used as attributes, e.g. swiftlet.config.
 """
+
 import importlib
 
 # Use setuptools_scm to get version from git tags
 from importlib.metadata import version, PackageNotFoundError
+
 try:
     __version__ = version("swiftlet-lightcones")
 except PackageNotFoundError:
@@ -111,9 +113,9 @@ def __getattr__(name):
     """
     Import the public classes, functions and submodules of the package when first used, so that modules
     which don't need MPI (e.g. swiftlet.config) can be imported without it.
-    
+
     Returns the class, function or submodule named.
-    
+
     :param  name:   name of the attribute
     :type   name:   str
     """

@@ -5,8 +5,9 @@ unit registry.
 Adapted from the LightconeIO lightcone_io/xray_utils.py
 
 The cosmology is the astropy w0waCDM of the snapshot's Cosmology group: H0, Omega_m, Omega_lambda, Omega_b, w_0,
-w_a and T_CMB_0. 
+w_a and T_CMB_0.
 """
+
 import os
 import re
 import h5py
@@ -52,18 +53,18 @@ def _attributes(snapshot, group_name):
         raise KeyError(f"{snapshot.filename} doesn't have a group called {group_name}")
     values = {}
     for name, value in snapshot[group_name].attrs.items():
-        if isinstance(value, bytes): # if byte format then decode to str
-            value = value.decode() 
+        if isinstance(value, bytes):  # if byte format then decode to str
+            value = value.decode()
         elif isinstance(value, np.ndarray) and value.size == 1:
-            value = value.reshape(-1)[0] # if array, it is only 1 sized array. 
-            value = value.decode() if isinstance(value, bytes) else value.item() # decode if array item in bytes format
+            value = value.reshape(-1)[0]  # if array, it is only 1 sized array.
+            value = value.decode() if isinstance(value, bytes) else value.item()  # decode if array item in bytes format
         values[name] = value
     return values
 
 
 def neutrino_masses(cosmology):
     """
-    Convert SWIFT neutrino masses to astropy format. 
+    Convert SWIFT neutrino masses to astropy format.
 
     Returns an np.ndarray of masses [eV], one per species (int(N_eff) of them).
 
@@ -73,15 +74,19 @@ def neutrino_masses(cosmology):
     :param  cosmology:  Cosmology attributes of the snapshot (see SnapshotCosmology.cosmology)
     :type   cosmology:  dict
     """
-    n_eff = float(cosmology.get("N_eff", 3.04)) # try read effective number of neutrino, otherwise fall back to astropy default
-    masses = np.atleast_1d(np.asarray(cosmology.get("M_nu_eV", 0.), dtype=float)) # if no mass found, fall back to 0.0
-    degeneracies = np.atleast_1d(np.asarray(cosmology.get("deg_nu", 0.), dtype=float)) # repeat for degeneracies
-    n_massless = float(np.squeeze(cosmology.get("N_ur", n_eff))) # numb of masses species
-    if not np.all(degeneracies == np.round(degeneracies)): 
+    n_eff = float(
+        cosmology.get("N_eff", 3.04)
+    )  # try read effective number of neutrino, otherwise fall back to astropy default
+    masses = np.atleast_1d(np.asarray(cosmology.get("M_nu_eV", 0.0), dtype=float))  # if no mass found, fall back to 0.0
+    degeneracies = np.atleast_1d(np.asarray(cosmology.get("deg_nu", 0.0), dtype=float))  # repeat for degeneracies
+    n_massless = float(np.squeeze(cosmology.get("N_ur", n_eff)))  # numb of masses species
+    if not np.all(degeneracies == np.round(degeneracies)):
         raise ValueError(f"astropy can't hold neutrinos of degeneracies {degeneracies} (deg_nu), only whole numbers")
     if int(n_eff) != int(degeneracies.sum()) + int(n_massless):
-        raise ValueError(f"astropy can't hold these neutrinos: {int(degeneracies.sum())} massive (deg_nu) and {int(n_massless)} massless (N_ur) species, but N_eff = {n_eff}")
-    massive = np.repeat(masses, degeneracies.astype(int)) # store the species of massive neutrinos
+        raise ValueError(
+            f"astropy can't hold these neutrinos: {int(degeneracies.sum())} massive (deg_nu) and {int(n_massless)} massless (N_ur) species, but N_eff = {n_eff}"
+        )
+    massive = np.repeat(masses, degeneracies.astype(int))  # store the species of massive neutrinos
     return np.concatenate([massive, np.zeros(int(n_massless))])
 
 
@@ -113,17 +118,26 @@ class SnapshotCosmology:
             self.internal_units = _attributes(snapshot, "InternalCodeUnits")
             self.parameters = _attributes(snapshot, "Parameters") if "Parameters" in snapshot else {}
 
-        required_cosmo_params = ("H0 [internal units]", "Omega_m", "Omega_lambda", "Omega_b", "w_0", "w_a", "T_CMB_0 [K]")
+        required_cosmo_params = (
+            "H0 [internal units]",
+            "Omega_m",
+            "Omega_lambda",
+            "Omega_b",
+            "w_0",
+            "w_a",
+            "T_CMB_0 [K]",
+        )
         missing = [name for name in required_cosmo_params if name not in self.cosmology]
-        
+
         if missing:
             raise KeyError(f"{self.snapshot_filename}: Cosmology has no {missing}")
-
 
         self.COSMO = w0waCDM(
             # in km/s per the snapshot's megaparsec, which is astropy's
             H0=self.Hubble_const.to_value("km/s/swift_mpc") * astropy_units.km / astropy_units.s / astropy_units.Mpc,
-            Om0=self.cosmology["Omega_m"],  # Omega_m in SWIFT = cold dark matter and baryons, without the massive neutrinos
+            Om0=self.cosmology[
+                "Omega_m"
+            ],  # Omega_m in SWIFT = cold dark matter and baryons, without the massive neutrinos
             Ode0=self.cosmology["Omega_lambda"],
             Ob0=self.cosmology["Omega_b"],
             w0=self.cosmology["w_0"],
@@ -181,7 +195,6 @@ class SnapshotCosmology:
         """
         return self.parameters.get(name)
 
-
     def comoving_distance(self, z):
         """
         Comoving distance to redshift(s), unyt_array [Mpc].
@@ -202,7 +215,7 @@ class SnapshotCosmology:
         :param  dt: time before z [Myr], or a unyt quantity of time
         :type   dt: float or unyt.unyt_quantity
         """
-        
+
         dt = sw_units.apply_expected_units(dt, unyt.Myr)
         earlier = unyt.unyt_array.from_astropy(self.COSMO.age(z)).to("Myr") - dt
         return float(z_at_value(self.COSMO.age, earlier.to_astropy()).value)
@@ -240,14 +253,14 @@ class SnapshotCosmology:
             inner = sw_units.apply_expected_units(inner, unyt.Mpc)
             outer = sw_units.apply_expected_units(outer, unyt.Mpc)
         # the solid angle of the sky, or of a cone: 2 pi (1 - cos(half_angle))
-        solid_angle = 4. * np.pi if half_angle is None else 2. * np.pi * (1. - np.cos(half_angle))
-        return (solid_angle / 3. * (outer**3 - inner**3)).to("Mpc**3")
+        solid_angle = 4.0 * np.pi if half_angle is None else 2.0 * np.pi * (1.0 - np.cos(half_angle))
+        return (solid_angle / 3.0 * (outer**3 - inner**3)).to("Mpc**3")
 
 
 def as_astropy_cosmology(cosmology):
     """
     Make all cosmologies used consistently transformed too astropy format,
-    handle reading cosmology as done in LightconeIO, from a hdf5 group and a Simulation object. 
+    handle reading cosmology as done in LightconeIO, from a hdf5 group and a Simulation object.
 
     Returns an astropy cosmology.
 
@@ -260,5 +273,6 @@ def as_astropy_cosmology(cosmology):
         return cosmology.COSMO
     if isinstance(cosmology, (str, os.PathLike)):
         return SnapshotCosmology.from_path(cosmology).COSMO
-    raise TypeError(f"cosmology must be a SnapshotCosmology, an astropy cosmology or the path of a snapshot, not {type(cosmology).__name__}")
-
+    raise TypeError(
+        f"cosmology must be a SnapshotCosmology, an astropy cosmology or the path of a snapshot, not {type(cosmology).__name__}"
+    )

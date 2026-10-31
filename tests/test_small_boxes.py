@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import pytest
+
 pytest.importorskip("h5py")
 pytest.importorskip("lightcone_io")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples/diagrams"))
@@ -23,14 +24,14 @@ all-sky shell and beam, with every orientation lock, is placed exactly once and 
 # cell, so a shift by whole cells (the default tables shift by eighths of the box, here one cell) keeps the lattice on
 # itself
 BOXES = {
-    "L25": ("L0025N0376", 25., 8, 1.5625, (5.3, 60.3)),
-    "L50": ("L0050N0752", 50., 8, 3.125, (10.3, 120.3)),
+    "L25": ("L0025N0376", 25.0, 8, 1.5625, (5.3, 60.3)),
+    "L50": ("L0050N0752", 50.0, 8, 3.125, (10.3, 120.3)),
 }
 SNAPSHOTS = range(122, 128)  # COLIBRE z = 0 to 0.05, out to about 210 Mpc
 LIGHTCONES = [
     pytest.param(None, None, id="all_sky"),
-    pytest.param((0, 0, 1), 15., id="beam_z_axis"),
-    pytest.param((1, 2, 3), 15., id="beam_off_axis"),
+    pytest.param((0, 0, 1), 15.0, id="beam_z_axis"),
+    pytest.param((1, 2, 3), 15.0, id="beam_off_axis"),
 ]
 
 
@@ -44,9 +45,15 @@ def small_boxes(tmp_path_factory):
     run_dir = tmp_path_factory.mktemp("small_boxes")
     boxes = {}
     for name, (label, boxsize, ncells, spacing, _) in BOXES.items():
-        simulation, halo_format = lattice.write_lattice_simulation(run_dir, box_res=label, sim_name="LATTICE",
-                                                                   snapshots=SNAPSHOTS, boxsize=boxsize,
-                                                                   ncells_axis=ncells, spacing=spacing)
+        simulation, halo_format = lattice.write_lattice_simulation(
+            run_dir,
+            box_res=label,
+            sim_name="LATTICE",
+            snapshots=SNAPSHOTS,
+            boxsize=boxsize,
+            ncells_axis=ncells,
+            spacing=spacing,
+        )
         boxes[name] = (simulation, SnapshotCosmology.from_simulation(simulation), halo_format)
     return boxes
 
@@ -69,8 +76,9 @@ def test_small_box_lattice_placed_once(small_boxes, box, orientation_lock, beam_
         lightcone = lattice.new_lightcone(simulation, beam_vector, orientation_lock)
         placed[kind] = lattice.place_lattice(lightcone, redshift_range, ang_radius_deg, kind, halo_format)
         missing, extra = lattice.lattice_check(placed[kind][2], expected, boxsize=boxsize, spacing=spacing)
-        assert len(missing) == 0 and len(extra) == 0, \
+        assert len(missing) == 0 and len(extra) == 0, (
             f"{label} {kind}: {len(missing)} lattice points missing, {len(extra)} repeated or off the lattice"
+        )
 
     particles, haloes = placed["particles"], placed["haloes"]
     assert np.array_equal(particles[0], haloes[0]) and np.array_equal(particles[1], haloes[1])
@@ -80,9 +88,8 @@ def test_small_box_lattice_placed_once(small_boxes, box, orientation_lock, beam_
     # one behind another along the line of sight
     snap_nr, _, coords = particles
     tiles = np.floor(coords / boxsize + 0.5).astype(int)
-    
+
     assert len(np.unique(tiles, axis=0)) >= 5 and len(np.unique(snap_nr)) > 1
-    
+
     layers_per_snapshot = [len(np.unique(np.max(np.abs(tiles[snap_nr == s]), axis=1))) for s in np.unique(snap_nr)]
     assert max(layers_per_snapshot) > 1
-

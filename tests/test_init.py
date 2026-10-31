@@ -13,16 +13,18 @@ Tests for the modules top level: public names are imported when first used, and 
 module doesn't import the modules that need MPI.
 """
 
+
 def test_import_does_not_load_submodules():
     # in a new interpreter, so modules imported by other tests don't count
-    code = ("import sys, swiftlet; "
-            "print(sorted(m for m in sys.modules if m.startswith('swiftlet.')))")
+    code = "import sys, swiftlet; print(sorted(m for m in sys.modules if m.startswith('swiftlet.')))"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
     assert out.strip() == "[]"
+
 
 # modules that need mpi4py and virgodc to import
 MPI_MODULES = {"mask_haloes"}
 HAVE_MPI_EXTRA = all(importlib.util.find_spec(name) is not None for name in ("mpi4py", "virgo"))
+
 
 @pytest.mark.parametrize("name", esl.__all__)
 def test_public_names(name):

@@ -1,6 +1,7 @@
 #!/bin/env python
 import numpy as np
 import pytest
+
 pytest.importorskip("yaml")
 from swiftlet import snapshot_orientation as so
 
@@ -13,29 +14,30 @@ Tests of the orientation tables of the snapshot tiles:
 
 """
 
+
 def orientation_keys(tables):
     """
     Each row of the tables as a hashable key: the matrix of its quarter turns and reflections, and its cell shift.
     """
     keys = []
     for turns, reflections, shift in zip(tables["QuarterTurns"], tables["Reflections"], tables["CellShifts"]):
-        matrix = so._build_rotation_matrix(turns * 90., degrees=True) * reflections[np.newaxis, :]
+        matrix = so._build_rotation_matrix(turns * 90.0, degrees=True) * reflections[np.newaxis, :]
         keys.append(tuple(np.rint(matrix).astype(int).ravel()) + tuple(int(n) for n in shift))
     return keys
 
 
-# The fingerprints of the installed tables. 
-# To keep reproducibility these should not change. 
+# The fingerprints of the installed tables.
+# To keep reproducibility these should not change.
 DEFAULT_V1_FINGERPRINT = "dd43da3e96d8add4"
 DEFAULT_V2_FINGERPRINT = "7006e905808e256f"
 
 
 def test_installed_tables():
     """
-    Test that the default tables are installed and accessible: 
-        - default_v1:   a small 79 row table used for tests and has intentional 
+    Test that the default tables are installed and accessible:
+        - default_v1:   a small 79 row table used for tests and has intentional
                             clashes of cells
-        - default_v2:   a no-clash table to used to build lightcones  
+        - default_v2:   a no-clash table to used to build lightcones
     """
 
     assert so.DEFAULT_ORIENTATION_TABLE == "default_v2"
@@ -54,8 +56,11 @@ def test_installed_tables():
     assert set(np.unique(turns_and_reflections, axis=0, return_counts=True)[1]) == {108}
     assert np.all(np.isin(v2["CellShifts"], so.EIGHTH_SHIFT_VALUES))
     # read by name, as a lightcone does
-    for name, fingerprint in (("default_v1", DEFAULT_V1_FINGERPRINT), ("default_v2", DEFAULT_V2_FINGERPRINT),
-                              ("default", DEFAULT_V2_FINGERPRINT)):
+    for name, fingerprint in (
+        ("default_v1", DEFAULT_V1_FINGERPRINT),
+        ("default_v2", DEFAULT_V2_FINGERPRINT),
+        ("default", DEFAULT_V2_FINGERPRINT),
+    ):
         assert so.orientation_tables_fingerprint(so.read_orientation_tables(name)) == fingerprint
     with pytest.raises(ValueError, match="installed"):
         so.default_orientation_tables("default_v3")
@@ -79,6 +84,7 @@ def test_installed_v1_tables_are_those_of_the_tool():
     """
     import importlib.util
     from pathlib import Path
+
     path = Path(__file__).resolve().parents[1] / "tools" / "make_installed_orientation_tables.py"
     spec = importlib.util.spec_from_file_location("make_installed_orientation_tables", path)
     tool = importlib.util.module_from_spec(spec)
@@ -112,44 +118,54 @@ def test_cell_shifts_in_cells():
     """
     np.testing.assert_array_equal(so.cell_shifts_in_cells([1, -3, 4], 32), [4, -12, 16])
     np.testing.assert_array_equal(so.cell_shifts_in_cells([1, -3, 4], [16, 64, 8]), [2, -24, 4])
-    
+
     for nr_cells_axis in (10, 4, 0):
         with pytest.raises(ValueError, match="multiple of 8"):
             so.cell_shifts_in_cells([1, 0, 0], nr_cells_axis)
 
     with pytest.raises(ValueError, match="CellShifts must be a multiple of 1/8"):
-        so.check_orientation_tables({"QuarterTurns": [[0, 0, 0]], "Reflections": [[1, 1, 1]], "CellShifts": [[5, 0, 0]]})
-    
+        so.check_orientation_tables(
+            {"QuarterTurns": [[0, 0, 0]], "Reflections": [[1, 1, 1]], "CellShifts": [[5, 0, 0]]}
+        )
+
     with pytest.raises(ValueError, match="CellShifts must be a multiple of 1/8"):
-        so.check_orientation_tables({"QuarterTurns": [[0, 0, 0]], "Reflections": [[1, 1, 1]], "CellShifts": [[-4, 0, 0]]})
+        so.check_orientation_tables(
+            {"QuarterTurns": [[0, 0, 0]], "Reflections": [[1, 1, 1]], "CellShifts": [[-4, 0, 0]]}
+        )
 
 
 def test_tables_in_whole_cells_are_refused(tmp_path):
     """
     Test that tables or files with units of cell shifts not equal to 1/8 are refused.
     """
-    tables = {"QuarterTurns": [[0, 0, 0], [1, 0, 0]], "Reflections": [[1, 1, 1], [-1, 1, 1]], "CellShifts": [[0, 0, 0], [2, 0, -1]]}
-    
+    tables = {
+        "QuarterTurns": [[0, 0, 0], [1, 0, 0]],
+        "Reflections": [[1, 1, 1], [-1, 1, 1]],
+        "CellShifts": [[0, 0, 0], [2, 0, -1]],
+    }
+
     with pytest.raises(ValueError, match="incorrect units"):
         so.check_orientation_tables(dict(tables, cell_shift_unit="cells"))
-    
-    assert so.orientation_tables_fingerprint(dict(tables, cell_shift_unit="eighths")) == \
-        so.orientation_tables_fingerprint(tables)
-    
+
+    assert so.orientation_tables_fingerprint(
+        dict(tables, cell_shift_unit="eighths")
+    ) == so.orientation_tables_fingerprint(tables)
+
     filename = tmp_path / "tables.yaml"
     fingerprint = so.write_orientation_tables(filename, tables=tables)
-    
+
     assert so.orientation_tables_fingerprint(so.read_orientation_tables(filename)) == fingerprint
-    
+
     filename.write_text(filename.read_text().replace("cell_shift_unit: eighths", "cell_shift_unit: cells"))
 
     with pytest.raises(ValueError, match="incorrect units"):
         so.read_orientation_tables(filename)
 
+
 def test_generated_tables_hold_every_distinct_orientation():
     tables = so.generate_orientation_tables()
     keys = orientation_keys(tables)
-    
+
     # test keys are consistent for allowed ranges
     assert len(keys) == 48 * 8**3 == 24576
     assert len(set(keys)) == len(keys), "orientations repeated in the generated tables"
@@ -171,37 +187,42 @@ def test_generated_tables_are_reproducible():
 
 
 def test_generated_tables_options():
-    
+
     tables = so.generate_orientation_tables(n_rows=100)
     assert len(tables["QuarterTurns"]) == 100
-    
+
     np.testing.assert_array_equal(tables["CellShifts"][0], [0, 0, 0])
-    np.testing.assert_array_equal(so.generate_orientation_tables(n_rows=100)["CellShifts"], so.generate_orientation_tables()["CellShifts"][:100])
-    
+    np.testing.assert_array_equal(
+        so.generate_orientation_tables(n_rows=100)["CellShifts"], so.generate_orientation_tables()["CellShifts"][:100]
+    )
+
     tables = so.generate_orientation_tables(cell_shift_values=(0, 2, -2, 4))
-    
+
     assert len(tables["QuarterTurns"]) == 48 * 4**3 and set(np.unique(tables["CellShifts"]).tolist()) == {0, 2, -2, 4}
-    
+
     with pytest.raises(ValueError):
         so.generate_orientation_tables(n_rows=0)
-    
+
     with pytest.raises(ValueError):
         so.generate_orientation_tables(n_rows=24577)
-    
+
     with pytest.raises(ValueError):
         so.generate_orientation_tables(cell_shift_values=(1, 2))  # no 0
-    
+
     with pytest.raises(ValueError, match="CellShifts must be a multiple of 1/8"):
         so.generate_orientation_tables(cell_shift_values=(0, 8))  # not in eighths
 
 
-@pytest.mark.parametrize("change, message", [
-    (lambda t: t.pop("CellShifts"), "missing"),
-    (lambda t: t.update(CellShifts=t["CellShifts"][:-1]), "same number of rows"),
-    (lambda t: t.update(Reflections=np.where(t["Reflections"] > 0, 2, -1)), "Reflections"),
-    (lambda t: t.update(QuarterTurns=t["QuarterTurns"] + 0.5), "whole numbers"),
-    (lambda t: t.update(QuarterTurns=t["QuarterTurns"][:, :2]), "shape"),
-])
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        (lambda t: t.pop("CellShifts"), "missing"),
+        (lambda t: t.update(CellShifts=t["CellShifts"][:-1]), "same number of rows"),
+        (lambda t: t.update(Reflections=np.where(t["Reflections"] > 0, 2, -1)), "Reflections"),
+        (lambda t: t.update(QuarterTurns=t["QuarterTurns"] + 0.5), "whole numbers"),
+        (lambda t: t.update(QuarterTurns=t["QuarterTurns"][:, :2]), "shape"),
+    ],
+)
 def test_invalid_tables_are_refused(change, message):
     tables = dict(so.default_orientation_tables())
     change(tables)
@@ -211,16 +232,16 @@ def test_invalid_tables_are_refused(change, message):
 
 def test_write_and_read_tables(tmp_path):
     """
-    Test that Generated tables do not change between reading and writing when read back. 
+    Test that Generated tables do not change between reading and writing when read back.
     """
     filename = tmp_path / "orientations.yaml"
-    
+
     fingerprint = so.write_orientation_tables(filename, seed=5)
-    
+
     tables = so.read_orientation_tables(filename)
-    
+
     expected = so.generate_orientation_tables(seed=5)
-    
+
     for name in so.ORIENTATION_TABLE_NAMES:
         np.testing.assert_array_equal(tables[name], expected[name])
 
@@ -228,8 +249,9 @@ def test_write_and_read_tables(tmp_path):
 
     so.write_orientation_tables(filename, tables=so.default_orientation_tables())
 
-    assert so.orientation_tables_fingerprint(so.read_orientation_tables(filename)) == \
-        so.orientation_tables_fingerprint(so.default_orientation_tables())
+    assert so.orientation_tables_fingerprint(so.read_orientation_tables(filename)) == so.orientation_tables_fingerprint(
+        so.default_orientation_tables()
+    )
 
 
 def test_write_and_read_yaml_tables(tmp_path):
@@ -241,19 +263,19 @@ def test_write_and_read_yaml_tables(tmp_path):
     fingerprint = so.write_orientation_tables(filename, seed=5, attributes={"made_by": "me", "checked_for": [16, 32]})
     tables = so.read_orientation_tables(filename)
     expected = so.generate_orientation_tables(seed=5)
-    
+
     for name in so.ORIENTATION_TABLE_NAMES:
         np.testing.assert_array_equal(tables[name], expected[name])
-    
+
     assert so.orientation_tables_fingerprint(tables) == fingerprint
-    
+
     with open(filename) as f:
         contents = yaml.safe_load(f)
-    
+
     assert contents["fingerprint"] == fingerprint and contents["number_of_rows"] == 24576
     assert contents["seed"] == 5 and contents["generated"] is True and contents["cell_shift_unit"] == "eighths"
     assert contents["made_by"] == "me" and contents["checked_for"] == [16, 32]
-    
+
     np.testing.assert_array_equal(np.array(contents["rows"])[:, 6:], expected["CellShifts"])
 
 
@@ -264,9 +286,11 @@ def test_yaml_tables_written_by_hand(tmp_path):
     """
     columns = "[" + ", ".join(so.ORIENTATION_TABLE_COLUMNS) + "]"
     by_hand = tmp_path / "by_hand.yml"
-    by_hand.write_text(f"# my tables\ncell_shift_unit: eighths\ncolumns: {columns}\nrows:\n"
-                       "  - [0, 0, 0, 1, 1, 1, 0, 0, 0]\n  -\n    - 1\n    - 0\n    - 0\n    - -1\n    - 1\n"
-                       "    - 1\n    - 2\n    - 0\n    - -1\n")
+    by_hand.write_text(
+        f"# my tables\ncell_shift_unit: eighths\ncolumns: {columns}\nrows:\n"
+        "  - [0, 0, 0, 1, 1, 1, 0, 0, 0]\n  -\n    - 1\n    - 0\n    - 0\n    - -1\n    - 1\n"
+        "    - 1\n    - 2\n    - 0\n    - -1\n"
+    )
     tables = so.read_orientation_tables(by_hand)
     np.testing.assert_array_equal(tables["CellShifts"], [[0, 0, 0], [2, 0, -1]])
 
@@ -276,10 +300,11 @@ def test_yaml_tables_written_by_hand(tmp_path):
     with pytest.raises(ValueError, match="changed since it was written"):
         so.read_orientation_tables(filename)
     for name, text, message in (
-            ("columns.yaml", "columns: [a, b]\nrows:\n  - [1, 2]\n", "columns must be"),
-            ("short.yaml", f"columns: {columns}\nrows:\n  - [0, 0, 0, 1, 1, 1, 0, 0]\n", "list of 9 values"),
-            ("words.yaml", f"columns: {columns}\nrows:\n  - [0, 0, 0, 1, 1, 1, 0, 0, x]\n", "only numbers"),
-            ("no_rows.yaml", "name: nothing\n", "no 'rows'")):
+        ("columns.yaml", "columns: [a, b]\nrows:\n  - [1, 2]\n", "columns must be"),
+        ("short.yaml", f"columns: {columns}\nrows:\n  - [0, 0, 0, 1, 1, 1, 0, 0]\n", "list of 9 values"),
+        ("words.yaml", f"columns: {columns}\nrows:\n  - [0, 0, 0, 1, 1, 1, 0, 0, x]\n", "only numbers"),
+        ("no_rows.yaml", "name: nothing\n", "no 'rows'"),
+    ):
         (tmp_path / name).write_text(text)
         with pytest.raises(ValueError, match=message):
             so.read_orientation_tables(tmp_path / name)
@@ -289,8 +314,11 @@ def test_reading_a_file_without_tables_fails(tmp_path):
     """
     Test that a .yaml file that is not orientation table is refused with a clear error.
     """
-    for name, contents in (("binary.yaml", b"\x89HDF\r\n\x1a\n\x00\x00"), ("not_yaml.yaml", b"rows: [1, 2\n  - ]: :"),
-                           ("no_rows.yaml", b"name: nothing\n")):
+    for name, contents in (
+        ("binary.yaml", b"\x89HDF\r\n\x1a\n\x00\x00"),
+        ("not_yaml.yaml", b"rows: [1, 2\n  - ]: :"),
+        ("no_rows.yaml", b"name: nothing\n"),
+    ):
         (tmp_path / name).write_bytes(contents)
         with pytest.raises(ValueError, match="not an orientation table file"):
             so.read_orientation_tables(tmp_path / name)
@@ -307,14 +335,19 @@ def test_only_yaml_files(tmp_path):
         with pytest.raises(ValueError, match="must end in .yaml"):
             so.read_orientation_tables(tmp_path / name)
     so.write_orientation_tables(tmp_path / "tables.yml", tables=REFLECT_X_TABLES)
-    assert so.orientation_tables_fingerprint(so.read_orientation_tables(tmp_path / "tables.yml")) == \
-        so.orientation_tables_fingerprint(REFLECT_X_TABLES)
+    assert so.orientation_tables_fingerprint(
+        so.read_orientation_tables(tmp_path / "tables.yml")
+    ) == so.orientation_tables_fingerprint(REFLECT_X_TABLES)
+
 
 # cells touching their own copy in a neighbouring tile
 
 UNCHANGED_TABLES = {"QuarterTurns": [[0, 0, 0]], "Reflections": [[1, 1, 1]], "CellShifts": [[0, 0, 0]]}
-REFLECT_X_TABLES = {"QuarterTurns": [[0, 0, 0], [0, 0, 0]], "Reflections": [[1, 1, 1], [-1, 1, 1]],
-                    "CellShifts": [[0, 0, 0], [0, 0, 0]]}
+REFLECT_X_TABLES = {
+    "QuarterTurns": [[0, 0, 0], [0, 0, 0]],
+    "Reflections": [[1, 1, 1], [-1, 1, 1]],
+    "CellShifts": [[0, 0, 0], [0, 0, 0]],
+}
 
 
 @pytest.mark.parametrize("orientation_lock", [None, "cube"])
@@ -334,6 +367,7 @@ def test_reflected_neighbours_touch_on_their_face():
     touch.
     """
     from swiftlet.snapshot_lightcone import TILE_HASH_PRIMES
+
     n, extent = 8, 2
     with pytest.warns(Warning, match="cells touching their own replica"):
         report = so.check_neighbouring_tiles(REFLECT_X_TABLES, n, None, extent=extent)
@@ -345,11 +379,12 @@ def test_reflected_neighbours_touch_on_their_face():
     differing = [tuple(t) for t in tiles if t[0] < extent and reflected(t) != reflected(t + [1, 0, 0])]
     assert len(differing) > 0
     assert report.nr_touching_pairs == len(differing) and report.nr_touching_cells == n * n * len(differing)
-    np.testing.assert_array_equal(report.touching["tile_b"] - report.touching["tile_a"], [[1, 0, 0]] * report.nr_touching_cells)
+    np.testing.assert_array_equal(
+        report.touching["tile_b"] - report.touching["tile_a"], [[1, 0, 0]] * report.nr_touching_cells
+    )
     # the cells on the x faces: i = 0 or i = n - 1
     i = report.touching["cell"] // (n * n)
     assert np.all((i == 0) | (i == n - 1))
-
 
 
 @pytest.mark.parametrize("nr_cells_axis", [8, 32])
@@ -358,8 +393,9 @@ def test_cube_lock_touches_only_between_layers(nr_cells_axis):
     With orientation_lock="cube" the tiles of a layer share one orientation, so only pairs on the faces between
     layers are oriented differently, and only they can touch.
     """
-    report = so.check_neighbouring_tiles(so.generate_orientation_tables(seed=4), nr_cells_axis, "cube", extent=3,
-                                         warn=False)
+    report = so.check_neighbouring_tiles(
+        so.generate_orientation_tables(seed=4), nr_cells_axis, "cube", extent=3, warn=False
+    )
     assert 0 < report.nr_reoriented_pairs < report.nr_neighbour_pairs
     layer_a = np.max(np.abs(report.touching["tile_a"]), axis=1)
     layer_b = np.max(np.abs(report.touching["tile_b"]), axis=1)
@@ -373,31 +409,31 @@ def test_check_neighbouring_tiles_reads_a_table_file(tmp_path):
     from_dict = so.check_neighbouring_tiles(REFLECT_X_TABLES, 8, extent=2, warn=False)
     assert from_file.nr_touching_cells == from_dict.nr_touching_cells > 0
 
+
 def test_check_neighbouring_tiles_in_a_shell():
     """
     Given the box size and a shell, only touching copies whose cells overlap the shell are kept: a shell holding every
     tile keeps them all, a shell inside half a box length (the observer's tile, which touches nothing) or beyond every
     tile keeps none, and a shell in between keeps some.
     """
-    n, boxsize, extent = 8, 800., 2
+    n, boxsize, extent = 8, 800.0, 2
     everything = so.check_neighbouring_tiles(REFLECT_X_TABLES, n, None, extent=extent, warn=False)
     assert everything.nr_touching_cells > 0 and everything.shell is None
 
     def in_shell(shell):
-        return so.check_neighbouring_tiles(REFLECT_X_TABLES, n, None, extent=extent, warn=False, boxsize=boxsize,
-                                           shell=shell).nr_touching_cells
+        return so.check_neighbouring_tiles(
+            REFLECT_X_TABLES, n, None, extent=extent, warn=False, boxsize=boxsize, shell=shell
+        ).nr_touching_cells
 
-    assert in_shell((0., 10. * boxsize)) == everything.nr_touching_cells
-    assert in_shell((0., 0.2 * boxsize)) == 0
-    assert in_shell((10. * boxsize, 11. * boxsize)) == 0
+    assert in_shell((0.0, 10.0 * boxsize)) == everything.nr_touching_cells
+    assert in_shell((0.0, 0.2 * boxsize)) == 0
+    assert in_shell((10.0 * boxsize, 11.0 * boxsize)) == 0
     assert 0 < in_shell((0.5 * boxsize, 1.5 * boxsize)) < everything.nr_touching_cells
-    
+
     with pytest.raises(ValueError, match="boxsize"):
-        so.check_neighbouring_tiles(REFLECT_X_TABLES, n, None, extent=extent, shell=(0., 1.))
+        so.check_neighbouring_tiles(REFLECT_X_TABLES, n, None, extent=extent, shell=(0.0, 1.0))
 
 
 def test_check_neighbouring_tiles_rejects_sphere():
     with pytest.raises(ValueError, match="check_neighbouring_tiles takes orientation_lock None or 'cube'"):
         so.check_neighbouring_tiles(UNCHANGED_TABLES, 16, "sphere")
-
-

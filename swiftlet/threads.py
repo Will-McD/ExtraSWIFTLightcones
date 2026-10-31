@@ -47,8 +47,8 @@ def _check_number_of_threads(value, source):
 def max_threads():
     """
     Returns the maximum number of threads
-        - SWIFTLET_MAX_THREADS:     if a value is set. 
-        - DEFAULT_MAX_THREADS:      if not value set 
+        - SWIFTLET_MAX_THREADS:     if a value is set.
+        - DEFAULT_MAX_THREADS:      if not value set
         - None:                     if 'all' and no fixed maximum
     """
     value = os.environ.get(MAX_THREADS_ENV, "")
@@ -59,13 +59,14 @@ def max_threads():
 
 def set_max_threads(number):
     """
-    Set SWIFTLET_MAX_THREADS, the maximum number of threads to use. 
+    Set SWIFTLET_MAX_THREADS, the maximum number of threads to use.
 
     :param  number: maximum number of threads, at least 1, or "all" (or None) to use all the cores the process is allowed
     :type   number: int, str or None
     """
     number = _check_number_of_threads(number, "the maximum number of threads")
     os.environ[MAX_THREADS_ENV] = ALL_THREADS if number is None else str(number)
+
 
 def available_cores():
     """
@@ -75,6 +76,7 @@ def available_cores():
         return max(1, len(os.sched_getaffinity(0)))
     except AttributeError:  # not available on macOS
         return max(1, os.cpu_count() or 1)
+
 
 def thread_limit():
     """
@@ -94,6 +96,7 @@ def limit_numba_threads():
     Returns the number of threads numba uses.
     """
     import numba
+
     number = min(thread_limit(), numba.config.NUMBA_NUM_THREADS)
     if numba.get_num_threads() != number:
         numba.set_num_threads(number)
@@ -103,8 +106,8 @@ def limit_numba_threads():
 @contextmanager
 def limit_openmp_threads():
     """
-    Within the block, limit the thread pools to thread_limit() and restore them after. 
-    Uses threadpoolctl. 
+    Within the block, limit the thread pools to thread_limit() and restore them after.
+    Uses threadpoolctl.
     Without it the threads are not limited, and OMP_NUM_THREADS can be set instead.
     """
     try:

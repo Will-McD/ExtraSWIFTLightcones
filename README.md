@@ -231,20 +231,20 @@ snap_all_sky = SnapshotAllSky(
     simulation_suite="flamingo",
     boxsize_resolution="L1000N1800",
     simulation_name="HYDRO_FIDUCIAL",
-    orientation_seed=0,          # reproduces the same box orientations
-    orientation_lock="cube",     # None, "cube" or "sphere", see below
+    orientation_seed=0,  # reproduces the same box orientations
+    orientation_lock="cube",  # None, "cube" or "sphere", see below
 )
 shell_particles = snap_all_sky.place_snapshot_particles_in_shell(
     lightcone_redshift_range=(0.05, 0.1),
     property_names=["Masses", "Temperatures"],
     particle_types=["PartType0", "PartType1"],
-    comm=MPI.COMM_WORLD,         # leave out to read in serial
+    comm=MPI.COMM_WORLD,  # leave out to read in serial
 )
 
 gas = shell_particles["PartType0"]
-gas["Coordinates"]       # lightcone positions, with the observer at the origin
+gas["Coordinates"]  # lightcone positions, with the observer at the origin
 gas["ExpansionFactors"]  # expansion factor at each particle's distance from the observer
-gas["SnapshotNumber"]    # snapshot each particle was taken from
+gas["SnapshotNumber"]  # snapshot each particle was taken from
 ```
 
 `Coordinates` and `ParticleIDs` (plus `SmoothingLengths` for particles other than dark matter) are always read. To limit memory use in serial, the files can be placed one at a time instead:
@@ -276,25 +276,25 @@ snap_beam = SnapshotBeam(
     simulation_suite="flamingo",
     boxsize_resolution="L1000N1800",
     simulation_name="HYDRO_FIDUCIAL",
-    beam_vector=(1., 1., 1.),
+    beam_vector=(1.0, 1.0, 1.0),
     orientation_seed=0,
 )
 
 # the dry run (optional): the SOAP catalogue and box tiles of each snapshot, no haloes are read
-catalogues = snap_beam.gather_halo_catalogues(soap_format, shell_z=(0.01, 0.1), ang_radius_deg=5.)
+catalogues = snap_beam.gather_halo_catalogues(soap_format, shell_z=(0.01, 0.1), ang_radius_deg=5.0)
 
 halos = snap_beam.place_halos_in_shell(
     soap_format,
     lightcone_redshift_range=(0.01, 0.1),
-    ang_radius_deg=5.,
-    soap_chunk_size=2**22,       # rows of a catalogue read at a time
+    ang_radius_deg=5.0,
+    soap_chunk_size=2**22,  # rows of a catalogue read at a time
 )
 
-halos["Lightcone/HaloCentre"]           # lightcone positions, with the observer at the origin
-halos["Lightcone/ExpansionFactor"]      # expansion factor at each halo's distance from the observer
-halos["Lightcone/SnapshotNumber"]       # snapshot each halo was taken from
-halos["InputHalos/SOAPIndex"]           # index of each halo in its snapshot's SOAP catalogue
-halos.metadata                          # the settings that made the lightcone
+halos["Lightcone/HaloCentre"]  # lightcone positions, with the observer at the origin
+halos["Lightcone/ExpansionFactor"]  # expansion factor at each halo's distance from the observer
+halos["Lightcone/SnapshotNumber"]  # snapshot each halo was taken from
+halos["InputHalos/SOAPIndex"]  # index of each halo in its snapshot's SOAP catalogue
+halos.metadata  # the settings that made the lightcone
 ```
 
 All other properties for the returned haloes can then be read from the SOAP catalogues using each halo's snapshot and index values, e.g. for $`M_{200\mathrm{c}}`$:
@@ -326,15 +326,15 @@ Moreover, lightcones can be built by passing a `Simulation` object instead of ma
 ```python
 from swiftlet import Simulation, SnapshotAllSky, SnapshotBeam
 
-flamingo = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")    # the suite is found from the label
+flamingo = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")  # the suite is found from the label
 colibre = Simulation.from_label("L0200N1504", "Thermal")
 colibre = Simulation.from_path("/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal")
 
-Snap_AllSky = SnapshotAllSky(colibre, orientation_lock="cube") # build full-sky lightcone object for colibre
-Snap_Beam = SnapshotBeam(flamingo, beam_vector=[0., 0., 1.])  # build a beam lightcone object for flamingo               
+Snap_AllSky = SnapshotAllSky(colibre, orientation_lock="cube")  # build full-sky lightcone object for colibre
+Snap_Beam = SnapshotBeam(flamingo, beam_vector=[0.0, 0.0, 1.0])  # build a beam lightcone object for flamingo
 
-colibre.snapshot_file(127)              # .../snapshots/colibre_0127/colibre_0127.0.hdf5
-colibre.snapshot_redshift_range(127)    # redshifts the snapshot fills in a lightcone
+colibre.snapshot_file(127)  # .../snapshots/colibre_0127/colibre_0127.0.hdf5
+colibre.snapshot_redshift_range(127)  # redshifts the snapshot fills in a lightcone
 ```
 
 Otherwise, `SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL")` still works and makes a `Simulation` object within `SnapshotAllSky` itself, with `simulation_suite_name="flamingo"` or `"colibre"` for a label that isn't recognised, and `simulation_base_dir_format` for a simulation somewhere else. 
@@ -390,9 +390,14 @@ To use more orientations, write a file of orientation tables and pass it as `ori
 ```python
 from swiftlet import SnapshotAllSky, write_orientation_tables
 
-write_orientation_tables("orientation_tables.hdf5", seed=0)   # every distinct orientation, 48 x 7^3 = 16464 rows
-snap_all_sky = SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL", orientation_seed=0, orientation_lock="cube",
-                    orientation_table="orientation_tables.hdf5")
+write_orientation_tables("orientation_tables.hdf5", seed=0)  # every distinct orientation, 48 x 7^3 = 16464 rows
+snap_all_sky = SnapshotAllSky(
+    "L1000N1800",
+    "HYDRO_FIDUCIAL",
+    orientation_seed=0,
+    orientation_lock="cube",
+    orientation_table="orientation_tables.hdf5",
+)
 ```
 
 The generated tables hold every combination of the 48 quarter turns and reflections with the periodic cell shifts (by default 0, ±4, ±8 or ±16 cells along each axis), with the first row leaving the box unchanged. `seed` shuffles the rows, `n_rows` keeps only the first rows, and `cell_shift_values` sets the shifts, e.g. for 64 cells per axis. 
@@ -474,7 +479,7 @@ For example, as given in [`make_colibre_halo_lightcone.py`](./examples/make_coli
 
 ```python
 from lightcone_io.halo_reader import HaloLightconeFile
-from swiftlet.soap_reader import write_halo_lightcone_file  
+from swiftlet.soap_reader import write_halo_lightcone_file
 
 snap = int(snap_nr.max())  # the lowest redshift snapshot
 keep = snap_nr == snap
@@ -486,14 +491,17 @@ rows, where = np.unique(soap_index[keep], return_inverse=True)
 is_central = read_soap_selected_rows(soap_filename, ["InputHalos/IsCentral"], rows)["InputHalos/IsCentral"][where]
 
 halo_filename = f"lightcone_halos_{snap:04d}.hdf5"
-write_halo_lightcone_file(halo_filename, snapshot_halos, soap_filename, {"InputHalos/IsCentral": is_central.value}, halos.metadata)
+write_halo_lightcone_file(
+    halo_filename, snapshot_halos, soap_filename, {"InputHalos/IsCentral": is_central.value}, halos.metadata
+)
 
 # read it back with lightcone_io, the haloes in a region of the sky, and M200c from SOAP
 halo_file = HaloLightconeFile(halo_filename, soap_filename=soap_filename)
 haloes = halo_file.read_halos_in_radius(
-                            np.array([1., 1., 1.]) / np.sqrt(3.), np.radians(5.),
-                            ["Lightcone/HaloCentre", "Lightcone/Redshift", "InputHalos/IsCentral", "SO/200_crit/TotalMass"]
-                            )
+    np.array([1.0, 1.0, 1.0]) / np.sqrt(3.0),
+    np.radians(5.0),
+    ["Lightcone/HaloCentre", "Lightcone/Redshift", "InputHalos/IsCentral", "SO/200_crit/TotalMass"],
+)
 ```
 
 </details>
@@ -561,12 +569,12 @@ gas_temperature = BP.project_properties(["Temperatures"], ptype="Gas", weight="M
 images = [image.to_value("Msun/Mpc**2") for image in (gas_surface_density, total_surface_density, dm_surface_density)]
 fig, ax, wedge_images = BP.split_beam_plot(
     3,
-    [[image, (vmin, vmax)] for image in images],   # each wedge's image and colour range
-    ["magma", "cubehelix", "viridis"],             # individually set each wedges colour map
-    titles=["Gas", "Gas+DM", "DM"],                # the title placed in each wedge
-    norms=["log", "log", "log"],                   # or "linear", or any matplotlib Normalize, "log" by default
-    overlay_grid=(False, False, False),            # grid lines at the redshift, distance and angle ticks
-    filename="beam.png",                           # save image to this file
+    [[image, (vmin, vmax)] for image in images],  # each wedge's image and colour range
+    ["magma", "cubehelix", "viridis"],  # individually set each wedges colour map
+    titles=["Gas", "Gas+DM", "DM"],  # the title placed in each wedge
+    norms=["log", "log", "log"],  # or "linear", or any matplotlib Normalize, "log" by default
+    overlay_grid=(False, False, False),  # grid lines at the redshift, distance and angle ticks
+    filename="beam.png",  # save image to this file
 )
 ```
 

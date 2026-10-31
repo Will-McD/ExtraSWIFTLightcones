@@ -16,6 +16,7 @@ Build a full sky halo lightcone from the snapshots and SOAP catalogues of the CO
 (L0400N3008/Thermal) for redshifts 0.001 < z < 0.1. 
 """
 
+
 def gather_snapshot_haloes(halos, properties, snap_nr):
     """
     Gather the haloes placed from one snapshot, and their SOAP properties, from every rank onto rank 0.
@@ -34,35 +35,44 @@ def gather_snapshot_haloes(halos, properties, snap_nr):
     local_halos = {name: values[keep] for name, values in halos.items()}
     if properties is not None:
         local_properties = {name: np.asarray(values)[keep] for name, values in properties.items()}
-        
+
         all_halos, all_properties = comm.gather(local_halos), comm.gather(local_properties)
     else:
         all_halos = comm.gather(local_halos)
 
     if comm_rank != 0:
         return None, None
-    
+
     halos_out = {name: unyt.uconcatenate([rank[name] for rank in all_halos]) for name in local_halos}
-    
+
     if properties is not None:
         properties_out = {name: np.concatenate([rank[name] for rank in all_properties]) for name in local_properties}
     else:
-        properties_out=None
+        properties_out = None
     return halos_out, properties_out
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description="Full-sky halo lightcone of COLIBRE, its halo mass function, and a "
-                                                 "halo lightcone file of the lowest redshift snapshot.")
+    parser = argparse.ArgumentParser(
+        description="Full-sky halo lightcone of COLIBRE, its halo mass function, and a "
+        "halo lightcone file of the lowest redshift snapshot."
+    )
     parser.add_argument("--box_res", default="L0400N3008", help="box size and resolution label (L400_m7)")
     parser.add_argument("--sim_name", default="Thermal", help="name of the simulation")
     parser.add_argument("--zmin", type=float, default=0.001, help="minimum redshift")
     parser.add_argument("--zmax", type=float, default=0.1, help="maximum redshift")
-    parser.add_argument("--soap_format", default=None,help="SOAP catalogue filenames, using {snap_nr}. By default <simulation>/SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5")
+    parser.add_argument(
+        "--soap_format",
+        default=None,
+        help="SOAP catalogue filenames, using {snap_nr}. By default <simulation>/SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5",
+    )
     parser.add_argument("--orientation_seed", type=int, default=0, help="seed of the box tile orientations")
-    parser.add_argument("--orientation_lock", default="none", choices=["none", "cube", "sphere"],
-                        help="orientation lock of the box tiles")
+    parser.add_argument(
+        "--orientation_lock",
+        default="none",
+        choices=["none", "cube", "sphere"],
+        help="orientation lock of the box tiles",
+    )
     parser.add_argument("--output_dir", default="./example_outputs/colibre_halo_lightcones", help="output directory")
     args = parser.parse_args()
 
@@ -74,19 +84,31 @@ if __name__ == "__main__":
     comm.barrier()
 
     # The haloes placed into lightcone
-    snap_all_sky = SnapshotAllSky(simulation_object=simulation, orientation_seed=args.orientation_seed,
-                        orientation_lock=args.orientation_lock, verbose=1 if comm_rank == 0 else 0)
-    
+    snap_all_sky = SnapshotAllSky(
+        simulation_object=simulation,
+        orientation_seed=args.orientation_seed,
+        orientation_lock=args.orientation_lock,
+        verbose=1 if comm_rank == 0 else 0,
+    )
+
     halos = snap_all_sky.place_halos_in_shell(soap_format, redshift_range, ang_radius_deg=None, comm=comm)
-    
+
     # write the haloes of the lowest redshift snapshot to a in a lightcone_io halo lightcone file
     local_snapshots = halos["Lightcone/SnapshotNumber"].value.astype(int)
     lowest_z_snapshot = comm.allreduce(int(local_snapshots.max()) if len(local_snapshots) else -1, op=MPI.MAX)
-    snapshot_halos, snapshot_properties = gather_snapshot_haloes(halos, None,lowest_z_snapshot)
+    snapshot_halos, snapshot_properties = gather_snapshot_haloes(halos, None, lowest_z_snapshot)
     if comm_rank == 0:
         output_filename = f"{args.output_dir}/lightcone_halos_{lowest_z_snapshot:04d}.hdf5"
-        write_halo_lightcone_file(output_filename, snapshot_halos, soap_format.format(snap_nr=lowest_z_snapshot),
-                                  snapshot_properties, halos.metadata)
-        message(comm_rank, f"{len(snapshot_halos['Lightcone/SnapshotNumber'])} haloes of snapshot {lowest_z_snapshot} written to {output_filename}")
+        write_halo_lightcone_file(
+            output_filename,
+            snapshot_halos,
+            soap_format.format(snap_nr=lowest_z_snapshot),
+            snapshot_properties,
+            halos.metadata,
+        )
+        message(
+            comm_rank,
+            f"{len(snapshot_halos['Lightcone/SnapshotNumber'])} haloes of snapshot {lowest_z_snapshot} written to {output_filename}",
+        )
 
     message(comm_rank, "\nDONE :)\n")

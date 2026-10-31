@@ -25,6 +25,7 @@ _ROW_LINE = re.compile(r"^\s+-\s*\[([^\]#]*)\]\s*(#.*)?$")
 
 def _yaml_loader():
     import yaml
+
     return getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
@@ -54,7 +55,6 @@ def _number(text):
 
 
 def read_table_file(source, columns, kind="a table"):
-
     """
     Read a YAML table file and check its columns.
 
@@ -65,12 +65,13 @@ def read_table_file(source, columns, kind="a table"):
     :type   source:     str, os.PathLike or Traversable
     :param  columns:    the names the file's columns must have, in order
     :type   columns:    sequence of str
-    :param  kind:       what the file should be, for the error printout if the file is not either a 
+    :param  kind:       what the file should be, for the error printout if the file is not either a
                             redshift or orientation table
     :type   kind:       str
     """
     import yaml
     from pathlib import Path
+
     source = Path(source) if isinstance(source, str) else source
     try:
         text = source.read_text()
@@ -83,46 +84,45 @@ def read_table_file(source, columns, kind="a table"):
 
 
 def _read_table_text(source, text, columns, kind):
-    
     """
     Read the text of a YAML table file, see read_table_file.
     """
     import yaml
-    
+
     # the rows one per line after a last "rows:" key, read without the YAML parser
     lines = text.splitlines()
     rows_at = [i for i, line in enumerate(lines) if re.match(r"^rows\s*:\s*(#.*)?$", line)]
-    rows = _parse_rows(lines[rows_at[-1] + 1:]) if len(rows_at) == 1 else None
-    
+    rows = _parse_rows(lines[rows_at[-1] + 1 :]) if len(rows_at) == 1 else None
+
     if rows is not None:
-        header = yaml.load("\n".join(lines[:rows_at[-1]]), Loader=_yaml_loader()) or {}
+        header = yaml.load("\n".join(lines[: rows_at[-1]]), Loader=_yaml_loader()) or {}
         try:
             rows = [[_number(value) for value in row] for row in rows]
         except ValueError:
             raise ValueError(f"{source}: the rows must hold only numbers") from None
-    
+
     else:
         header = yaml.load(text, Loader=_yaml_loader())
         if not isinstance(header, dict) or "rows" not in header:
             raise ValueError(f"{source}: not {kind} file, it has no 'rows'")
         rows = header.pop("rows")
-    
+
     if not isinstance(header, dict):
         raise ValueError(f"{source}: not {kind} file, it must be a mapping with 'columns' and 'rows'")
-    
+
     header = dict(header)
     if list(header.pop("columns", [])) != list(columns):
         raise ValueError(f"{source}: the columns must be {list(columns)}")
-    
+
     if not isinstance(rows, list) or not all(isinstance(row, list) and len(row) == len(columns) for row in rows):
         raise ValueError(f"{source}: every row must be a list of {len(columns)} values")
-    
+
     values = [value for row in rows for value in row]
     if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
         raise ValueError(f"{source}: the rows must hold only numbers")
-    
+
     dtype = np.int64 if all(isinstance(value, int) for value in values) else float
-    
+
     return header, np.array(rows, dtype=dtype).reshape(len(rows), len(columns))
 
 
@@ -172,6 +172,7 @@ def write_table_file(filename, header, columns, rows, comment=None):
     :type   comment:    str
     """
     import yaml
+
     rows = np.asarray(rows)
     if rows.ndim != 2 or rows.shape[1] != len(columns):
         raise ValueError(f"the rows must have shape (N, {len(columns)}), not {rows.shape}")
@@ -199,4 +200,3 @@ def write_table_file(filename, header, columns, rows, comment=None):
         outfile.write("rows:\n")
         for row in cells:
             outfile.write("  - [" + ", ".join(row) + "]\n")
-

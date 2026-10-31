@@ -2,10 +2,11 @@
 """
 Tests for swiftlet.threads:
     - test for both sets of numba and healpy alm functions that rely on threads set
-    - maximum number of threads is set by SWIFTLET_MAX_THREADS 
+    - maximum number of threads is set by SWIFTLET_MAX_THREADS
     - abides by default 30
     - max number is never more than the cores the process may use.
 """
+
 import os
 
 import numpy as np
@@ -95,9 +96,12 @@ def test_reorientation_uses_the_limit():
     """
     numba = pytest.importorskip("numba")
     from swiftlet import snapshot_orientation
+
     threads.set_max_threads(1)
     coords = np.random.default_rng(0).uniform(0, 10, (100, 3))
-    snapshot_orientation.rotate_coords_cartesian(coords, (90, 0, 0), periodic_shift=(0, 0, 0), sidelengths=10., degrees=True)
+    snapshot_orientation.rotate_coords_cartesian(
+        coords, (90, 0, 0), periodic_shift=(0, 0, 0), sidelengths=10.0, degrees=True
+    )
     assert numba.get_num_threads() == 1
 
 
