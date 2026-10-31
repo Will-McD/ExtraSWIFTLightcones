@@ -63,7 +63,7 @@ def surface_density_projection(BP, gas_particle_data, gas_property_names, dm_par
 
 
 def temperature_projection(BP, gas_particle_data, gas_property_names):
-    # Repeat example 1 but now with custom datasets to show mass and redshift dependance
+    # Repeat example 1 but now with custom datasets to show mass and redshift dependence
     
     # add particle data to the slice 
     BP.place_particles_in_slice(gas_particle_data, gas_property_names)
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     directory_path = Path(output_dir)
     directory_path.mkdir(parents=True, exist_ok=True)
 
-    # define snapshot filename, we will get information about the simuations cosmology from this later 
+    # define snapshot filename, we will get information about the simulations cosmology from this later 
     snapshot_filename = "{base_name}/snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.hdf5".format(base_name=base_dir,  snap_nr=77)
     snapshot_dir = "{base_name}/snapshots".format(base_name=base_dir)
 
@@ -194,6 +194,6 @@ if __name__ == "__main__":
     surface_density_projection(BP, gas_particle_data, gas_property_names, dm_particle_data)
 
     #Example 2 
-    # Repeat the above example but now with custom datasets to show mass and redshift dependance
+    # Repeat the above example but now with custom datasets to show mass and redshift dependence
     temperature_projection(BP, gas_particle_data, gas_property_names)
 

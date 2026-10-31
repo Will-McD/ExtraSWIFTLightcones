@@ -24,7 +24,7 @@ Iterativley repeat this comparison for multiple different orientation seeds for 
     - For each orientation seed (seeds 0 to nr_seeds - 1 by default) use SnapshotAllSky with orientation_lock="cube". 
     - The dark matter particles are counted in bins of comoving distance from the observer. The bins are equal in volume.
     - Each seed re-orients the box tiles differently, so each is the same shell built from the same snapshots with a 
-        different arrangement of the cells i.e. making lightcone redhisft shells for differet observers. 
+        different arrangement of the cells i.e. making lightcone redhisft shells for different observers. 
 
 """
 

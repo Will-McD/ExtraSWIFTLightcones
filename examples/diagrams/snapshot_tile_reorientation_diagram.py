@@ -7,7 +7,7 @@ from pathlib import Path
 from swiftlet.example_plot_settings import plot_settings, cmap_MCG
 
 """
-Example script to highlilght how cells within the snaphots boxes (and tiles in lightcone)
+Example script to highlilght how cells within the snapshots boxes (and tiles in lightcone)
 are repositioned when creating new 'unique' tiles as they placed in to the lightcone. 
 """
 

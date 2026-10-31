@@ -42,8 +42,8 @@ def fake_simulation(run_dir):
     :type   run_dir:    str
     """
     import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import snapshot_lattice
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples/diagrams"))
+    import snapshot_lattice_diagram 
     simulation, _ = snapshot_lattice.write_lattice_simulation(run_dir)
     return simulation
 
@@ -181,7 +181,7 @@ def plot_reports(reports, seeds, title, filename):
         
         # the size of the shell checked: tiles, cells, and every pair of copies of a cell that could be a close repeat
         ax.text(0.5, -0.06, f"tiles: {report.nr_tiles:,}, total pairs checked: {report.nr_cell_pairs:,}", transform=ax.transAxes, ha="center", va="top", fontsize=8, color="k")
-        
+
     # overlay legend on 1st projection 
     #if col==0:
     handles = [

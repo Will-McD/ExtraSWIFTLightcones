@@ -9,7 +9,7 @@ import virgo.formats.swift as virgo_swift
 """
 Functions for reading SOAP halo catalogues with h5py.
 These reading functions give soap properties the same units as lightcone_io.halo_catalogue.SOAPCatalogue.read() 
-so the values are the same regardles of the reader used. 
+so the values are the same regardless of the reader used. 
 
 Note that 'a' is dropped from all soap units. 
 """

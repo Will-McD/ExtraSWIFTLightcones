@@ -147,7 +147,7 @@ def draw_tiles(ax, tiles, h_range, v_range, n_cells, project_axis):
 def plot_beam_cell_selection(L=1000., n_cells=4, half_angle_deg=30., r_max_L=4.2, n_along=3, x_cross=2, n_transverse=2,
                              figsize=(10, 5.6), filename="./snapshot_beam_cell_selection.png"):
     """
-    Make 2 diagrams for the tiles and cells SnapshotBeam selects for a beam along tge x-axis, 
+    Make 2 diagrams for the tiles and cells SnapshotBeam selects for a beam along the x-axis, 
     1. a side view on the plane x-z plane at y = 0
     2. a cross-section of the beam on y-z plane at x=x_cross
 

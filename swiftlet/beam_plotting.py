@@ -500,7 +500,7 @@ class BeamPlot:
         if "norm" in kwargs:
             raise TypeError("split_beam_plot takes a list of norms, one per wedge, not norm")
         
-        # seperate kwargs for image function and axes function
+        # separate kwargs for image function and axes function
         img_kwargs = filter_kwargs(self.add_wedge, kwargs)
         axes_kwargs = filter_kwargs(self.add_beam_axes, kwargs)
 
@@ -942,7 +942,7 @@ class BeamPlot:
         # automatically adjust cadance of ticks if angle is very large
         if (beam_radius_deg > 45) and (dtheta is not None) and (dtheta<=5):
             if (beam_radius_deg > 90) and ((beam_radius_deg*2)%30==0):
-                dtheta=30 # always prefer 30degree over other seperations
+                dtheta=30 # always prefer 30degree over other separations
             else:
                 dtheta_test = minor_tick_spacer(beam_radius_deg*2, 10, 5)
                 if dtheta_test < 10:

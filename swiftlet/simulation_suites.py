@@ -185,7 +185,7 @@ SUITES = {suite.name: suite for suite in (FLAMINGO, COLIBRE)}
 
 
 ###################################################################################################
-# define simualtion suite functions
+# define simulation suite functions
 
 def get_suite(suite):
     """

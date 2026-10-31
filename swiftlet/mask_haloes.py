@@ -163,10 +163,12 @@ def rotate_cluster_coords(cluster_coords, map_rotator_object):
 def read_shell_halo_properties(halo_filenames, soap_filenames, snapshot_numbers, radius_prop, mass_prop, mass_unit_str, comm):
     """
     MPI-parallel replacement for looping over each snapshot contributing to a shell. 
+    
     Per shell:
-        1) Read a shell's halo lightcone files in a single collective read
-        2) Cross-reference each snapshot's SOAP file, within the same snapshot, for radius_prop/mass_prop via InputHalos/SOAPIndex
-        3) Convert radius and mass properties from SOAP units to comoving Mpc and the given mass units
+
+    1. read a shell's halo lightcone files in a single collective read
+    2. Cross-reference each snapshot's SOAP file, within the same snapshot, for radius_prop and mass_prop via ``InputHalos/SOAPIndex``
+    3. Convert the radius and mass properties from SOAP units to comoving Mpc and the given mass units
 
     Returns a dict of local per-halo arrays.
 
@@ -435,11 +437,12 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
     :type   output_dir:         str
     :param  comm:               MPI communicator
     :type   comm:               mpi4py.MPI.Comm
-    :param  bin_method:         selects which mass-bin definition(s) to build masks with. 
-                                    'discrete':     M1 < log10(M) <= M2, where M1 and M2 are the edges of the mass bin
-                                    'cumulative':   M1 < log10(M) <= Mmax, where Mmax is the maximum of the 
-                                                        log_mass_bin_range given
-                                    'both':         make 2 sets of masks, one for each other bin method
+    :param  bin_method:         selects which mass-bin definition(s) to build masks with:
+
+                                - 'discrete': M1 < log10(M) <= M2, where M1 and M2 are the edges of the mass bin
+                                - 'cumulative': M1 < log10(M) <= Mmax, where Mmax is the maximum of
+                                  log_mass_bin_range
+                                - 'both': make 2 sets of masks, one for each bin method
     :type   bin_method:         str
     :param  mass_units:         units of the mass property given. Default is solar masses 'Msun'
     :type   mass_units:         str
@@ -644,14 +647,14 @@ def write_binary_masks(halo_cat_format, soap_cat_format,
                 if latitudes[shell_nr] == 0 and longitudes[shell_nr] == 0:
                     map_rotator_object = None
                 else:
-                    # rotate halo coords on the sky the same as done when rotating maps for intergrated lightcones. 
+                    # rotate halo coords on the sky the same as done when rotating maps for integrated lightcones. 
                     map_rotator_object = hp.Rotator(
                         rot=[latitudes[shell_nr].to_value(unyt.deg), longitudes[shell_nr].to_value(unyt.deg)],
                         inv=True, deg=True)
                 if map_rotator_object is not None and local_centre.shape[0] > 0:
                     local_centre = rotate_cluster_coords(local_centre, map_rotator_object)
 
-                # iterate through radii to draw appatures
+                # iterate through radii to draw apertures
                 for ri in range(n_radius):
                     radius_this_ri = local_radius_1d * radius_scalings[ri]
                     recv_coords, recv_radius, (recv_mass,) = route_halos_to_pixel_owners(theta_boundary, local_centre, radius_this_ri, [local_mass], comm)

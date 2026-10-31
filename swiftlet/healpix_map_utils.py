@@ -294,7 +294,7 @@ def write_rotated_lightcone_chunks(
             theta_arr_deg:          array of theta (co-latitude) values per shell [deg]
             phi_arr_deg:            array of phi (longitude) values per shell [deg]
             remote_dir:             For reading healpix maps from a remote directory as done with lightcone_io
-            shell_range:            tuple containing the shell number of the minium and maximum shell to consider
+            shell_range:            tuple containing the shell number of the minimum and maximum shell to consider
             unit_conversion_func:   Optional function for additional unit conversion prior to rotating maps.
             save_chunks:            Boolean, if true write each individual chunk to the output file. 
     """
@@ -407,14 +407,14 @@ def write_rotated_lightcone_chunks(
         metadata.attrs["redshift"] = redshifts
         metadata.attrs["shell_numbers"] = shell_numbers
 
-        # runnning total
+        # running total
         integrated_map_stack = {str(map_quantity):np.zeros(out_npix, dtype=float) for map_quantity in map_names}
 
         for chunk_nr in range(0, nrot):
             
             arg_min, arg_max = int(chunk_num[chunk_nr]), int(chunk_num[chunk_nr+1])
 
-            # runnning chunk total, reset once per rotation group
+            # running chunk total, reset once per rotation group
             chunk_map_stack = {str(map_quantity):np.zeros(in_npix, dtype=float) for map_quantity in map_names}
             
             # give update
@@ -549,13 +549,13 @@ def sum_maps(file_numbers, infile_format, outfile, map_names, required_groups=("
                 # Read in the full map
                 input_dataset = infile[name]
                 
-                if "nside" in input_dataset.attrs: # do not sum map if it doesnt have nside as attribute
+                if "nside" in input_dataset.attrs: # do not sum map if it doesn't have nside as attribute
                     
                     nside = input_dataset.attrs["nside"][0] # nside of input map from its attributes
 
                     
                     if file_idx==0:
-                        # copy the dataset over if inital file
+                        # copy the dataset over if initial file
                         infile.copy(name, outfile)
                         
                         # update totals 
@@ -563,7 +563,7 @@ def sum_maps(file_numbers, infile_format, outfile, map_names, required_groups=("
                         output_map_total=np.sum(outfile[name])
                     
                     else:
-                        # sum maps if not inital file
+                        # sum maps if not initial file
  
                         # check maps are the same shape dataset
                         output_dataset = outfile[name]
@@ -579,7 +579,7 @@ def sum_maps(file_numbers, infile_format, outfile, map_names, required_groups=("
                         # start updating the output 
                         npix = input_dataset.shape[0]
 
-                        # if high nside map then update by chuncks
+                        # if high nside map then update by chunks
                         if nside <= 4096:
                             chunck_size=int(npix)
                         else:

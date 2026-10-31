@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 # set max num of threads for testing to 8. 
-# this limit should be sufficent for testing and not beyond the limits of any machine. 
+# this limit should be sufficient for testing and not beyond the limits of any machine. 
 TEST_MAX_THREADS = 8
 def pytest_configure(config):
     """

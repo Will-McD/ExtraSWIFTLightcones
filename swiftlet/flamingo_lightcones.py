@@ -4,17 +4,17 @@ import re
 from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_redshifts, environment_data_dir
 
 
-# FLAMINGO shell redshift files, downloaded into the Python environment by swiftlet-configure
 def flamingo_shell_redshift_file(box, download=True):
     """
     Returns the absolute path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or 
     2800 Mpc ("L2p8") box sidelength simulations.
+
     Checks, in order:
-        1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
-        2. <environment>/share/swiftlet/redshifts/<file>, where swiftlet-configure 
-            downloads the files to
-        3. ~/.cache/swiftlet/redshifts/<file>, used when the environment can't be written to
-        4. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
+    
+    1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
+    2. <environment>/share/swiftlet/redshifts/<file>, where swiftlet-configure downloads the files to
+    3. ~/.cache/swiftlet/redshifts/<file>, used when the environment can't be written to
+    4. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
     
     If none exist and download is True, the files are downloaded (see config.download_shell_redshifts).
     Raises FileNotFoundError if the file can't be found or downloaded.
@@ -22,7 +22,7 @@ def flamingo_shell_redshift_file(box, download=True):
     :param  box:        simulation box, "L1" or "L2p8"
     :type   box:        str
     :param  download:   If True, download the files when they can't be found
-    :type   download:   boolean
+    :type   download:   bool
     """
     if box not in SHELL_REDSHIFT_FILES:
         raise ValueError(f"box must be one of {list(SHELL_REDSHIFT_FILES)}, got {box!r}")
@@ -67,6 +67,7 @@ def flamingo_box_resolution(path):
     :param  path:   path to the simulation data
     :type   path:   str
     """
+
     flamingo_box_res_pattern = re.compile(r"(?:^|/)(L(\d+)N(\d+))(?=/|$)")
 
     matches = {m.group(1) for m in flamingo_box_res_pattern.finditer(str(path))}

@@ -479,7 +479,7 @@ def generate_orientation_tables(seed=0, n_rows=None, cell_shift_values=EIGHTH_SH
     turns_and_reflections = {}
     for turns in itertools.product((0, 1, 2, -1), repeat=3):
         for reflections in itertools.product((1, -1), repeat=3):
-            # build rot matrix of quater turns
+            # build rot matrix of quarter turns
             matrix = _build_rotation_matrix(np.array(turns) * 90., degrees=True) * np.array(reflections)[np.newaxis, :]
             turns_and_reflections.setdefault(tuple(np.rint(matrix).astype(int).ravel()), (turns, reflections))
     
@@ -488,7 +488,7 @@ def generate_orientation_tables(seed=0, n_rows=None, cell_shift_values=EIGHTH_SH
     orientations = list(turns_and_reflections.values())
     shifts = list(itertools.product(cell_shift_values, repeat=3))
 
-    # add rows to table with a given quater turn, relfection and periodic shift. 
+    # add rows to table with a given quarter turn, reflection and periodic shift. 
     rows = [(turns, reflections, shift) for turns, reflections in orientations for shift in shifts]
     unchanged = ((0, 0, 0), (1, 1, 1), (0, 0, 0))
     rows.remove(unchanged)
@@ -641,7 +641,7 @@ def check_neighbouring_tiles(tables, nr_cells_axis, orientation_lock=None, orien
     of a simulation and also finds copies close along a line of sight.
     
     Due to only doing a course check orientation_lock="sphere" cannot be used with this method as it requires a 
-    more compelte rebuild of the lightcone. To test with Sphere use swiftlet.repeat_check.find_close_cell_repeats 
+    more complete rebuild of the lightcone. To test with Sphere use swiftlet.repeat_check.find_close_cell_repeats 
 
     Returns a NeighbourTileReport.
 

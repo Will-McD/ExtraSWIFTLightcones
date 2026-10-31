@@ -22,7 +22,7 @@ placeing all particles in a regular lattice write snapshots .
 Repeat this for when we do and do-not re-orient the tiles:
     - not re-oriented:  every box tile is the snapshot box as it is (no rotation, reflection or shift). To do this 
                             we build a using an orientation table of one unchanged row, resulting in the lightcone 
-                            being just the inital snapshot box repeated periodically. Therefore each particle is 
+                            being just the initial snapshot box repeated periodically. Therefore each particle is 
                             where its periodic copy of the box puts it.
     - re-oriented:      the default orientation tables, with each orientation lock: "none", "cube" and "sphere".
 
@@ -49,7 +49,7 @@ NCELLS_AXIS = 8 # cell number per axis in box
 #CELL_SIZE = BOXSIZE / NCELLS_AXIS # size of fake cell structure. 
 NFILES = 2 # split the cells over this many temp files
 PTYPE = "PartType1" # use fake dark matter particles
-LATTICE_SPACING = 50.  # [Mpc], distance between particles in the regular lattice
+LATTICE_SPACING = 25.  # [Mpc], distance between particles in the regular lattice
 
 # use FLAMINGO like units for fake snapshot
 # units of the fake snapshots: Mpc, 1e10 Msun and Mpc / (km/s), so H0 in internal units is H0 in km/s/Mpc
@@ -247,7 +247,7 @@ def write_snapshot(snapshot_file_format, snap_nr, redshift, ids, pos, boxsize=BO
 
 def write_soap_catalogue(filename, redshift, halo_index, halo_centre):
     """
-    Write a fake SOAP catalogue containg the coordinates of the fake 
+    Write a fake SOAP catalogue containing the coordinates of the fake 
     halo centres ("InputHalos/HaloCentre") [cMpc] and their catalogue indices ("InputHalos/HaloCatalogueIndex").
 
     :param  filename:       path of the catalogue
@@ -296,7 +296,7 @@ def write_lattice_simulation(run_dir, box_res=BOX_RES, sim_name=SIM_NAME, snapsh
     simulation = Simulation.from_label(box_res, sim_name, base_dir_format=f"{run_dir}/{{box_res}}/{{sim_name}}")
     halo_format = f"{simulation.directory}/SOAP/halo_properties_{{snap_nr:04d}}.hdf5"
 
-    pos = lattice_positions()
+    pos = lattice_positions(boxsize, spacing)
     ids = np.arange(len(pos))
     for snap_nr in snapshots:
         redshift = simulation.snapshot_redshift(snap_nr)
@@ -579,7 +579,7 @@ def plot_lattice_layer(placed, kind, simulation, cosmo, filename):
     Create a plot showing one layer of the lattice in every lightcone type (full-sky and beam; rows) and 
     each orientation lock (columns), for both particles or haloes.
 
-    Colour each lattice point shown by its inital distance from the corner of the snapshotbox, highlighting
+    Colour each lattice point shown by its initial distance from the corner of the snapshotbox, highlighting
     how each cell & therefore lattice points have been moved from the intal snapshot structure. 
 
     Returns the number of lattice points missing or repeated, over every lightcone and lock.
@@ -644,7 +644,7 @@ def plot_lattice_layer(placed, kind, simulation, cosmo, filename):
             total_problems += len(missing_all) + len(extra_all)
             tiles = len(np.unique(np.floor(coords / BOXSIZE + 0.5).astype(int), axis=0))
             
-            # find particles visibile in this layer 
+            # find particles visible in this layer 
             shown = in_layer(coords) 
         
             # get flagged particles: missing, extra/incorrect
@@ -669,7 +669,7 @@ def plot_lattice_layer(placed, kind, simulation, cosmo, filename):
                     ax.plot(radius * np.cos(theta), radius * np.sin(theta), color=ls_col, ls=edge_ls, lw=0.8, zorder=2)
 
             # plot lattice points in the layer
-            # colour each particle based on distance from inital snapshot (0,0,0) coords
+            # colour each particle based on distance from initial snapshot (0,0,0) coords
             ax.scatter(
                 coords[shown, u], coords[shown, v], 
                 s=3.5 if beam_vector is None else 5.0, 

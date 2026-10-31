@@ -49,10 +49,10 @@ class CloseRepeatReport:
 
     def summary(self):
         """
-        Summary mesage describing the close repeats found.
+        Summary message describing the close repeats found.
         """
         summary_message = f"{self.nr_touching} pairs of cell replicas sharing a face" # main message
-        summary_message+= f"\n{self.nr_line_of_sight} pairs are with {self.angle_deg:g} deg on the sky" # closeness as an angular seperation 
+        summary_message+= f"\n{self.nr_line_of_sight} pairs are with {self.angle_deg:g} deg on the sky" # closeness as an angular separation 
         summary_message+= f" and closer than {self.max_los_separation:g} Mpc along line of sight" # closeness in comoving distance 
         summary_message+= f"\n{self.nr_cells_repeated} of the cells are repeated, from {self.nr_cell_copies} cell;" # numb repeats 
         summary_message+= f" closest copies {self.closest_separation:.1f} Mpc apart, cells {self.cell_size:g} Mpc" #how close repeats are
@@ -71,7 +71,7 @@ def _tile_label(tile):
 def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_range=None):
 
     """
-    Overlap every cell centre from each tile with the last gathered pieces and then keep the cells overlaping 
+    Overlap every cell centre from each tile with the last gathered pieces and then keep the cells overlapping 
     with the tile's part of the lightcone . 
 
     Returns arrays:

@@ -2,7 +2,7 @@
 
 [![Build and test](https://github.com/Will-McD/ExtraSWIFTLightcones/actions/workflows/build_and_test.yml/badge.svg)](https://github.com/Will-McD/ExtraSWIFTLightcones/actions/workflows/build_and_test.yml)
 [![Version](https://img.shields.io/github/v/release/Will-McD/ExtraSWIFTLightcones?include_prereleases&sort=semver&label=version)](https://github.com/Will-McD/ExtraSWIFTLightcones/releases)
-[![Documentation Status](https://readthedocs.org/projects/<project-name>/badge/?version=latest)](https://<project-name>.readthedocs.io/en/latest/)
+<!--[![Documentation Status](https://readthedocs.org/projects/<project-name>/badge/?version=latest)](https://<project-name>.readthedocs.io/en/latest/)-->
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.12-blue)](https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/.github/workflows/build_and_test.yml)
 [![License](https://img.shields.io/github/license/Will-McD/ExtraSWIFTLightcones)](./PublicLicense)
 
@@ -40,7 +40,7 @@ source /path/to/environment/bin/activate
 
 If no path is given, the environment is made in `ExtraSWIFTLightcones/swiftlet_env`.
 
-If you have acess to COSMA, see [Use with COSMA](#use-with-cosma) to build the virtual environment.
+If you have access to COSMA, see [Use with COSMA](#use-with-cosma) to build the virtual environment.
 
 ### Existing environment
 
@@ -185,7 +185,7 @@ The snapshot particles (and haloes) placed in the lightcone (`place_snapshot_par
 The reading and placing of particles into the lightcone is done first at the cell-level of the SWIFT snapshots. The cells from a given snapshot that overlap with the lightcone's footprint (including a $`1/2`$ cell length buffer) are flagged, then only the particles within the flagged cells are read from the corresponding SWIFT snapshot .hdf5 files. 
 Note that passing an MPI communicator (`comm`) reads the snapshot files in parallel.
 
-Alternativley, and to limit peak memory use, the files containing particles within the lightcone's footprint can also be gathered first in a seperate step and then read individually, one at a time, to place particles in the lightcone (`gather_files` and `place_file_in_shell`).  
+Alternatively, and to limit peak memory use, the files containing particles within the lightcone's footprint can also be gathered first in a separate step and then read individually, one at a time, to place particles in the lightcone (`gather_files` and `place_file_in_shell`).  
 Moreover, after building (or just applying a first pass at the cell level with `gather_files`), points can be mapped between the snapshot and the lightcone (`Snapshot2Lightcone` and `Lightcone2Snapshot`).
 
 A diagram of the complete workflow of `SnapshotLightcone` and its subclasses is shown in [docs/snapshot_lightcone_flow.md](./docs/snapshot_lightcone_flow.md). 
@@ -305,9 +305,9 @@ soap_index = halos["InputHalos/SOAPIndex"].value.astype(int)
 m200c = np.zeros(len(snap_nr))
 for snap in np.unique(snap_nr):
     in_snap = snap_nr == snap
-    rows, locaiton = np.unique(soap_index[in_snap], return_inverse=True)  # each row read once, in order
+    rows, location = np.unique(soap_index[in_snap], return_inverse=True)  # each row read once, in order
     soap = read_soap_selected_rows(soap_format.format(snap_nr=snap), ["SO/200_crit/TotalMass"], rows)
-    m200c[in_snap] = comoving(soap["SO/200_crit/TotalMass"]).to_value("Msun")[locaiton]
+    m200c[in_snap] = comoving(soap["SO/200_crit/TotalMass"]).to_value("Msun")[location]
 ```
 
 `SnapshotAllSky` is used in the same way, without `beam_vector` or `ang_radius_deg`.
@@ -318,10 +318,10 @@ for snap in np.unique(snap_nr):
 <details>
 <summary><b>FLAMINGO and COLIBRE simulations</b></summary>
 
-For both FLAMINGO and COLIBRE simulaiton suites, to track a naming conventions, paths to the snapshots and SOAP catalogues and, to map a simulations snapshot number to redshift we have implemented a Snapshot Class.
+For both FLAMINGO and COLIBRE simulation suites, to track a naming conventions, paths to the snapshots and SOAP catalogues and, to map a simulations snapshot number to redshift we have implemented a Snapshot Class.
 Accessing a simulation's snapshot, identifying how a simulation is named and computing the redshift ranges of each snapshot, is done through a `Simulation` object. This way each simulations key information is consistent within the same suite. 
 
-Moreover, lightcones can be built by passing a `Simulation` object instead of manually definging the individul paths for snapshots, SOAP catalogues and snapshot number to redshift conversions as shown below: 
+Moreover, lightcones can be built by passing a `Simulation` object instead of manually definging the individual paths for snapshots, SOAP catalogues and snapshot number to redshift conversions as shown below: 
 
 ```python
 from swiftlet import Simulation, SnapshotAllSky, SnapshotBeam
@@ -337,9 +337,9 @@ colibre.snapshot_file(127)              # .../snapshots/colibre_0127/colibre_012
 colibre.snapshot_redshift_range(127)    # redshifts the snapshot fills in a lightcone
 ```
 
-Otherwise, `SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL")` still works and makes a `Simulation` object witin `SnapshotAllSky` itself, with `simulation_suite_name="flamingo"` or `"colibre"` for a label that isn't recognised, and `simulation_base_dir_format` for a simulation somewhere else. 
+Otherwise, `SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL")` still works and makes a `Simulation` object within `SnapshotAllSky` itself, with `simulation_suite_name="flamingo"` or `"colibre"` for a label that isn't recognised, and `simulation_base_dir_format` for a simulation somewhere else. 
 
-The table below outlines the recognised simualtion suites, names and expected file structures for both COLIBRE and FLAMINGO. 
+The table below outlines the recognised simulation suites, names and expected file structures for both COLIBRE and FLAMINGO. 
 
 | | FLAMINGO | COLIBRE |
 |---|---|---|
@@ -405,7 +405,7 @@ The example, [`snapshot_smoothed_map.py`](./examples/snapshot_smoothed_map.py) d
 The `orientation_lock` parameter of `SnapshotLightcone` (and subclasses) sets which tiles share an orientation:
 
 - `orientation_lock=None` (or `"none"`, the default): every box tile has its own unique orientation, so discontinuities occur at every face of every tile in the lightcone. This creates the most discontinuities. 
-- `orientation_lock="cube"`: every box in the same cube shell of boxes around the observer's box shares one orientation. Shell $`n`$ holds the tiles with $`n=\max(|n_x|, |n_y|, |n_z|)`$, where $`(n_x, n_y, n_z)`$ is the position of the box in box sidelengths. The orientation only changes across tile faces, a single tile is always completley within a single layer, and computationally the cost is the same as without a lock. However, the boundary between shells is not at one distance or redshift: it ranges from $`(n+½)L`$ along an axis to $`(n+½)\sqrt{3}L`$ along a box diagonal.
+- `orientation_lock="cube"`: every box in the same cube shell of boxes around the observer's box shares one orientation. Shell $`n`$ holds the tiles with $`n=\max(|n_x|, |n_y|, |n_z|)`$, where $`(n_x, n_y, n_z)`$ is the position of the box in box sidelengths. The orientation only changes across tile faces, a single tile is always completely within a single layer, and computationally the cost is the same as without a lock. However, the boundary between shells is not at one distance or redshift: it ranges from $`(n+½)L`$ along an axis to $`(n+½)\sqrt{3}L`$ along a box diagonal.
 - `orientation_lock="sphere"`: everything in the same spherical shell, $`(n−½)L ≤ r < (n+½)L`$, shares the same orientation, so each shell covers its own redshift range. A tile crossing a sphere is used twice, once with each shell's orientation, and each copy keeps only the particles on its own side. This is more expensive, as those tiles are read twice, and the same region of a snapshot can appear in both shells, at different positions and orientations.
 
 Within a locked shell, the tiles are periodically continuous, so structures continue across the faces between them. With the `"cube"` or `"sphere"` lock and the same `orientation_seed`, a beam from `SnapshotBeam` is exactly the same as the matching patch of the `SnapshotAllSky` lightcone, whichever way it points. Without a lock, this is not the case.
@@ -606,7 +606,7 @@ The [examples](./examples) are named after the data they start from: `snapshot_`
 | `snapshot_beam_zoom_on_haloes.py / .sh` | The same as above but using `SnapshotBeam` to build lightcone beams centred on a halo |
 | `snapshot_tile_reorientation_diagram.py` | shows how the cells of a snapshot box are shifted, reflected and rotated to make a new box tile |
 | `snapshot_orientation_lock_diagram.py` | shows which box tiles share an orientation for each `orientation_lock`, for all-sky and on and off axis beams |
-| `snapshot_number_density_seeds.py` / `.sh` | Comapre the dark matter number density of snapshot full sky lightcones against the expected number density of the snapshot box,  in comoving distance bins of equal volume. The comparison is done for 10 orientation seeds with `orientation_lock="cube"`, for FLAMINGO (L1_m9) and COLIBRE (L400_m7), both for 0 < z <= 0.15. Run with `--plot_files`, it plots the two side by side: every seed, their mean and scatter, and the Poisson uncertainty of one seed. The job script runs both and the plot |
+| `snapshot_number_density_seeds.py` / `.sh` | Compare the dark matter number density of snapshot full sky lightcones against the expected number density of the snapshot box,  in comoving distance bins of equal volume. The comparison is done for 10 orientation seeds with `orientation_lock="cube"`, for FLAMINGO (L1_m9) and COLIBRE (L400_m7), both for 0 < z <= 0.15. Run with `--plot_files`, it plots the two side by side: every seed, their mean and scatter, and the Poisson uncertainty of one seed. The job script runs both and the plot |
 | `make_colibre_halo_lightcone.py` / `.sh` | make a full sky halo lightcone of COLIBRE (L400_m7) for 0.001 < z < 0.1 and then write a catalogue of the haloes from the lowest redshift snapshot in the format of the `lightcone_io` halo lightcones (i.e. can be read with `lightcone_io.halo_reader.HaloLightconeFile`) |
 
 
@@ -629,7 +629,7 @@ The [examples](./examples) are named after the data they start from: `snapshot_`
 - `simulation_suites`: everything that differs between FLAMINGO and COLIBRE, see [FLAMINGO and COLIBRE simulations](#flamingo-and-colibre-simulations).
   - **`SimulationSuite`** (`FLAMINGO`, `COLIBRE`): the suite's box size and resolution labels, directory, snapshot file names and output redshift files (`swiftlet/data/output_redshifts`, read with `read_output_redshifts`). `suite_for_label` finds the suite of a label, and `output_redshifts(box_res)` gives its output redshifts when only those are needed.
   - **`Simulation`**: one simulation. `output_redshifts`, `snapshot_redshift`, `snapshot_number` (the snapshot at a redshift), `snapshot_redshift_range`, `snapshots_in_range` and `z0_snapshot` use its suite's output redshifts.
-- `snapshot_redshifts`: funcitons to return a simulation's output redshifts, with nothing specific to the simulation suite. Each snapshot covers the redshifts between the midpoints to its neighbours, the first and last ending at their own redshifts (`redshift_edges`, `snapshot_redshift_range`). `snapshots_in_range` gives every snapshot whose range overlaps a redshift range. Edges within `range_tol` (1e-9) of the range count as touching it, so floating point noise doesn't decide which snapshots touch the lightcones redshift range. `snapshot_coverage` gives the redshift range of the available snapshots when filling the gaps in redshift due to missing snapshots.
+- `snapshot_redshifts`: functions to return a simulation's output redshifts, with nothing specific to the simulation suite. Each snapshot covers the redshifts between the midpoints to its neighbours, the first and last ending at their own redshifts (`redshift_edges`, `snapshot_redshift_range`). `snapshots_in_range` gives every snapshot whose range overlaps a redshift range. Edges within `range_tol` (1e-9) of the range count as touching it, so floating point noise doesn't decide which snapshots touch the lightcones redshift range. `snapshot_coverage` gives the redshift range of the available snapshots when filling the gaps in redshift due to missing snapshots.
 - `snapshot_cosmology`: `SnapshotCosmology`, the cosmology of a FLAMINGO or COLIBRE simulation read from one of its snapshots (`SnapshotCosmology.from_simulation(sim)`, or `from_path` with a snapshot file or directory). `.COSMO` is the astropy w0waCDM of the snapshot's Cosmology group, including its neutrinos (`N_eff`, `N_ur`, and the masses `M_nu_eV` of the massive species with their degeneracies `deg_nu`, mapped to astropy as swiftsimio does), with H0 converted from the code's own time unit using the snapshot's unit registry (`.unit_registry`). It also gives `comoving_distance`, `redshift_with_time_offset`, `shell_comoving_radii` and `lightcone_volume`. The lightcones, `BeamProjection` and `BeamPlot` use it, and wherever they take a cosmology they take a `SnapshotCosmology`, an astropy cosmology or the path of a snapshot (`as_astropy_cosmology`).
 - `flamingo_lightcones`: FLAMINGO's own lightcone products. `flamingo_shell_redshift_file` finds the shell redshift files, downloading them if needed. `flamingo_box_resolution` reads the box and resolution label (e.g. `L1000N1800`) from a path.
 - `soap_reader`: reading SOAP halo catalogues, each reader applies the properties the units `lightcone_io`'s `SOAPCatalogue` gives them. `read_soap_rows` reads a range of rows, `read_soap_in_chunks` the whole catalogue a chunk at a time, `read_soap_selected_rows` only the given rows, and `select_soap_rows` the rows where one property passes a test (e.g. a mass range), reading that property in chunks and the others only for the rows kept. `soap_catalogue_length` gives the number of haloes without reading any, and `comoving` drops the expansion factor from a property's units (e.g. `a*snap_length` to comoving lengths). It also holds the patch letting virgodc (<= 1.0.5) read SOAP units with numpy >= 2.4. `place_halos_in_shell` and the halo zoom examples use it.
@@ -687,7 +687,7 @@ Add `-v` to list every test case, `-x` to stop at the first failure, `--duration
 | Test file | What it checks |
 |---|---|
 | `test_config.py` | downloading the shell redshift files, adding their paths and the maximum number of threads to the environment's activate script and finding them when needed |
-| `test_threads.py` | the maximum number of threads (`SWIFTLET_MAX_THREADS`), and that numba and healpy alm parallel funcations abide by it |
+| `test_threads.py` | the maximum number of threads (`SWIFTLET_MAX_THREADS`), and that numba and healpy alm parallel functions abide by it |
 | `test_init.py` | the public classes and functions are imported from the package when first used, and importing the package doesn't load the modules that need MPI |
 | `test_orientation_tables.py` | the default orientation tables, generating tables with every distinct orientation, and writing, reading and checking table files |
 | `test_snapshot_lightcone_placement.py` | where `SnapshotBeam` and `SnapshotAllSky` place particles and haloes |

@@ -32,7 +32,7 @@ DEFAULT_V2_FINGERPRINT = "7006e905808e256f"
 
 def test_installed_tables():
     """
-    Test that the default tables are installed and accessable: 
+    Test that the default tables are installed and accessible: 
         - default_v1:   a small 79 row table used for tests and has intentional 
                             clashes of cells
         - default_v2:   a no-clash table to used to build lightcones  

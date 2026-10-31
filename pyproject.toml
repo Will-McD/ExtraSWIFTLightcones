@@ -100,9 +100,8 @@ max-doc-length = 120
 "examples/*" = ["D", "ERA"]
 
 [tool.codespell]
-skip = "*.yaml,*.txt,*.hdf5,*.ipynb,./docs/_build,./data"
-# words codespell flags that are correct here: add to this list, comma-separated
-ignore-words-list = "nd,ans"
+skip = "*.yaml,*.txt,*.hdf5,*.ipynb,*.log,./logs,./docs/_build,./docs/api/generated,./data,./example_outputs"# words codespell flags that are correct here: add to this list, comma-separated
+ignore-words-list = "nd,ans,clen,ons"
 check-filenames = true
 
 [tool.interrogate]
@@ -113,4 +112,3 @@ ignore-private = false
 fail-under = 85
 exclude = ["tests", "examples", "docs", "build"]
 verbose = 1
-

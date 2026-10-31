@@ -16,7 +16,7 @@ from . import snapshot_orientation as box_structure
 from . import snapshot_units as sw_units
 from .simulation_suites import Simulation
 from .snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology
-from .soap_reader import soap_catalogue_length, read_soap_rows, soap_unit_attributes # noqa: F401
+from .soap_reader import soap_catalogue_length, read_soap_rows, read_soap_in_chunks, soap_unit_attributes # noqa: F401
 from .soap_reader import comoving as soap_comoving
 from . import snapshot_redshifts
 import datetime as dt
@@ -32,7 +32,7 @@ except ImportError:
 # define simple printout functions
 def seperator_str(n=35,line_seperator="~"):
     """
-    Make fancy line seperation, 
+    Make fancy line separation, 
     
     Returns a newline followed by the separator line.
     :param  n:              number of characters in the line
@@ -238,12 +238,12 @@ class SnapshotGapWarning(UserWarning):
 # Metadata class and related functions
 
 # the settings recorded with every lightcone output .metadata 
-# esentially what is needed to perfectly reproduce the same lightcone
+# essentially what is needed to perfectly reproduce the same lightcone
 LIGHTCONE_METADATA_NAMES = (
     "lightcone_type", 
     "boxsize_resolution", "simulation_name", "simulation_suite_name", # simulation info 
     "orientation_seed", "orientation_lock",  # geometry info
-    "orientation_table", "orientation_table_fingerprint",  # geomtry table info
+    "orientation_table", "orientation_table_fingerprint",  # geometry table info
     "beam_vector", "ang_radius_deg", "redshift_range", # beam info 
     "version", # not included just yet, keep as place holder for now
 )
@@ -385,7 +385,7 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
 
 
 ######################################################
-# SWIFT Simulation class funcitons
+# SWIFT Simulation class functions
 
 def as_simulation(boxsize_resolution=None, simulation_name=None, simulation_suite_name=None,
                   simulation_base_dir_format=None, simulation_object=None):
@@ -412,7 +412,7 @@ def as_simulation(boxsize_resolution=None, simulation_name=None, simulation_suit
     """
 
 
-    #check sim object is exected class
+    #check sim object is expected class
     if simulation_object is not None:
         if not isinstance(simulation_object, Simulation):
             raise TypeError(f"simulation_object must be a swiftlet.Simulation, not {type(simulation_object).__name__}")
@@ -440,7 +440,7 @@ def as_simulation(boxsize_resolution=None, simulation_name=None, simulation_suit
 
 class SnapshotLightcone():
     """
-    Fundamental code used to constuct lightcones from snapshots with 
+    Fundamental code used to construct lightcones from snapshots with 
     SnapshotBeam and SnapshotAllSky sub classes. 
     Each sub class is built to handle their specific lightcone geometry. 
 
@@ -1630,7 +1630,7 @@ class SnapshotLightcone():
                                     inplace=False
                                     )
 
-            # convert cell and boxsize metadat from snapshot_lengths to Mpc for consistancy. 
+            # convert cell and boxsize metadata from snapshot_lengths to Mpc for consistency. 
             new_coords+=self.get_snapshot_reposition_coords(tile, self.__snap_cell_data["snap_boxsize"].to_value("Mpc")) 
 
             # replace coordinates
@@ -1734,7 +1734,7 @@ class SnapshotLightcone():
     def __fill_missing_particle_data(self, property_names, comm):
         """
         Fill in a correct zero-length unyt_array for a rank assigned zero files. 
-        Use the unit registery and each property's dtype + units from a rank that did read something.
+        Use the unit registry and each property's dtype + units from a rank that did read something.
         
         Note: SnapshotNumber is always included in particle properties. 
         
@@ -1825,7 +1825,7 @@ class SnapshotLightcone():
                 offset = 0
 
                 for (clen, coff) in zip(infile_lengths, infile_offset):
-                    i1 = max((coff, 0)) # the starting index for infile data, either at start of file (=0, especially if global offset value is -ve relative to file), or offset further within the file if there are multiple sets fo adjacent cells
+                    i1 = max((coff, 0)) # the starting index for infile data, either at start of file (=0, especially if global offset value is -ve relative to file), or offset further within the file if there are multiple sets of adjacent cells
                     i2 = min((coff+clen), int(numb_all_infile)) # final index for infile data, either for all particles within the file if all cells need to be read, or to end of where adjacent cells are within file
                     num = i2 - i1 # number of particles to be read from the file
 
@@ -2048,9 +2048,9 @@ class SnapshotLightcone():
             arguments, would reproduce the input `coords`.
         """
         """
-        Recover the original snapshot frame coordiantes from the transformed coordinates. 
+        Recover the original snapshot frame coordinates from the transformed coordinates. 
         
-        i.e., given coordinates produced by _transform_snapshot_coordinates return the inital input coordinates.
+        i.e., given coordinates produced by _transform_snapshot_coordinates return the initial input coordinates.
 
         Returns the snapshot frame coordinates passed through _transform_snapshot_coordinates. 
 
@@ -2073,7 +2073,7 @@ class SnapshotLightcone():
         :param  inplace:                If True, overwrite coords in place instead of allocating new memory
         :type   inplace:                boolean
         """
-        # convert to Mpc for consistancy when doing anything with re-orienting the snapshots. 
+        # convert to Mpc for consistency when doing anything with re-orienting the snapshots. 
         nr_cell_axis = cell_data["nr_cells_axis"]
         cell_sidelength=cell_data["cell_size"].to_value("Mpc")
         snapshot_sidelength=cell_data["snap_boxsize"].to_value("Mpc")
@@ -2107,7 +2107,7 @@ class SnapshotLightcone():
         self.last_snapshot_read being populated by either gather_files, place_snapshot_particles_in_shell or the internal
         _gather_files_for_ptype they both call.
 
-        Note: A single snapshot number can supply more than one periodic replica tile to the same shell due to independant rotation, 
+        Note: A single snapshot number can supply more than one periodic replica tile to the same shell due to independent rotation, 
         reflection and periodic shifts.
 
         Returns a dict {tile: lightcone_coords}, one entry per tile this snapshot supplies to the 
@@ -2508,18 +2508,16 @@ class SnapshotLightcone():
         """
         Halo counterpart of place_snapshot_particles_in_shell. 
         Place the haloes of SOAP catalogues in a lightcone shell, exactly as done for the particles. 
-
-        The first pass is gather_halo_catalogues. i.e. which SOAP catalogues to read and the tiles each
-        snapshot is moved into. If it has already been called with the same arguments it is not repeated. 
-        Then the catalogues are read, and their haloes moved into the lightcone exactly as particles are 
-        and kept if they are in the shell.
+        If gather_halo_catalogues has already been called with the same arguments then the first gather pass 
+        is not repeated. Then the catalogues are read, and their haloes moved into the lightcone exactly as 
+        particles are and kept if they are in the shell.
 
         How the SOAP catalogues are read:
-          - in serial (no comm, one MPI rank):  soap_chunk_size rows at a time, or each catalogue as a whole if None.
-          - with MPI:    the catalogues are split into
-                pieces of soap_chunk_size rows (if None, each catalogue into one piece per rank), shared between the ranks
-                as particle files are. Each rank reads only its own pieces, and returns the haloes it placed. With
-                redistribute_halos, the haloes are then shared evenly between the ranks.
+            - in serial (no comm, one MPI rank):  soap_chunk_size rows at a time, or each catalogue as a whole if None.
+            - with MPI:    the catalogues are split into
+                  pieces of soap_chunk_size rows (if None, each catalogue into one piece per rank), shared between the ranks
+                  as particle files are. Each rank reads only its own pieces, and returns the haloes it placed. With
+                  redistribute_halos, the haloes are then shared evenly between the ranks.
         
         The haloes placed are the same whichever way the catalogues are read (serial or MPI).
         

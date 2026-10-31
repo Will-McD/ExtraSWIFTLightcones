@@ -984,7 +984,7 @@ def unchanged_orientation_table(directory):
 def not_reoriented_wrong_ids(ids, coords):
     """
     For a lightcone that is not re-oriented, the number of points whose ID is not the same as lattice point of 
-    the inital snapshot box they were copied from: the point wrapped back into the box, (position + L/2) modulo L. 
+    the initial snapshot box they were copied from: the point wrapped back into the box, (position + L/2) modulo L. 
     The observer is always at the centre of the box. 
 
     Return wrapped ids

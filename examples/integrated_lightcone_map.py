@@ -5,12 +5,12 @@ import hdfstream
 from swiftlet.healpix_map_utils import write_rotated_lightcone_chunks
 
 """
-For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create an intergrated 'TotalMass' and 'SmoothedGasMass' map 
+For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create an integrated 'TotalMass' and 'SmoothedGasMass' map 
 over the redshift range 0.1-0.3. 
-Write the intergrated maps as a hdf5 file and store the individually rotated redshift chunks used to create the intergrated map. 
+Write the integrated maps as a hdf5 file and store the individually rotated redshift chunks used to create the integrated map. 
 """
 
-# rotation angles (in radians) for the (1000 Mpc)^3 flamingo simualtions, 
+# rotation angles (in radians) for the (1000 Mpc)^3 flamingo simulations, 
 # as given by https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/integrated_lightcones.html
 ROTATIONS_L1=np.array(
     [
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     directory_path = Path(output_dir)
     directory_path.mkdir(parents=True, exist_ok=True)
 
-    # map nside to read in and ouput
+    # map nside to read in and output
     input_nside=4096
     output_nside=1024
 
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     lightcone_nr=0
     
     # optional, set maximum ell (smallest angular scale) for rotations. 
-    # Intentionally made smaller for speed of exmaple
+    # Intentionally made smaller for speed of example
     ell_max=2*output_nside
 
     # path to healpix lightcone maps. If the healpix maps are local then set root=None

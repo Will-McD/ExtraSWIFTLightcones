@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 from swiftlet.mask_haloes import write_binary_masks
 
-# rotation angles (in radians) for the (1000 Mpc)^3 flamingo simualtions, 
+# rotation angles (in radians) for the (1000 Mpc)^3 flamingo simulations, 
 # as given by https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/integrated_lightcones.html
 ROTATIONS_L1=np.array(
     [
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         
         args.lightcone_nr=np.asarray([args.lightcone_nr])
 
-        # formated paths to soap and halo lightcone files
+        # formatted paths to soap and halo lightcone files
         halo_cat_format = args.halo_lightcone_dir + "/lightcone{lightcone_nr}/lightcone_halos_{snap_nr:04d}.hdf5"
         soap_cat_format = args.soap_dir + "/halo_properties_{snap_nr:04d}.hdf5"
 

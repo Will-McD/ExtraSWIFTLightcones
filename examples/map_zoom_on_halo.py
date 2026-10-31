@@ -32,9 +32,9 @@ Notes:
         to reduce memory required change nside_output to 4096. 
 
     2) The zoomed image is centred on the pixel containing the selected halo. 
-        The centre of the halo is not necesarily where it will appear to be brightest or most dense. 
+        The centre of the halo is not necessarily where it will appear to be brightest or most dense. 
 
-    3) The selected halo can be split across multiple redshift shells. If the halo or part of the halo doesn't apprear 
+    3) The selected halo can be split across multiple redshift shells. If the halo or part of the halo doesn't appear 
         in the loaded map you can change the shell number used. 
 """
 
@@ -175,7 +175,7 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
         else:
             pixel_idx=np.asarray(pixel_idx[np.argsort(pixel_idx)]).astype(int) # order and ensure order, is np.array and int 
             
-            # gather the runs of consequtive pixels using read_selected_pixels instead of defining here. 
+            # gather the runs of consecutive pixels using read_selected_pixels instead of defining here. 
             selected_pix_vals = read_selected_pixels(filename[map_name], pixel_idx)
             
             if return_empty_map is True:
@@ -211,7 +211,7 @@ def find_haloes_in_shell(halo_format, soap_format, shell_redshift_range, centre_
                         remote_dir=None, min_mass=1e13*unyt.Msun, extra_properties=("InputHalos/IsCentral", "BoundSubhalo/TotalMass")):
     """
     Find the haloes of the halo lightcone in the given on the sky area within a lightcones redshift shell.
-    Haloes in one shell can come from mutiple halo lightcone files as each file contains haloes from only one snapshot. 
+    Haloes in one shell can come from multiple halo lightcone files as each file contains haloes from only one snapshot. 
 
     Returns a dict of arrays (one entry per halo): 
         {   
@@ -641,7 +641,7 @@ if __name__ == "__main__":
     )
     print(info_str)
     
-    # Find pixel in Nside 4096 healpix maps associated with tracer particle for the selcted halo 
+    # Find pixel in Nside 4096 healpix maps associated with tracer particle for the selected halo 
     ipix = hp.vec2pix(output_nside, *halo_centre)
 
     # Plot a a disk with radius of 100 pixels, centred the selected pixel.

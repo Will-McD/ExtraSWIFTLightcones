@@ -15,6 +15,7 @@ on:
     branches: [ "**" ]
   pull_request:
     branches: [ "main" ]
+  # a "Run workflow" button in the Actions tab, to check any branch by hand
   workflow_dispatch:
 
 permissions:
