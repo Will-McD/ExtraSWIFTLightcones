@@ -1245,6 +1245,24 @@ class SnapshotLightcone():
                 out=out, inplace=inplace
             )
 
+    def _transform_snapshot_vectors(self, vectors, tile):
+        """
+        Re-orient vector snapshot properties (e.g., particle velocities) the same as the coordiantes by applying the 
+        the tile's reflection and quarter turns, without its periodic shift or offset. 
+
+        Returns the re-oriented vectors
+
+        :param  vectors:    vectors in the snapshot's frame, shape (N, 3)
+        :type   vectors:    np.ndarray
+        :param  tile:       the box tile, as in _snapshot_reorientation
+        :type   tile:       tuple
+        """
+
+        rot_angles, reflections, _ = self._snapshot_reorientation(tile)
+        vectors = np.asarray(vectors)
+        return box_structure.rotate_coords_cartesian(vectors, rot_angles, reflections=reflections, order="xyz", degrees=True).astype(vectors.dtype, copy=False)
+
+
     def _validate_ang_radius_deg(self, ang_radius_deg):
         """
         Check the angular radius given to the subclasses particle and halo placement methods. 
@@ -1638,6 +1656,11 @@ class SnapshotLightcone():
 
             del new_coords
 
+            # if there are velocities apply the same rotation and reflection as the coordinates (no shift or offset)
+            if "Velocities" in file_particle_data:
+                velocities = file_particle_data["Velocities"]
+                file_particle_data["Velocities"] = unyt.unyt_array(
+                    self._transform_snapshot_vectors(velocities.value, tile), velocities.units)
             self._log_coord_ranges("\ncoordinates range of particles read", file_particle_data["Coordinates"])
 
             zmin, zmax = snap_z_range[(snap_nr, tile)]
