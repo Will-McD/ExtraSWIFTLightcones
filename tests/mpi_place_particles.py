@@ -36,17 +36,24 @@ def main(args):
 
     lightcone = placement.new_lightcone(args["sim_name"], args["beam_vector"], args["orientation_lock"])
     kwargs = {"comm": comm}
+    
     if args["beam_vector"] is not None:
         kwargs["ang_radius_deg"] = args["ang_radius_deg"]
         kwargs["redistibute_particles"] = args["redistribute"]
-    particles = lightcone.place_snapshot_particles_in_shell(tuple(args["redshift_range"]), property_names=["ParticleIDs", "Coordinates"],
-                                                            particle_types=placement.PTYPE, **kwargs)[placement.PTYPE]
+
+    particles = lightcone.place_snapshot_particles_in_shell(
+        tuple(args["redshift_range"]), 
+        property_names=["ParticleIDs", "Coordinates", "Velocities"],
+        particle_types=placement.PTYPE, 
+        **kwargs)[placement.PTYPE]
 
     if particles and particles.get("Coordinates") is not None and len(particles["Coordinates"]) > 0:
-        snap_nr, ids, coords = placement.particle_rows(particles)
+        snap_nr, ids, coords, velocities = placement.particle_rows(particles, velocities=True)
     else:
-        snap_nr, ids, coords = np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros((0, 3))
-    np.savez(f"{args['output']}.{comm.Get_rank()}.npz", snap_nr=snap_nr, ids=ids, coords=coords)
+        snap_nr, ids, coords, velocities = np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros((0, 3)), np.zeros((0, 3))
+    
+    np.savez(f"{args['output']}.{comm.Get_rank()}.npz", snap_nr=snap_nr, ids=ids, coords=coords, velocities=velocities)
+    
     patch.undo()
 
 

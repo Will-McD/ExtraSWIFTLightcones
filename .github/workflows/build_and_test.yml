@@ -8,7 +8,12 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-
+  # every release (and pre-release) when it is published, testing the code of its tag
+  release:
+    types: [ "published" ]
+    # a "Run workflow" button in the Actions tab, to test any branch by hand
+  workflow_dispatch:
+  
 permissions:
   contents: read
 
