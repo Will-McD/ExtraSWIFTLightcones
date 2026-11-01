@@ -11,9 +11,10 @@ except ImportError:
     _HAVE_NUMBA = False
 
 """
-The orientation of the box tiles of a lightcone built from the snapshots: the rotations (quarter turns),
-reflections and periodic cell shifts that make each tile a new copy of the initial snapshot box, the tables they are
-chosen from (default, or written to and read from a file), and the rotation of coordinates with them.
+The orientation of the tiles of a lightcone built from the snapshots. 
+
+The rotations (quarter turns), reflections and periodic cell shifts that make each tile a new copy of the initial 
+snapshot box, the tables they are chosen from, and the rotation of coordinates with them.
 """
 
 ##############################################################
@@ -33,7 +34,6 @@ def _build_rotation_matrix(rot_angles, order="xyz", degrees=False):
     :param  degrees:    If True, then angles are given in degrees
     :type   degrees:    boolean
     """
-
     rot_angles = np.asarray(rot_angles, dtype=np.float64)
 
     if rot_angles.shape != (3,):
@@ -198,6 +198,7 @@ def rotate_coords_cartesian(
 ):
     """
     Rotate Cartesian coordinates about the x, y, z axes.
+
     Uses a numba-compiled, parallelized loop when numba is available and falls back to NumPy matmul otherwise.
 
     Returns the rotated coordinates, shape (N, 3).
@@ -287,7 +288,6 @@ def rotate_coords_cartesian(
                 centred = np.mod(coords + periodic_shift, sidelengths) - centre
                 np.matmul(centred, R.T, out=target)
                 target += centre
-                # np.mod(target, sidelengths, out=target)
 
                 # wrap only the points outside [0, L].
                 outside = (target < 0.0) | (target > sidelengths)
@@ -352,15 +352,14 @@ def installed_orientation_table_file(name=DEFAULT_ORIENTATION_TABLE):
 
 @functools.lru_cache(maxsize=None)
 def _installed_orientation_tables(name):
-    """
-    Read installed orientation tables. Cached so each file is read once.
-    """
+    """Read installed orientation tables. Cached so each file is read once."""
     return _read_orientation_tables_yaml(installed_orientation_table_file(name))
 
 
 def default_orientation_tables(name=DEFAULT_ORIENTATION_TABLE):
     """
     The orientation table reverted to when no orientation table is given, these tables are installed with SWIFTLET.
+
     By default the current default tables (DEFAULT_ORIENTATION_TABLE); "default_v2" gives the first default tables.
 
     Returns the tables as a dict, see check_orientation_tables.
@@ -400,6 +399,7 @@ def cell_shifts_in_cells(cell_shift, nr_cells_axis):
 def check_orientation_tables(tables):
     """
     Check orientation tables.
+
     Three tables with the same number of rows (at least 1) of 3 whole numbers to build new snapshot tiles:
 
         - the quarter turns about the x, y and z axes
@@ -477,6 +477,8 @@ def orientation_tables_fingerprint(tables):
 
 def generate_orientation_tables(seed=0, n_rows=None, cell_shift_values=EIGHTH_SHIFT_VALUES):
     """
+    Build an orientation table.
+
     Orientation tables holding every distinct orientation: each of the 48 ways of turning and reflecting the box
     (the signed permutations of the axes) with each combination of the cell shifts along x, y and z, e.g.
     48 x 7^3 = 16464 rows for the default shifts.
@@ -492,7 +494,6 @@ def generate_orientation_tables(seed=0, n_rows=None, cell_shift_values=EIGHTH_SH
     :param  cell_shift_values:  shifts each axis can take, including 0, in 1/8 of the box
     :type   cell_shift_values:  sequence of int
     """
-
     import itertools
 
     cell_shift_values = [int(value) for value in cell_shift_values]
@@ -535,7 +536,8 @@ def write_orientation_tables(
 ):
     """
     Write orientation tables to a YAML file. The tables are given, or generated with every distinct orientation.
-    The .hdf5 file holds the datasets 'QuarterTurns', 'Reflections' and 'CellShifts', and the attributes describing them.
+
+    The .hdf5 file holds the datasets 'QuarterTurns', 'Reflections' and 'CellShifts', and the attributes describing them
 
     Returns the fingerprint of the tables.
 
@@ -550,7 +552,6 @@ def write_orientation_tables(
     :param  cell_shift_values:  cell shifts of generate_orientation_tables, if the tables are generated
     :type   cell_shift_values:  sequence of int
     """
-
     from .table_files import write_table_file
 
     _check_yaml_file_name(filename)
@@ -601,7 +602,9 @@ def _check_yaml_file_name(filename):
 
 def _read_orientation_tables_yaml(filename):
     """
-    Read and check orientation tables from a YAML file written by write_orientation_tables. If the file holds a
+    Read and check orientation tables from a YAML file written by write_orientation_tables.
+
+    If the file holds a
     fingerprint, it must be that of the tables read, so a table edited by hand is not taken for the one it was.
     """
     from .table_files import read_table_file
@@ -622,15 +625,13 @@ def _read_orientation_tables_yaml(filename):
 
 def read_orientation_tables(filename):
     """
-    Read and check orientation tables written by write_orientation_tables.
-    Table must be a file ending in .yaml or .yml
+    Read and check orientation tables written by write_orientation_tables, Table must be a file ending in .yaml or .yml.
 
     Returns the tables as a dict.
 
     :param  filename:   path of the HDF5 file
     :type   filename:   str
     """
-
     if str(filename) == "default" or str(filename) in INSTALLED_ORIENTATION_TABLES:
         return default_orientation_tables(str(filename))
     _check_yaml_file_name(filename)
@@ -655,7 +656,7 @@ class NeighbourTileReport:
     shell:                  the shell [Mpc] the touching cells were kept in, or None for whole tiles
     """
 
-    def __init__(self, nr_neighbour_pairs, nr_reoriented_pairs, touching, shell=None):
+    def __init__(self, nr_neighbour_pairs, nr_reoriented_pairs, touching, shell=None):  # noqa: D107
         self.nr_neighbour_pairs = nr_neighbour_pairs
         self.nr_reoriented_pairs = nr_reoriented_pairs
         self.touching = touching
@@ -665,15 +666,16 @@ class NeighbourTileReport:
         self.nr_touching_pairs = len(np.unique(pairs, axis=0)) if len(pairs) else 0
 
     def summary(self):
-        """
-        Returns a message describing the touching cells found.
-        """
-        # where = "" if self.shell is None else f" in the shell {self.shell[0]:.0f}-{self.shell[1]:.0f} Mpc"
-        summary_str = f"{self.nr_touching_cells} cells touching their own replica across the faces of {self.nr_touching_pairs} pairs of neighbouring tiles"
-        summary_str += f"({self.nr_reoriented_pairs} / {self.nr_neighbour_pairs} pairs of neighbouring tiles are oriented differently)."
+        """Returns a message describing the touching cells found."""
+        summary_str = (
+            f"{self.nr_touching_cells} cells touching their own replica across the faces of"
+            f"{self.nr_touching_pairs} pairs of neighbouring tiles"
+            f"({self.nr_reoriented_pairs} / {self.nr_neighbour_pairs} pairs of neighbouring tiles are "
+            "oriented differently)."
+        )
         return summary_str
 
-    def __repr__(self):
+    def __repr__(self):  # noqa: D105
         return f"NeighbourTileReport({self.summary()})"
 
 
@@ -681,19 +683,19 @@ def check_neighbouring_tiles(
     tables, nr_cells_axis, orientation_lock=None, orientation_seed=0, extent=3, warn=True, boxsize=None, shell=None
 ):
     """
+    Returns a NeighbourTileReport after checking for clashing tiles from the orientation table.
+
     Check orientation tables for cells that touch their own copy in a neighbouring tile as a
     cell sharing a face with its own copy puts the same structures side by side.
 
     Only neighbouring tiles that are oriented differently can lead to replicas of the same cell have touching,
     e.g., with orientation_lock="cube" pairs of cells can touch only be touching on the faces between layers.
 
-    This method is quicker and coarser than swiftlet.repeat_check.find_close_cell_repeats, which builds the actual lightcone shell
-    of a simulation and also finds copies close along a line of sight.
+    This method is quicker and coarser than swiftlet.repeat_check.find_close_cell_repeats, which builds the actual
+    lightcone shell of a simulation and also finds copies close along a line of sight.
 
     Due to only doing a course check orientation_lock="sphere" cannot be used with this method as it requires a
     more complete rebuild of the lightcone. To test with Sphere use swiftlet.repeat_check.find_close_cell_repeats
-
-    Returns a NeighbourTileReport.
 
     :param  tables:             orientation tables, as a dict (see check_orientation_tables) or the path of a table
                                     file (see write_orientation_tables)
@@ -713,7 +715,6 @@ def check_neighbouring_tiles(
                                     touching copies whose cells overlap the shell are kept
     :type   shell:              tuple
     """
-
     import warnings
     from .snapshot_lightcone import TILE_HASH_PRIMES, TILE_HASH_SEED_PRIME
 
@@ -771,7 +772,6 @@ def check_neighbouring_tiles(
     # gather all tiles and then iterate through all possible pairs of neighbouring tiles
     tile_a, tile_b, cells = [], [], []
     nr_neighbour_pairs = nr_reoriented_pairs = 0
-    # tiles = np.indices((2 * extent + 1,) * 3).reshape(3, -1).T - extent
     for tile in tiles:
         for axis in range(3):
             neighbour = tile.copy()
@@ -830,7 +830,10 @@ def check_neighbouring_tiles(
         from .repeat_check import CloseRepeatWarning
 
         warnings.warn(
-            f"orientation tables (orientation_lock={orientation_lock!r}, orientation_seed={orientation_seed}, {n} cells per axis): {report.summary()}",
+            (
+                f"orientation tables (orientation_lock={orientation_lock!r}, "
+                f"orientation_seed={orientation_seed}, {n} cells per axis): {report.summary()}"
+            ),
             CloseRepeatWarning,
             stacklevel=2,
         )
@@ -854,7 +857,7 @@ def _face_cell_keys(tables, nr_cells_axis):
     :type   tables:         dict
     :param  nr_cells_axis:  number of cells along each axis
     :type   nr_cells_axis:  int
-    """
+    """  # noqa: D205
     tables = check_orientation_tables(tables)
     n = int(nr_cells_axis)
     n_rows = len(tables["QuarterTurns"])
@@ -888,6 +891,7 @@ def _face_cell_keys(tables, nr_cells_axis):
 class _ClashIndex:
     """
     Which rows of orientation tables clash: put the same cell on both sides of the face between neighbouring tiles.
+
     Built once from the face keys (see _face_cell_keys); neighbours(row) gives the rows clashing with a row, along
     any axis and either way round.
     """
@@ -928,6 +932,8 @@ class _ClashIndex:
 
 def generate_clash_free_tables(seed=21, nr_cells_axis=16, cell_shift_values=EIGHTH_SHIFT_VALUES, shuffle_seed=0):
     """
+    Generate an orientation table that doesn't allow for replica cells to be touching.
+
     Orientation tables in which no two rows clash: no cell touches its own copy across the face between two
     neighbouring tiles, whichever two rows the tiles take, for any orientation_lock and orientation_seed. The cell
     shifts are in eighths of the box, so the clashes are the same for every number of cells per axis that is a
@@ -1015,6 +1021,8 @@ def generate_clash_free_tables(seed=21, nr_cells_axis=16, cell_shift_values=EIGH
 
 def tables_are_clash_free(tables, nr_cells_axis=16):
     """
+    Check that an orientation table will not produce touching cell replicas.
+
     Check that no two rows of orientation tables (nor a row with itself) make a cell touch its own copy across the
     face between neighbouring tiles.
 

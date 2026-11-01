@@ -5,11 +5,13 @@ from collections import namedtuple
 """
 The redshifts a simulation's snapshots are spread over in a lightcone.
 
-Nothing here depends on the simulation suite, instead the redshifts come from (FLAMINGO, COLIBRE, ...) simulations.Simulation.
+Nothing here depends on the simulation suite, instead the redshifts come from (FLAMINGO, COLIBRE, ...) 
+simulations.Simulation.
 
 Each snapshot covers the redshifts closer to its own than to its neighbours'. 
 The edges are the midpoints between each snapshots own redshift and the redshifts of the snapshots before and after it. 
-The first and final snapshots end at their own redshifts, so nothing is placed earlier than the first output or later than z = 0.
+The first and final snapshots end at their own redshifts, so nothing is placed earlier than the first output or later 
+than z = 0.
 
 When snapshots are missing, fill the gap with the available snapshots. 
 """
@@ -80,7 +82,6 @@ def snapshots_in_range(redshifts, redshift_range, range_tol=1e-9, strict=False):
     :param  redshift_range: minimum and maximum redshift [z_min, z_max]
     :type   redshift_range: sequence of two floats
     """
-
     if range_tol < 0:
         raise ValueError(f"range_tol must not be negative, not {range_tol}")
 
@@ -130,7 +131,6 @@ def available_redshift_edges(redshifts, available):
     :param  available:  numbers of the snapshots that are available
     :type   available:  array-like of int
     """
-
     redshifts = _as_redshifts(redshifts)
     snapshots = np.unique(np.asarray(available, dtype=int))
     if len(snapshots) == 0:
@@ -153,10 +153,12 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
     Returns a SnapshotCoverage of:
         snapshots:  the snapshot numbers filling the range (from high to low redshift)
         ranges:     {snapshot number: (minimum redshift, maximum redshift)}
-        missing:    the snapshot numbers that would have filled the range but are not available (from high to low redshift)
+        missing:    the snapshot numbers that would have filled the range but are not available
+                        (from high to low redshift)
         filled_by:  {missing snapshot number: the snapshot numbers whose ranges now cover its redshifts}
 
-    Raise a ValueError if the redshift spacing between neighbouring snapshots filling the range is greater than max_spacing.
+    Raise a ValueError if the redshift spacing between neighbouring snapshots filling the range is greater than
+        max_spacing.
 
     :param  redshifts:      redshift of each snapshot, in order of snapshot number
     :type   redshifts:      array-like
@@ -182,7 +184,10 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
     else:
         if not np.any(np.isin(available, np.arange(len(redshifts)))):
             raise ValueError(
-                f"none of the snapshots are available, the redshift range {z_min} - {z_max} needs snapshots {needed.tolist()}"
+                (
+                    f"none of the snapshots are available, the redshift range {z_min} - {z_max} "
+                    f"needs snapshots {needed.tolist()}"
+                )
             )
         avail, edges = available_redshift_edges(redshifts, available)
         overlaps = (edges[1:] <= z_max + range_tol) & (edges[:-1] >= z_min - range_tol)

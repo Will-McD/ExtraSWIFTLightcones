@@ -19,6 +19,7 @@ comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
 
+
 """
 Mask selection of haloes for a given radius and mass range. 
 """
@@ -52,6 +53,7 @@ def rank_message(m, rank):
 
 
 def get_num(x):
+    """Returns number."""
     return int(x.split("/")[-2].lstrip().split("_")[-1])
 
 
@@ -77,7 +79,7 @@ def native_endian(arr):
 
 def exchange_particles(part_dest, arrays):
     """
-    Verbatim copy of lightcone_io.smoothed_map.exchange_particles that cannot be simply imported, hence local duplication.
+    Verbatim copy of lightcone_io.smoothed_map.exchange_particles that cannot be simply imported.
 
     Send each element of the arrays to its destination rank.
 
@@ -145,9 +147,10 @@ def get_map_rotation_angles(fn):
 
 def rotate_cluster_coords(cluster_coords, map_rotator_object):
     """
-    Rotate cluster 3D Cartesian comoving positions to match a sky
-    rotation already applied to a HEALPix map via rotate_map_fast.
-    Each cluster's comoving distance from the observer is preserved.
+    Rotate cluster 3D Cartesian comoving positions to match a sky.
+
+    Rotation has already been applied to a HEALPix map via rotate_map_fast and each cluster's comoving distance
+    from the observer is preserved.
 
     Returns the cluster positions in the rotated frame, shape (N, 3), with the same distances and rotated directions.
 
@@ -182,7 +185,8 @@ def read_shell_halo_properties(
     Per shell:
 
     1. read a shell's halo lightcone files in a single collective read
-    2. Cross-reference each snapshot's SOAP file, within the same snapshot, for radius_prop and mass_prop via ``InputHalos/SOAPIndex``
+    2. Cross-reference each snapshot's SOAP file, within the same snapshot,
+            for radius_prop and mass_prop via ``InputHalos/SOAPIndex``
     3. Convert the radius and mass properties from SOAP units to comoving Mpc and the given mass units
 
     Returns a dict of local per-halo arrays.
@@ -202,7 +206,6 @@ def read_shell_halo_properties(
     :param  comm:               MPI communicator
     :type   comm:               mpi4py.MPI.Comm
     """
-
     comm_rank = comm.Get_rank()
     comm_size = comm.Get_size()
 
@@ -298,7 +301,7 @@ def read_shell_halo_properties(
 
 def distribute_pixels(comm, nside):
     """
-    Verbatim copy of lightcone_io.smoothed_map.distribute_pixels that cannot be simply imported, hence local duplication.
+    Verbatim copy of lightcone_io.smoothed_map.distribute_pixels that cannot be simply imported.
 
     Split the HEALPix pixels between ranks.
 
@@ -333,7 +336,9 @@ def distribute_pixels(comm, nside):
 
 def mask_cluster_apertures_local(nside, cluster_coords, radius_mpc, local_offset, nr_local_pixels):
     """
-    Stamp each halo's aperture onto only a given rank's slice of the sky (global pixel indices [local_offset, local_offset + nr_local_pixels)).
+    Stamp each halo's aperture onto only a given rank's slice of the sky.
+
+    global pixel indices [local_offset, local_offset + nr_local_pixels)
 
     Returns the local mask, 0 inside a halo aperture and 1 otherwise. If zero haloes on rank, returns an all 1's mask.
 
@@ -568,7 +573,6 @@ def write_binary_masks(
             # Create directory and read redshifts on rank 0 before broadcasting
             directory_path = Path(output_dir)
             directory_path.mkdir(parents=True, exist_ok=True)
-            # redshifts=np.loadtxt(nz.flamingo_shell_redshift_file('L2p8'), delimiter=",")[:nshell]
             redshifts = np.loadtxt(flamingo_shell_redshift_file("L2p8"), delimiter=",")[:nshell]
 
         else:
@@ -590,9 +594,8 @@ def write_binary_masks(
 
                 # build output on each rank
                 outfile = stack.enter_context(h5py.File(output_filename, "w", driver="mpio", comm=comm))
-                # outfile = h5py.File(output_filename, "w", driver="mpio", comm=comm)
-                # with h5py.File(output_filename, "w", driver="mpio", comm=comm) as outfile:
                 outfiles[method_name] = outfile
+
                 # store mask metadata
                 meta_data = outfile.create_group("metadata")
                 meta_data.attrs["shells"] = np.arange(0, nshell, 1)
@@ -627,18 +630,16 @@ def write_binary_masks(
                 zmin = redshifts[shell_nr, 0]
                 zmax = redshifts[shell_nr, 1]
 
-                # snapshot_numbers = nz.snapshot_number_in_range(
-                #    redshift_range=(zmin, zmax), boxsize_resolution=nz.flamingo_box_resolution(halo_cat_format),
-                #    redshift_buffer=(0.025, 0.025), snapshot_buffer=(0, 0),
-                #    bounds="strict", decimals=5)[::-1]
-
                 # add a 0.025 redshift buffer to each end to ensure complete overlap of haloes with selected lightcone
                 snapshot_numbers = snapshots_in_range(
                     output_redshifts(flamingo_box_resolution(halo_cat_format)), (zmin - 0.025, zmax + 0.025)
                 )[::-1]
 
                 message(
-                    f"\tredshift range:\t{zmin:.3f}-{zmax:.3f}, snapshot numbers:\t{snapshot_numbers[0]}-{snapshot_numbers[-1]}"
+                    (
+                        f"\tredshift range:\t{zmin:.3f}-{zmax:.3f}, "
+                        f"snapshot numbers:\t{snapshot_numbers[0]}-{snapshot_numbers[-1]}"
+                    )
                 )
                 comm.barrier()  # collect ranks after establishing shell redshifts
 
@@ -728,7 +729,10 @@ def write_binary_masks(
                                 MASK[mask_str][shell_nr, local_offset : local_offset + nr_local_pixels] = local_mask
 
                     rank_message(
-                        f"lightcone {lightcone_nr},\t{ri + 1:d}/{n_radius:d} masks completed [radius < {radius_scalings[ri]} {radius_prop}]",
+                        (
+                            f"lightcone {lightcone_nr},\t{ri + 1:d}/{n_radius:d} masks "
+                            "completed [radius < {radius_scalings[ri]} {radius_prop}]"
+                        ),
                         comm_rank,
                     )
 

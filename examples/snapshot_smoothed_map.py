@@ -15,8 +15,8 @@ from swiftlet.simulation_suites import Simulation
 from swiftlet.snapshot_units import apply_expected_units
 
 """
-Make an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) for 0.05 < z < 0.1 of the 
-COLIBRE L400_m7 Thermal simulation or FLAMINGO L1_m9 fiducial simulation.
+Make an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) for redshifts  0.05 - 0.1 using a Snapshot 
+Lightcone for the COLIBRE L400_m7 Thermal and FLAMINGO L1_m9 fiducial simulations.
 """
 
 comm = MPI.COMM_WORLD
@@ -283,8 +283,8 @@ def make_map(snap_all_sky, redshift_range, nside, output_filename, ptype="PartTy
     """
     Make, write and plot the smoothed gas mass map of the shell, placing its particles a round at a time (see the
     module docstring).
-    :param  snap_all_sky:                 serial SnapshotAllSky, one on each rank, with the same orientation on every rank
-    :type   snap_all_sky:                 SnapshotAllSky
+    :param  snap_all_sky:       SnapshotAllSky, one on each rank, with the same orientation on every rank
+    :type   snap_all_sky:       SnapshotAllSky
     :param  redshift_range:     minimum and maximum redshift of the shell [z_min, z_max]
     :type   redshift_range:     tuple
     :param  nside:              HEALPix resolution of the map
@@ -303,7 +303,10 @@ def make_map(snap_all_sky, redshift_range, nside, output_filename, ptype="PartTy
     my_pieces = share_pieces(npart_per_piece, comm_size)[comm_rank]  # get local files (i.e. pieces of the lightcone)
     nr_rounds = comm.allreduce(len(my_pieces), op=MPI.MAX)
     message(
-        f"\n{nr_pieces} pieces (snapshot, tile, file) of gas to read, {np.sum(npart_per_piece):.4e} particles in their cells, placed in {nr_rounds} rounds\n"
+        (
+            f"\n{nr_pieces} pieces (snapshot, tile, file) of gas to read, {np.sum(npart_per_piece):.4e} particles "
+            f"in their cells, placed in {nr_rounds} rounds\n"
+        )
     )
 
     # add to the map one round at a time.
@@ -314,7 +317,7 @@ def make_map(snap_all_sky, redshift_range, nside, output_filename, ptype="PartTy
         part_pos, part_hsml, part_mass = place_piece(
             snap_all_sky, my_pieces[round_nr] if round_nr < len(my_pieces) else None, ptype
         )
-        part_pos, part_hsml, part_val = ensure_map_units(part_pos, part_hsml, part_val)  # unsure correct units
+        part_pos, part_hsml, part_val = ensure_map_units(part_pos, part_hsml, part_mass)  # unsure correct units
         nr_placed += len(part_mass)
         round_map = make_smoothed_sky_map(part_pos, part_hsml, part_mass, nside)
         map_data = round_map if map_data is None else map_data + round_map  # update local map
@@ -377,6 +380,9 @@ if __name__ == "__main__":
         verbose=0,
     )
     message(
-        f"{simulation.box_res}/{simulation.name} ({simulation.suite.name}): smoothed gas mass map of {args.zmin} < z < {args.zmax}, nside {nside}"
+        (
+            f"{simulation.box_res}/{simulation.name} ({simulation.suite.name}): "
+            f"smoothed gas mass map of {args.zmin} < z < {args.zmax}, nside {nside}"
+        )
     )
     make_map(snap_all_sky, redshift_range, nside, output_filename)

@@ -1,0 +1,47 @@
+﻿swiftlet.threads
+================
+
+.. automodule:: swiftlet.threads
+   :no-members:
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :nosignatures:
+
+   available_cores
+   limit_numba_threads
+   limit_openmp_threads
+   max_threads
+   set_max_threads
+   thread_limit
+
+
+
+
+
+
+
+
+
+
+
+Full reference
+--------------
+
+
+.. autofunction:: available_cores
+
+.. autofunction:: limit_numba_threads
+
+.. autofunction:: limit_openmp_threads
+
+.. autofunction:: max_threads
+
+.. autofunction:: set_max_threads
+
+.. autofunction:: thread_limit
+
+

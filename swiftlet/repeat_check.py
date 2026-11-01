@@ -8,7 +8,7 @@ class CloseRepeatWarning(UserWarning):
     """
     Warning for when copies of the same snapshot cell lie next to each other, or are close together,
     but in different tile layers along a line of sight, in a lightcone.
-    """
+    """  # noqa: D205
 
 
 @dataclass
@@ -51,32 +51,30 @@ class CloseRepeatReport:
     cells: dict = field(repr=False)
 
     def summary(self):
-        """
-        Summary message describing the close repeats found.
-        """
+        """Summary message describing the close repeats found."""
         summary_message = f"{self.nr_touching} pairs of cell replicas sharing a face"  # main message
-        summary_message += f"\n{self.nr_line_of_sight} pairs are with {self.angle_deg:g} deg on the sky"  # closeness as an angular separation
+        summary_message += f"\n{self.nr_line_of_sight} pairs are with {self.angle_deg:g} deg on the sky"
         summary_message += (
             f" and closer than {self.max_los_separation:g} Mpc along line of sight"  # closeness in comoving distance
         )
         summary_message += (
             f"\n{self.nr_cells_repeated} of the cells are repeated, from {self.nr_cell_copies} cell;"  # numb repeats
         )
-        summary_message += f" closest copies {self.closest_separation:.1f} Mpc apart, cells {self.cell_size:g} Mpc"  # how close repeats are
+        summary_message += f" closest copies {self.closest_separation:.1f} Mpc apart, cells {self.cell_size:g} Mpc"
 
         return summary_message
 
 
 def _tile_label(tile):
-    """
-    A tile as 4 integers: (nx, ny, nz, layer), with layer -1 if the tile has none (all but orientation_lock="sphere").
-    """
+    """A tile as 4 integers: (nx, ny, nz, layer), layer -1 if the tile has none (skip orientation_lock="sphere")."""
     tile = [int(n) for n in tile]
     return tile + [-1] * (4 - len(tile))
 
 
 def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_range=None):
     """
+    Find overlapping cells int the lightcone shell.
+
     Overlap every cell centre from each tile with the last gathered pieces and then keep the cells overlapping
     with the tile's part of the lightcone .
 
@@ -102,7 +100,6 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
     :param  cell_range:     if given, only the cells numbered from cell_range[0] to cell_range[1] - 1
     :type   cell_range:     tuple
     """
-
     snap_nr, cell, tiles, orientation, centres = [], [], [], [], []
     orientation_ids = {}
     cell_size = boxsize = None
@@ -133,7 +130,6 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
         coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres[candidates], tile=record.tile)[record.tile]
 
         # get lightcone coords from last run
-        # coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres, tile=record.tile)[record.tile]
         r = np.linalg.norm(coords, axis=1)
         r_in, r_out = lightcone.cosmo.comoving_distance(list(record.z_updated)).to_value("Mpc")
 
@@ -149,7 +145,6 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
         n = int(np.sum(keep))
         # add kept cells
         snap_nr.append(np.full(n, record.snap_nr, dtype=np.int64))
-        # cell.append(np.flatnonzero(keep).astype(np.int64))
         cell.append(candidates[keep].astype(np.int64))
         tiles.append(np.tile(np.asarray(_tile_label(record.tile), dtype=np.int64), (n, 1)))
         key = tuple(tuple(int(x) for x in np.ravel(part)) for part in lightcone._snapshot_reorientation(record.tile))
@@ -187,6 +182,8 @@ def find_close_cell_repeats(
     copies_per_block=4_000_000,
 ):
     """
+    Identify touching or close together cell replicas.
+
     Find copies of the same cell of a snapshot that lie next to each other (i.e. share a face), or are close together
     along a line of sight.
     Computed using only the cell centres (i.e. no particles are read).
@@ -219,7 +216,6 @@ def find_close_cell_repeats(
     :param  copies_per_block:   most cell copies compared at once, to limit the memory needed
     :type   copies_per_block:   int
     """
-
     from scipy.spatial import cKDTree
     from .threads import thread_limit
 
@@ -254,7 +250,6 @@ def find_close_cell_repeats(
     rows = {name: [] for name in row_property_names}
     cell_rows = {name: [] for name in ("snapshot", "cell", "nr_copies", "closest_separation")}
 
-    # nr_cell_copies = nr_line_of_sight = 0
     nr_cell_copies = nr_cells_in_shell = nr_cell_pairs = nr_line_of_sight = 0
     nr_tiles = len(
         {tuple(_tile_label(record.tile)[:3]) for records in records_of_snapshot.values() for record in records}

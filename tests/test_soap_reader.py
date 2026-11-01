@@ -12,9 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_snapshot_lightcone_placement as placement  # noqa: E402
 
 """
-Tests swiftlet.soap_reader. 
-Use a small fake SOAP catalogue written to a temporary directory. 
-Every reader gives the same rows and values, matching the units from lightcone_io SOAPCatalogue, also drop the comoving expansion factors.
+Tests the SOAP reader functions using a set of small fake SOAP catalogues written to a temporary directory. 
+Check every reader gives the same rows and values, with units correct units which drop the comoving expansion factors.
 """
 
 SNAP_NR = 75

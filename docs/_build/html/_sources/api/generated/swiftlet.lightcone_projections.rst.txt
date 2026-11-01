@@ -1,0 +1,44 @@
+﻿swiftlet.lightcone\_projections
+===============================
+
+.. automodule:: swiftlet.lightcone_projections
+   :no-members:
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :nosignatures:
+
+   check_ptype
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :nosignatures:
+
+   BeamProjection
+
+
+
+
+
+
+
+Full reference
+--------------
+
+
+.. autofunction:: check_ptype
+
+
+
+.. autoclass:: BeamProjection
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -19,14 +19,15 @@ comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
 
 """
-Compare the number density of dark matter particles from Snapshot lightcones against the mean number density
+Compare the number density of dark matter particles from Snapshot lightcones with the expected number density
 of the snapshots. 
-Iterativley repeat this comparison for multiple different orientation seeds for both FLAMINGO and COLIBRE. 
 
-    - For each orientation seed (seeds 0 to nr_seeds - 1 by default) use SnapshotAllSky with orientation_lock="cube". 
-    - The dark matter particles are counted in bins of comoving distance from the observer. The bins are equal in volume.
-    - Each seed re-orients the box tiles differently, so each is the same shell built from the same snapshots with a 
-        different arrangement of the cells i.e. making lightcone redhisft shells for different observers. 
+Iterativley repeat this comparison for multiple different orientation seeds for both FLAMINGO and COLIBRE:
+    - for each orientation seed (seeds 0 to nr_seeds - 1 by default) use SnapshotAllSky with orientation_lock="cube"
+    - the dark matter particles are counted in bins of comoving distance from the observer and 
+        each bin has an equal comoving volume
+    - each seed re-orients the box tiles differently, so each is the same shell built from the same snapshots with a 
+        different arrangement of the cells: the same as having different observers
 
 """
 
@@ -69,6 +70,7 @@ def seed_row_vals(seed, edges, counts, expected, mean_density):
 def read_density_file(filename):
     """
     Read the .txt file written by this example.
+
     Returns a tuple of (the settings of the comment line as {key: value}, the columns as a structured np.ndarray).
     :param  filename:   path of the .txt file
     :type   filename:   str
@@ -181,6 +183,7 @@ def snapshot_mean_number_density(simulation, ptype="PartType1"):
 def equal_volume_edges(r_min, r_max, nr_bins):
     """
     Edges of the comoving distance bins, that are all equal in volume.
+
     Every bin expects the same number of particles.
 
     Returns the edges [Mpc], nr_bins + 1 values.
@@ -270,6 +273,7 @@ def count_in_bins(coords, edges, vector=None, ang_radius_rad=None):
 def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radius_deg, ptype="PartType1"):
     """
     Count the particles of a lightcone in each bin.
+
     Share the snapshot pieces between the ranks (see snapshot_dark_matter_map.py).
 
     Returns the counts summed over the ranks (on every rank), and the number of particles in the largest piece.
@@ -346,7 +350,10 @@ def run_seeds(args):
 
     mean_density, nr_part = snapshot_mean_number_density(simulation)
     expected = mean_density * shell_volume
-    update_str = f"\n{args.box_res}/{args.sim_name}: {nr_part:.3e} DM particles\nmean numb density: {mean_density:.3e} cMpc^-3\n{np.sum(expected):.3e} expected in the full sky for {args.zmin} < z <= {args.zmax}"
+    update_str = (
+        f"\n{args.box_res}/{args.sim_name}: {nr_part:.3e} DM particles\nmean numb density: {mean_density:.3e}"
+        f" cMpc^-3\n{np.sum(expected):.3e} expected in the full sky for {args.zmin} < z <= {args.zmax}"
+    )
     message(comm_rank, update_str, time_date_update=True)
 
     # thinner shells of equal volume, each placed on its own to limit the memory of each rank (see the docstring)
@@ -376,11 +383,17 @@ def run_seeds(args):
             shell_counts, largest_piece = count_snapshot_lightcone(lightcone, shell_z, edges, None, None)
             counts += shell_counts
             if len(shells) > 1:
-                update_str = f"\t[shell {shell_nr + 1}/{len(shells)}], {shell_z[0]:.4f} < z <= {shell_z[1]:.4f}:\t{np.sum(shell_counts):.3e} particles\t(largest piece: {largest_piece:.3e} particles)"
+                update_str = (
+                    f"\t[shell {shell_nr + 1}/{len(shells)}], {shell_z[0]:.4f} < z <= {shell_z[1]:.4f}:"
+                    f"\t{np.sum(shell_counts):.3e} particles\t(largest piece: {largest_piece:.3e} particles)"
+                )
                 message(comm_rank, update_str, time_date_update=True)
         message(
             comm_rank,
-            f"seed {seed}: {np.sum(counts)} particles, n / n_mean = {np.sum(counts) / np.sum(expected):.6f}, bins from {np.min(counts / expected):.5f} to {np.max(counts / expected):.5f}",
+            (
+                f"seed {seed}: {np.sum(counts)} particles, n / n_mean = {np.sum(counts) / np.sum(expected):.6f}, "
+                "bins from {np.min(counts / expected):.5f} to {np.max(counts / expected):.5f}"
+            ),
         )
         rows += seed_row_vals(seed, edges, counts, expected, mean_density)
 
@@ -416,7 +429,10 @@ if __name__ == "__main__":
         "--nr_shells",
         type=int,
         default=1,
-        help="number of thinner sub shells (of equal volume) to split the redshift range into, each is placed one at a time, to limit the peak memory of each rank",
+        help=(
+            "number of thinner sub shells (of equal volume) to split the redshift range into, "
+            "placed one at a time, to limit the peak memory of each rank"
+        ),
     )
     parser.add_argument(
         "--nr_seeds", type=int, default=10, help="number of orientation seeds, i.e. number of iterations"

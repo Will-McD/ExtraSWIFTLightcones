@@ -48,6 +48,7 @@ def environment_data_dir():
 def default_redshift_dir():
     """
     Directory the shell redshift files are downloaded to.
+
     Defaults to the Python environment when possible, otherwise use cache
     (~/.cache/swiftlet/redshifts).
 
@@ -65,6 +66,7 @@ def default_redshift_dir():
 def download_file(url, target, timeout=60):
     """
     Download a text file, checking a web page (e.g. a login or error page) was not returned instead.
+
     The file is written to target.part first and only moved to target once complete.
 
     :param  url:        URL of the file
@@ -121,6 +123,8 @@ def download_shell_redshifts(dest_dir=None, force=False, verbose=True):
 
 def activate_scripts():
     """
+    Activate config scripts.
+
     Scripts run when the Python environment is activated: bin/activate for a virtual environment (venv),
     and etc/conda/activate.d / deactivate.d scripts for a conda environment.
 
@@ -145,7 +149,7 @@ def activate_scripts():
 
 def _replace_marked_lines(filename, new_lines):
     """
-    Remove the lines added by an earlier run (see ACTIVATE_MARKER and OLD_ACTIVATE_MARKERS) from a file and append new ones.
+    Remove the lines added by an earlier run (ACTIVATE_MARKER and OLD_ACTIVATE_MARKERS) from a file and append new ones.
 
     :param  filename:   file to update
     :type   filename:   str
@@ -168,8 +172,7 @@ def _replace_marked_lines(filename, new_lines):
 
 def export_paths_on_activate(paths, verbose=True):
     """
-    Export environment variables whenever the Python environment is activated, by adding them
-    to its activate script(s).
+    Export environment variables whenever the Python environment is activated, add them to its activate script(s).
 
     Running this again replaces the values added before.
 
@@ -231,7 +234,6 @@ def configure(dest_dir=None, force=False, update_activate=True, max_threads=None
 
     paths = download_shell_redshifts(dest_dir=dest_dir, force=force, verbose=verbose)
     if update_activate:
-        # export_paths_on_activate(paths, verbose=verbose)
         export_paths_on_activate({**paths, threads.MAX_THREADS_ENV: str(max_threads)}, verbose=verbose)
     return paths
 
@@ -244,7 +246,10 @@ def cli_configure(argv=None):
     :type   argv:   list of str
     """
     parser = argparse.ArgumentParser(
-        description="Download the FLAMINGO lightcone shell redshift files into the Python environment SWIFTLET is installed in, then export their paths and the maximum number of threads (SWIFTLET_MAX_THREADS) when it is activated"
+        description=(
+            "Download the FLAMINGO lightcone shell redshift files into the Python environment SWIFTLET is installed in,"
+            " then export their paths and the maximum number of threads (SWIFTLET_MAX_THREADS) when it is activated"
+        )
     )
     parser.add_argument(
         "--dest_dir",
@@ -260,11 +265,13 @@ def cli_configure(argv=None):
         "--max_threads",
         type=str,
         default=None,
-        help="maximum number of threads used by numba's parallel functions and healpy's transforms, or 'all' to use all the cores each job is allowed (default: SWIFTLET_MAX_THREADS if set, otherwise 30)",
+        help=(
+            "maximum number of threads used by numba's parallel functions and healpy's transforms, or"
+            " 'all' to use all the cores each job is allowed (default: SWIFTLET_MAX_THREADS if set, otherwise 30)"
+        ),
     )
     args = parser.parse_args(argv)
     try:
-        # configure(dest_dir=args.dest_dir, force=args.force, update_activate=not args.no_activate)
         configure(
             dest_dir=args.dest_dir, force=args.force, update_activate=not args.no_activate, max_threads=args.max_threads
         )

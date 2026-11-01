@@ -1,29 +1,34 @@
+#!/bin/env python
 """
-SWIFTLET (SWIFT Lightcone Extension Tools): tools to build new lightcones from SWIFT snapshots, post-process and
-visualise SWIFT lightcones.
+SWIFTLET (SWIFT Lightcone Extension Tools): build new lightcones from SWIFT snapshots and halo catalogues.
 
-The main classes and functions can be imported from the package:
+The main classes and functions can be imported from the package::
 
     from swiftlet import SnapshotBeam, BeamProjection
-    snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS, SnapshotGapWarning,
-    snapshot_cosmology:                 SnapshotCosmology
-    simulation_suites:                  Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
-                                        read_output_redshifts
-    snapshot_redshifts:                 redshift_edges, snapshots_in_range
-    snapshot_orientation:               write_orientation_tables, read_orientation_tables, generate_orientation_tables,
-                                        check_neighbouring_tiles, default_orientation_tables, generate_clash_free_tables, tables_are_clash_free,
-    repeat_check:                       find_close_cell_repeats, CloseRepeatWarning
-    lightcone_projections:              BeamProjection
-    beam_plotting:                      BeamPlot
-    healpix_map_utils:                  write_rotated_lightcone_chunks, sum_maps
-    mask_haloes:                        write_binary_masks
-    flamingo_lightcones:                flamingo_shell_redshift_file
-    snapshot_units:                     apply_expected_units
-    config:                             configure, download_shell_redshifts
-    threads:                            set_max_threads, max_threads, thread_limit
 
-Each is imported when first used, so importing the package doesn't need MPI, matplotlib or lightcone_io
-until something needing them is used. The submodules can also be used as attributes, e.g. swiftlet.config.
+Or the submodule they come from::
+
+    snapshot_lightcone      SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS,
+                            SnapshotGapWarning
+    snapshot_cosmology      SnapshotCosmology
+    simulation_suites       Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
+                            read_output_redshifts
+    snapshot_redshifts      redshift_edges, snapshots_in_range
+    snapshot_orientation    write_orientation_tables, read_orientation_tables, generate_orientation_tables,
+                            check_neighbouring_tiles, default_orientation_tables, generate_clash_free_tables,
+                            tables_are_clash_free
+    repeat_check            find_close_cell_repeats, CloseRepeatWarning
+    lightcone_projections   BeamProjection
+    beam_plotting           BeamPlot
+    healpix_map_utils       write_rotated_lightcone_chunks, sum_maps
+    mask_haloes             write_binary_masks
+    flamingo_lightcones     flamingo_shell_redshift_file
+    snapshot_units          apply_expected_units
+    config                  configure, download_shell_redshifts
+    threads                 set_max_threads, max_threads, thread_limit
+
+Each is imported when first used, so importing the package doesn't need MPI, matplotlib or lightcone_io until
+something that needs them is used. The submodules can also be used as attributes, e.g. ``swiftlet.config``.
 """
 
 import importlib
@@ -111,8 +116,10 @@ __all__ = list(_PUBLIC_NAMES)
 
 def __getattr__(name):
     """
-    Import the public classes, functions and submodules of the package when first used, so that modules
-    which don't need MPI (e.g. swiftlet.config) can be imported without it.
+
+    Import the public classes, functions and submodules of the package when first used.
+
+    Modules which don't need MPI (e.g. swiftlet.config) can be imported without it.
 
     Returns the class, function or submodule named.
 
@@ -132,7 +139,5 @@ def __getattr__(name):
 
 
 def __dir__():
-    """
-    Names in the package, including the ones imported when first used.
-    """
+    """Names in the package, including the ones imported when first used."""
     return sorted(set(globals()) | set(_PUBLIC_NAMES) | set(_SUBMODULES))

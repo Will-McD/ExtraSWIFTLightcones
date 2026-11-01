@@ -5,9 +5,11 @@ import hdfstream
 from swiftlet.healpix_map_utils import write_rotated_lightcone_chunks
 
 """
-For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create an integrated 'TotalMass' and 'SmoothedGasMass' map 
-over the redshift range 0.1-0.3. 
-Write the integrated maps as a hdf5 file and store the individually rotated redshift chunks used to create the integrated map. 
+For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create a 'TotalMass' and 'SmoothedGasMass' map integrated
+over the redshifts 0.1 - 0.3. 
+
+Write the integrated maps as a hdf5 file and store the individually rotated redshift chunks used to create the 
+integrated map. 
 """
 
 # rotation angles (in radians) for the (1000 Mpc)^3 flamingo simulations,
@@ -155,7 +157,7 @@ if __name__ == "__main__":
 
     # map nside to read in and output
     input_nside = 4096
-    output_nside = 1024
+    output_nside = 1024  # requires downsampling
 
     # lightcone number to use
     lightcone_nr = 0

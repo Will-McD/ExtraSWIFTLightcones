@@ -1,0 +1,625 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>swiftlet.snapshot_units &mdash; SWIFTLET</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=ac771338"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            SWIFTLET
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#new-virtual-environment">New virtual environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#existing-environment">Existing environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#lightcone-shell-redshift-files">Lightcone shell redshift files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#use-with-cosma">Use with COSMA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#mpi-support">MPI support</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#number-of-threads">Number of threads</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#additional-data">Additional data</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/building_lightcones.html">Building lightcones</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/orientation.html">Lightcone geometry and tile orientation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/parallel_and_hpc.html">Use with HPC systems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/projections.html">Lightcone projections</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/additional_tools.html">Additional tools and misc</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html">swiftlet.snapshot_lightcone</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.as_simulation"><code class="docutils literal notranslate"><span class="pre">as_simulation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.define_redshift_at_comoving_distance_function"><code class="docutils literal notranslate"><span class="pre">define_redshift_at_comoving_distance_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.message"><code class="docutils literal notranslate"><span class="pre">message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.print_coord_ranges"><code class="docutils literal notranslate"><span class="pre">print_coord_ranges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.rank_message"><code class="docutils literal notranslate"><span class="pre">rank_message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.read_lightcone_metadata"><code class="docutils literal notranslate"><span class="pre">read_lightcone_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.seperator_str"><code class="docutils literal notranslate"><span class="pre">seperator_str()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.write_halo_lightcone_file"><code class="docutils literal notranslate"><span class="pre">write_halo_lightcone_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.write_lightcone_metadata"><code class="docutils literal notranslate"><span class="pre">write_lightcone_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.FileReadSpec"><code class="docutils literal notranslate"><span class="pre">FileReadSpec</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.HaloCatalogueSpec"><code class="docutils literal notranslate"><span class="pre">HaloCatalogueSpec</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.HaloReadPiece"><code class="docutils literal notranslate"><span class="pre">HaloReadPiece</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.LightconeOutput"><code class="docutils literal notranslate"><span class="pre">LightconeOutput</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.SnapshotAllSky"><code class="docutils literal notranslate"><span class="pre">SnapshotAllSky</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.SnapshotBeam"><code class="docutils literal notranslate"><span class="pre">SnapshotBeam</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.SnapshotLightcone"><code class="docutils literal notranslate"><span class="pre">SnapshotLightcone</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.SnapshotReadRecord"><code class="docutils literal notranslate"><span class="pre">SnapshotReadRecord</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html">swiftlet.simulation_suites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.get_suite"><code class="docutils literal notranslate"><span class="pre">get_suite()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.output_redshifts"><code class="docutils literal notranslate"><span class="pre">output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.read_output_redshifts"><code class="docutils literal notranslate"><span class="pre">read_output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.suite_for_label"><code class="docutils literal notranslate"><span class="pre">suite_for_label()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.write_output_redshifts"><code class="docutils literal notranslate"><span class="pre">write_output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation"><code class="docutils literal notranslate"><span class="pre">Simulation</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.SimulationSuite"><code class="docutils literal notranslate"><span class="pre">SimulationSuite</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html">swiftlet.snapshot_redshifts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.available_redshift_edges"><code class="docutils literal notranslate"><span class="pre">available_redshift_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.redshift_edges"><code class="docutils literal notranslate"><span class="pre">redshift_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_at_redshift"><code class="docutils literal notranslate"><span class="pre">snapshot_at_redshift()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_coverage"><code class="docutils literal notranslate"><span class="pre">snapshot_coverage()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_redshift_range"><code class="docutils literal notranslate"><span class="pre">snapshot_redshift_range()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshots_in_range"><code class="docutils literal notranslate"><span class="pre">snapshots_in_range()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.SnapshotCoverage"><code class="docutils literal notranslate"><span class="pre">SnapshotCoverage</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html">swiftlet.snapshot_orientation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.cell_shifts_in_cells"><code class="docutils literal notranslate"><span class="pre">cell_shifts_in_cells()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.check_neighbouring_tiles"><code class="docutils literal notranslate"><span class="pre">check_neighbouring_tiles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.check_orientation_tables"><code class="docutils literal notranslate"><span class="pre">check_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.default_orientation_tables"><code class="docutils literal notranslate"><span class="pre">default_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.generate_clash_free_tables"><code class="docutils literal notranslate"><span class="pre">generate_clash_free_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.generate_orientation_tables"><code class="docutils literal notranslate"><span class="pre">generate_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.installed_orientation_table_file"><code class="docutils literal notranslate"><span class="pre">installed_orientation_table_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.orientation_tables_fingerprint"><code class="docutils literal notranslate"><span class="pre">orientation_tables_fingerprint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.read_orientation_tables"><code class="docutils literal notranslate"><span class="pre">read_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.rotate_coords_cartesian"><code class="docutils literal notranslate"><span class="pre">rotate_coords_cartesian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.tables_are_clash_free"><code class="docutils literal notranslate"><span class="pre">tables_are_clash_free()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.write_orientation_tables"><code class="docutils literal notranslate"><span class="pre">write_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.NeighbourTileReport"><code class="docutils literal notranslate"><span class="pre">NeighbourTileReport</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html">swiftlet.snapshot_units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.apply_expected_units"><code class="docutils literal notranslate"><span class="pre">apply_expected_units()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.astropy_to_unyt"><code class="docutils literal notranslate"><span class="pre">astropy_to_unyt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.attributes_from_units"><code class="docutils literal notranslate"><span class="pre">attributes_from_units()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.drop_a_from_comoving_property"><code class="docutils literal notranslate"><span class="pre">drop_a_from_comoving_property()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.snapshot_unit_metadata"><code class="docutils literal notranslate"><span class="pre">snapshot_unit_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.unit_registry_from_metadata"><code class="docutils literal notranslate"><span class="pre">unit_registry_from_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.unit_registry_from_snapshot"><code class="docutils literal notranslate"><span class="pre">unit_registry_from_snapshot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.units_from_attributes"><code class="docutils literal notranslate"><span class="pre">units_from_attributes()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html">swiftlet.snapshot_cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.as_astropy_cosmology"><code class="docutils literal notranslate"><span class="pre">as_astropy_cosmology()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.find_snapshot_files"><code class="docutils literal notranslate"><span class="pre">find_snapshot_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.neutrino_masses"><code class="docutils literal notranslate"><span class="pre">neutrino_masses()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.SnapshotCosmology"><code class="docutils literal notranslate"><span class="pre">SnapshotCosmology</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.flamingo_lightcones.html">swiftlet.flamingo_lightcones</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.flamingo_lightcones.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.flamingo_lightcones.html#swiftlet.flamingo_lightcones.flamingo_box_resolution"><code class="docutils literal notranslate"><span class="pre">flamingo_box_resolution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.flamingo_lightcones.html#swiftlet.flamingo_lightcones.flamingo_shell_redshift_file"><code class="docutils literal notranslate"><span class="pre">flamingo_shell_redshift_file()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html">swiftlet.repeat_check</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html#swiftlet.repeat_check.find_close_cell_repeats"><code class="docutils literal notranslate"><span class="pre">find_close_cell_repeats()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html#swiftlet.repeat_check.write_close_repeats"><code class="docutils literal notranslate"><span class="pre">write_close_repeats()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html#swiftlet.repeat_check.CloseRepeatReport"><code class="docutils literal notranslate"><span class="pre">CloseRepeatReport</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.lightcone_projections.html">swiftlet.lightcone_projections</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.lightcone_projections.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.lightcone_projections.html#swiftlet.lightcone_projections.check_ptype"><code class="docutils literal notranslate"><span class="pre">check_ptype()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.lightcone_projections.html#swiftlet.lightcone_projections.BeamProjection"><code class="docutils literal notranslate"><span class="pre">BeamProjection</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html">swiftlet.healpix_map_utils</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.check_healpy_pixel_weights"><code class="docutils literal notranslate"><span class="pre">check_healpy_pixel_weights()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.find_healpy_pixel_weights_dir"><code class="docutils literal notranslate"><span class="pre">find_healpy_pixel_weights_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.get_common_maps"><code class="docutils literal notranslate"><span class="pre">get_common_maps()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.get_related_ipix"><code class="docutils literal notranslate"><span class="pre">get_related_ipix()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.healpy_pixel_weights_available"><code class="docutils literal notranslate"><span class="pre">healpy_pixel_weights_available()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.read_rotation_angles"><code class="docutils literal notranslate"><span class="pre">read_rotation_angles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.rotate_map"><code class="docutils literal notranslate"><span class="pre">rotate_map()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.rotate_map_fast"><code class="docutils literal notranslate"><span class="pre">rotate_map_fast()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.sum_maps"><code class="docutils literal notranslate"><span class="pre">sum_maps()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.write_rotated_lightcone_chunks"><code class="docutils literal notranslate"><span class="pre">write_rotated_lightcone_chunks()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html">swiftlet.mask_haloes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.attr_scalar"><code class="docutils literal notranslate"><span class="pre">attr_scalar()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.distribute_pixels"><code class="docutils literal notranslate"><span class="pre">distribute_pixels()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.exchange_particles"><code class="docutils literal notranslate"><span class="pre">exchange_particles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.get_map_rotation_angles"><code class="docutils literal notranslate"><span class="pre">get_map_rotation_angles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.get_num"><code class="docutils literal notranslate"><span class="pre">get_num()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.mask_cluster_apertures_local"><code class="docutils literal notranslate"><span class="pre">mask_cluster_apertures_local()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.message"><code class="docutils literal notranslate"><span class="pre">message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.native_endian"><code class="docutils literal notranslate"><span class="pre">native_endian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.rank_message"><code class="docutils literal notranslate"><span class="pre">rank_message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.read_shell_halo_properties"><code class="docutils literal notranslate"><span class="pre">read_shell_halo_properties()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.rotate_cluster_coords"><code class="docutils literal notranslate"><span class="pre">rotate_cluster_coords()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.route_halos_to_pixel_owners"><code class="docutils literal notranslate"><span class="pre">route_halos_to_pixel_owners()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.write_binary_masks"><code class="docutils literal notranslate"><span class="pre">write_binary_masks()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.threads.html">swiftlet.threads</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.available_cores"><code class="docutils literal notranslate"><span class="pre">available_cores()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.limit_numba_threads"><code class="docutils literal notranslate"><span class="pre">limit_numba_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.limit_openmp_threads"><code class="docutils literal notranslate"><span class="pre">limit_openmp_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.max_threads"><code class="docutils literal notranslate"><span class="pre">max_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.set_max_threads"><code class="docutils literal notranslate"><span class="pre">set_max_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.thread_limit"><code class="docutils literal notranslate"><span class="pre">thread_limit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.config.html">swiftlet.config</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.config.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.activate_scripts"><code class="docutils literal notranslate"><span class="pre">activate_scripts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.cli_configure"><code class="docutils literal notranslate"><span class="pre">cli_configure()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.configure"><code class="docutils literal notranslate"><span class="pre">configure()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.default_redshift_dir"><code class="docutils literal notranslate"><span class="pre">default_redshift_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.download_file"><code class="docutils literal notranslate"><span class="pre">download_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.download_shell_redshifts"><code class="docutils literal notranslate"><span class="pre">download_shell_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.environment_data_dir"><code class="docutils literal notranslate"><span class="pre">environment_data_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.export_paths_on_activate"><code class="docutils literal notranslate"><span class="pre">export_paths_on_activate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../tests/index.html">Tests</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">SWIFTLET</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">swiftlet.snapshot_units</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for swiftlet.snapshot_units</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/bin/env python</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">unyt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">unyt.dimensions</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dim</span>
+
+
+<div class="viewcode-block" id="apply_expected_units">
+<a class="viewcode-back" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.apply_expected_units">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_expected_units</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">expected_units</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Convert input to expected units. If the input has no units, the expected units are applied.</span>
+
+<span class="sd">    Returns the input as a unyt.unyt_array or unyt.unyt_quantity in the expected units.</span>
+
+<span class="sd">    :param  x:              value(s) to convert</span>
+<span class="sd">    :type   x:              int, float, list, np.ndarray, unyt.unyt_quantity or unyt.unyt_array</span>
+<span class="sd">    :param  expected_units: units to convert to</span>
+<span class="sd">    :type   expected_units: unyt.Unit</span>
+<span class="sd">    """</span>
+    <span class="c1"># check if output spectrum has units</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s2">"units"</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">unyt</span><span class="o">.</span><span class="n">unyt_array</span><span class="p">):</span>
+        <span class="c1"># if correct dimensions convert to expected units otherwise raise error</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">units</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">==</span> <span class="n">expected_units</span><span class="o">.</span><span class="n">dimensions</span><span class="p">:</span>
+            <span class="n">x</span><span class="o">.</span><span class="n">convert_to_units</span><span class="p">(</span><span class="n">expected_units</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">unyt</span><span class="o">.</span><span class="n">exceptions</span><span class="o">.</span><span class="n">UnytError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"units do not match expected dimensions (</span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">units</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">expected_units</span><span class="o">.</span><span class="n">units</span><span class="si">}</span><span class="s2">)"</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># apply units if no units found</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">unyt_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="n">expected_units</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">unyt_quantity</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="n">expected_units</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">x</span></div>
+
+
+
+<div class="viewcode-block" id="astropy_to_unyt">
+<a class="viewcode-back" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.astropy_to_unyt">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">astropy_to_unyt</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Convert an astropy array with units to a unyt_array.</span>
+
+<span class="sd">    :param  a:  array with astropy units</span>
+<span class="sd">    :type   a:  astropy.units.Quantity</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">unyt</span><span class="o">.</span><span class="n">unyt_array</span><span class="o">.</span><span class="n">from_astropy</span><span class="p">(</span><span class="n">a</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="snapshot_unit_metadata">
+<a class="viewcode-back" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.snapshot_unit_metadata">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">snapshot_unit_metadata</span><span class="p">(</span><span class="n">snap</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Get metadata for snapshots units.</span>
+
+<span class="sd">    Extract the plain-float metadata needed to build a snapshot's unit registry:</span>
+<span class="sd">    physical constants, cosmology, and the Units/InternalCodeUnits CGS conversion factors.</span>
+
+<span class="sd">    Returns plain dicts of Python floats/strings (no unyt objects).</span>
+
+<span class="sd">    :param  snap:   open snapshot file</span>
+<span class="sd">    :type   snap:   h5py.File</span>
+<span class="sd">    """</span>
+    <span class="n">physical_constants_cgs</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">snap</span><span class="p">[</span><span class="s2">"PhysicalConstants/CGS"</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="n">cosmology</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">snap</span><span class="p">[</span><span class="s2">"Cosmology"</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="n">units_cgs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">group_name</span><span class="p">:</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">snap</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">for</span> <span class="n">group_name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"Units"</span><span class="p">,</span> <span class="s2">"InternalCodeUnits"</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"physical_constants_cgs"</span><span class="p">:</span> <span class="n">physical_constants_cgs</span><span class="p">,</span>
+        <span class="s2">"cosmology"</span><span class="p">:</span> <span class="n">cosmology</span><span class="p">,</span>
+        <span class="s2">"units_cgs"</span><span class="p">:</span> <span class="n">units_cgs</span><span class="p">,</span>
+    <span class="p">}</span></div>
+
+
+
+<div class="viewcode-block" id="unit_registry_from_metadata">
+<a class="viewcode-back" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.unit_registry_from_metadata">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">unit_registry_from_metadata</span><span class="p">(</span><span class="n">metadata</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Create a unyt UnitRegistry from the metadata extracted by snapshot_unit_metadata.</span>
+
+<span class="sd">    Returns a unyt.unit_registry.UnitRegistry with the snapshot and code unit systems, a and h defined.</span>
+
+<span class="sd">    :param  metadata:   physical constants, cosmology and CGS unit conversion factors of the snapshot</span>
+<span class="sd">    :type   metadata:   dict</span>
+<span class="sd">    """</span>
+    <span class="c1"># Create a new registry</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">unit_registry</span><span class="o">.</span><span class="n">UnitRegistry</span><span class="p">()</span>
+
+    <span class="n">physical_constants_cgs</span> <span class="o">=</span> <span class="n">metadata</span><span class="p">[</span><span class="s2">"physical_constants_cgs"</span><span class="p">]</span>
+    <span class="n">cosmology</span> <span class="o">=</span> <span class="n">metadata</span><span class="p">[</span><span class="s2">"cosmology"</span><span class="p">]</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">unyt_quantity</span><span class="p">(</span><span class="n">cosmology</span><span class="p">[</span><span class="s2">"Scale-factor"</span><span class="p">])</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">unyt_quantity</span><span class="p">(</span><span class="n">cosmology</span><span class="p">[</span><span class="s2">"h"</span><span class="p">])</span>
+
+    <span class="c1"># Define code and snapshot base units</span>
+    <span class="k">for</span> <span class="n">group_name</span><span class="p">,</span> <span class="n">prefix</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">"Units"</span><span class="p">,</span> <span class="s2">"snap"</span><span class="p">),</span> <span class="p">(</span><span class="s2">"InternalCodeUnits"</span><span class="p">,</span> <span class="s2">"code"</span><span class="p">)):</span>
+        <span class="n">units_cgs</span> <span class="o">=</span> <span class="n">metadata</span><span class="p">[</span><span class="s2">"units_cgs"</span><span class="p">][</span><span class="n">group_name</span><span class="p">]</span>
+
+        <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span>
+            <span class="n">prefix</span> <span class="o">+</span> <span class="s2">"_length"</span><span class="p">,</span>
+            <span class="n">units_cgs</span><span class="p">[</span><span class="s2">"Unit length in cgs (U_L)"</span><span class="p">]</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">cm</span><span class="p">,</span>
+            <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="s2">"_mass"</span><span class="p">,</span> <span class="n">units_cgs</span><span class="p">[</span><span class="s2">"Unit mass in cgs (U_M)"</span><span class="p">]</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">g</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="s2">"_time"</span><span class="p">,</span> <span class="n">units_cgs</span><span class="p">[</span><span class="s2">"Unit time in cgs (U_t)"</span><span class="p">]</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span>
+            <span class="n">prefix</span> <span class="o">+</span> <span class="s2">"_temperature"</span><span class="p">,</span>
+            <span class="n">units_cgs</span><span class="p">[</span><span class="s2">"Unit temperature in cgs (U_T)"</span><span class="p">]</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">K</span><span class="p">,</span>
+            <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="s2">"_angle"</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">rad</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span>
+            <span class="n">prefix</span> <span class="o">+</span> <span class="s2">"_current"</span><span class="p">,</span>
+            <span class="n">units_cgs</span><span class="p">[</span><span class="s2">"Unit current in cgs (U_I)"</span><span class="p">]</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">A</span><span class="p">,</span>
+            <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Add the expansion factor as a dimensionless "unit"</span>
+    <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">dimensionless</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span>
+    <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span><span class="s2">"h"</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">dimensionless</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span>
+
+    <span class="c1"># Create a new unit system using the snapshot units as base units</span>
+    <span class="n">us</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">UnitSystem</span><span class="p">(</span>
+        <span class="s2">"snap_units"</span><span class="p">,</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"snap_length"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">),</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"snap_mass"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">),</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"snap_time"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">),</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"snap_temperature"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">),</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"snap_angle"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">),</span>
+        <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"snap_current"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">),</span>
+        <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Create a registry using this base unit system</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">unit_registry</span><span class="o">.</span><span class="n">UnitRegistry</span><span class="p">(</span><span class="n">lut</span><span class="o">=</span><span class="n">reg</span><span class="o">.</span><span class="n">lut</span><span class="p">,</span> <span class="n">unit_system</span><span class="o">=</span><span class="n">us</span><span class="p">)</span>
+
+    <span class="c1"># Add some units which might be useful for dealing with input halo catalogues</span>
+    <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span><span class="s2">"swift_mpc"</span><span class="p">,</span> <span class="mf">1.0e6</span> <span class="o">*</span> <span class="n">physical_constants_cgs</span><span class="p">[</span><span class="s2">"parsec"</span><span class="p">]</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">cm</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span>
+    <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span><span class="s2">"swift_msun"</span><span class="p">,</span> <span class="n">physical_constants_cgs</span><span class="p">[</span><span class="s2">"solar_mass"</span><span class="p">]</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">g</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span>
+    <span class="n">unyt</span><span class="o">.</span><span class="n">define_unit</span><span class="p">(</span>
+        <span class="s2">"newton_G"</span><span class="p">,</span>
+        <span class="n">physical_constants_cgs</span><span class="p">[</span><span class="s2">"newton_G"</span><span class="p">]</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">cm</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="n">unyt</span><span class="o">.</span><span class="n">g</span> <span class="o">/</span> <span class="n">unyt</span><span class="o">.</span><span class="n">s</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span>
+        <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">reg</span></div>
+
+
+
+<div class="viewcode-block" id="unit_registry_from_snapshot">
+<a class="viewcode-back" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.unit_registry_from_snapshot">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">unit_registry_from_snapshot</span><span class="p">(</span><span class="n">snap</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Create a unyt UnitRegistry directly from an open snapshot file.</span>
+
+<span class="sd">    :param  snap:   open snapshot file</span>
+<span class="sd">    :type   snap:   h5py.File</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">unit_registry_from_metadata</span><span class="p">(</span><span class="n">snapshot_unit_metadata</span><span class="p">(</span><span class="n">snap</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="units_from_attributes">
+<a class="viewcode-back" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.units_from_attributes">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">units_from_attributes</span><span class="p">(</span><span class="n">attrs</span><span class="p">,</span> <span class="n">registry</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Create a unyt.Unit object from dataset attributes.</span>
+
+<span class="sd">    Returns a unyt Unit object.</span>
+
+<span class="sd">    :param  attrs:      the SWIFT dataset attributes</span>
+<span class="sd">    :type   attrs:      dict</span>
+<span class="sd">    :param  registry:   unyt unit registry with a, h and unit system for the snapshot</span>
+<span class="sd">    :type   registry:   unyt.unit_registry.UnitRegistry</span>
+<span class="sd">    """</span>
+    <span class="c1"># Determine unyt unit for this quantity</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">dimensionless</span>
+    <span class="n">unit_system</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">unit_system</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">unit_system</span><span class="o">.</span><span class="n">base_units</span>
+    <span class="k">for</span> <span class="n">symbol</span><span class="p">,</span> <span class="n">baseunit</span> <span class="ow">in</span> <span class="p">(</span>
+        <span class="p">(</span><span class="s2">"I"</span><span class="p">,</span> <span class="n">base</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">current_mks</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"L"</span><span class="p">,</span> <span class="n">base</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">length</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"M"</span><span class="p">,</span> <span class="n">base</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">mass</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"T"</span><span class="p">,</span> <span class="n">base</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">temperature</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"t"</span><span class="p">,</span> <span class="n">base</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">time</span><span class="p">]),</span>
+    <span class="p">):</span>
+        <span class="n">unit</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">baseunit</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span>
+        <span class="n">exponent</span> <span class="o">=</span> <span class="n">attrs</span><span class="p">[</span><span class="s2">"U_</span><span class="si">%s</span><span class="s2"> exponent"</span> <span class="o">%</span> <span class="n">symbol</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">exponent</span> <span class="o">==</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">u</span> <span class="ow">is</span> <span class="n">unyt</span><span class="o">.</span><span class="n">dimensionless</span><span class="p">:</span>
+                <span class="n">u</span> <span class="o">=</span> <span class="n">unit</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">u</span> <span class="o">=</span> <span class="n">u</span> <span class="o">*</span> <span class="n">unit</span>
+        <span class="k">elif</span> <span class="n">exponent</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">u</span> <span class="ow">is</span> <span class="n">unyt</span><span class="o">.</span><span class="n">dimensionless</span><span class="p">:</span>
+                <span class="n">u</span> <span class="o">=</span> <span class="n">unit</span><span class="o">**</span><span class="n">exponent</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">u</span> <span class="o">=</span> <span class="n">u</span> <span class="o">*</span> <span class="p">(</span><span class="n">unit</span><span class="o">**</span><span class="n">exponent</span><span class="p">)</span>
+
+    <span class="c1"># Add expansion factor</span>
+    <span class="n">a_scale_exponent</span> <span class="o">=</span> <span class="n">attrs</span><span class="p">[</span><span class="s2">"a-scale exponent"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">a_unit</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span> <span class="o">**</span> <span class="n">a_scale_exponent</span>
+    <span class="n">physical</span> <span class="o">=</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"Value stored as physical"</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">a_scale_exponent</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">physical</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">u</span> <span class="ow">is</span> <span class="n">unyt</span><span class="o">.</span><span class="n">dimensionless</span><span class="p">:</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">a_unit</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">u</span> <span class="o">*</span> <span class="n">a_unit</span>
+
+    <span class="c1"># Add h factor</span>
+    <span class="n">h_scale_exponent</span> <span class="o">=</span> <span class="n">attrs</span><span class="p">[</span><span class="s2">"h-scale exponent"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">h_unit</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"h"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span> <span class="o">**</span> <span class="n">h_scale_exponent</span>
+    <span class="k">if</span> <span class="n">h_scale_exponent</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">u</span> <span class="ow">is</span> <span class="n">unyt</span><span class="o">.</span><span class="n">dimensionless</span><span class="p">:</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">h_unit</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">u</span> <span class="o">*</span> <span class="n">h_unit</span>
+
+    <span class="k">return</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">registry</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="attributes_from_units">
+<a class="viewcode-back" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.attributes_from_units">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">attributes_from_units</span><span class="p">(</span><span class="n">units</span><span class="p">,</span> <span class="n">physical</span><span class="p">,</span> <span class="n">a_exponent</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Given a unyt.Unit object, generate SWIFT dataset attributes.</span>
+
+<span class="sd">    Returns a dict with the attributes.</span>
+
+<span class="sd">    :param  units:      the Unit object</span>
+<span class="sd">    :type   units:      unyt.Unit</span>
+<span class="sd">    :param  physical:   If True, the value is stored as physical rather than comoving</span>
+<span class="sd">    :type   physical:   boolean</span>
+<span class="sd">    :param  a_exponent: expansion factor exponent of the property. None if it cannot be converted to comoving</span>
+<span class="sd">    :type   a_exponent: float</span>
+<span class="sd">    """</span>
+    <span class="n">attrs</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># Get CGS conversion factor.</span>
+    <span class="n">cgs_factor</span><span class="p">,</span> <span class="n">offset</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">get_conversion_factor</span><span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">get_cgs_equivalent</span><span class="p">())</span>
+
+    <span class="c1"># Get a exponent</span>
+    <span class="n">a_unit</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">units</span><span class="o">.</span><span class="n">registry</span><span class="p">)</span>
+    <span class="n">a_exponent_in_units</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">as_powers_dict</span><span class="p">()[</span><span class="n">a_unit</span><span class="o">.</span><span class="n">expr</span><span class="p">]</span>
+    <span class="n">a_val</span> <span class="o">=</span> <span class="n">a_unit</span><span class="o">.</span><span class="n">base_value</span>
+
+    <span class="c1"># Check a_exponent is consistent</span>
+    <span class="k">if</span> <span class="n">a_exponent</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">physical</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">physical</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">a_exponent_in_units</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">float</span><span class="p">(</span><span class="n">a_exponent_in_units</span><span class="p">)</span> <span class="o">==</span> <span class="n">a_exponent</span>
+
+    <span class="c1"># Get h exponent</span>
+    <span class="n">h_unit</span> <span class="o">=</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"h"</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">units</span><span class="o">.</span><span class="n">registry</span><span class="p">)</span>
+    <span class="n">h_exponent</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">as_powers_dict</span><span class="p">()[</span><span class="n">h_unit</span><span class="o">.</span><span class="n">expr</span><span class="p">]</span>
+    <span class="n">h_val</span> <span class="o">=</span> <span class="n">h_unit</span><span class="o">.</span><span class="n">base_value</span>
+    <span class="c1"># Something has gone wrong if we have h factors</span>
+    <span class="k">assert</span> <span class="n">h_exponent</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="c1"># Find the power associated with each dimension</span>
+    <span class="n">powers</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">get_mks_equivalent</span><span class="p">()</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">as_powers_dict</span><span class="p">()</span>
+
+    <span class="c1"># Set the attributes</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"Conversion factor to CGS (not including cosmological corrections)"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">cgs_factor</span> <span class="o">/</span> <span class="p">(</span><span class="n">a_val</span><span class="o">**</span><span class="n">a_exponent_in_units</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">h_val</span><span class="o">**</span><span class="n">h_exponent</span><span class="p">))</span>
+    <span class="p">]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"Conversion factor to physical CGS (including cosmological corrections)"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">cgs_factor</span><span class="p">)]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"U_I exponent"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">powers</span><span class="p">[</span><span class="n">unyt</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">current_mks</span><span class="p">])]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"U_L exponent"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">powers</span><span class="p">[</span><span class="n">unyt</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">length</span><span class="p">])]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"U_M exponent"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">powers</span><span class="p">[</span><span class="n">unyt</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">mass</span><span class="p">])]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"U_T exponent"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">powers</span><span class="p">[</span><span class="n">unyt</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">temperature</span><span class="p">])]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"U_t exponent"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">powers</span><span class="p">[</span><span class="n">unyt</span><span class="o">.</span><span class="n">dimensions</span><span class="o">.</span><span class="n">time</span><span class="p">])]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"h-scale exponent"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">h_exponent</span><span class="p">)]</span>
+    <span class="c1"># "a-scale exponent" is set even if the output is physical or if the quantity can't be converted to comoving</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"a-scale exponent"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span> <span class="k">if</span> <span class="n">a_exponent</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">a_exponent</span><span class="p">]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"Value stored as physical"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span> <span class="k">if</span> <span class="n">physical</span> <span class="k">else</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">attrs</span><span class="p">[</span><span class="s2">"Property can be converted to comoving"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span> <span class="k">if</span> <span class="n">a_exponent</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">attrs</span></div>
+
+
+
+<div class="viewcode-block" id="drop_a_from_comoving_property">
+<a class="viewcode-back" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.drop_a_from_comoving_property">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">drop_a_from_comoving_property</span><span class="p">(</span><span class="n">arr</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Drop the a factor from the units of a comoving property without changing the value.</span>
+
+<span class="sd">    Coordinates in the lightcone are comoving but the expansion factor varies</span>
+<span class="sd">    so it cannot be explicitly included in the units as done with snapshots.</span>
+
+<span class="sd">    e.g. lengths in units of a*snap_length are reinterpreted as just snap_length.</span>
+
+<span class="sd">    Supports lengths, densities, areas, volumes and pressures.</span>
+
+<span class="sd">    :param  arr:    comoving property in snapshot units</span>
+<span class="sd">    :type   arr:    unyt.unyt_array</span>
+<span class="sd">    """</span>
+    <span class="n">reg</span> <span class="o">=</span> <span class="n">arr</span><span class="o">.</span><span class="n">units</span><span class="o">.</span><span class="n">registry</span>
+
+    <span class="n">unit_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">units</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">unit_str</span> <span class="o">==</span> <span class="s2">"a*snap_length"</span><span class="p">:</span>  <span class="c1"># lengths</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s2">"snap_length"</span>
+    <span class="k">elif</span> <span class="n">unit_str</span> <span class="o">==</span> <span class="s2">"snap_mass/(a**3*snap_length**3)"</span><span class="p">:</span>  <span class="c1"># densities</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s2">"snap_mass/(snap_length**3)"</span>
+    <span class="k">elif</span> <span class="n">unit_str</span> <span class="o">==</span> <span class="s2">"a**2*snap_length**2"</span><span class="p">:</span>  <span class="c1"># areas</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s2">"snap_length**2"</span>
+    <span class="k">elif</span> <span class="n">unit_str</span> <span class="o">==</span> <span class="s2">"a**3*snap_length**3"</span><span class="p">:</span>  <span class="c1"># volumes</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s2">"snap_length**3"</span>
+    <span class="k">elif</span> <span class="n">unit_str</span> <span class="o">==</span> <span class="s2">"snap_mass/(a**5*snap_length*snap_time**2)"</span><span class="p">:</span>  <span class="c1"># pressures</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s2">"snap_mass/(snap_length*snap_time**2)"</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"drop_a_from_comoving_property: unrecognised comoving units '</span><span class="si">{</span><span class="n">unit_str</span><span class="si">}</span><span class="s2">'"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">arr</span><span class="o">.</span><span class="n">value</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">registry</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, William McDonald.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

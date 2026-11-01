@@ -9,7 +9,7 @@ Function to import basic matplotlib settings for example scripts
 
 
 def plot_settings():
-
+    """Basic matplotlib settings for examples."""
     # Line Properties
     plt.rcParams["lines.linewidth"] = 1.5
     # Font options
@@ -41,5 +41,4 @@ def plot_settings():
 
 
 # new colour maps for examples:
-
 cmap_MCG = LinearSegmentedColormap.from_list("magenta_cyan_gold", ["#8b008b", "#008c99", "#b8860b"])

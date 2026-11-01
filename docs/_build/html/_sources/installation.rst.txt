@@ -1,0 +1,122 @@
+Installation
+============
+
+Clone the repository, then either build a new virtual environment with everything SWIFTLET needs, or install it into an environment you already have. Both routes download the FLAMINGO lightcone shell redshift files into the environment, and export their paths whenever the environment is activated.
+
+New virtual environment
+-----------------------
+
+From anywhere, make a virtual environment containing SWIFTLET (in editable mode), its dependencies, the dependencies of the `examples <https://github.com/Will-McD/ExtraSWIFTLightcones/tree/main/examples>`_ and tests, and the shell redshift files:
+
+.. code-block:: bash
+
+   git clone https://github.com/Will-McD/ExtraSWIFTLightcones.git
+   bash ExtraSWIFTLightcones/venv_scripts/make_venv.sh /path/to/environment
+   source /path/to/environment/bin/activate
+
+If no path is given, the environment is made in ``ExtraSWIFTLightcones/swiftlet_env``.
+
+.. note::
+
+   If you have access to COSMA, build the environment as described in :ref:`use-with-cosma` instead.
+
+Existing environment
+--------------------
+
+With your environment (venv or conda) activated, install the package and its requirements from the repository directory, then download the shell redshift files:
+
+.. code-block:: bash
+
+   cd ExtraSWIFTLightcones
+   pip install -e .              # the package and its requirements
+   pip install ".[all]"          # ... plus the requirements of the examples and tests
+   swiftlet-configure
+
+To install only the additional requirements of the examples or the tests:
+
+.. code-block:: bash
+
+   pip install ".[examples]"     # requirements of the examples
+   pip install ".[test]"         # requirements of the tests
+
+.. _shell-redshifts:
+
+Lightcone shell redshift files
+------------------------------
+
+The shell redshift files give the redshift bounds of `each shell in FLAMINGO's lightcones <https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html>`_. They are needed to map between FLAMINGO's HEALPix maps, which are built in concentric redshift shells, and the corresponding halo lightcones, which are built per snapshot, and to find which HEALPix maps lie within a given redshift range.
+
+``swiftlet-configure`` downloads the files to ``<environment>/share/swiftlet/redshifts``, and adds ``L1_REDSHIFTS_FILENAME`` and ``L2P8_REDSHIFTS_FILENAME`` to the environment's activate script (``bin/activate`` for a venv, ``etc/conda/activate.d`` for conda). If ``swiftlet-configure`` is not run, the files are downloaded the first time they are needed instead.
+
+.. note::
+
+   The `COLIBRE <https://colibre.strw.leidenuniv.nl/index.html>`_ simulation suite does not have lightcones, and so has no shell redshift files.
+
+.. _use-with-cosma:
+
+Use with COSMA
+--------------
+
+This step only applies if you have access to `COSMA <https://cosma.readthedocs.io/en/latest/index.html>`_. On COSMA, build the virtual environment with COSMA's pre-built wheels of mpi4py and h5py, which match its MPI and parallel HDF5 libraries:
+
+.. code-block:: bash
+
+   bash ExtraSWIFTLightcones/venv_scripts/make_cosma_env.sh /path/to/environment
+
+MPI support
+-----------
+
+MPI is not required to build new lightcones from snapshots with the ``SnapshotLightcone`` subclasses. It is needed for the faster parallel methods of ``SnapshotLightcone``, for the ``BeamProjection`` class, and for generating binary masks of haloes (``mask_haloes``).
+
+MPI support requires mpi4py and an MPI-enabled build of h5py. The mpi4py package installed from PyPI needs an MPI library at run time; if your system has none, install one into the environment with ``pip install mpich`` (or ``pip install openmpi``). ``swiftlet-configure`` does not need MPI.
+
+On COSMA, the environment built by ``make_cosma_env.sh`` (see :ref:`use-with-cosma`) is already configured to use COSMA's mpi4py and h5py.
+
+See also the instructions for installing `LightconeIO with MPI support <https://lightconeio.readthedocs.io/en/latest/installation.html#with-mpi-support>`_.
+
+.. _number-of-threads:
+
+Number of threads
+-----------------
+
+The threaded parts of SWIFTLET, numba's parallel functions (used to re-orient snapshots and in ``BeamProjection``) and healpy's ``map2alm``, ``rotate_alm`` and ``alm2map``, use at most ``SWIFTLET_MAX_THREADS`` threads. The default is 30, and the limit never exceeds the number of cores the process is allowed to run on (e.g. the cores given to a job or an MPI rank).
+
+``swiftlet-configure`` adds ``SWIFTLET_MAX_THREADS`` to the environment's activate script. To change it:
+
+.. code-block:: bash
+
+   swiftlet-configure --max_threads 16    # saved in the environment; re-activate it to apply
+   export SWIFTLET_MAX_THREADS=16         # for one shell or job script
+
+or within a Python script:
+
+.. code-block:: python
+
+   import swiftlet
+   swiftlet.set_max_threads(16)
+
+To set the limit when building a new environment, for example to 16 instead of 30:
+
+.. code-block:: bash
+
+   SWIFTLET_MAX_THREADS=16 bash ExtraSWIFTLightcones/venv_scripts/make_venv.sh /path/to/environment
+
+To have no fixed maximum, so that each job (or MPI rank) uses all the cores it is allowed, use ``all`` instead of a number, e.g. ``swiftlet-configure --max_threads all``. This suits jobs where the scheduler sets the number of cores, e.g. ``--cpus-per-task`` in Slurm.
+
+.. _additional-data:
+
+Additional data
+---------------
+
+To add the shell redshift files to another existing environment:
+
+.. code-block:: bash
+
+   bash ExtraSWIFTLightcones/venv_scripts/shell_redshifts.sh /path/to/environment
+
+To speed up the rotation of HEALPix maps, download the HEALPix pixel weights and add their paths to your environment:
+
+.. code-block:: bash
+
+   cd ExtraSWIFTLightcones
+   bash venv_scripts/healpix_pixel_weights.sh

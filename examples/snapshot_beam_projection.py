@@ -173,7 +173,6 @@ def beam_projection_lock_comparison(
 
 
 def main_flamingo(simulation_object, output_dir):
-
     # snapshot used for its metadata when projecting, the redshift 0 snapshot
     snapshot_filename = simulation_object.snapshot_file(simulation_object.z0_snapshot)
 
@@ -206,7 +205,6 @@ def main_flamingo(simulation_object, output_dir):
 
 
 def main_colibre(simulation_object, output_dir):
-
     # snapshot used for its metadata when projecting, the redshift 0 snapshot
     snapshot_filename = simulation_object.snapshot_file(simulation_object.z0_snapshot)
 

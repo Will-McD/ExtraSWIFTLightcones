@@ -64,7 +64,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--soap_format",
         default=None,
-        help="SOAP catalogue filenames, using {snap_nr}. By default <simulation>/SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5",
+        help="SOAP catalogue filenames, using {snap_nr}, <simulation>/SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5",
     )
     parser.add_argument("--orientation_seed", type=int, default=0, help="seed of the box tile orientations")
     parser.add_argument(
@@ -108,7 +108,10 @@ if __name__ == "__main__":
         )
         message(
             comm_rank,
-            f"{len(snapshot_halos['Lightcone/SnapshotNumber'])} haloes of snapshot {lowest_z_snapshot} written to {output_filename}",
+            (
+                f"{len(snapshot_halos['Lightcone/SnapshotNumber'])} haloes of snapshot"
+                "{lowest_z_snapshot} written to {output_filename}"
+            ),
         )
 
     message(comm_rank, "\nDONE :)\n")

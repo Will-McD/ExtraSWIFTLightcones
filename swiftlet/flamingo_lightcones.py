@@ -6,6 +6,8 @@ from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_r
 
 def flamingo_shell_redshift_file(box, download=True):
     """
+    Fetch redshift shell paths.
+
     Returns the absolute path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or
     2800 Mpc ("L2p8") box sidelength simulations.
 
@@ -51,7 +53,11 @@ def flamingo_shell_redshift_file(box, download=True):
         except OSError as error:
             download_error = f"Downloading them to {default_redshift_dir()} failed: {error}."
     raise FileNotFoundError(
-        f"FLAMINGO shell redshifts for {box} not found (looked in: {[p for p in candidates if p]}).{download_error} Run swiftlet-configure on a machine with internet access, or set {env_name} to the path of the file"
+        (
+            f"FLAMINGO shell redshifts for {box} not found (looked in: {[p for p in candidates if p]}). "
+            f"{download_error} Run swiftlet-configure on a machine with internet access, "
+            f"or set {env_name} to the path of the file"
+        )
     )
 
 
@@ -59,19 +65,21 @@ def flamingo_box_resolution(path):
     """
     Find the box size / resolution label of a FLAMINGO simulation from a path to the simulation's data.
 
-    Returns the label, e.g. "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/data/products.." -> "L1000N1800".
+    Returns the label, e.g. "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/data/products.." -> "L1000N1800"
 
     Raises ValueError if none (or more than one different one) is found.
 
     :param  path:   path to the simulation data
     :type   path:   str
     """
-
     flamingo_box_res_pattern = re.compile(r"(?:^|/)(L(\d+)N(\d+))(?=/|$)")
 
     matches = {m.group(1) for m in flamingo_box_res_pattern.finditer(str(path))}
     if len(matches) != 1:
         raise ValueError(
-            f"Expected exactly one FLAMINGO box/resolution label (e.g. L1000N1800) in {path!r}, found {sorted(matches) or 'none'}"
+            (
+                f"Expected exactly one FLAMINGO box/resolution label "
+                f"(e.g. L1000N1800) in {path!r}, found {sorted(matches) or 'none'}"
+            )
         )
     return matches.pop()

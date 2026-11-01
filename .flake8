@@ -15,3 +15,6 @@ skip-checking-raises = True
 skip-checking-short-docstrings = True
 # DOC201: no :returns: section. Turn on once the existing docstrings have one
 extend-ignore = DOC201,DOC203
+# docstrings on __init__ are allowed (Sphinx shows them on the class page: autoclass_content = "both" in docs/conf.py)
+allow-init-docstring = True
+check-yield-types = False

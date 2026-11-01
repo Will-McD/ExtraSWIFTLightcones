@@ -4,16 +4,21 @@ from contextlib import contextmanager
 
 """
 Maximum number of threads used by the threaded code:
+
     - numba parallel functions (re-orienting the snapshot box tiles, and swiftsimio's parallel projections)
     - healpy alm spherical harmonic transforms (map2alm, rotate_alm and alm2map)
 
-SWIFTLET_MAX_THREADS = the max number of threads. If None then default to 30, otherwise when set 
-never allow it to be more than the number of cores the process is allowed to run on (e.g. the cores given to a job or an MPI rank). 
-With SWIFTLET_MAX_THREADS=all there is no fixed maximum, and each process uses all the cores it is allowed. Change it with
+The maximum number of threads is set by SWIFTLET_MAX_THREADS. 
+If SWIFTLET_MAX_THREADS is None then default to 30. Otherwise when set, it is never allowed it to be more than the 
+number of cores the process are allowed to run on (e.g. the cores given to a job or an MPI rank). 
+With SWIFTLET_MAX_THREADS=all there is no fixed maximum, and each process uses all the cores it is allowed. 
+
+SWIFTLET_MAX_THREADS can be changed as:
 
     swiftlet-configure --max_threads N      # N or all, saved in the environment's activate script
     export SWIFTLET_MAX_THREADS=N           # for one shell or job script
     swiftlet.set_max_threads(N)             # while running, in Python
+
 """
 
 MAX_THREADS_ENV = "SWIFTLET_MAX_THREADS"
@@ -46,10 +51,12 @@ def _check_number_of_threads(value, source):
 
 def max_threads():
     """
-    Returns the maximum number of threads
+    Returns the maximum number of threads.
+
         - SWIFTLET_MAX_THREADS:     if a value is set.
         - DEFAULT_MAX_THREADS:      if not value set
         - None:                     if 'all' and no fixed maximum
+
     """
     value = os.environ.get(MAX_THREADS_ENV, "")
     if value.strip() == "":
@@ -61,7 +68,8 @@ def set_max_threads(number):
     """
     Set SWIFTLET_MAX_THREADS, the maximum number of threads to use.
 
-    :param  number: maximum number of threads, at least 1, or "all" (or None) to use all the cores the process is allowed
+    :param  number: maximum number of threads, at least 1, or "all" (or None) to use all the cores the process
+                        is allowed
     :type   number: int, str or None
     """
     number = _check_number_of_threads(number, "the maximum number of threads")
@@ -69,9 +77,7 @@ def set_max_threads(number):
 
 
 def available_cores():
-    """
-    Returns the number of cores this process is allowed to run on (e.g. those given to a job or an MPI rank).
-    """
+    """Returns the number of cores this process is allowed to run on (e.g. those given to a job or an MPI rank)."""
     try:
         return max(1, len(os.sched_getaffinity(0)))
     except AttributeError:  # not available on macOS
@@ -80,18 +86,20 @@ def available_cores():
 
 def thread_limit():
     """
-    Returns the number of threads to use: the maximum, but no more than the cores this process may run on, or all
+    Returns the maximum number of threads to use.
+
+    The maximum cannot be more than the cores this process may run on, or all
     of those cores if SWIFTLET_MAX_THREADS is "all".
     """
-
     maximum = max_threads()
     return available_cores() if maximum is None else max(1, min(maximum, available_cores()))
 
 
 def limit_numba_threads():
     """
-    Set the number of threads numba's parallel functions use to thread_limit(), and no more than numba started
-    with (NUMBA_NUM_THREADS). Called before running a numba parallel function, in the thread that runs it.
+    Set the number of threads numba's parallel functions use to thread_limit().
+
+    Called before running a numba parallel function.
 
     Returns the number of threads numba uses.
     """
@@ -106,10 +114,9 @@ def limit_numba_threads():
 @contextmanager
 def limit_openmp_threads():
     """
-    Within the block, limit the thread pools to thread_limit() and restore them after.
-    Uses threadpoolctl.
-    Without it the threads are not limited, and OMP_NUM_THREADS can be set instead.
-    """
+    Within the block, limit the thread pools to thread_limit() and restore them after, otherwise without it the threads
+    are not limited, and OMP_NUM_THREADS can be set instead.
+    """  # noqa: D205
     try:
         from threadpoolctl import threadpool_limits
     except ImportError:

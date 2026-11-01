@@ -4,7 +4,7 @@ import matplotlib
 import matplotlib.layout_engine
 import matplotlib.pyplot as plt
 from pathlib import Path
-from swiftlet.cosmology import SnapshotCosmology
+from swiftlet.snapshot_cosmology import SnapshotCosmology
 from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.example_plot_settings import plot_settings
 
@@ -832,7 +832,10 @@ if __name__ == "__main__":
                 beam_coords.append(np.concatenate(chunk_coords))
             npart_chunk = sum(len(c) for c in chunk_coords)
             print(
-                f"chunk {chunk_nr}: files {chunk_files.start}-{chunk_files.stop - 1} of {numb_files}, {npart_chunk} particles in the beam",
+                (
+                    f"chunk {chunk_nr}: files {chunk_files.start}-{chunk_files.stop - 1} "
+                    f"of {numb_files}, {npart_chunk} particles in the beam"
+                ),
                 flush=True,
             )
 

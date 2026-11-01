@@ -1,3 +1,4 @@
+#!/bin/env python
 import sys
 from pathlib import Path
 import numpy as np
@@ -11,13 +12,16 @@ from swiftlet.snapshot_cosmology import SnapshotCosmology  # noqa: E402
 
 """
 Test that SnapshotLightcones works with small L25 and L50 COLIBRE boxes.
-For these small boxes, the comoving distance corresponding to one snapshots redshift range is greater than the simulations sidelength 
-(close to z = 0 snapshots fill a slice with a radius of 44 - 99 Mpc) therefore every line of sight crosses many tiles of 
-the same snapshot. This can potentially create problems with having many-many replications of the same objects or introducing a very large number 
-of discontinuities. 
 
-Build a fake simulation of each box where all particles are placed in an regular lattice, check that particles and as haloes placed into an 
-all-sky shell and beam, with every orientation lock, is placed exactly once and not skipped. 
+For these small boxes, the comoving distance corresponding to one snapshots redshift range is greater than the 
+simulations sidelength (approx z = 0 snapshots fill a 44 - 99 Mpc slice) therefore every line of sight crosses many 
+tiles of the same snapshot. 
+This may lead to many replications of the same objects or introducing a very large number of discontinuities due to high
+number of tiles needed.  
+
+To test, build a set of fake snapshots where all particles are placed in an regular lattice, then check that particles 
+and haloes placed into an all-sky shell and beam lightcone, is placed exactly once and not skipped. Repeat for all 
+orientation locks. 
 """
 
 # label, box size [Mpc], cells per axis, lattice spacing [Mpc], shell [comoving Mpc]. The lattice spacing is half a

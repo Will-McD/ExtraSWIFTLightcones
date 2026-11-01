@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_snapshot_lightcone_placement as placement  # noqa: E402
 
 """
-Place the haloes of the fake SOAP catalogues into the lightcone shell and then run under mpiexec by
+Place the haloes of the fake SOAP catalogues into a lightcone shell and then run under mpiexec by
 test_snapshot_lightcone_placement.test_mpi_haloes_match_serial. 
 Each rank saves the haloes it placed to <output>.<rank>.npz.
 

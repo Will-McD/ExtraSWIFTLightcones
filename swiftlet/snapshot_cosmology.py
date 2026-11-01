@@ -1,11 +1,11 @@
 #!/bin/env python
 """
-The cosmology of a SWIFT simulation (FLAMINGO or COLIBRE), read from one of its snapshots, with the snapshot's own
-unit registry.
-Adapted from the LightconeIO lightcone_io/xray_utils.py
+The cosmology of a SWIFT simulation (FLAMINGO or COLIBRE), read from one of its snapshots.
 
-The cosmology is the astropy w0waCDM of the snapshot's Cosmology group: H0, Omega_m, Omega_lambda, Omega_b, w_0,
-w_a and T_CMB_0.
+The cosmology uses the snapshot's own unit registry. It is the astropy w0waCDM of the snapshot's Cosmology group: H0,
+Omega_m, Omega_lambda, Omega_b, w_0, w_a and T_CMB_0.
+
+Adapted from lightcone_io/xray_utils.py of LightconeIO.
 """
 
 import os
@@ -15,8 +15,8 @@ import numpy as np
 import unyt
 import astropy.units as astropy_units
 from astropy.cosmology import FLRW, w0waCDM, z_at_value
-
 from . import snapshot_units as sw_units
+
 
 # snapshot files of the simulation suites: <suite>_<4 digits>.hdf5, or the files of a snapshot,
 # <suite>_<4 digits>.<file number>.hdf5
@@ -46,9 +46,7 @@ def find_snapshot_files(snapshot_dir, pattern=SNAPSHOT_FILE_PATTERN):
 
 
 def _attributes(snapshot, group_name):
-    """
-    Read the attributes of a group of a snapshot file, one-element arrays as numbers and bytes as strings.
-    """
+    """Read the attributes of a group of a snapshot file, one-element arrays as numbers and bytes as strings."""
     if group_name not in snapshot:
         raise KeyError(f"{snapshot.filename} doesn't have a group called {group_name}")
     values = {}
@@ -71,28 +69,30 @@ def neutrino_masses(cosmology):
     Raises ValueError for neutrinos astropy can't hold. i.e. degeneracies that aren't whole numbers, or massive and
     massless species that don't add up to N_eff.
 
-    :param  cosmology:  Cosmology attributes of the snapshot (see SnapshotCosmology.cosmology)
+    :param  cosmology:  Cosmology attributes of the snapshot
     :type   cosmology:  dict
     """
     n_eff = float(
-        cosmology.get("N_eff", 3.04)
-    )  # try read effective number of neutrino, otherwise fall back to astropy default
+        cosmology.get("N_eff", 3.04)  # try read effective number of neutrino, otherwise fall back to astropy default
+    )
     masses = np.atleast_1d(np.asarray(cosmology.get("M_nu_eV", 0.0), dtype=float))  # if no mass found, fall back to 0.0
     degeneracies = np.atleast_1d(np.asarray(cosmology.get("deg_nu", 0.0), dtype=float))  # repeat for degeneracies
     n_massless = float(np.squeeze(cosmology.get("N_ur", n_eff)))  # numb of masses species
     if not np.all(degeneracies == np.round(degeneracies)):
         raise ValueError(f"astropy can't hold neutrinos of degeneracies {degeneracies} (deg_nu), only whole numbers")
     if int(n_eff) != int(degeneracies.sum()) + int(n_massless):
-        raise ValueError(
-            f"astropy can't hold these neutrinos: {int(degeneracies.sum())} massive (deg_nu) and {int(n_massless)} massless (N_ur) species, but N_eff = {n_eff}"
+        error_str = (
+            f"astropy can't hold these neutrinos: {int(degeneracies.sum())} massive (deg_nu) and "
+            f"{int(n_massless)} massless (N_ur) species, but N_eff = {n_eff}"
         )
+        raise ValueError(error_str)
     massive = np.repeat(masses, degeneracies.astype(int))  # store the species of massive neutrinos
     return np.concatenate([massive, np.zeros(int(n_massless))])
 
 
 class SnapshotCosmology:
     """
-    The cosmology from one of a snapshot .hdf5 file or of simulation class object (see swiftlet/simulations_suites.py)
+    The cosmology from one of a snapshot .hdf5 file or of simulation class object (see swiftlet/simulations_suites.py).
 
     Attributes:
         snapshot_filename:  the snapshot file read
@@ -150,8 +150,7 @@ class SnapshotCosmology:
     @classmethod
     def from_simulation(cls, simulation):
         """
-        The cosmology of a Simulation, from its redshift 0 snapshot, or its lowest redshift snapshot file if that
-        isn't there.
+        The cosmology of a Simulation, read from the simulations lowest redshift snapshot.
 
         :param  simulation: the simulation
         :type   simulation: swiftlet.simulations.Simulation
@@ -178,17 +177,15 @@ class SnapshotCosmology:
 
     @property
     def Hubble_const(self):
-        """
-        Hubble constant H0, unyt_quantity [km/s/Mpc], converted from the code's time unit.
-        """
+        """Hubble constant H0, unyt_quantity [km/s/Mpc], converted from the code's time unit."""
         h0 = unyt.unyt_quantity(self.cosmology["H0 [internal units]"], "1/code_time", registry=self.unit_registry)
         return h0.to("km/s/swift_mpc")
 
     def parameter(self, name):
         """
-        A parameter of the run, from the snapshot's Parameters group, e.g. "EAGLEAGN:AGN_delta_T_K".
+        A parameter of the run, from the snapshot's Parameters group.
 
-        Returns the value as written (a string), or None if the snapshot doesn't have it.
+        Returns the value, or None if the snapshot doesn't have it.
 
         :param  name:   name of the parameter, "<section>:<parameter>"
         :type   name:   str
@@ -215,7 +212,6 @@ class SnapshotCosmology:
         :param  dt: time before z [Myr], or a unyt quantity of time
         :type   dt: float or unyt.unyt_quantity
         """
-
         dt = sw_units.apply_expected_units(dt, unyt.Myr)
         earlier = unyt.unyt_array.from_astropy(self.COSMO.age(z)).to("Myr") - dt
         return float(z_at_value(self.COSMO.age, earlier.to_astropy()).value)
@@ -259,6 +255,8 @@ class SnapshotCosmology:
 
 def as_astropy_cosmology(cosmology):
     """
+    Transform to astropy cosmology object.
+
     Make all cosmologies used consistently transformed too astropy format,
     handle reading cosmology as done in LightconeIO, from a hdf5 group and a Simulation object.
 
@@ -273,6 +271,10 @@ def as_astropy_cosmology(cosmology):
         return cosmology.COSMO
     if isinstance(cosmology, (str, os.PathLike)):
         return SnapshotCosmology.from_path(cosmology).COSMO
-    raise TypeError(
-        f"cosmology must be a SnapshotCosmology, an astropy cosmology or the path of a snapshot, not {type(cosmology).__name__}"
+
+    error_str = (
+        "cosmology must be a SnapshotCosmology, an astropy cosmology or"
+        f"the path of a snapshot, not {type(cosmology).__name__}"
     )
+
+    raise TypeError(error_str)

@@ -33,7 +33,6 @@ def get_related_ipix(ipix, nside, levels, ordering="ring"):
     :param  ordering:   HEALPix pixel ordering, either 'ring' or 'nested'
     :type   ordering:   str
     """
-
     # Ensure array
     ipix = np.atleast_1d(ipix)
 
@@ -102,6 +101,7 @@ def find_healpy_pixel_weights_dir(datapath=None):
 def check_healpy_pixel_weights(nside, datapath=None):
     """
     Check that the healpy pixel weights file for this nside can be found.
+
     Looks for <datapath>/full_weights/healpix_full_weights_nside_XXXX.fits
 
     Returns the datapath to pass to hp.map2alm.
@@ -176,7 +176,8 @@ def get_common_maps(filenames):
 def read_rotation_angles(filename):
     """
     Read 'theta' (co-latitude) and 'phi' (longitude) angles from hdf5 file.
-    Assumes that theta and phi are given in radians.
+
+    Assume that theta and phi are given in radians.
 
     Returns a tuple of (co-latitude, longitude) in degrees.
 
@@ -208,16 +209,10 @@ def rotate_map(base_map, theta, phi, ell_max=None, map_rotator_object=None):
     :param  map_rotator_object: rotator to use. If None, one is created from theta and phi
     :type   map_rotator_object: healpy.Rotator
     """
-
     if theta == 0.0 and phi == 0.0:
         return base_map, map_rotator_object
     if map_rotator_object is None:
         map_rotator_object = hp.Rotator(rot=[theta.to_value(unyt.deg), phi.to_value(unyt.deg)], inv=True, deg=True)
-
-    # if ell_max is None:
-    #    return map_rotator_object.rotate_map_alms(base_map.astype(np.float64)), map_rotator_object
-    # elif ell_max is not None:
-    #    return map_rotator_object.rotate_map_alms(base_map.astype(np.float64), lmax=ell_max), map_rotator_object
 
     with limit_openmp_threads():  # healpy alm transforms use threads set by SWIFTLET_MAX_THREADS
         if ell_max is None:
@@ -229,6 +224,7 @@ def rotate_map(base_map, theta, phi, ell_max=None, map_rotator_object=None):
 def rotate_map_fast(base_map, theta, phi, nside, ell_max=None, map_rotator_object=None):
     """
     Rotate a given map using alm space via the passed as theta (co-latitude) and phi (longitude).
+
     Use the healpy pixel weights for the map to alm transform.
 
     Returns a tuple (rotated map, rotator object)
@@ -252,10 +248,6 @@ def rotate_map_fast(base_map, theta, phi, nside, ell_max=None, map_rotator_objec
         map_rotator_object = hp.Rotator(rot=[theta.to_value(unyt.deg), phi.to_value(unyt.deg)], inv=True, deg=True)
 
     HEALPY_PIXEL_WEIGHTS = check_healpy_pixel_weights(nside)
-
-    # alm = hp.map2alm(base_map.astype(np.float64), lmax=ell_max, use_pixel_weights=True, iter=3, datapath=HEALPY_PIXEL_WEIGHTS)
-    # alm_rot = map_rotator_object.rotate_alm(alm, lmax=ell_max)
-    # map_rot = hp.alm2map(alm_rot, nside=nside, lmax=ell_max)
 
     with limit_openmp_threads():  # healpy alm transforms use threads set by SWIFTLET_MAX_THREADS
         alm = hp.map2alm(
@@ -288,19 +280,8 @@ def write_rotated_lightcone_chunks(
     hdf5_dset_kwargs=_UNSET,
 ):
     """
-    For a given set of rotation angles per shell, sum all shells along the line of sight that share the same rotation angles.
+    For a given set of rotation angles per shell, sum all shells along the line of sight that share the same angles.
 
-    Params:
-        map_names:              List of map names, qunatities, datasets to sum and rotate in chunks, e.g. "TotalMass"
-        theta_arr_deg:          array of theta (co-latitude) values per shell [deg]
-        phi_arr_deg:            array of phi (longitude) values per shell [deg]
-        remote_dir:             For reading healpix maps from a remote directory as done with lightcone_io
-        shell_range:            tuple containing the shell number of the minimum and maximum shell to consider
-        unit_conversion_func:   Optional function for additional unit conversion prior to rotating maps.
-        save_chunks:            Boolean, if true write each individual chunk to the output file.
-    """
-    """
-    For a given set of rotation angles per shell, sum all shells along the line of sight that share the same rotation angles. 
     Each chunk is rotated and the sum of all chunks is written to the output file.
 
     :param  basedir:                directory containing the lightcone healpix maps
@@ -331,8 +312,9 @@ def write_rotated_lightcone_chunks(
     :type   ell_max:                int
     :param  save_chunks:            If True, write each individual chunk to the output file
     :type   save_chunks:            boolean
-    :param  hdf5_dset_kwargs:       keyword arguments passed to h5py create_dataset. 
-                                        If not given, use gzip compression level 9 with shuffle. If None, default h5py compression applied
+    :param  hdf5_dset_kwargs:       keyword arguments passed to h5py create_dataset.
+                                        If not given, use gzip compression level 9 with shuffle.
+                                        If None, default h5py compression applied
     :type   hdf5_dset_kwargs:       dict
     """
     if hdf5_dset_kwargs is _UNSET:
@@ -349,6 +331,7 @@ def write_rotated_lightcone_chunks(
     def write_dataset(outfile, name, data, dset_dtype=np.float64):
         """
         Write dataset to the output file, replacing any existing dataset with the same name.
+
         Assume gzip=9 and shuffle=True.
         """
         if name in outfile:
@@ -462,7 +445,10 @@ def write_rotated_lightcone_chunks(
                     map_rot = chunk_map_stack[map_quantity]
                 else:
                     print(
-                        f"\trotating chunk {chunk_nr}, map: {map_quantity}\n\t\ttheta, phi: {theta_rot[chunk_nr]:.3f}, {phi_rot[chunk_nr]:.3f}"
+                        (
+                            f"\trotating chunk {chunk_nr}, map: {map_quantity}\n"
+                            f"\t\ttheta, phi: {theta_rot[chunk_nr]:.3f}, {phi_rot[chunk_nr]:.3f}"
+                        )
                     )
                     # check for pixel weights
                     if healpy_pixel_weights_available(nside=rotate_nside):
@@ -519,7 +505,7 @@ def sum_maps(
 
     :param  file_numbers:       index number of the input files to sum
     :type   file_numbers:       list
-    :param  infile_format:      formatted path to the input files of a given file number: path/to/the/input/file_{file_nr}.hdf5
+    :param  infile_format:      formatted path to the input files of a given file number: path/input/file_{file_nr}.hdf5
     :type   infile_format:      str
     :param  outfile:            path and name of the file that will be written
     :type   outfile:            str
@@ -616,7 +602,10 @@ def sum_maps(
                         output_map_total = np.sum(output_dataset)
 
                     print(
-                        f"Updated Map: {name}\n\tstored map total: {output_map_total:.3e}\n\trunning total: {running_totals[name]:.3e}\n\t{output_map_total / running_totals[name] * 100:.3f} %"
+                        (
+                            f"Updated Map: {name}\n\tstored map total: {output_map_total:.3e}\n\trunning total: "
+                            f"{running_totals[name]:.3e}\n\t{output_map_total / running_totals[name] * 100:.3f} %"
+                        )
                     )
 
             print("\nFinished file %d\n" % (file_numbers[file_idx]))

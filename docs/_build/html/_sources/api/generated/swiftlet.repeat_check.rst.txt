@@ -1,0 +1,47 @@
+﻿swiftlet.repeat\_check
+======================
+
+.. automodule:: swiftlet.repeat_check
+   :no-members:
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :nosignatures:
+
+   find_close_cell_repeats
+   write_close_repeats
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :nosignatures:
+
+   CloseRepeatReport
+
+
+
+
+
+
+
+Full reference
+--------------
+
+
+.. autofunction:: find_close_cell_repeats
+
+.. autofunction:: write_close_repeats
+
+
+
+.. autoclass:: CloseRepeatReport
+   :members:
+   :undoc-members:
+   :show-inheritance:

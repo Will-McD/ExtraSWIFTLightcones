@@ -24,7 +24,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--figures-dir",
         default=None,
-        help="directory to save figures of the tests to, e.g. of the lattice placed in the lightcone. No figures are made if not given",
+        help="directory to save figures of the tests to. No figures are made if not given",
     )
 
 

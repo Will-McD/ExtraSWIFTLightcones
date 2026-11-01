@@ -17,8 +17,11 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 """
-Check a lightcone for close repeats before building it, compare a given table for different orientation locks and seeds, 
-then make a summary figure.
+Check a lightcone for close repeats before building it, compare a given table for different orientation locks and seeds,
+ then make a summary figure.
+
+Importanty we want to find out if there are replica cells with touching faces and then if there are any replica cells 
+close one another along the same line of sight.
 
 Every tile of a lightcone is a re-oriented copy of a snapshot box, so the same structures can re-apear multiple time 
 along a line of sight when the radius of the lightcone surpases the size the one snapshot box. 
@@ -45,7 +48,7 @@ def fake_simulation(run_dir):
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples/diagrams"))
-    import snapshot_lattice_diagram
+    import snapshot_lattice_diagram as snapshot_lattice
 
     simulation, _ = snapshot_lattice.write_lattice_simulation(run_dir)
     return simulation
@@ -213,11 +216,13 @@ def plot_reports(reports, seeds, title, filename):
                 )
         ax.grid(True, color="lightgray", lw=0.5)
         ax.tick_params(labelsize=7, colors="darkslategray")
-        # ax.set_title(f"orientation_lock = {lock}, seed {first}: {reports[lock, first].nr_line_of_sight} line of sight, {reports[lock, first].nr_touching} touching", fontsize=8)
         report = reports[lock, first]
 
         ax.set_title(
-            f"orientation_lock = {lock}, seed {first}: {report.nr_line_of_sight} line of sight, {report.nr_touching} touching",
+            (
+                f"orientation_lock = {lock}, seed {first}: {report.nr_line_of_sight} line"
+                "of sight, {report.nr_touching} touching"
+            ),
             fontsize=9,
         )
 
@@ -270,7 +275,10 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
     output_dir.mkdir(parents=True, exist_ok=True)
     shell = "all-sky" if beam_vector is None else f"beam {tuple(beam_vector)}, {ang_radius_deg} deg"
     print(
-        f"{simulation.box_res}/{simulation.name}: close repeats of cells in the {shell} shell {redshift_range[0]} < z < {redshift_range[1]}, within {angle_deg} deg on the sky",
+        (
+            f"{simulation.box_res}/{simulation.name}: close repeats of cells in the {shell} shell "
+            f"{redshift_range[0]} < z < {redshift_range[1]}, within {angle_deg} deg on the sky"
+        ),
         flush=True,
     )
     if orientation_table == "none":
@@ -292,14 +300,20 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
     # the lock and seed with the fewest close repeats
     best = min(reports, key=lambda case: (reports[case].nr_touching, reports[case].nr_line_of_sight))
     print(
-        f"fewest close repeats: orientation_lock={best[0]}, orientation_seed={best[1]} ({reports[best].nr_touching} touching, {reports[best].nr_line_of_sight} line of sight pairs)"
+        (
+            f"fewest close repeats: orientation_lock={best[0]}, orientation_seed={best[1]} ({reports[best].nr_touching}"
+            f" touching, {reports[best].nr_line_of_sight} line of sight pairs)"
+        )
     )
 
     filename = output_dir / "close_repeats.png"
     plot_reports(
         reports,
         seeds,
-        f"Close repeats of cells: {simulation.box_res}/{simulation.name}, {shell}, {redshift_range[0]} < z < {redshift_range[1]}",
+        (
+            f"Close repeats of cells: {simulation.box_res}/{simulation.name}, {shell}, "
+            f"{redshift_range[0]} < z < {redshift_range[1]}"
+        ),
         filename,
     )
 
@@ -307,7 +321,10 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
 
 
 if __name__ == "__main__":
-    arg_descript_str = "Check a lightcone shell for close repeats of cells, before building it, for every orientation lock and several seeds"
+    arg_descript_str = (
+        "Check a lightcone shell for close repeats of cells, "
+        "before building it, for every orientation lock and several seeds"
+    )
 
     parser = argparse.ArgumentParser(description=arg_descript_str)
 

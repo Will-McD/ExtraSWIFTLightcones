@@ -21,20 +21,18 @@ import hdfstream
 
 """
 Example script for reading and plotting only a section of pixels from a healpix map.
-Here we will select a small region centred on a halo in the lightcone by reading a 
-subset of pixels from the larger map, that are in a disk about the 
-pixel the halos centre of mass is found in and then making an image 
-using a Gnomonic projection. 
 
+Here we will select a halo in the lightcone and then only read a subset of pixels from the larger map that correspond 
+to a small region of the sky centred around the selected halo. We will make a quick projection of the subset of pixels. 
 
 Notes:
-    1) This example uses Nside 16384 maps read from the remote comsa6 server, 
+    1. This example uses Nside 16384 maps read from the remote comsa6 server, 
         to reduce memory required change nside_output to 4096. 
 
-    2) The zoomed image is centred on the pixel containing the selected halo. 
+    2. The zoomed image is centred on the pixel containing the selected halo. 
         The centre of the halo is not necessarily where it will appear to be brightest or most dense. 
 
-    3) The selected halo can be split across multiple redshift shells. If the halo or part of the halo doesn't appear 
+    3. The selected halo can be split across multiple redshift shells. If the halo or part of the halo doesn't appear 
         in the loaded map you can change the shell number used. 
 """
 
@@ -202,9 +200,11 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
                 if not np.isclose(
                     selected_pix_vals[centre_in_selected], centre_pix_val, rtol=1e-6, atol=0, equal_nan=True
                 ):
-                    raise RuntimeError(
-                        f"{map_name}: centre pixel read with the selected pixels differs from reading it on its own ({centre_pix_val} vs {selected_pix_vals[centre_in_selected]})"
+                    error_str = (
+                        f"{map_name}: centre pixel read with the selected pixels differs from reading it on its "
+                        f"own ({centre_pix_val} vs {selected_pix_vals[centre_in_selected]})"
                     )
+                    raise RuntimeError(error_str)
 
     return xmap, centre_pix_val
 
@@ -262,7 +262,7 @@ def find_haloes_in_shell(
     :type   centre_vector:          array-like, shape (3,)
     :param  radius:                 angular radius to search [radians]
     :type   radius:                 float
-    :param  boxsize_resolution:     FLAMINGO box size and resolution label, e.g. "L1000N1800", for the snapshot redshifts
+    :param  boxsize_resolution:     FLAMINGO box size and resolution label, e.g. "L1000N1800"
     :type   boxsize_resolution:     str
     :param  remote_dir:             remote directory of the files (hdfstream), or None for local files
     :type   remote_dir:             hdfstream.RemoteDirectory
@@ -397,8 +397,8 @@ def plot_zoom_on_pixel(
     :type   length_scale:           unyt.unyt_quantity
     :param  scale_colour:           colour of the scale bar
     :type   scale_colour:           str
-    :param  inclusive:              If True, when querying the map include pixels which overlap the search
-                                        radius, otherwise, if False, include pixels whose centres are in the search radius
+    :param  inclusive:              If True, when querying the map include pixels which overlap the search radius,
+                                         otherwise, if False, include pixels whose centres are in the search radius
     :type   inclusive:              boolean
     :param  cmap_norm:              matplotlib normalisation methods for each map. If None, assume 'log' for each map
     :type   cmap_norm:              list
@@ -715,8 +715,12 @@ if __name__ == "__main__":
     radius = np.radians(30.0)
 
     # Read the haloes in the shell around this point, from every halo lightcone file covering the shell
+
     print(
-        f"\nHaloes within {np.degrees(radius):.0f} deg of {vector} in shell {shell_nr} ({shell_redshift_range[0]:.3f} < z <= {shell_redshift_range[1]:.3f}):"
+        (
+            f"\nHaloes within {np.degrees(radius):.0f} deg of {vector} in shell "
+            f"{shell_nr} ({shell_redshift_range[0]:.3f} < z <= {shell_redshift_range[1]:.3f}):"
+        )
     )
 
     candidates = find_haloes_in_shell(
@@ -785,6 +789,6 @@ if __name__ == "__main__":
         colormap=colour_maps,
         bad_colours="grey",
         length_scale=10 * unyt.arcmin,
-        highlight_centre_pixel=("white", "o", 30, 1.0),  # highlight the centre pixel with a ring.
-        centre_vector=halo_centre,  # force the centre of zoom is pointed to the centre of the halo instead of pixels centre
+        highlight_centre_pixel=("white", "o", 30, 1.0),  # highlight the centre pixel with a ring
+        centre_vector=halo_centre,  # point to the centre of the halo instead of corresponding pixels centre
     )

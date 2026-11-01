@@ -9,10 +9,7 @@ import matplotlib.patheffects as path_effects
 from matplotlib.patches import Polygon
 from .snapshot_cosmology import as_astropy_cosmology
 
-
-"""
-Plot projections of a past lightcone beam as wedges, with redshift, comoving distance and angular axes.
-"""
+"""Plot projections of a past lightcone beam as wedges, with redshift, comoving distance and angular axes."""
 
 # simple rounding functions
 
@@ -172,8 +169,7 @@ def labels_loc(ax, p1, p2, offset=12, dpi=None, tick_length=1):
 
 def offset_point_from_tick(ax, x, y, ux, uy, offset):
     """
-    Use display coordinates to move tick label away
-    from the tick by shifting it in the direction (ux,uy).
+    Use display coordinates to move tick label away from the tick by shifting it in the direction (ux,uy).
 
     Returns the new (x, y) position in data coordinates.
 
@@ -337,6 +333,7 @@ def title_style(title_kwargs=None):
 def tick_styles(major_tick_kwargs=None, minor_tick_kwargs=None, tick_label_kwargs=None):
     """
     Keyword arguments of the major ticks, minor ticks and tick labels.
+
     Minor ticks default to the major tick colour and alpha with a thinner line.
 
     Returns a tuple of (major tick, minor tick, tick label) keyword arguments.
@@ -410,12 +407,12 @@ AXES_LOW_LEVEL = 10
 
 
 class BeamPlot:
-    """
-    Plot 2D projections of a beam as wedges, with redshift, comoving distance and angular axes.
-    """
+    """Plot 2D projections of a beam as wedges, with redshift, comoving distance and angular axes."""
 
     def __init__(self, cosmology, angular_diameter=None, redshift_range=None, axes_extent=None):
         """
+        Initialise the BeamPlot class.
+
         :param  cosmology:          the simulation's cosmology model
         :type   cosmology:          astropy cosmology object
         :param  angular_diameter:   total angular diameter of beam in degrees. Required by split_beam_plot
@@ -451,7 +448,7 @@ class BeamPlot:
         """
         Create plot of the whole beam, split into separate wedges.
 
-        Returns list of each projected wedge, with the axes if axs is given or the figure if axs is None.
+        Returns list of each projected wedge (with the axes if axs is given or the figure if axs is None).
         If filename is given, returns only the list of each projected wedge.
 
         :param  numb_wedges:        number of wedges or different projections to show in the beam
@@ -461,11 +458,12 @@ class BeamPlot:
         :type   projection_data:    list
         :param  colour_maps:        list of colour maps for each segment of the beam
         :type   colour_maps:        list
-        :param  axs:                Default=None, If None create a new axes for the plot, otherwise plot onto the axes given
+        :param  axs:                Default=None, If None create a new axes for the plot, otherwise use given the axes
         :type   axs:                matplotlib.axes._axes.Axes
         :param  filename:           None, if given, write plot to this file
         :type   filename:           str
-        :param  update_badcol:      If true, modify all colour maps so that the minimum, nan and None values are set to black
+        :param  update_badcol:      If true, modify all colour maps so that the minimum, nan and None values are shown
+                                        as black
         :type   update_badcol:      boolean
         :param  figsize:            size of the figure, used if axs is None
         :type   figsize:            tuple
@@ -475,14 +473,13 @@ class BeamPlot:
                                         matplotlib.colors.Normalize, see colour_norm. If None, all are "log"
         :type   norms:              list
         :param  outline_kwargs:     keyword arguments of an outline of the whole beam drawn over the wedges.
-                                        Allows for the outer edges to be styled differently from the lines between the wedges.
-                                        Same keys and defaults as wedge_kwargs (see wedge_style).
-                                        If None, no additional outlines are overlaid.
+                                        Allows for the outer edges to be styled differently from the lines between the
+                                        wedges. Same keys and defaults as wedge_kwargs (see wedge_style).
+                                        If None, no additional outlines are overlaid
         :type   outline_kwargs:     dict
-        :param  kwargs:             All additional arguments to be passed onto the add_wedge and add_beam_axes functions.
+        :param  kwargs:             All additional arguments to be passed onto the add_wedge and add_beam_axes functions
         :type   kwargs:             dict
         """
-
         # define wedge angles
         beam_ang_offset_deg = 0.0
         beam_radius_deg = (self.angular_diameter - beam_ang_offset_deg) / 2
@@ -679,12 +676,12 @@ class BeamPlot:
         :param  title_radius:               where the title is placed along the wedge, as a fraction of the way from
                                                 the inner arc (0, rmin) to the outer arc (1, rmax).
         :type   title_radius:               float
-        :param  norm:                       colour normalisation, "log", "linear" or a matplotlib.colors.Normalize, see colour_norm
+        :param  norm:                       colour normalisation, "log", "linear" or a matplotlib.colors.Normalize,
+                                                see colour_norm
         :type   norm:                       str or matplotlib.colors.Normalize
-        :param  interpolation:              matplotlib imshow interpolation of the image, e.g. "nearest" to show each pixel
+        :param  interpolation:              matplotlib imshow interpolation of the image, (e.g. "nearest")
         :type   interpolation:              str
         """
-
         norm = colour_norm(norm, pix_min, pix_max, label=f"wedge {wedge_idx}")
 
         wedge_kwargs = wedge_style(wedge_kwargs)
@@ -765,63 +762,67 @@ class BeamPlot:
         grid_line_kwargs=None,
     ):
         """
-        Add axes, labels and ticks to the split beam plot. The redshift axis is drawn along the upper
-        edge of the beam, the comoving distance axis along the lower edge and the angular axis along the outer arc.
+        Add axes, labels and ticks to the split beam plot.
 
-        :param  ax:                     axes to plot onto
-        :type   ax:                     matplotlib.axes._axes.Axes
-        :param  redshift_major_ticks:  location of the major ticks on the redshift axes
-        :type   redshift_major_ticks:  np.ndarray
-        :param  redshift_minor_ticks:  location of the minor ticks on the redshift axes
-        :type   redshift_minor_ticks:  np.ndarray
-        :param  beam_radius_deg:    maximum angular radius [deg] of the beam (slice) as a whole
-        :type   beam_radius_deg:    float
-        :param  beam_ang_offset:    decrease the maximum angular radius [deg] shown
-        :type   beam_ang_offset:    float
-        :param  rmin:   minimum comoving distance [Mpc] of the plot
-        :type   rmin:   float
-        :param  rmax:   maximum comoving distance [Mpc] on the plot
-        :type   rmax:   float
+        The redshift axis is drawn along the upper edge of the beam, the comoving distance axis along the lower edge
+        and the angular axis along the outer arc.
+
+        :param  ax:                             axes to plot onto
+        :type   ax:                             matplotlib.axes._axes.Axes
+        :param  redshift_major_ticks:           location of the major ticks on the redshift axes
+        :type   redshift_major_ticks:           np.ndarray
+        :param  redshift_minor_ticks:           location of the minor ticks on the redshift axes
+        :type   redshift_minor_ticks:           np.ndarray
+        :param  beam_radius_deg:                maximum angular radius [deg] of the beam (slice) as a whole
+        :type   beam_radius_deg:                float
+        :param  beam_ang_offset:                decrease the maximum angular radius [deg] shown
+        :type   beam_ang_offset:                float
+        :param  rmin:                           minimum comoving distance [Mpc] of the plot
+        :type   rmin:                           float
+        :param  rmax:                           maximum comoving distance [Mpc] on the plot
+        :type   rmax:                           float
         :param  comoving_distance_major_ticks:  location of the major ticks on the comoving radius axes
         :type   comoving_distance_major_ticks:  np.ndarray
         :param  comoving_distance_minor_ticks:  location of the minor ticks on the comoving radius axes
         :type   comoving_distance_minor_ticks:  np.ndarray
-        :param  dtheta_major_ticks_deg:  spacing [deg] between the major ticks on the angular radius axes
-        :type   dtheta_major_ticks_deg:  float
-        :param  dtheta_minor_ticks_deg:  spacing [deg] between the minor ticks on the angular radius axes.
-                                            If 'auto', choose the spacing from the major ticks
-        :type   dtheta_minor_ticks_deg:  float or str
-        :param  theta_ticks_abs:  If true, label the angular radius ticks with absolute values
-        :type   theta_ticks_abs:  boolean
-        :param  major_tick_length:  length of major ticks
-        :type   major_tick_length:  float
-        :param  minor_tick_length:  length of minor ticks
-        :type   minor_tick_length:  float
-        :param  comoving_dist_axes_label:  label placed on the comoving radius axes
-        :type   comoving_dist_axes_label:  str
-        :param  redshift_axes_label:  label placed on the redshift axes
-        :type   redshift_axes_label:  str
-        :param  redshift_label_offset:  additional offset (in coordinate space) added to the redshift axes
-                                            label along the x,y axes & its rotation  (x,y,theta).
-        :type   redshift_label_offset:  tuple
-        :param  comoving_label_offset:  additional offset (in coordinate space) added to the comoving radius axes
-                                            label along the x,y axes & its rotation  (x,y,theta).
-        :type   comoving_label_offset:  tuple
-        :param  tick_label_offset:  additional offset (in coordinate space) added to the tick labels on the redshift
-                                        and comoving radius axes (x_redshift,y_redshift, x_radius,y_radius).
-        :type   tick_label_offset:  tuple
-        :param  overlay_grid:   If true overlay a grid line at each major tick from the given axes (redshift, comoving radius, angular radius)
-        :type   overlay_grid:   tuple    (boolean, boolean, boolean)
-        :param  major_tick_kwargs:    keyword arguments to control the major tick lines
-        :type   major_tick_kwargs:    dict
-        :param  minor_tick_kwargs:    keyword arguments to control the minor tick lines
-        :type   minor_tick_kwargs:    dict
-        :param  tick_label_kwargs:    keyword arguments to control the text of the labels on the major ticks
-        :type   tick_label_kwargs:    dict
-        :param  axes_label_kwargs:    keyword arguments to control the text of the axes labels
-        :type   axes_label_kwargs:    dict
-        :param  grid_line_kwargs:    keyword arguments to control the grid lines
-        :type   grid_line_kwargs:    dict
+        :param  dtheta_major_ticks_deg:         spacing [deg] between the major ticks on the angular radius axes
+        :type   dtheta_major_ticks_deg:         float
+        :param  dtheta_minor_ticks_deg:         spacing [deg] between the minor ticks on the angular radius axes.
+                                                   If 'auto', choose the spacing from the major ticks
+        :type   dtheta_minor_ticks_deg:         float or str
+        :param  theta_ticks_abs:                If true, label the angular radius ticks with absolute values
+        :type   theta_ticks_abs:                boolean
+        :param  major_tick_length:              length of major ticks
+        :type   major_tick_length:              float
+        :param  minor_tick_length:              length of minor ticks
+        :type   minor_tick_length:              float
+        :param  comoving_dist_axes_label:       label placed on the comoving radius axes
+        :type   comoving_dist_axes_label:       str
+        :param  redshift_axes_label:            label placed on the redshift axes
+        :type   redshift_axes_label:            str
+        :param  redshift_label_offset:          additional offset (in coordinate space) added to the redshift axes
+                                                    label along the x,y axes & its rotation  (x,y,theta).
+        :type   redshift_label_offset:          tuple
+        :param  comoving_label_offset:          additional offset (in coordinate space) added to the comoving radius
+                                                    axes label along the x,y axes & its rotation  (x,y,theta).
+        :type   comoving_label_offset:          tuple
+        :param  tick_label_offset:              additional offset (in coordinate space) added to the tick labels on the
+                                                    redshift and comoving radius axes
+                                                    (x_redshift,y_redshift, x_radius,y_radius).
+        :type   tick_label_offset:              tuple
+        :param  overlay_grid:                   If true overlay a grid line at each major tick from the given axes
+                                                    (redshift, comoving radius, angular radius)
+        :type   overlay_grid:                   tuple    (boolean, boolean, boolean)
+        :param  major_tick_kwargs:              keyword arguments to control the major tick lines
+        :type   major_tick_kwargs:              dict
+        :param  minor_tick_kwargs:              keyword arguments to control the minor tick lines
+        :type   minor_tick_kwargs:              dict
+        :param  tick_label_kwargs:              keyword arguments to control the text of the labels on the major ticks
+        :type   tick_label_kwargs:              dict
+        :param  axes_label_kwargs:              keyword arguments to control the text of the axes labels
+        :type   axes_label_kwargs:              dict
+        :param  grid_line_kwargs:               keyword arguments to control the grid lines
+        :type   grid_line_kwargs:               dict
         """
         ax.figure.canvas.draw()  # require ax to be drawn so transformation from pixels to axes coords are stable
 
@@ -983,7 +984,8 @@ class BeamPlot:
         :type   axis_label_offset:      tuple
         :param  overlay_grid:           If True, draw an arc at each major tick
         :type   overlay_grid:           boolean
-        :param  side:                   1 for the upper edge of the beam, -1 for the lower edge. Labels are placed outside the beam
+        :param  side:                   1 for the upper edge of the beam, -1 for the lower edge. Labels are placed
+                                            outside the beam
         :type   side:                   int
         """
         if auto_rot_tick_label:
@@ -1048,7 +1050,10 @@ class BeamPlot:
     @staticmethod
     def _comoving_distance_ticks(comoving_tick_range, major_ticks=None, minor_ticks=None):
         """
-        Choose the major and minor ticks of the comoving distance axis, if not given, and clip them to the range of the axis.
+        Where to place the major and minor axis ticks.
+
+        Choose the major and minor ticks of the comoving distance axis, if not given, and clip them to the range of the
+        axis.
 
         Returns a tuple of (major ticks, minor ticks), either can be None.
 
@@ -1056,7 +1061,8 @@ class BeamPlot:
         :type   comoving_tick_range:    list
         :param  major_ticks:            comoving distance [Mpc] of the major ticks. If None, chosen from the range
         :type   major_ticks:            np.ndarray
-        :param  minor_ticks:            comoving distance [Mpc] of the minor ticks. If None, chosen from the major tick spacing
+        :param  minor_ticks:            comoving distance [Mpc] of the minor ticks. If None, chosen from the major tick
+                                            spacing
         :type   minor_ticks:            np.ndarray
         """
         # order of magnitude of most distant comoving tick
@@ -1089,6 +1095,7 @@ class BeamPlot:
     def _angular_ticks(beam_radius_deg, beam_ang_offset, dtheta_major_ticks_deg, dtheta_minor_ticks_deg):
         """
         Angles [deg] of the major and minor ticks on the angular axis.
+
         The major tick spacing is increased automatically for wide beams.
 
         Returns a tuple of (major tick angles, minor tick angles), either can be None.
@@ -1099,7 +1106,8 @@ class BeamPlot:
         :type   beam_ang_offset:        float
         :param  dtheta_major_ticks_deg: spacing [deg] between the major ticks. If None, no major ticks
         :type   dtheta_major_ticks_deg: float
-        :param  dtheta_minor_ticks_deg: spacing [deg] between the minor ticks. If 'auto', choose from the major ticks. If None, no minor ticks
+        :param  dtheta_minor_ticks_deg: spacing [deg] between the minor ticks. If 'auto', choose from the major ticks.
+                                            If None, no minor ticks
         :type   dtheta_minor_ticks_deg: float or str
         """
         dtheta = dtheta_major_ticks_deg

@@ -11,7 +11,8 @@ from swiftlet.simulation_suites import Simulation
 
 """
 Tests swiftlet.cosmology
-The cosmology of FLAMINGO and COLIBRE simulations, read from fake SWIFT snapshots with the Cosmology, units and Parameters groups SWIFT writes.
+The cosmology of FLAMINGO and COLIBRE simulations, read from fake SWIFT snapshots with the Cosmology, units and 
+parameters groups SWIFT writes.
 """
 
 # build mock cosmology params

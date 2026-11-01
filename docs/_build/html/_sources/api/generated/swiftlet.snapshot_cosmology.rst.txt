@@ -1,0 +1,50 @@
+﻿swiftlet.snapshot\_cosmology
+============================
+
+.. automodule:: swiftlet.snapshot_cosmology
+   :no-members:
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :nosignatures:
+
+   as_astropy_cosmology
+   find_snapshot_files
+   neutrino_masses
+
+
+
+
+
+.. rubric:: Classes
+
+.. autosummary::
+   :nosignatures:
+
+   SnapshotCosmology
+
+
+
+
+
+
+
+Full reference
+--------------
+
+
+.. autofunction:: as_astropy_cosmology
+
+.. autofunction:: find_snapshot_files
+
+.. autofunction:: neutrino_masses
+
+
+
+.. autoclass:: SnapshotCosmology
+   :members:
+   :undoc-members:
+   :show-inheritance:

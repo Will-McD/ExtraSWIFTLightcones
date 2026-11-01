@@ -3,8 +3,6 @@ import numpy as np
 import unyt
 import collections
 import lightcone_io.particle_reader as pr
-
-# from lightcone_io.xray_utils import Snapshot_Cosmology_For_Lightcone
 from .snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology
 from .property_to_field_names import property_to_field, field_to_property
 from .snapshot_units import apply_expected_units
@@ -61,9 +59,7 @@ def check_ptype(ptype):
 
 # beam projection functions
 class BeamProjection:
-    """
-    Class for making simple projects of past lightcone beams.
-    """
+    """Class for making simple projects of past lightcone beams."""
 
     def __init__(
         self,
@@ -107,9 +103,7 @@ class BeamProjection:
     def _make_empty_flags(
         self,
     ):
-        """
-        Reset the slice properties, plot boundaries and snapshot filename.
-        """
+        """Reset the slice properties, plot boundaries and snapshot filename."""
         # slice properties
         self.particle_data = {ptype: None for ptype in PARTICLE_TYPES}  # particle data in the slice
         self.in_slice_boolean = {ptype: None for ptype in PARTICLE_TYPES}  # track particles being added to the mask
@@ -133,9 +127,7 @@ class BeamProjection:
 
     @property
     def gas_particle_data(self):
-        """
-        Gas particle data in the slice.
-        """
+        """Gas particle data in the slice."""
         return self.particle_data["Gas"]
 
     @gas_particle_data.setter
@@ -144,9 +136,7 @@ class BeamProjection:
 
     @property
     def dm_particle_data(self):
-        """
-        DM particle data in the slice.
-        """
+        """DM particle data in the slice."""
         return self.particle_data["DM"]
 
     @dm_particle_data.setter
@@ -168,7 +158,6 @@ class BeamProjection:
         :param  ptype:                  particle type, "Gas" or "DM"
         :type   ptype:                  str
         """
-
         # rotate the particles coordinates to produce consistent plots
         rotated_coords = self.rotate_lc_coordinates(particle_data["Coordinates"][:])
 
@@ -213,7 +202,6 @@ class BeamProjection:
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
         :type   slice_thickness:    int, float or unyt.unyt_quantity (units of Mpc or equivalent)
         """
-
         dz = apply_expected_units(slice_thickness, unyt.Mpc).to_value("Mpc")
         z_coords = coordinates[:, -1].to_value("Mpc")
         slice_midpoint = 0.5 * (np.max(z_coords) + np.min(z_coords))
@@ -234,7 +222,6 @@ class BeamProjection:
         :param  ptype:      particle type, "Gas" or "DM"
         :type   ptype:      str
         """
-
         # check ptype is ok.
         check_ptype(ptype)
 
@@ -259,24 +246,26 @@ class BeamProjection:
         xy_buffer=10.0,
     ):
         """
-        Add particles in the slice to the lightcone
+        Add particles in the slice to the lightcone.
 
         :param  gas_particle_data:  gas particle data or a path to the particle lightcone
         :type   gas_particle_data:  lightcone_io.IndexedLightconeParticleType for 'Gas' or a str
-        :param  gas_property_names: properties of gas particles to add to the slice. If None then essential properties are assumed
-                                        ["Coordinates", "ExpansionFactors","SmoothingLengths"]
+        :param  gas_property_names: properties of gas particles to add to the slice. If None then essential properties
+                                        are assumed ["Coordinates", "ExpansionFactors","SmoothingLengths"]
         :type   gas_property_names: list
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
         :type   slice_thickness:    int, float or unyt.unyt_quantity (units of Mpc or equivalent)
-        :param  dm_particle_data:   dark matter particle data or a path to the particle lightcone that contains dark matter particles.
+        :param  dm_particle_data:   dark matter particle data or a path to the particle lightcone that contains dark
+                                        matter particles.
         :type   dm_particle_data:   lightcone_io.IndexedLightconeParticleType for 'DM' or a str
-        :param  dm_property_names:  properties of dm particles to add to the slice. If dm_particle_data != None and dm_property_names is None,
-                                        all properties are loaded by default ["Coordinates","ExpansionFactors"]
+        :param  dm_property_names:  properties of dm particles to add to the slice. If dm_particle_data != None and
+                                        dm_property_names is None, all properties are loaded by
+                                        default ["Coordinates","ExpansionFactors"]
         :type   dm_property_names:  list
-        :param  xy_buffer:          distance [Mpc] between the min and max position of a particle and the boundary of the slice.
+        :param  xy_buffer:          distance [Mpc] between the min and max position of a particle and the boundary of
+                                        the slice.
         :type   xy_buffer:          float or int
         """
-
         # update units for the size of the slice
         if slice_thickness is None:
             if self.slice_thickness is None:
@@ -367,7 +356,9 @@ class BeamProjection:
         weight=None,
     ):
         """
-        Project the selected properties for a given particle type. Without a weight these projections are surface densities.
+        Project the selected properties for a given particle type.
+
+        Note that, the projections are surface denisties unless a weight given.
 
         Returns a list of 2D histograms, one per property, for a given particle type.
 
@@ -385,13 +376,13 @@ class BeamProjection:
         :param  weight:                         property to weight by, e.g. "Masses" for mass weighted projections.
                                                     If None, project surface densities
         :type   weight:                         str
-        :param  periodic:                       If True, treat the snapshot box as periodic when projecting. Periodic copies
-                                                    of the particles appear if the projected region is larger than the box
+        :param  periodic:                       If True, treat the snapshot box as periodic when projecting. Periodic
+                                                    copies of the particles appear if the projected region is larger
+                                                    than the box
         :type   periodic:                       boolean
         :param  parallel:                       If True, use parallel backend of swiftsimio with projections.
         :type   parallel:                       boolean
         """
-
         # check ptype is ok.
         check_ptype(ptype)
 
@@ -402,7 +393,10 @@ class BeamProjection:
 
         if self._snapshot_filename is None:
             raise ValueError(
-                "'snapshot_filename' must be passed or already given as 'store_snapshot_filename' when creating the BeamProjection"
+                (
+                    "'snapshot_filename' must be passed or already given as "
+                    "'store_snapshot_filename' when creating the BeamProjection"
+                )
             )
 
         # update cosmology if needed
@@ -485,7 +479,8 @@ class BeamProjection:
 
         # create region to project over
         plot_region = cosmo_array(
-            self._projection_region,  # if problems with alignment of frame and projection add a buffer to either increase or decrease this region
+            # if problems with alignment of frame and projection add a buffer to either increase or decrease this region
+            self._projection_region,
             unyt.Mpc,
             comoving=True,
             scale_factor=1.0,
@@ -513,7 +508,7 @@ class BeamProjection:
 
     def _add_lightcone_particles_to_snap(self, snap, particle_properties, assign_units, ptype):
         """
-        Add the gas particles in the slice to a snapshot template as mock snapshot data, snap.lightcone_gas
+        Add the gas particles in the slice to a snapshot template as mock snapshot data, snap.lightcone_gas.
 
         Returns a tuple, (snapshot, preferred units of each property).
 
@@ -526,7 +521,6 @@ class BeamProjection:
         :param  ptype:                  particle type, "Gas" or "DM"
         :type   ptype:                  str
         """
-
         mock_name = MOCK_PARTICLE_TYPE[ptype]
 
         if hasattr(snap, mock_name):
@@ -584,7 +578,8 @@ class BeamProjection:
 
     def add_lc_dm_to_snap(self, snap, particle_properties, assign_units):
         """
-        Add dark matter particles in the slice to a snapshot template as mock snapshot data, snap.lightcone_dm
+        Add dark matter particles in the slice to a snapshot template as mock snapshot data.
+
         Smoothing lengths are generated for the DM particles.
 
         Returns a tuple of (snapshot, preferred units of each property).
@@ -601,8 +596,10 @@ class BeamProjection:
     @staticmethod
     def _generate_smoothing_lengths(coordinates, snapshot_boxsize):
         """
-        Generate smoothing lengths for particles that do not have them. The particles are shifted so
-        they are inside a box, which is the snapshot box unless the particles extend beyond it.
+        Generate smoothing lengths for particles that do not have them.
+
+        The particles are shifted so they are inside a box, which is
+        the snapshot box unless the particles extend beyond it.
 
         Returns the smoothing lengths as a cosmo_array.
         :param  coordinates:        particle coordinates, shape (N, 3)
@@ -610,7 +607,6 @@ class BeamProjection:
         :param  snapshot_boxsize:   side lengths of the snapshot box
         :type   snaps
         """
-
         # 1) shift position of particles so they are inside the snapshot box
         # 2) generate smoothing lengths
 
@@ -658,7 +654,6 @@ class BeamProjection:
         :param  ptype:                  particle type, "Gas" or "DM"
         :type   ptype:                  str
         """
-
         # check ptype is ok.
         check_ptype(ptype)
 
@@ -738,9 +733,7 @@ class BeamProjection:
         return np.eye(3) + K + K @ K * ((1 - c) / s**2)
 
     def beam_plot(self):
-        """
-        Plotter for this beam, using the current cosmology, angular diameter, redshift range and axes extent.
-        """
+        """Plotter for this beam, using the current cosmology, angular diameter, redshift range and axes extent."""
         return BeamPlot(self.cosmology, self._diameter_deg, self._redshift_range, self.axes_extent)
 
     def split_beam_plot(
@@ -772,7 +765,7 @@ class BeamProjection:
         :type   projection_data:    list
         :param  colour_maps:        list of colour maps for each segment of the beam
         :type   colour_maps:        list
-        :param  axs:                Default=None, If None create a new axes for the plot, otherwise plot onto the axes given
+        :param  axs:                Default=None, If None create a new axes for the plot, otherwise use the axes given
         :type   axs:                matplotlib.axes._axes.Axes
         :param  filename:           None, if given, write plot to this file
         :type   filename:           str
@@ -783,21 +776,22 @@ class BeamProjection:
         :param  redshift_range:     maximum and minimum redshift of the beam shown
         :type   redshift_range:     list, np.ndarray or tuple
         :param  axes_extent:        Extent of the plot's axes, in coordinate space.
-                                        If None, then use the extent defined by the coordinates of the particles added to the slice.
+                                        If None, then use the extent defined by the coordinates of the particles added
+                                        to the slice.
         :type   axes_extent:        list
-        :param  update_badcol:      If true, modify all colour maps so that the minimum, nan and None values are set to black
+        :param  update_badcol:      If true, modify all colour maps so that the minimum, nan and None values are set to
+                                        black
         :type   update_badcol:      boolean
         :param  figsize:            size of the figure, used if axs is None
         :type   figsize:            tuple
         :param  titles:             title of each wedge
         :type   titles:             list
-        :param  norms:              colour normalisation of each wedge: "log", "linear" or a matplotlib.colors.Normalize.
+        :param  norms:              colour normalisation of each wedge: "log", "linear" or a matplotlib.colors.Normalize
                                         If None, all are "log"
         :type   norms:              list
-        :param  kwargs:             All additional arguments to be passed onto the add_wedge and add_beam_axes functions.
+        :param  kwargs:             All additional arguments to be passed onto the add_wedge and add_beam_axes functions
         :type   kwargs:             dict
         """
-
         # update slice information and call predefined values where needed
         if redshift_range is not None:
             self._redshift_range = tuple(redshift_range)
@@ -818,7 +812,6 @@ class BeamProjection:
 
         # check cosmology object is present
         if cosmology is not None:
-            # self.cosmology = cosmology
             self.cosmology = as_astropy_cosmology(cosmology)
         elif self.cosmology is None:
             if self._snapshot_filename is None:
@@ -826,7 +819,6 @@ class BeamProjection:
 
             self.cosmology = SnapshotCosmology.from_path(self._snapshot_filename).COSMO
 
-        # return plot
         return self.beam_plot().split_beam_plot(
             numb_wedges,
             projection_data,
@@ -841,15 +833,11 @@ class BeamProjection:
         )
 
     def add_wedge(self, ax, *args, **kwargs):
-        """
-        Add a wedge onto the plot, drawn with the stored axes extent.
-        """
+        """Add a wedge onto the plot, drawn with the stored axes extent."""
         return self.beam_plot().add_wedge(ax, *args, **kwargs)
 
     def add_beam_axes(self, ax, *args, **kwargs):
-        """
-        Add axes, labels and ticks to the split beam plot, using the stored cosmology.
-        """
+        """Add axes, labels and ticks to the split beam plot, using the stored cosmology."""
         return self.beam_plot().add_beam_axes(ax, *args, **kwargs)
 
     # plotting helpers kept as methods for existing code

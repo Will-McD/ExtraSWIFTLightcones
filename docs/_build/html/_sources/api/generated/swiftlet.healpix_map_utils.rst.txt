@@ -1,0 +1,59 @@
+﻿swiftlet.healpix\_map\_utils
+============================
+
+.. automodule:: swiftlet.healpix_map_utils
+   :no-members:
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :nosignatures:
+
+   check_healpy_pixel_weights
+   find_healpy_pixel_weights_dir
+   get_common_maps
+   get_related_ipix
+   healpy_pixel_weights_available
+   read_rotation_angles
+   rotate_map
+   rotate_map_fast
+   sum_maps
+   write_rotated_lightcone_chunks
+
+
+
+
+
+
+
+
+
+
+
+Full reference
+--------------
+
+
+.. autofunction:: check_healpy_pixel_weights
+
+.. autofunction:: find_healpy_pixel_weights_dir
+
+.. autofunction:: get_common_maps
+
+.. autofunction:: get_related_ipix
+
+.. autofunction:: healpy_pixel_weights_available
+
+.. autofunction:: read_rotation_angles
+
+.. autofunction:: rotate_map
+
+.. autofunction:: rotate_map_fast
+
+.. autofunction:: sum_maps
+
+.. autofunction:: write_rotated_lightcone_chunks
+
+

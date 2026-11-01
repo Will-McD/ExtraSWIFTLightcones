@@ -1,0 +1,68 @@
+﻿swiftlet.mask\_haloes
+=====================
+
+.. automodule:: swiftlet.mask_haloes
+   :no-members:
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :nosignatures:
+
+   attr_scalar
+   distribute_pixels
+   exchange_particles
+   get_map_rotation_angles
+   get_num
+   mask_cluster_apertures_local
+   message
+   native_endian
+   rank_message
+   read_shell_halo_properties
+   rotate_cluster_coords
+   route_halos_to_pixel_owners
+   write_binary_masks
+
+
+
+
+
+
+
+
+
+
+
+Full reference
+--------------
+
+
+.. autofunction:: attr_scalar
+
+.. autofunction:: distribute_pixels
+
+.. autofunction:: exchange_particles
+
+.. autofunction:: get_map_rotation_angles
+
+.. autofunction:: get_num
+
+.. autofunction:: mask_cluster_apertures_local
+
+.. autofunction:: message
+
+.. autofunction:: native_endian
+
+.. autofunction:: rank_message
+
+.. autofunction:: read_shell_halo_properties
+
+.. autofunction:: rotate_cluster_coords
+
+.. autofunction:: route_halos_to_pixel_owners
+
+.. autofunction:: write_binary_masks
+
+

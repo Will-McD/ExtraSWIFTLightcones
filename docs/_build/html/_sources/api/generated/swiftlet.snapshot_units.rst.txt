@@ -1,0 +1,53 @@
+﻿swiftlet.snapshot\_units
+========================
+
+.. automodule:: swiftlet.snapshot_units
+   :no-members:
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :nosignatures:
+
+   apply_expected_units
+   astropy_to_unyt
+   attributes_from_units
+   drop_a_from_comoving_property
+   snapshot_unit_metadata
+   unit_registry_from_metadata
+   unit_registry_from_snapshot
+   units_from_attributes
+
+
+
+
+
+
+
+
+
+
+
+Full reference
+--------------
+
+
+.. autofunction:: apply_expected_units
+
+.. autofunction:: astropy_to_unyt
+
+.. autofunction:: attributes_from_units
+
+.. autofunction:: drop_a_from_comoving_property
+
+.. autofunction:: snapshot_unit_metadata
+
+.. autofunction:: unit_registry_from_metadata
+
+.. autofunction:: unit_registry_from_snapshot
+
+.. autofunction:: units_from_attributes
+
+

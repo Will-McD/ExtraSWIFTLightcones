@@ -1,0 +1,947 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>swiftlet.healpix_map_utils &mdash; SWIFTLET</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=ac771338"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            SWIFTLET
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#new-virtual-environment">New virtual environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#existing-environment">Existing environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#lightcone-shell-redshift-files">Lightcone shell redshift files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#use-with-cosma">Use with COSMA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#mpi-support">MPI support</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#number-of-threads">Number of threads</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#additional-data">Additional data</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/building_lightcones.html">Building lightcones</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/orientation.html">Lightcone geometry and tile orientation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/parallel_and_hpc.html">Use with HPC systems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/projections.html">Lightcone projections</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/additional_tools.html">Additional tools and misc</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/index.html">API reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html">swiftlet.snapshot_lightcone</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.as_simulation"><code class="docutils literal notranslate"><span class="pre">as_simulation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.define_redshift_at_comoving_distance_function"><code class="docutils literal notranslate"><span class="pre">define_redshift_at_comoving_distance_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.message"><code class="docutils literal notranslate"><span class="pre">message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.print_coord_ranges"><code class="docutils literal notranslate"><span class="pre">print_coord_ranges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.rank_message"><code class="docutils literal notranslate"><span class="pre">rank_message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.read_lightcone_metadata"><code class="docutils literal notranslate"><span class="pre">read_lightcone_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.seperator_str"><code class="docutils literal notranslate"><span class="pre">seperator_str()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.write_halo_lightcone_file"><code class="docutils literal notranslate"><span class="pre">write_halo_lightcone_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.write_lightcone_metadata"><code class="docutils literal notranslate"><span class="pre">write_lightcone_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.FileReadSpec"><code class="docutils literal notranslate"><span class="pre">FileReadSpec</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.HaloCatalogueSpec"><code class="docutils literal notranslate"><span class="pre">HaloCatalogueSpec</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.HaloReadPiece"><code class="docutils literal notranslate"><span class="pre">HaloReadPiece</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.LightconeOutput"><code class="docutils literal notranslate"><span class="pre">LightconeOutput</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.SnapshotAllSky"><code class="docutils literal notranslate"><span class="pre">SnapshotAllSky</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.SnapshotBeam"><code class="docutils literal notranslate"><span class="pre">SnapshotBeam</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.SnapshotLightcone"><code class="docutils literal notranslate"><span class="pre">SnapshotLightcone</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_lightcone.html#swiftlet.snapshot_lightcone.SnapshotReadRecord"><code class="docutils literal notranslate"><span class="pre">SnapshotReadRecord</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html">swiftlet.simulation_suites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.get_suite"><code class="docutils literal notranslate"><span class="pre">get_suite()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.output_redshifts"><code class="docutils literal notranslate"><span class="pre">output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.read_output_redshifts"><code class="docutils literal notranslate"><span class="pre">read_output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.suite_for_label"><code class="docutils literal notranslate"><span class="pre">suite_for_label()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.write_output_redshifts"><code class="docutils literal notranslate"><span class="pre">write_output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation"><code class="docutils literal notranslate"><span class="pre">Simulation</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.simulation_suites.html#swiftlet.simulation_suites.SimulationSuite"><code class="docutils literal notranslate"><span class="pre">SimulationSuite</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html">swiftlet.snapshot_redshifts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.available_redshift_edges"><code class="docutils literal notranslate"><span class="pre">available_redshift_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.redshift_edges"><code class="docutils literal notranslate"><span class="pre">redshift_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_at_redshift"><code class="docutils literal notranslate"><span class="pre">snapshot_at_redshift()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_coverage"><code class="docutils literal notranslate"><span class="pre">snapshot_coverage()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_redshift_range"><code class="docutils literal notranslate"><span class="pre">snapshot_redshift_range()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshots_in_range"><code class="docutils literal notranslate"><span class="pre">snapshots_in_range()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.SnapshotCoverage"><code class="docutils literal notranslate"><span class="pre">SnapshotCoverage</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html">swiftlet.snapshot_orientation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.cell_shifts_in_cells"><code class="docutils literal notranslate"><span class="pre">cell_shifts_in_cells()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.check_neighbouring_tiles"><code class="docutils literal notranslate"><span class="pre">check_neighbouring_tiles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.check_orientation_tables"><code class="docutils literal notranslate"><span class="pre">check_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.default_orientation_tables"><code class="docutils literal notranslate"><span class="pre">default_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.generate_clash_free_tables"><code class="docutils literal notranslate"><span class="pre">generate_clash_free_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.generate_orientation_tables"><code class="docutils literal notranslate"><span class="pre">generate_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.installed_orientation_table_file"><code class="docutils literal notranslate"><span class="pre">installed_orientation_table_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.orientation_tables_fingerprint"><code class="docutils literal notranslate"><span class="pre">orientation_tables_fingerprint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.read_orientation_tables"><code class="docutils literal notranslate"><span class="pre">read_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.rotate_coords_cartesian"><code class="docutils literal notranslate"><span class="pre">rotate_coords_cartesian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.tables_are_clash_free"><code class="docutils literal notranslate"><span class="pre">tables_are_clash_free()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.write_orientation_tables"><code class="docutils literal notranslate"><span class="pre">write_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.NeighbourTileReport"><code class="docutils literal notranslate"><span class="pre">NeighbourTileReport</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html">swiftlet.snapshot_units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.apply_expected_units"><code class="docutils literal notranslate"><span class="pre">apply_expected_units()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.astropy_to_unyt"><code class="docutils literal notranslate"><span class="pre">astropy_to_unyt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.attributes_from_units"><code class="docutils literal notranslate"><span class="pre">attributes_from_units()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.drop_a_from_comoving_property"><code class="docutils literal notranslate"><span class="pre">drop_a_from_comoving_property()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.snapshot_unit_metadata"><code class="docutils literal notranslate"><span class="pre">snapshot_unit_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.unit_registry_from_metadata"><code class="docutils literal notranslate"><span class="pre">unit_registry_from_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.unit_registry_from_snapshot"><code class="docutils literal notranslate"><span class="pre">unit_registry_from_snapshot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_units.html#swiftlet.snapshot_units.units_from_attributes"><code class="docutils literal notranslate"><span class="pre">units_from_attributes()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html">swiftlet.snapshot_cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.as_astropy_cosmology"><code class="docutils literal notranslate"><span class="pre">as_astropy_cosmology()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.find_snapshot_files"><code class="docutils literal notranslate"><span class="pre">find_snapshot_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.neutrino_masses"><code class="docutils literal notranslate"><span class="pre">neutrino_masses()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.SnapshotCosmology"><code class="docutils literal notranslate"><span class="pre">SnapshotCosmology</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.flamingo_lightcones.html">swiftlet.flamingo_lightcones</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.flamingo_lightcones.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.flamingo_lightcones.html#swiftlet.flamingo_lightcones.flamingo_box_resolution"><code class="docutils literal notranslate"><span class="pre">flamingo_box_resolution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.flamingo_lightcones.html#swiftlet.flamingo_lightcones.flamingo_shell_redshift_file"><code class="docutils literal notranslate"><span class="pre">flamingo_shell_redshift_file()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html">swiftlet.repeat_check</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html#swiftlet.repeat_check.find_close_cell_repeats"><code class="docutils literal notranslate"><span class="pre">find_close_cell_repeats()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html#swiftlet.repeat_check.write_close_repeats"><code class="docutils literal notranslate"><span class="pre">write_close_repeats()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.repeat_check.html#swiftlet.repeat_check.CloseRepeatReport"><code class="docutils literal notranslate"><span class="pre">CloseRepeatReport</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.lightcone_projections.html">swiftlet.lightcone_projections</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.lightcone_projections.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.lightcone_projections.html#swiftlet.lightcone_projections.check_ptype"><code class="docutils literal notranslate"><span class="pre">check_ptype()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.lightcone_projections.html#swiftlet.lightcone_projections.BeamProjection"><code class="docutils literal notranslate"><span class="pre">BeamProjection</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html">swiftlet.healpix_map_utils</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.check_healpy_pixel_weights"><code class="docutils literal notranslate"><span class="pre">check_healpy_pixel_weights()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.find_healpy_pixel_weights_dir"><code class="docutils literal notranslate"><span class="pre">find_healpy_pixel_weights_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.get_common_maps"><code class="docutils literal notranslate"><span class="pre">get_common_maps()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.get_related_ipix"><code class="docutils literal notranslate"><span class="pre">get_related_ipix()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.healpy_pixel_weights_available"><code class="docutils literal notranslate"><span class="pre">healpy_pixel_weights_available()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.read_rotation_angles"><code class="docutils literal notranslate"><span class="pre">read_rotation_angles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.rotate_map"><code class="docutils literal notranslate"><span class="pre">rotate_map()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.rotate_map_fast"><code class="docutils literal notranslate"><span class="pre">rotate_map_fast()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.sum_maps"><code class="docutils literal notranslate"><span class="pre">sum_maps()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.write_rotated_lightcone_chunks"><code class="docutils literal notranslate"><span class="pre">write_rotated_lightcone_chunks()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html">swiftlet.mask_haloes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.attr_scalar"><code class="docutils literal notranslate"><span class="pre">attr_scalar()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.distribute_pixels"><code class="docutils literal notranslate"><span class="pre">distribute_pixels()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.exchange_particles"><code class="docutils literal notranslate"><span class="pre">exchange_particles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.get_map_rotation_angles"><code class="docutils literal notranslate"><span class="pre">get_map_rotation_angles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.get_num"><code class="docutils literal notranslate"><span class="pre">get_num()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.mask_cluster_apertures_local"><code class="docutils literal notranslate"><span class="pre">mask_cluster_apertures_local()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.message"><code class="docutils literal notranslate"><span class="pre">message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.native_endian"><code class="docutils literal notranslate"><span class="pre">native_endian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.rank_message"><code class="docutils literal notranslate"><span class="pre">rank_message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.read_shell_halo_properties"><code class="docutils literal notranslate"><span class="pre">read_shell_halo_properties()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.rotate_cluster_coords"><code class="docutils literal notranslate"><span class="pre">rotate_cluster_coords()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.route_halos_to_pixel_owners"><code class="docutils literal notranslate"><span class="pre">route_halos_to_pixel_owners()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.mask_haloes.html#swiftlet.mask_haloes.write_binary_masks"><code class="docutils literal notranslate"><span class="pre">write_binary_masks()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.threads.html">swiftlet.threads</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.available_cores"><code class="docutils literal notranslate"><span class="pre">available_cores()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.limit_numba_threads"><code class="docutils literal notranslate"><span class="pre">limit_numba_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.limit_openmp_threads"><code class="docutils literal notranslate"><span class="pre">limit_openmp_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.max_threads"><code class="docutils literal notranslate"><span class="pre">max_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.set_max_threads"><code class="docutils literal notranslate"><span class="pre">set_max_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.threads.html#swiftlet.threads.thread_limit"><code class="docutils literal notranslate"><span class="pre">thread_limit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/generated/swiftlet.config.html">swiftlet.config</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../api/generated/swiftlet.config.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.activate_scripts"><code class="docutils literal notranslate"><span class="pre">activate_scripts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.cli_configure"><code class="docutils literal notranslate"><span class="pre">cli_configure()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.configure"><code class="docutils literal notranslate"><span class="pre">configure()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.default_redshift_dir"><code class="docutils literal notranslate"><span class="pre">default_redshift_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.download_file"><code class="docutils literal notranslate"><span class="pre">download_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.download_shell_redshifts"><code class="docutils literal notranslate"><span class="pre">download_shell_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.environment_data_dir"><code class="docutils literal notranslate"><span class="pre">environment_data_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../api/generated/swiftlet.config.html#swiftlet.config.export_paths_on_activate"><code class="docutils literal notranslate"><span class="pre">export_paths_on_activate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../tests/index.html">Tests</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">SWIFTLET</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">swiftlet.healpix_map_utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for swiftlet.healpix_map_utils</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/bin/env python</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">healpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">hp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">unyt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">lightcone_io.healpix_maps</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">hm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">snapshot_units</span> <span class="k">as</span> <span class="n">sw_units</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.threads</span><span class="w"> </span><span class="kn">import</span> <span class="n">limit_openmp_threads</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.flamingo_lightcones</span><span class="w"> </span><span class="kn">import</span> <span class="n">flamingo_shell_redshift_file</span>
+
+<span class="sd">"""</span>
+<span class="sd">Utility functions for working with healpix maps. </span>
+<span class="sd">"""</span>
+
+
+<div class="viewcode-block" id="get_related_ipix">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.get_related_ipix">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_related_ipix</span><span class="p">(</span><span class="n">ipix</span><span class="p">,</span> <span class="n">nside</span><span class="p">,</span> <span class="n">levels</span><span class="p">,</span> <span class="n">ordering</span><span class="o">=</span><span class="s2">"ring"</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Return the parent or child HEALPix pixel indices.</span>
+
+<span class="sd">    Returns a tuple of (pixel indices at the new resolution, nside of the new map).</span>
+
+<span class="sd">    :param  ipix:       pixel indices in the input map</span>
+<span class="sd">    :type   ipix:       int or np.ndarray</span>
+<span class="sd">    :param  nside:      nside of the input map</span>
+<span class="sd">    :type   nside:      int</span>
+<span class="sd">    :param  levels:     change in HEALPix resolution. Each level increases or decreases nside by a factor of 2.</span>
+<span class="sd">                            levels &gt; 0 returns child pixels at higher resolution</span>
+<span class="sd">                            levels &lt; 0 returns parent pixels at lower resolution</span>
+<span class="sd">                            levels == 0 returns the input pixels unchanged</span>
+<span class="sd">    :type   levels:     int</span>
+<span class="sd">    :param  ordering:   HEALPix pixel ordering, either 'ring' or 'nested'</span>
+<span class="sd">    :type   ordering:   str</span>
+<span class="sd">    """</span>
+    <span class="c1"># Ensure array</span>
+    <span class="n">ipix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">ipix</span><span class="p">)</span>
+
+    <span class="c1"># Check ordering</span>
+    <span class="k">if</span> <span class="n">ordering</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"ring"</span><span class="p">,</span> <span class="s2">"nested"</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"ordering must be either 'ring' or 'nested'"</span><span class="p">)</span>
+
+    <span class="c1"># Convert to nested ordering</span>
+    <span class="k">if</span> <span class="n">ordering</span> <span class="o">==</span> <span class="s2">"ring"</span><span class="p">:</span>
+        <span class="n">ipix_nest</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">ring2nest</span><span class="p">(</span><span class="n">nside</span><span class="p">,</span> <span class="n">ipix</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ipix_nest</span> <span class="o">=</span> <span class="n">ipix</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># Increase resolution and get child pixels</span>
+    <span class="k">if</span> <span class="n">levels</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">levels</span><span class="p">):</span>
+            <span class="n">ipix_nest</span> <span class="o">=</span> <span class="p">(</span><span class="mi">4</span> <span class="o">*</span> <span class="n">ipix_nest</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">nside_new</span> <span class="o">=</span> <span class="n">nside</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span><span class="o">**</span><span class="n">levels</span><span class="p">)</span>
+
+    <span class="c1"># Decrease resolution and get parent pixels</span>
+    <span class="k">elif</span> <span class="n">levels</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">levels</span><span class="p">):</span>
+            <span class="n">ipix_nest</span> <span class="o">=</span> <span class="n">ipix_nest</span> <span class="o">//</span> <span class="mi">4</span>
+        <span class="n">nside_new</span> <span class="o">=</span> <span class="n">nside</span> <span class="o">//</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">levels</span><span class="p">))</span>
+
+    <span class="c1"># Same resolution, no change</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">nside_new</span> <span class="o">=</span> <span class="n">nside</span>
+
+    <span class="c1"># Convert back to requested ordering</span>
+    <span class="k">if</span> <span class="n">ordering</span> <span class="o">==</span> <span class="s2">"ring"</span><span class="p">:</span>
+        <span class="n">ipix_new</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">nest2ring</span><span class="p">(</span><span class="n">nside_new</span><span class="p">,</span> <span class="n">ipix_nest</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ipix_new</span> <span class="o">=</span> <span class="n">ipix_nest</span>
+
+    <span class="k">return</span> <span class="n">ipix_new</span><span class="p">,</span> <span class="n">nside_new</span></div>
+
+
+
+<div class="viewcode-block" id="find_healpy_pixel_weights_dir">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.find_healpy_pixel_weights_dir">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">find_healpy_pixel_weights_dir</span><span class="p">(</span><span class="n">datapath</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Find the healpy pixel weights directory.</span>
+
+<span class="sd">    Returns the first directory that contains a full_weights/ folder.</span>
+<span class="sd">    Check:</span>
+<span class="sd">        1. the datapath argument</span>
+<span class="sd">        2. the HEALPY_PIXEL_WEIGHTS environment variable</span>
+<span class="sd">        3. &lt;venv&gt;/share/healpy-data</span>
+
+<span class="sd">    Raises FileNotFoundError if none are found.</span>
+
+<span class="sd">    :param  datapath:   directory to check first for the pixel weights</span>
+<span class="sd">    :type   datapath:   str</span>
+<span class="sd">    """</span>
+    <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">datapath</span><span class="p">,</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"HEALPY_PIXEL_WEIGHTS"</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">,</span> <span class="s2">"share"</span><span class="p">,</span> <span class="s2">"healpy-data"</span><span class="p">),</span>
+    <span class="p">]</span>
+    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">"full_weights"</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">path</span>
+    <span class="n">tried</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">candidates</span> <span class="k">if</span> <span class="n">p</span><span class="p">]</span>
+    <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not find healpy pixel weights (no full_weights/folder in any of: </span><span class="si">{</span><span class="n">tried</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="check_healpy_pixel_weights">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.check_healpy_pixel_weights">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_healpy_pixel_weights</span><span class="p">(</span><span class="n">nside</span><span class="p">,</span> <span class="n">datapath</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Check that the healpy pixel weights file for this nside can be found.</span>
+
+<span class="sd">    Looks for &lt;datapath&gt;/full_weights/healpix_full_weights_nside_XXXX.fits</span>
+
+<span class="sd">    Returns the datapath to pass to hp.map2alm.</span>
+
+<span class="sd">    :param  nside:      nside of the map</span>
+<span class="sd">    :type   nside:      int</span>
+<span class="sd">    :param  datapath:   directory to check first for the pixel weights</span>
+<span class="sd">    :type   datapath:   str</span>
+<span class="sd">    """</span>
+    <span class="n">datapath</span> <span class="o">=</span> <span class="n">find_healpy_pixel_weights_dir</span><span class="p">(</span><span class="n">datapath</span><span class="p">)</span>
+
+    <span class="n">weights_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">datapath</span><span class="p">,</span> <span class="s2">"full_weights"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"healpix_full_weights_nside_</span><span class="si">{</span><span class="n">nside</span><span class="si">:</span><span class="s2">04d</span><span class="si">}</span><span class="s2">.fits"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">weights_file</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No healpy pixel weights for nside=</span><span class="si">{</span><span class="n">nside</span><span class="si">}</span><span class="s2">: expected </span><span class="si">{</span><span class="n">weights_file</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">datapath</span></div>
+
+
+
+<div class="viewcode-block" id="healpy_pixel_weights_available">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.healpy_pixel_weights_available">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">healpy_pixel_weights_available</span><span class="p">(</span><span class="n">nside</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">datapath</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Returns True if healpy pixel weights can be found, otherwise False.</span>
+
+<span class="sd">    :param  nside:      nside of the map. If None, check for any pixel weights</span>
+<span class="sd">    :type   nside:      int</span>
+<span class="sd">    :param  datapath:   directory to check first for the pixel weights</span>
+<span class="sd">    :type   datapath:   str</span>
+<span class="sd">    """</span>
+    <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">datapath</span><span class="p">,</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"HEALPY_PIXEL_WEIGHTS"</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">prefix</span><span class="p">,</span> <span class="s2">"share"</span><span class="p">,</span> <span class="s2">"healpy-data"</span><span class="p">),</span>
+    <span class="p">]</span>
+    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">weights_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">"full_weights"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">weights_dir</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">nside</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">weights_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">weights_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"healpix_full_weights_nside_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">nside</span><span class="p">)</span><span class="si">:</span><span class="s2">04d</span><span class="si">}</span><span class="s2">.fits"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">weights_file</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<div class="viewcode-block" id="get_common_maps">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.get_common_maps">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_common_maps</span><span class="p">(</span><span class="n">filenames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Returns a list of all dataset names common to all files.</span>
+
+<span class="sd">    :param  filenames:  paths to the .hdf5 files</span>
+<span class="sd">    :type   filenames:  list</span>
+<span class="sd">    """</span>
+    <span class="c1"># check for common datasets:</span>
+
+    <span class="n">all_map_names</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">filenames</span><span class="p">))]</span>
+
+    <span class="k">for</span> <span class="n">file_idx</span><span class="p">,</span> <span class="n">file_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">filenames</span><span class="p">):</span>
+        <span class="n">infile_names</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">dset</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="s2">"nside"</span> <span class="ow">in</span> <span class="n">dset</span><span class="o">.</span><span class="n">attrs</span><span class="p">:</span>
+                    <span class="n">infile_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="n">all_map_names</span><span class="p">[</span><span class="n">file_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">infile_names</span>
+    <span class="n">common_map_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="nb">set</span><span class="p">,</span> <span class="n">all_map_names</span><span class="p">)))</span>
+
+    <span class="k">return</span> <span class="n">common_map_names</span></div>
+
+
+
+<div class="viewcode-block" id="read_rotation_angles">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.read_rotation_angles">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_rotation_angles</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Read 'theta' (co-latitude) and 'phi' (longitude) angles from hdf5 file.</span>
+
+<span class="sd">    Assume that theta and phi are given in radians.</span>
+
+<span class="sd">    Returns a tuple of (co-latitude, longitude) in degrees.</span>
+
+<span class="sd">    :param  filename:   path to the .hdf5 file containing the rotation angles</span>
+<span class="sd">    :type   filename:   str</span>
+<span class="sd">    """</span>
+    <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">rotation_data</span><span class="p">:</span>
+        <span class="n">rot_val</span> <span class="o">=</span> <span class="n">rotation_data</span><span class="p">[</span><span class="s2">"shells"</span><span class="p">]</span>
+        <span class="n">longitude</span> <span class="o">=</span> <span class="p">(</span><span class="n">rot_val</span><span class="p">[</span><span class="s2">"phi"</span><span class="p">][:]</span> <span class="o">*</span> <span class="mi">180</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">latitude</span> <span class="o">=</span> <span class="p">(</span><span class="n">rot_val</span><span class="p">[</span><span class="s2">"theta"</span><span class="p">][:]</span> <span class="o">*</span> <span class="mi">180</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">unyt</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">latitude</span><span class="p">,</span> <span class="n">longitude</span></div>
+
+
+
+<div class="viewcode-block" id="rotate_map">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.rotate_map">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">rotate_map</span><span class="p">(</span><span class="n">base_map</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="n">ell_max</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">map_rotator_object</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Rotate given map using alm space via the co-latitude and longitude passed as theta and phi.</span>
+
+<span class="sd">    Returns a tuple, (rotated map, rotator object)</span>
+
+<span class="sd">    :param  base_map:           healpix map to rotate</span>
+<span class="sd">    :type   base_map:           np.ndarray</span>
+<span class="sd">    :param  theta:              co-latitude rotation angle</span>
+<span class="sd">    :type   theta:              unyt.unyt_quantity (units of deg or equivalent)</span>
+<span class="sd">    :param  phi:                longitude rotation angle</span>
+<span class="sd">    :type   phi:                unyt.unyt_quantity (units of deg or equivalent)</span>
+<span class="sd">    :param  ell_max:            maximum multipole used in the rotation</span>
+<span class="sd">    :type   ell_max:            int</span>
+<span class="sd">    :param  map_rotator_object: rotator to use. If None, one is created from theta and phi</span>
+<span class="sd">    :type   map_rotator_object: healpy.Rotator</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">theta</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="ow">and</span> <span class="n">phi</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">base_map</span><span class="p">,</span> <span class="n">map_rotator_object</span>
+    <span class="k">if</span> <span class="n">map_rotator_object</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">map_rotator_object</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">Rotator</span><span class="p">(</span><span class="n">rot</span><span class="o">=</span><span class="p">[</span><span class="n">theta</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">unyt</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span> <span class="n">phi</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">unyt</span><span class="o">.</span><span class="n">deg</span><span class="p">)],</span> <span class="n">inv</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">deg</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">limit_openmp_threads</span><span class="p">():</span>  <span class="c1"># healpy alm transforms use threads set by SWIFTLET_MAX_THREADS</span>
+        <span class="k">if</span> <span class="n">ell_max</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">map_rotator_object</span><span class="o">.</span><span class="n">rotate_map_alms</span><span class="p">(</span><span class="n">base_map</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)),</span> <span class="n">map_rotator_object</span>
+
+        <span class="k">return</span> <span class="n">map_rotator_object</span><span class="o">.</span><span class="n">rotate_map_alms</span><span class="p">(</span><span class="n">base_map</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span> <span class="n">lmax</span><span class="o">=</span><span class="n">ell_max</span><span class="p">),</span> <span class="n">map_rotator_object</span></div>
+
+
+
+<div class="viewcode-block" id="rotate_map_fast">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.rotate_map_fast">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">rotate_map_fast</span><span class="p">(</span><span class="n">base_map</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="n">nside</span><span class="p">,</span> <span class="n">ell_max</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">map_rotator_object</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Rotate a given map using alm space via the passed as theta (co-latitude) and phi (longitude).</span>
+
+<span class="sd">    Use the healpy pixel weights for the map to alm transform.</span>
+
+<span class="sd">    Returns a tuple (rotated map, rotator object)</span>
+
+<span class="sd">    :param  base_map:           healpix map to rotate</span>
+<span class="sd">    :type   base_map:           np.ndarray</span>
+<span class="sd">    :param  theta:              co-latitude rotation angle</span>
+<span class="sd">    :type   theta:              unyt.unyt_quantity (units of deg or equivalent)</span>
+<span class="sd">    :param  phi:                longitude rotation angle</span>
+<span class="sd">    :type   phi:                unyt.unyt_quantity (units of deg or equivalent)</span>
+<span class="sd">    :param  nside:              nside of the rotated map</span>
+<span class="sd">    :type   nside:              int</span>
+<span class="sd">    :param  ell_max:            maximum multipole used in the rotation</span>
+<span class="sd">    :type   ell_max:            int</span>
+<span class="sd">    :param  map_rotator_object: rotator to use. If None, one is created from theta and phi</span>
+<span class="sd">    :type   map_rotator_object: healpy.Rotator</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">theta</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="ow">and</span> <span class="n">phi</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">base_map</span><span class="p">,</span> <span class="n">map_rotator_object</span>
+    <span class="k">if</span> <span class="n">map_rotator_object</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">map_rotator_object</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">Rotator</span><span class="p">(</span><span class="n">rot</span><span class="o">=</span><span class="p">[</span><span class="n">theta</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">unyt</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span> <span class="n">phi</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">unyt</span><span class="o">.</span><span class="n">deg</span><span class="p">)],</span> <span class="n">inv</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">deg</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">HEALPY_PIXEL_WEIGHTS</span> <span class="o">=</span> <span class="n">check_healpy_pixel_weights</span><span class="p">(</span><span class="n">nside</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">limit_openmp_threads</span><span class="p">():</span>  <span class="c1"># healpy alm transforms use threads set by SWIFTLET_MAX_THREADS</span>
+        <span class="n">alm</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">map2alm</span><span class="p">(</span>
+            <span class="n">base_map</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span> <span class="n">lmax</span><span class="o">=</span><span class="n">ell_max</span><span class="p">,</span> <span class="n">use_pixel_weights</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">iter</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">datapath</span><span class="o">=</span><span class="n">HEALPY_PIXEL_WEIGHTS</span>
+        <span class="p">)</span>
+        <span class="n">alm_rot</span> <span class="o">=</span> <span class="n">map_rotator_object</span><span class="o">.</span><span class="n">rotate_alm</span><span class="p">(</span><span class="n">alm</span><span class="p">,</span> <span class="n">lmax</span><span class="o">=</span><span class="n">ell_max</span><span class="p">)</span>
+        <span class="n">map_rot</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">alm2map</span><span class="p">(</span><span class="n">alm_rot</span><span class="p">,</span> <span class="n">nside</span><span class="o">=</span><span class="n">nside</span><span class="p">,</span> <span class="n">lmax</span><span class="o">=</span><span class="n">ell_max</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">map_rot</span><span class="p">,</span> <span class="n">map_rotator_object</span></div>
+
+
+
+<span class="n">_UNSET</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="write_rotated_lightcone_chunks">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.write_rotated_lightcone_chunks">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">write_rotated_lightcone_chunks</span><span class="p">(</span>
+    <span class="n">basedir</span><span class="p">,</span>
+    <span class="n">basename</span><span class="p">,</span>
+    <span class="n">map_names</span><span class="p">,</span>
+    <span class="n">theta_arr_deg</span><span class="p">,</span>
+    <span class="n">phi_arr_deg</span><span class="p">,</span>
+    <span class="n">output_filename</span><span class="p">,</span>
+    <span class="n">output_nside</span><span class="p">,</span>
+    <span class="n">input_nside</span><span class="p">,</span>
+    <span class="n">remote_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">shell_range</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">unit_conversion_func</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">rotate_nside</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">ell_max</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">save_chunks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">hdf5_dset_kwargs</span><span class="o">=</span><span class="n">_UNSET</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    For a given set of rotation angles per shell, sum all shells along the line of sight that share the same angles.</span>
+
+<span class="sd">    Each chunk is rotated and the sum of all chunks is written to the output file.</span>
+
+<span class="sd">    :param  basedir:                directory containing the lightcone healpix maps</span>
+<span class="sd">    :type   basedir:                str</span>
+<span class="sd">    :param  basename:               base name of the lightcone healpix map files</span>
+<span class="sd">    :type   basename:               str</span>
+<span class="sd">    :param  map_names:              map names (quantities or datasets) to sum and rotate in chunks, e.g. ["TotalMass"]</span>
+<span class="sd">    :type   map_names:              list</span>
+<span class="sd">    :param  theta_arr_deg:          theta (co-latitude) values per shell [deg]</span>
+<span class="sd">    :type   theta_arr_deg:          np.ndarray or unyt.unyt_array</span>
+<span class="sd">    :param  phi_arr_deg:            phi (longitude) values per shell [deg]</span>
+<span class="sd">    :type   phi_arr_deg:            np.ndarray or unyt.unyt_array</span>
+<span class="sd">    :param  output_filename:        path of the .hdf5 file to write</span>
+<span class="sd">    :type   output_filename:        str</span>
+<span class="sd">    :param  output_nside:           nside of the output maps</span>
+<span class="sd">    :type   output_nside:           int</span>
+<span class="sd">    :param  input_nside:            nside of the input maps</span>
+<span class="sd">    :type   input_nside:            int</span>
+<span class="sd">    :param  remote_dir:             for reading healpix maps from a remote directory as done with lightcone_io</span>
+<span class="sd">    :type   remote_dir:             str</span>
+<span class="sd">    :param  shell_range:            shell number of the minimum and maximum shell to consider. If None, use all shells</span>
+<span class="sd">    :type   shell_range:            tuple</span>
+<span class="sd">    :param  unit_conversion_func:   optional function for additional unit conversion prior to rotating maps</span>
+<span class="sd">    :type   unit_conversion_func:   function</span>
+<span class="sd">    :param  rotate_nside:           nside the maps are rotated at. If None, use input_nside</span>
+<span class="sd">    :type   rotate_nside:           int</span>
+<span class="sd">    :param  ell_max:                maximum multipole used in the rotation</span>
+<span class="sd">    :type   ell_max:                int</span>
+<span class="sd">    :param  save_chunks:            If True, write each individual chunk to the output file</span>
+<span class="sd">    :type   save_chunks:            boolean</span>
+<span class="sd">    :param  hdf5_dset_kwargs:       keyword arguments passed to h5py create_dataset.</span>
+<span class="sd">                                        If not given, use gzip compression level 9 with shuffle.</span>
+<span class="sd">                                        If None, default h5py compression applied</span>
+<span class="sd">    :type   hdf5_dset_kwargs:       dict</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">hdf5_dset_kwargs</span> <span class="ow">is</span> <span class="n">_UNSET</span><span class="p">:</span>
+        <span class="n">hdf5_dset_kwargs</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"compression"</span><span class="p">:</span> <span class="s2">"gzip"</span><span class="p">,</span>
+            <span class="s2">"compression_opts"</span><span class="p">:</span> <span class="mi">9</span><span class="p">,</span>
+            <span class="s2">"shuffle"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="k">elif</span> <span class="n">hdf5_dset_kwargs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">hdf5_dset_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">lightcone_io.downsample_maps</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_power</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">write_dataset</span><span class="p">(</span><span class="n">outfile</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dset_dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
+<span class="sd">        Write dataset to the output file, replacing any existing dataset with the same name.</span>
+
+<span class="sd">        Assume gzip=9 and shuffle=True.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">outfile</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">outfile</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="n">outfile</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dset_dtype</span><span class="p">,</span> <span class="o">**</span><span class="n">hdf5_dset_kwargs</span><span class="p">)</span>
+
+    <span class="c1"># Open the lightcone map shell array</span>
+    <span class="n">shell_arr</span> <span class="o">=</span> <span class="n">hm</span><span class="o">.</span><span class="n">ShellArray</span><span class="p">(</span><span class="n">basedir</span><span class="p">,</span> <span class="n">basename</span><span class="p">,</span> <span class="n">remote_dir</span><span class="o">=</span><span class="n">remote_dir</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">shell_range</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">numb_shells</span> <span class="o">=</span> <span class="n">shell_arr</span><span class="o">.</span><span class="n">nr_shells</span>
+        <span class="n">shell_numbers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">numb_shells</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">shell_numbers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">shell_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">shell_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">numb_shells</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">shell_numbers</span><span class="p">)</span>
+
+    <span class="c1"># update rotation angles</span>
+    <span class="n">theta_arr_deg</span> <span class="o">=</span> <span class="n">sw_units</span><span class="o">.</span><span class="n">apply_expected_units</span><span class="p">(</span><span class="n">theta_arr_deg</span><span class="p">,</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"degree"</span><span class="p">))[</span><span class="n">shell_numbers</span><span class="p">]</span>
+    <span class="n">phi_arr_deg</span> <span class="o">=</span> <span class="n">sw_units</span><span class="o">.</span><span class="n">apply_expected_units</span><span class="p">(</span><span class="n">phi_arr_deg</span><span class="p">,</span> <span class="n">unyt</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s2">"degree"</span><span class="p">))[</span><span class="n">shell_numbers</span><span class="p">]</span>
+
+    <span class="n">theta_unique</span><span class="p">,</span> <span class="n">indices_theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">theta_arr_deg</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">phi_unique</span><span class="p">,</span> <span class="n">indices_phi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">phi_arr_deg</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">chunk_num</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">indices_theta</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">indices_theta</span><span class="p">)],</span> <span class="n">numb_shells</span><span class="p">])</span>
+    <span class="n">theta_rot</span> <span class="o">=</span> <span class="n">theta_unique</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">indices_theta</span><span class="p">)]</span>
+    <span class="n">phi_rot</span> <span class="o">=</span> <span class="n">phi_unique</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">indices_phi</span><span class="p">)]</span>
+    <span class="n">nrot</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">theta_rot</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">input_nside</span> <span class="o">==</span> <span class="mi">16384</span><span class="p">:</span>
+        <span class="n">input_nside</span> <span class="o">=</span> <span class="mi">8192</span>
+    <span class="k">if</span> <span class="n">rotate_nside</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">rotate_nside</span> <span class="o">=</span> <span class="n">input_nside</span>
+
+    <span class="n">in_npix</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">nside2npix</span><span class="p">(</span><span class="n">rotate_nside</span><span class="p">)</span>
+    <span class="n">out_npix</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">nside2npix</span><span class="p">(</span><span class="n">output_nside</span><span class="p">)</span>
+
+    <span class="c1"># load all redshifts for any FLAMINGO lightcone</span>
+    <span class="n">redshifts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">flamingo_shell_redshift_file</span><span class="p">(</span><span class="s2">"L2p8"</span><span class="p">),</span> <span class="n">delimiter</span><span class="o">=</span><span class="s2">","</span><span class="p">)[</span><span class="n">shell_numbers</span><span class="p">,</span> <span class="p">:]</span>
+
+    <span class="n">update_str</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"total number of rotations:</span><span class="se">\t</span><span class="si">{</span><span class="n">nrot</span><span class="si">}</span><span class="s2">"</span>
+        <span class="o">+</span> <span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">total range of shell numbers:</span><span class="se">\t</span><span class="si">{</span><span class="n">shell_numbers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">shell_numbers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="o">+</span> <span class="sa">f</span><span class="s2">"total redshift range:</span><span class="se">\t</span><span class="si">{</span><span class="n">redshifts</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">redshifts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span>
+    <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">update_str</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">output_filename</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">outfile</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"write to file: </span><span class="si">{</span><span class="n">output_filename</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="c1"># add metadata attrs to output file</span>
+        <span class="n">metadata</span> <span class="o">=</span> <span class="n">outfile</span><span class="o">.</span><span class="n">create_group</span><span class="p">(</span><span class="s2">"metadata"</span><span class="p">)</span>
+        <span class="n">metadata</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"lightcone"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">basename</span><span class="p">]</span>
+        <span class="n">metadata</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"angles"</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">theta_rot</span><span class="p">,</span> <span class="n">phi_rot</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">metadata</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"nside_rotate"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">rotate_nside</span><span class="p">]</span>
+        <span class="n">metadata</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"nside"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">output_nside</span><span class="p">]</span>
+        <span class="n">metadata</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"redshift"</span><span class="p">]</span> <span class="o">=</span> <span class="n">redshifts</span>
+        <span class="n">metadata</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"shell_numbers"</span><span class="p">]</span> <span class="o">=</span> <span class="n">shell_numbers</span>
+
+        <span class="c1"># running total</span>
+        <span class="n">integrated_map_stack</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">map_quantity</span><span class="p">):</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">out_npix</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="k">for</span> <span class="n">map_quantity</span> <span class="ow">in</span> <span class="n">map_names</span><span class="p">}</span>
+
+        <span class="k">for</span> <span class="n">chunk_nr</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">nrot</span><span class="p">):</span>
+            <span class="n">arg_min</span><span class="p">,</span> <span class="n">arg_max</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">chunk_num</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">chunk_num</span><span class="p">[</span><span class="n">chunk_nr</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+
+            <span class="c1"># running chunk total, reset once per rotation group</span>
+            <span class="n">chunk_map_stack</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">map_quantity</span><span class="p">):</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">in_npix</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span> <span class="k">for</span> <span class="n">map_quantity</span> <span class="ow">in</span> <span class="n">map_names</span><span class="p">}</span>
+
+            <span class="c1"># give update</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"chunk </span><span class="si">{</span><span class="n">chunk_nr</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">nrot</span><span class="si">}</span><span class="s2">, shells </span><span class="si">{</span><span class="n">arg_min</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">shell_numbers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">arg_max</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">shell_numbers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+            <span class="c1"># combine shells, rotate and then downsample</span>
+            <span class="k">if</span> <span class="n">save_chunks</span><span class="p">:</span>
+                <span class="n">chunk_group</span> <span class="o">=</span> <span class="n">outfile</span><span class="o">.</span><span class="n">create_group</span><span class="p">(</span><span class="sa">f</span><span class="s2">"chunk_</span><span class="si">{</span><span class="n">chunk_nr</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+                <span class="c1"># add attrs to chunk group</span>
+                <span class="k">for</span> <span class="n">z_range_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">arg_min</span><span class="p">,</span> <span class="n">arg_max</span><span class="p">):</span>
+                    <span class="n">zmin</span> <span class="o">=</span> <span class="n">redshifts</span><span class="p">[</span><span class="n">z_range_idx</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+                    <span class="n">zmax</span> <span class="o">=</span> <span class="n">redshifts</span><span class="p">[</span><span class="n">z_range_idx</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+                    <span class="n">chunk_group</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"redshift_range"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">zmin</span><span class="p">,</span> <span class="n">zmax</span><span class="p">)</span>
+                    <span class="n">chunk_group</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"shell_numbers"</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">arg_min</span><span class="p">,</span> <span class="n">arg_max</span><span class="p">)</span> <span class="o">+</span> <span class="n">shell_numbers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">metadata</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"nside_rotate"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">rotate_nside</span><span class="p">]</span>
+                    <span class="n">chunk_group</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"nside"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">output_nside</span><span class="p">]</span>
+                    <span class="n">chunk_group</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"chunk_nr"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">chunk_nr</span><span class="p">]</span>
+                    <span class="n">chunk_group</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"lightcone"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">basename</span><span class="p">]</span>
+                    <span class="n">chunk_group</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"chunk_rotation_angles"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">theta_rot</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">],</span> <span class="n">phi_rot</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">])</span>
+
+            <span class="k">for</span> <span class="n">shell_nr</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">arg_min</span><span class="p">,</span> <span class="n">arg_max</span><span class="p">):</span>
+                <span class="n">shell_nr</span> <span class="o">+=</span> <span class="n">shell_numbers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># account for non-zero starting shell</span>
+                <span class="n">shell</span> <span class="o">=</span> <span class="n">shell_arr</span><span class="p">[</span><span class="n">shell_nr</span><span class="p">]</span>  <span class="c1"># access shell level data</span>
+
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">map_quantity</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">map_names</span><span class="p">):</span>
+                    <span class="c1"># check map is available in shell</span>
+                    <span class="k">if</span> <span class="n">map_quantity</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">shell</span><span class="o">.</span><span class="n">map_names</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">map_quantity</span><span class="si">}</span><span class="s2"> not found in shell</span><span class="se">\n</span><span class="s2">Available maps: </span><span class="si">{</span><span class="n">shell</span><span class="o">.</span><span class="n">map_names</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                    <span class="n">downsample_power</span> <span class="o">=</span> <span class="n">get_power</span><span class="p">(</span><span class="n">map_quantity</span><span class="p">)</span>
+                    <span class="n">map_unit</span> <span class="o">=</span> <span class="n">shell</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">]</span><span class="o">.</span><span class="n">units</span>
+
+                    <span class="k">if</span> <span class="n">unit_conversion_func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">data</span> <span class="o">=</span> <span class="n">shell</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">][</span><span class="o">...</span><span class="p">]</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">map_unit</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">shell</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">data</span> <span class="o">=</span> <span class="n">unit_conversion_func</span><span class="p">(</span><span class="n">shell</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">][</span><span class="o">...</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">shell</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+
+                    <span class="k">if</span> <span class="n">hp</span><span class="o">.</span><span class="n">npix2nside</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="o">!=</span> <span class="n">rotate_nside</span><span class="p">:</span>
+                        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\t</span><span class="s2">downsampling </span><span class="si">{</span><span class="n">map_quantity</span><span class="si">}</span><span class="s2"> from nside </span><span class="si">{</span><span class="n">hp</span><span class="o">.</span><span class="n">npix2nside</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">))</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">rotate_nside</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                        <span class="n">data</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">ud_grade</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">nside_out</span><span class="o">=</span><span class="n">rotate_nside</span><span class="p">,</span> <span class="n">power</span><span class="o">=</span><span class="n">downsample_power</span><span class="p">)</span>
+
+                    <span class="n">chunk_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">]</span> <span class="o">+=</span> <span class="n">data</span>
+
+            <span class="k">for</span> <span class="n">map_quantity</span> <span class="ow">in</span> <span class="n">map_names</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">chunk_nr</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">map_rot</span> <span class="o">=</span> <span class="n">chunk_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"</span><span class="se">\t</span><span class="s2">rotating chunk </span><span class="si">{</span><span class="n">chunk_nr</span><span class="si">}</span><span class="s2">, map: </span><span class="si">{</span><span class="n">map_quantity</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+                            <span class="sa">f</span><span class="s2">"</span><span class="se">\t\t</span><span class="s2">theta, phi: </span><span class="si">{</span><span class="n">theta_rot</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">phi_rot</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span>
+                        <span class="p">)</span>
+                    <span class="p">)</span>
+                    <span class="c1"># check for pixel weights</span>
+                    <span class="k">if</span> <span class="n">healpy_pixel_weights_available</span><span class="p">(</span><span class="n">nside</span><span class="o">=</span><span class="n">rotate_nside</span><span class="p">):</span>
+                        <span class="n">map_rot</span><span class="p">,</span> <span class="n">__</span> <span class="o">=</span> <span class="n">rotate_map_fast</span><span class="p">(</span>
+                            <span class="n">chunk_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">],</span>
+                            <span class="n">theta_rot</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">],</span>
+                            <span class="n">phi_rot</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">],</span>
+                            <span class="n">nside</span><span class="o">=</span><span class="n">output_nside</span><span class="p">,</span>
+                            <span class="n">ell_max</span><span class="o">=</span><span class="n">ell_max</span><span class="p">,</span>
+                            <span class="n">map_rotator_object</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">map_rot</span><span class="p">,</span> <span class="n">__</span> <span class="o">=</span> <span class="n">rotate_map</span><span class="p">(</span>
+                            <span class="n">chunk_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">],</span>
+                            <span class="n">theta_rot</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">],</span>
+                            <span class="n">phi_rot</span><span class="p">[</span><span class="n">chunk_nr</span><span class="p">],</span>
+                            <span class="n">ell_max</span><span class="o">=</span><span class="n">ell_max</span><span class="p">,</span>
+                            <span class="n">map_rotator_object</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">rotate_nside</span> <span class="o">!=</span> <span class="n">output_nside</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\t</span><span class="s2">downsampling </span><span class="si">{</span><span class="n">map_quantity</span><span class="si">}</span><span class="s2"> from nside </span><span class="si">{</span><span class="n">rotate_nside</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">output_nside</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                    <span class="n">map_rot</span> <span class="o">=</span> <span class="n">hp</span><span class="o">.</span><span class="n">ud_grade</span><span class="p">(</span><span class="n">map_rot</span><span class="p">,</span> <span class="n">nside_out</span><span class="o">=</span><span class="n">output_nside</span><span class="p">,</span> <span class="n">power</span><span class="o">=</span><span class="n">get_power</span><span class="p">(</span><span class="n">map_quantity</span><span class="p">))</span>
+
+                <span class="c1"># make a final write to the output file:</span>
+                <span class="k">if</span> <span class="n">save_chunks</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\t</span><span class="s2">writing lightcone chunk to file..."</span><span class="p">)</span>
+                    <span class="n">write_dataset</span><span class="p">(</span><span class="n">chunk_group</span><span class="p">,</span> <span class="n">map_quantity</span><span class="p">,</span> <span class="n">map_rot</span><span class="p">)</span>
+
+                <span class="n">integrated_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">]</span> <span class="o">+=</span> <span class="n">map_rot</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\t</span><span class="s2">updated running total: </span><span class="se">\t</span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">integrated_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">])</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">map_quantity</span> <span class="ow">in</span> <span class="n">map_names</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">writing dataset </span><span class="si">{</span><span class="n">map_quantity</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">write_dataset</span><span class="p">(</span>
+                <span class="n">outfile</span><span class="p">,</span>
+                <span class="n">map_quantity</span><span class="p">,</span>
+                <span class="n">integrated_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">],</span>
+                <span class="n">dset_dtype</span><span class="o">=</span><span class="n">integrated_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">map_quantity</span><span class="si">}</span><span class="s2"> final total:</span><span class="se">\t</span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">integrated_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">])</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">del</span> <span class="n">integrated_map_stack</span><span class="p">[</span><span class="n">map_quantity</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="sum_maps">
+<a class="viewcode-back" href="../../api/generated/swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.sum_maps">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">sum_maps</span><span class="p">(</span>
+    <span class="n">file_numbers</span><span class="p">,</span>
+    <span class="n">infile_format</span><span class="p">,</span>
+    <span class="n">outfile</span><span class="p">,</span>
+    <span class="n">map_names</span><span class="p">,</span>
+    <span class="n">required_groups</span><span class="o">=</span><span class="p">(</span><span class="s2">"InternalCodeUnits"</span><span class="p">,</span> <span class="s2">"Units"</span><span class="p">,</span> <span class="s2">"Shell"</span><span class="p">,</span> <span class="s2">"__xrayInfo"</span><span class="p">),</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Write a new .hdf5 file with the datasets being the sum total of the input files datasets.</span>
+
+<span class="sd">    :param  file_numbers:       index number of the input files to sum</span>
+<span class="sd">    :type   file_numbers:       list</span>
+<span class="sd">    :param  infile_format:      formatted path to the input files of a given file number: path/input/file_{file_nr}.hdf5</span>
+<span class="sd">    :type   infile_format:      str</span>
+<span class="sd">    :param  outfile:            path and name of the file that will be written</span>
+<span class="sd">    :type   outfile:            str</span>
+<span class="sd">    :param  map_names:          map names to sum together. If ['common'] use all maps that are found in every input file</span>
+<span class="sd">    :type   map_names:          list</span>
+<span class="sd">    :param  required_groups:    required groups with essential attributes for lightcone_io maps</span>
+<span class="sd">    :type   required_groups:    tuple</span>
+<span class="sd">    """</span>
+    <span class="c1"># collect input filenames and make sure they exist</span>
+    <span class="n">infilenames</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">file_nr</span> <span class="ow">in</span> <span class="n">file_numbers</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">infile_format</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">file_nr</span><span class="o">=</span><span class="n">file_nr</span><span class="p">)):</span>
+            <span class="n">infilenames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">infile_format</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">file_nr</span><span class="o">=</span><span class="n">file_nr</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">"input file not found"</span><span class="p">)</span>
+
+    <span class="c1"># gather map names</span>
+    <span class="k">if</span> <span class="n">map_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"common"</span><span class="p">:</span>
+        <span class="n">common_map_names</span> <span class="o">=</span> <span class="n">get_common_maps</span><span class="p">(</span><span class="n">infilenames</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">common_map_names</span> <span class="o">=</span> <span class="n">map_names</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Selected Maps:"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">map_name</span> <span class="ow">in</span> <span class="n">common_map_names</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\t</span><span class="s2"> </span><span class="si">{</span><span class="n">map_name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># create output file name</span>
+    <span class="n">output_filename</span> <span class="o">=</span> <span class="n">outfile</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">writing output:</span><span class="se">\t</span><span class="si">{</span><span class="n">output_filename</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">output_filename</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span> <span class="k">as</span> <span class="n">outfile</span><span class="p">:</span>
+        <span class="n">running_totals</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">map_name</span> <span class="ow">in</span> <span class="n">common_map_names</span><span class="p">:</span>
+            <span class="n">running_totals</span><span class="p">[</span><span class="n">map_name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">file_idx</span><span class="p">,</span> <span class="n">infile_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">infilenames</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="n">file_idx</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">infilenames</span><span class="p">)</span><span class="si">}</span><span class="s2">] Opening input: </span><span class="si">{</span><span class="n">infile_name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">infile</span> <span class="o">=</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">infile_name</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">file_idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">required_groups</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">infile</span><span class="p">:</span>
+                        <span class="n">infile</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">group</span><span class="p">,</span> <span class="n">outfile</span><span class="p">)</span>
+
+            <span class="c1"># Loop over maps</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">common_map_names</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\t</span><span class="s2">Reading  </span><span class="si">%s</span><span class="s2"> for file </span><span class="si">%d</span><span class="s2">"</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">file_numbers</span><span class="p">[</span><span class="n">file_idx</span><span class="p">]))</span>
+
+                <span class="c1"># Read in the full map</span>
+                <span class="n">input_dataset</span> <span class="o">=</span> <span class="n">infile</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="s2">"nside"</span> <span class="ow">in</span> <span class="n">input_dataset</span><span class="o">.</span><span class="n">attrs</span><span class="p">:</span>  <span class="c1"># do not sum map if it doesn't have nside as attribute</span>
+                    <span class="n">nside</span> <span class="o">=</span> <span class="n">input_dataset</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"nside"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># nside of input map from its attributes</span>
+
+                    <span class="k">if</span> <span class="n">file_idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="c1"># copy the dataset over if initial file</span>
+                        <span class="n">infile</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">outfile</span><span class="p">)</span>
+
+                        <span class="c1"># update totals</span>
+                        <span class="n">running_totals</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">input_dataset</span><span class="p">)</span>
+                        <span class="n">output_map_total</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">outfile</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># sum maps if not initial file</span>
+
+                        <span class="c1"># check maps are the same shape dataset</span>
+                        <span class="n">output_dataset</span> <span class="o">=</span> <span class="n">outfile</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+                        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">input_dataset</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">output_dataset</span><span class="p">)</span>
+
+                        <span class="c1"># check maps being summed have matching attributes for nside and units</span>
+                        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">input_dataset</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                            <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s2">"Started"</span><span class="p">:</span>
+                                <span class="k">assert</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">output_dataset</span><span class="o">.</span><span class="n">attrs</span>  <span class="c1"># check that it does exist</span>
+                                <span class="k">assert</span> <span class="n">v</span> <span class="o">==</span> <span class="n">output_dataset</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>  <span class="c1"># check that attribute values are consistent</span>
+
+                        <span class="c1"># start updating the output</span>
+                        <span class="n">npix</span> <span class="o">=</span> <span class="n">input_dataset</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+                        <span class="c1"># if high nside map then update by chunks</span>
+                        <span class="k">if</span> <span class="n">nside</span> <span class="o">&lt;=</span> <span class="mi">4096</span><span class="p">:</span>
+                            <span class="n">chunck_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">npix</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">chunck_size</span> <span class="o">=</span> <span class="mi">65536</span>
+
+                        <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">npix</span><span class="p">,</span> <span class="n">chunck_size</span><span class="p">):</span>
+                            <span class="n">end</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="n">chunck_size</span><span class="p">,</span> <span class="n">npix</span><span class="p">))</span>
+
+                            <span class="n">in_chunk</span> <span class="o">=</span> <span class="n">input_dataset</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+                            <span class="n">out_chunk</span> <span class="o">=</span> <span class="n">output_dataset</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+
+                            <span class="n">output_dataset</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span> <span class="o">=</span> <span class="n">in_chunk</span> <span class="o">+</span> <span class="n">out_chunk</span>  <span class="c1"># write over indexed values</span>
+
+                            <span class="n">running_totals</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">in_chunk</span><span class="p">)</span>
+
+                        <span class="n">output_map_total</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">output_dataset</span><span class="p">)</span>
+
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"Updated Map: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="se">\n\t</span><span class="s2">stored map total: </span><span class="si">{</span><span class="n">output_map_total</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="se">\n\t</span><span class="s2">running total: "</span>
+                            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">running_totals</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="se">\n\t</span><span class="si">{</span><span class="n">output_map_total</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">running_totals</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> %"</span>
+                        <span class="p">)</span>
+                    <span class="p">)</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Finished file </span><span class="si">%d</span><span class="se">\n</span><span class="s2">"</span> <span class="o">%</span> <span class="p">(</span><span class="n">file_numbers</span><span class="p">[</span><span class="n">file_idx</span><span class="p">]))</span>
+            <span class="n">infile</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="kc">None</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, William McDonald.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,4 +1,13 @@
 #!/bin/env python
+import functools
+import http.server
+import os
+import sys
+import threading
+import pytest
+from swiftlet import config
+from swiftlet import flamingo_lightcones
+
 """
 Tests for swiftlet.config:
     - download the FLAMINGO shell redshift files into the environment
@@ -6,17 +15,6 @@ Tests for swiftlet.config:
     - max number of threads are correctly set and abided by
 
 """
-
-import functools
-import http.server
-import os
-import sys
-import threading
-
-import pytest
-
-from swiftlet import config
-from swiftlet import flamingo_lightcones
 
 FILE_CONTENTS = {
     "L1": "0.0, 0.05\n0.05, 0.1\n",
@@ -65,9 +63,7 @@ def file_server(tmp_path, monkeypatch):
 
 @pytest.fixture
 def fake_venv(tmp_path, monkeypatch):
-    """
-    A fake virtual environment, with an activate script, used as sys.prefix.
-    """
+    """A fake virtual environment, with an activate script, used as sys.prefix."""
     prefix = tmp_path / "venv"
     (prefix / "bin").mkdir(parents=True)
     (prefix / "bin" / "activate").write_text("# venv activate script\n")

@@ -8,20 +8,21 @@ from swiftlet import snapshot_orientation as so
 """
 Make the orientation tables installed with SWIFTLET, as YAML files in swiftlet/data/orientation_tables:
 
-    default_v1.yaml:    the first default tables, 79 rows with the cell shifts in whole cells (for 32 cells per axis).
-                        They were hard-coded in SWIFTLET before default_v2, and are copied here (DEFAULT_V1_ROWS), so
-                        lightcones made with them can be made again.
-    default_v2.yaml:    the default tables: no two rows make a SWIFT cell touch its own copy across the face between
-                        neighbouring tiles, for any orientation_lock and orientation_seed (see docs/orientation_tables.md
-                        and docs/repeated_objects.md).
+    default_v1.yaml:    the first default table. Originally hard-coded in SWIFTLET before default_v2 and copied here. 
+                        The shifts are now in eighths of the box (0, +-1, +-2 and 4; -16 cells, half the box,). 
+                        Note that this table is not clash-free, but it is kept for tests and examples of cells touching 
+                        their own replica. 
+    default_v2.yaml:    the default table. No two rows make a SWIFT cell touch its own replica across the edge of 
+                        neighbouring tiles, for any orientation_lock and orientation_seed (see 
+                        docs/orientation_tables.md and docs/repeated_objects.md).
+                        The cell shifts of default_v2 are in eighths of the box (0, +-1/8, +-1/4, +-3/8 and 1/2) and the
+                         rows are chosen from every distinct orientation 
+                        (48 turns and reflections, times 8^3 shifts = 24576), resulting in 5184 clash free combinations,
+                         108 for each of the 48 turns and reflections, with the shifts along each axis close to even.
 
-The cell shifts of default_v2 are in eighths of the box (0, +-1/8, +-1/4, +-3/8 and 1/2), so the same table is
-clash-free for every number of cells per axis that is a multiple of 8 and at least 16: the 16, 32 and 64 of the
-FLAMINGO and COLIBRE simulations. The rows are chosen from every distinct orientation (48 turns and reflections, times
-8^3 shifts = 24576) by snapshot_orientation.generate_clash_free_tables; seed 21 gives the most even tables of seeds 4
-to 63: 5184 rows, 108 for each of the 48 turns and reflections, with the shifts along each axis close to even.
 
-Both are checked against their fingerprints (the fingerprint depends only on the tables). 
+Both default tables are checked against their unique fingerprints. 
+
 """
 
 # the fingerprints of the installed tables, see snapshot_orientation.orientation_tables_fingerprint
@@ -153,7 +154,10 @@ def write_tables(output_dir, name, tables, attributes):
             raise SystemExit(f"default_v1 has fingerprint {fingerprint}, not {FINGERPRINTS[name]}: not written")
 
         print(
-            f"warning: {name} has fingerprint {fingerprint}, not that of the installed {name}, {FINGERPRINTS[name]}: these are new tables"
+            (
+                f"warning: {name} has fingerprint {fingerprint}, not that of the installed "
+                f"{name}, {FINGERPRINTS[name]}: these are new tables"
+            )
         )
 
     path = Path(output_dir) / f"{name}.yaml"
@@ -202,7 +206,10 @@ if __name__ == "__main__":
             default_v1_tables(),
             {
                 "version": 1,
-                "made_by": "tools/make_installed_orientation_tables.py, from the hard-coded default tables of SWIFTLET before default_v2",
+                "made_by": (
+                    "tools/make_installed_orientation_tables.py, from the hard-coded default"
+                    "tables of SWIFTLET before default_v2"
+                ),
                 "valid_nr_cells_axis": "any; the shifts are in cells, chosen for 32 cells per axis",
             },
         )
@@ -226,7 +233,9 @@ if __name__ == "__main__":
             tables,
             {
                 "version": 2,
-                "made_by": "tools/make_installed_orientation_tables.py, snapshot_orientation.generate_clash_free_tables",
+                "made_by": (
+                    "tools/make_installed_orientation_tables.py, snapshot_orientation.generate_clash_free_tables"
+                ),
                 "generator_seed": seed,
                 "clash_free": True,
                 "clash_free_for_nr_cells_axis": [16, 32, 64],

@@ -1,5 +1,4 @@
 #!/bin/env python
-
 import numpy as np
 import unyt
 import unyt.dimensions as dim
@@ -46,6 +45,8 @@ def astropy_to_unyt(a):
 
 def snapshot_unit_metadata(snap):
     """
+    Get metadata for snapshots units.
+
     Extract the plain-float metadata needed to build a snapshot's unit registry:
     physical constants, cosmology, and the Units/InternalCodeUnits CGS conversion factors.
 
@@ -76,7 +77,6 @@ def unit_registry_from_metadata(metadata):
     :param  metadata:   physical constants, cosmology and CGS unit conversion factors of the snapshot
     :type   metadata:   dict
     """
-
     # Create a new registry
     reg = unyt.unit_registry.UnitRegistry()
 
@@ -268,22 +268,13 @@ def attributes_from_units(units, physical, a_exponent):
 
 def drop_a_from_comoving_property(arr):
     """
-    Convert an array of lengths to comoving snapshot length units and drop
-    the a factor from the units without changing the value.
-
-    Coordinates in the lightcone are comoving but the expansion factor varies
-    so we can't include it explicitly in the units as we might in snapshots.
-    Here we convert to units a*snap_length and reinterpret the numbers as
-    just snap_length.
-    """
-    """
     Drop the a factor from the units of a comoving property without changing the value.
 
     Coordinates in the lightcone are comoving but the expansion factor varies
     so it cannot be explicitly included in the units as done with snapshots.
-    
-    e.g. lengths in units of a*snap_length are reinterpreted as just snap_length. 
-    
+
+    e.g. lengths in units of a*snap_length are reinterpreted as just snap_length.
+
     Supports lengths, densities, areas, volumes and pressures.
 
     :param  arr:    comoving property in snapshot units

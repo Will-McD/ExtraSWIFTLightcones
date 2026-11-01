@@ -39,7 +39,7 @@ virgo_swift.float = _float
 
 def _soap_datasets(infile, property_names):
     """
-    Get the datasets of a SOAP catalogue
+    Get the datasets of a SOAP catalogue.
 
     Returns (unit registry, {name: dataset}, {name: units}, number of rows).
 
@@ -61,7 +61,9 @@ def _soap_datasets(infile, property_names):
 
 def comoving(arr):
     """
-    Drop the expansion factor a from the units of a SOAP property without changing its values, e.g. lengths in
+    Remove scale factor 'a' from comoving properties unit expression.
+
+    Drop the expansion factor 'a' from the units of a SOAP property without changing its values, e.g. lengths in
     a*snap_length become comoving snap_length. Properties without a in their units are returned as they are.
 
     Returns a unyt.unyt_array.
@@ -79,7 +81,7 @@ def comoving(arr):
 
 def soap_catalogue_length(filename, property_name="InputHalos/HaloCatalogueIndex"):
     """
-    Return length of catalogue
+    Returns the length of catalogue.
 
     :param  filename:       filename of SOAP catalogue
     :type   filename:       str
@@ -92,8 +94,9 @@ def soap_catalogue_length(filename, property_name="InputHalos/HaloCatalogueIndex
 
 def read_soap_rows(filename, property_names, start=0, stop=None):
     """
-    Read rows [start, stop) of properties of a SOAP catalogue, in serial, with the same units as reading the whole
-    catalogue with lightcone_io.halo_catalogue.SOAPCatalogue.
+    Read rows [start, stop) of properties of a SOAP catalogue.
+
+    Done in serial, with the same units as reading the whole catalogue with lightcone_io.halo_catalogue.SOAPCatalogue.
 
     Returns {name: unyt.unyt_array of the rows}.
 
@@ -106,7 +109,6 @@ def read_soap_rows(filename, property_names, start=0, stop=None):
     :param  stop:           row after the last one to read. If None, the end of the catalogue
     :type   stop:           int
     """
-
     with h5py.File(filename, "r") as infile:
         registry, datasets, units, nr_rows = _soap_datasets(infile, property_names)
         stop = nr_rows if stop is None else min(int(stop), nr_rows)
@@ -118,8 +120,9 @@ def read_soap_rows(filename, property_names, start=0, stop=None):
 
 def read_soap_in_chunks(filename, property_names, chunk_size):
     """
-    Read properties of a SOAP catalogue chunk_size rows at a time, in serial, so only one chunk of the catalogue
-    is in memory at once.
+    Read properties of a SOAP catalogue chunk_size rows at a time.
+
+    Done in serial, so only one chunk of the catalogue is in memory at once.
     The units are made exactly as lightcone_io.halo_catalogue.SOAPCatalogue.read
 
     Returns a tuple for each chunk:
@@ -132,7 +135,6 @@ def read_soap_in_chunks(filename, property_names, chunk_size):
     :param  chunk_size:     number of rows read at a time
     :type   chunk_size:     int
     """
-
     chunk_size = int(chunk_size)
     if chunk_size < 1:
         raise ValueError(f"chunk_size must be at least 1, not {chunk_size}")
@@ -169,8 +171,7 @@ def _read_rows(dataset, rows, batch_size):
 
 def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
     """
-    Read only the given rows of properties of a SOAP catalogue, in batches, with the same units as
-    lightcone_io.halo_catalogue.SOAPCatalogue.
+    Read only the given rows of properties of a SOAP catalogue, in batches.
 
     Returns {name: unyt.unyt_array of the rows}, in the order of rows.
 
@@ -196,7 +197,9 @@ def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
 
 def select_soap_rows(filename, select_name, select, property_names, chunk_size=2**22, units=None):
     """
-    Index the SOAP catalogue, read the data from 'select_name' in chunks and then read the other properties only for the rows kept.
+    Index the SOAP catalogue, by the 'select_name' and read all given properties after.
+
+    Read data from 'select_name' in chunks, then read the other properties only for the rows kept.
     The whole catalogue is never read or held in memory.
 
     Returns {name: unyt.unyt_array of the kept rows} for property_names (and select_name), with "row" holding the
@@ -229,6 +232,8 @@ def select_soap_rows(filename, select_name, select, property_names, chunk_size=2
 
 def soap_unit_attributes(soap, name):
     """
+    Get unit attributes for SOAP properties.
+
     The SWIFT unit attributes of a SOAP dataset, as copied to a halo lightcone file. lightcone_io reads the units from
     "Conversion factor to CGS (not including cosmological corrections)", so it is added from the physical conversion
     factor and the expansion factor of the catalogue if the dataset doesn't have it.

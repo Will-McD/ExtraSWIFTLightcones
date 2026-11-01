@@ -3,17 +3,9 @@ import re
 import numpy as np
 
 """
-YAML files of tables: the orientation tables and the snapshot output redshifts installed with SWIFTLET (and any of
-your own). Each file is a mapping of what describes the table, then "columns", the name of each column, and "rows",
-one list of values per line:
-
-    # comments
-    name: default_v2
-    description: ...
-    columns: [QuarterTurns_x, QuarterTurns_y, ...]
-    rows:
-      - [ 0,  0,  0,  1,  1,  1,  0,  0,  0]
-      - [ 1,  0,  0,  1, -1,  1,  0,  1, -1]
+The reading and writing functions for the required .yaml files. 
+The orientation tables and the snapshot output redshifts installed with SWIFTLET (and any of
+your own) should all .yaml files. 
 
 The files are plain YAML, read with yaml.safe_load by any YAML reader. read_table_file reads the rows written one per
 line, as write_table_file writes them, without the (slow, pure Python) YAML parser; any other layout is read with it.
@@ -30,9 +22,7 @@ def _yaml_loader():
 
 
 def _parse_rows(lines):
-    """
-    The rows written one per line, as a list of lists of str, or None if any line is not a row (or a comment).
-    """
+    """The rows written one per line, as a list of lists of str, or None if any line is not a row (or a comment)."""
     rows = []
     for line in lines:
         if not line.strip() or line.lstrip().startswith("#"):
@@ -45,9 +35,7 @@ def _parse_rows(lines):
 
 
 def _number(text):
-    """
-    A value of a row as YAML reads it: an int, or a float.
-    """
+    """A value of a row as YAML reads it: an int, or a float."""
     try:
         return int(text)
     except ValueError:
@@ -58,7 +46,8 @@ def read_table_file(source, columns, kind="a table"):
     """
     Read a YAML table file and check its columns.
 
-    Returns (header, rows): header is a dict of everything but "columns" and "rows", rows an np.ndarray of shape
+    Returns (header, rows),
+    header is a dict of everything but "columns" and "rows", rows an np.ndarray of shape
     (number of rows, number of columns), of int64 if every value is a whole number written as one, otherwise float.
 
     :param  source:     path of the file, or an importlib.resources Traversable
@@ -84,9 +73,7 @@ def read_table_file(source, columns, kind="a table"):
 
 
 def _read_table_text(source, text, columns, kind):
-    """
-    Read the text of a YAML table file, see read_table_file.
-    """
+    """Read the text of a YAML table file, see read_table_file."""
     import yaml
 
     # the rows one per line after a last "rows:" key, read without the YAML parser
@@ -127,10 +114,7 @@ def _read_table_text(source, text, columns, kind):
 
 
 def _float_text(value):
-    """
-    A float as repr writes it, which reads back exactly, with a decimal point so YAML 1.1 (PyYAML) reads it as a float
-    (e.g. 1.0e-05, not 1e-05).
-    """
+    """A float as repr writes it with a decimal point so YAML (PyYAML) reads it as a float."""
     text = repr(float(value))
     if not np.isfinite(value):
         raise ValueError(f"the rows must be finite, not {text}")
@@ -141,9 +125,7 @@ def _float_text(value):
 
 
 def _yaml_value(value):
-    """
-    A value of the header as plain Python, which yaml.safe_dump can write.
-    """
+    """A value of the header as plain Python, which yaml.safe_dump can write."""
     if isinstance(value, bytes):
         return value.decode()
     if isinstance(value, np.ndarray):
@@ -157,8 +139,10 @@ def _yaml_value(value):
 
 def write_table_file(filename, header, columns, rows, comment=None):
     """
-    Write a YAML table file: the comment, the header, the columns, then the rows one per line. Floats are written
-    with repr, so they read back exactly.
+    Write a YAML table file.
+
+    The comment, the header, the columns, then the rows one per line.
+    Floats are written with repr, so they read back exactly.
 
     :param  filename:   path of the file to write
     :type   filename:   str or os.PathLike

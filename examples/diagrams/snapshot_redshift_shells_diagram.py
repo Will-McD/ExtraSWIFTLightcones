@@ -8,7 +8,6 @@ from matplotlib.lines import Line2D
 from pathlib import Path
 from astropy import units as u
 from astropy.cosmology import FlatLambdaCDM
-import cmasher as cmr  # noqa: F401 registers the "cmr.*" colour maps used by name
 
 from swiftlet.example_plot_settings import plot_settings, cmap_MCG
 from swiftlet.simulation_suites import Simulation

@@ -283,7 +283,9 @@ def write_lattice_simulation(
 ):
     """
     Write snapshots for the fake simulation.
-    Use the same regular lattice in every snapshot. Haloes and particles are at each lattice point whose catalogue index is the particle's ID.
+
+    Use the same regular lattice in every snapshot. Haloes and particles are at each lattice point whose catalogue
+    index is the particle's ID.
 
     Returns the Simulation and the SOAP catalogue filename format, with a {snap_nr} field.
 
@@ -422,11 +424,12 @@ def place_lattice(lightcone, redshift_range, ang_radius_deg, kind, halo_format):
 def lattice_in_shell(r_min, r_max, beam_vector, ang_radius_deg, boxsize=BOXSIZE, spacing=LATTICE_SPACING):
     """
     Identify the expected points of the lattice that fit within the lightcones shell.
+
     Build a mask for all points in the lattice, that are between r_min and r_max [Mpc] from the
     observer and in the beam: (k + 1/2) * spacing - L/2 along each axis, for every integer k. Where L
     is the snapshot sidelength.
-
-    The observer is always placed at the centre of the snapshot box, so this is the lattice the lightcone should hold, each point once.
+    The observer is always placed at the centre of the snapshot box, so this is the lattice the lightcone should hold,
+    each point once.
 
     Returns coordinates
 
@@ -465,14 +468,15 @@ def lattice_check(coords, expected, boxsize=BOXSIZE, spacing=LATTICE_SPACING):
 
         - Missing:              particle or halo is expected to be in the lightcone but not found in the lightcone
         - Incorrectly placed:   particles or haloes that are:
-                                    A) expected to be in the lightcone but not placed in
-                                        the lightcone
-                                    B) not in the correct lattice structure
-                                    C) appears more times than allowed by the orientation lock. For 'none' and 'sphere',
-                                        each  point in the lattice (particle or halo for a single snapshot number)
-                                        from a single snapshot can only appear as many times as that snapshot is repeated.
-                                        For 'cube', each lattice point of a snapshot can be repeated for the number
-                                        of tiles in each layer.
+                                    a.  expected to be in the lightcone but not placed in
+                                            the lightcone
+                                    b.  not in the correct lattice structure
+                                    c.  appears more times than allowed by the orientation lock. For 'none' and 'sphere'
+                                            , each  point in the lattice (particle or halo for a single snapshot number)
+                                            from a single snapshot can only appear as many times as that snapshot is
+                                            repeated.
+                                            For 'cube', each lattice point of a snapshot can be repeated for the number
+                                            of tiles in each layer.
 
 
     Returns a tuple (missing, incorrectly placed)
@@ -523,8 +527,9 @@ def lattice_check(coords, expected, boxsize=BOXSIZE, spacing=LATTICE_SPACING):
 def not_reoriented_check(ids, coords, boxsize=BOXSIZE, spacing=LATTICE_SPACING):
     """
     Check the points of a lightcone that is not re-oriented.
-    Every tile is the snapshot box as it is, so a point placed in the lightcone must be the particle (or halo) whose position in the box
-    is the point wrapped back into the box.
+
+    Every tile is the snapshot box as it is, so a point placed in the lightcone must be the particle (or halo) whose
+    position in the box is the point wrapped back into the box.
 
     Returns the number of points carrying the wrong ID.
 
@@ -813,7 +818,10 @@ def haloes_match_particles(placed):
             )
             all_match = all_match and same
             print(
-                f"{name},  {case[0]}, orientation_lock={case[1]}: haloes {'match' if same else 'DO NOT match'} the particles"
+                (
+                    f"{name}, {case[0]}, orientation_lock={case[1]}:"
+                    "haloes {'match' if same else 'DO NOT match'} the particles"
+                )
             )
     return all_match
 
@@ -835,7 +843,10 @@ def not_reoriented_ids_correct(placed):
             nr_wrong = not_reoriented_check(ids, coords)
             wrong += nr_wrong
             print(
-                f"{name}, {NOT_REORIENTED}, {kind}: {len(ids) - nr_wrong:,} of {len(ids):,} points carry the ID of their periodic copy of the box"
+                (
+                    f"{name}, {NOT_REORIENTED}, {kind}: {len(ids) - nr_wrong:,} of {len(ids):,}"
+                    "points carry the ID of their periodic copy of the box"
+                )
                 + ("" if nr_wrong == 0 else f", {nr_wrong} WRONG")
             )
     return wrong
@@ -871,7 +882,10 @@ def run(run_dir, output_dir):
         kind_problems = plot_lattice_layer(placed, kind, simulation, cosmo, filename)
         problems += kind_problems
         print(
-            f"{kind}: {'no' if kind_problems == 0 else kind_problems} missing or repeated lattice points, figure saved as {filename}"
+            (
+                f"{kind}: {'no' if kind_problems == 0 else kind_problems} "
+                f"missing or repeated lattice points, figure saved as {filename}"
+            )
         )
 
     # repeat with table that does not allow for reorientation of new tiles

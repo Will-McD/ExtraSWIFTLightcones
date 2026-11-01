@@ -359,7 +359,10 @@ if __name__ == "__main__":
         base_dir_format = None
         halo_format = f"{sim_dir}/SOAP-HBT/halo_properties_{{snap_nr:04d}}.hdf5"
     else:
-        warning_str = f"{' and '.join(missing)} not found locally: the SOAP catalogues and snapshot metadata will be accessed remotely, copied from {REMOTE_BASE_DIR} on the {REMOTE_SERVER} server with hdfstream to {REMOTE_CACHE_DIR}."
+        warning_str = (
+            f"{' and '.join(missing)} not found locally: the SOAP catalogues and snapshot metadata will be accessed "
+            f"remotely, from {REMOTE_BASE_DIR} on the {REMOTE_SERVER} server with hdfstream to {REMOTE_CACHE_DIR}."
+        )
         warnings.warn(warning_str)
         base_dir_format, halo_format = fetch_remote_simulation(
             args.box_res, args.sim_name, redshift_range, SOAP_PROPERTIES

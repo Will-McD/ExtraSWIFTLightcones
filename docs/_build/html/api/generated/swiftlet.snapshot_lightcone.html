@@ -1,0 +1,1149 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>swiftlet.snapshot_lightcone &mdash; SWIFTLET</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=ac771338"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="swiftlet.simulation_suites" href="swiftlet.simulation_suites.html" />
+    <link rel="prev" title="API reference" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            SWIFTLET
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#new-virtual-environment">New virtual environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#existing-environment">Existing environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#lightcone-shell-redshift-files">Lightcone shell redshift files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#use-with-cosma">Use with COSMA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#mpi-support">MPI support</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#number-of-threads">Number of threads</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../installation.html#additional-data">Additional data</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../quickstart.html">Quick start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">User guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/building_lightcones.html">Building lightcones</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/orientation.html">Lightcone geometry and tile orientation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/parallel_and_hpc.html">Use with HPC systems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/projections.html">Lightcone projections</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/additional_tools.html">Additional tools and misc</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">API reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">swiftlet.snapshot_lightcone</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.as_simulation"><code class="docutils literal notranslate"><span class="pre">as_simulation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.define_redshift_at_comoving_distance_function"><code class="docutils literal notranslate"><span class="pre">define_redshift_at_comoving_distance_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.message"><code class="docutils literal notranslate"><span class="pre">message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.print_coord_ranges"><code class="docutils literal notranslate"><span class="pre">print_coord_ranges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.rank_message"><code class="docutils literal notranslate"><span class="pre">rank_message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.read_lightcone_metadata"><code class="docutils literal notranslate"><span class="pre">read_lightcone_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.seperator_str"><code class="docutils literal notranslate"><span class="pre">seperator_str()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.write_halo_lightcone_file"><code class="docutils literal notranslate"><span class="pre">write_halo_lightcone_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.write_lightcone_metadata"><code class="docutils literal notranslate"><span class="pre">write_lightcone_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.FileReadSpec"><code class="docutils literal notranslate"><span class="pre">FileReadSpec</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.HaloCatalogueSpec"><code class="docutils literal notranslate"><span class="pre">HaloCatalogueSpec</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.HaloReadPiece"><code class="docutils literal notranslate"><span class="pre">HaloReadPiece</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.LightconeOutput"><code class="docutils literal notranslate"><span class="pre">LightconeOutput</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotAllSky"><code class="docutils literal notranslate"><span class="pre">SnapshotAllSky</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotBeam"><code class="docutils literal notranslate"><span class="pre">SnapshotBeam</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotLightcone"><code class="docutils literal notranslate"><span class="pre">SnapshotLightcone</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotReadRecord"><code class="docutils literal notranslate"><span class="pre">SnapshotReadRecord</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.simulation_suites.html">swiftlet.simulation_suites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.simulation_suites.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.get_suite"><code class="docutils literal notranslate"><span class="pre">get_suite()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.output_redshifts"><code class="docutils literal notranslate"><span class="pre">output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.read_output_redshifts"><code class="docutils literal notranslate"><span class="pre">read_output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.suite_for_label"><code class="docutils literal notranslate"><span class="pre">suite_for_label()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.write_output_redshifts"><code class="docutils literal notranslate"><span class="pre">write_output_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation"><code class="docutils literal notranslate"><span class="pre">Simulation</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.SimulationSuite"><code class="docutils literal notranslate"><span class="pre">SimulationSuite</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.snapshot_redshifts.html">swiftlet.snapshot_redshifts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.snapshot_redshifts.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.available_redshift_edges"><code class="docutils literal notranslate"><span class="pre">available_redshift_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.redshift_edges"><code class="docutils literal notranslate"><span class="pre">redshift_edges()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_at_redshift"><code class="docutils literal notranslate"><span class="pre">snapshot_at_redshift()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_coverage"><code class="docutils literal notranslate"><span class="pre">snapshot_coverage()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshot_redshift_range"><code class="docutils literal notranslate"><span class="pre">snapshot_redshift_range()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.snapshots_in_range"><code class="docutils literal notranslate"><span class="pre">snapshots_in_range()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_redshifts.html#swiftlet.snapshot_redshifts.SnapshotCoverage"><code class="docutils literal notranslate"><span class="pre">SnapshotCoverage</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.snapshot_orientation.html">swiftlet.snapshot_orientation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.snapshot_orientation.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.cell_shifts_in_cells"><code class="docutils literal notranslate"><span class="pre">cell_shifts_in_cells()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.check_neighbouring_tiles"><code class="docutils literal notranslate"><span class="pre">check_neighbouring_tiles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.check_orientation_tables"><code class="docutils literal notranslate"><span class="pre">check_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.default_orientation_tables"><code class="docutils literal notranslate"><span class="pre">default_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.generate_clash_free_tables"><code class="docutils literal notranslate"><span class="pre">generate_clash_free_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.generate_orientation_tables"><code class="docutils literal notranslate"><span class="pre">generate_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.installed_orientation_table_file"><code class="docutils literal notranslate"><span class="pre">installed_orientation_table_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.orientation_tables_fingerprint"><code class="docutils literal notranslate"><span class="pre">orientation_tables_fingerprint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.read_orientation_tables"><code class="docutils literal notranslate"><span class="pre">read_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.rotate_coords_cartesian"><code class="docutils literal notranslate"><span class="pre">rotate_coords_cartesian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.tables_are_clash_free"><code class="docutils literal notranslate"><span class="pre">tables_are_clash_free()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.write_orientation_tables"><code class="docutils literal notranslate"><span class="pre">write_orientation_tables()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_orientation.html#swiftlet.snapshot_orientation.NeighbourTileReport"><code class="docutils literal notranslate"><span class="pre">NeighbourTileReport</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.snapshot_units.html">swiftlet.snapshot_units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.snapshot_units.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_units.html#swiftlet.snapshot_units.apply_expected_units"><code class="docutils literal notranslate"><span class="pre">apply_expected_units()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_units.html#swiftlet.snapshot_units.astropy_to_unyt"><code class="docutils literal notranslate"><span class="pre">astropy_to_unyt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_units.html#swiftlet.snapshot_units.attributes_from_units"><code class="docutils literal notranslate"><span class="pre">attributes_from_units()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_units.html#swiftlet.snapshot_units.drop_a_from_comoving_property"><code class="docutils literal notranslate"><span class="pre">drop_a_from_comoving_property()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_units.html#swiftlet.snapshot_units.snapshot_unit_metadata"><code class="docutils literal notranslate"><span class="pre">snapshot_unit_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_units.html#swiftlet.snapshot_units.unit_registry_from_metadata"><code class="docutils literal notranslate"><span class="pre">unit_registry_from_metadata()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_units.html#swiftlet.snapshot_units.unit_registry_from_snapshot"><code class="docutils literal notranslate"><span class="pre">unit_registry_from_snapshot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_units.html#swiftlet.snapshot_units.units_from_attributes"><code class="docutils literal notranslate"><span class="pre">units_from_attributes()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.snapshot_cosmology.html">swiftlet.snapshot_cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.snapshot_cosmology.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.as_astropy_cosmology"><code class="docutils literal notranslate"><span class="pre">as_astropy_cosmology()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.find_snapshot_files"><code class="docutils literal notranslate"><span class="pre">find_snapshot_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.neutrino_masses"><code class="docutils literal notranslate"><span class="pre">neutrino_masses()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.SnapshotCosmology"><code class="docutils literal notranslate"><span class="pre">SnapshotCosmology</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.flamingo_lightcones.html">swiftlet.flamingo_lightcones</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.flamingo_lightcones.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.flamingo_lightcones.html#swiftlet.flamingo_lightcones.flamingo_box_resolution"><code class="docutils literal notranslate"><span class="pre">flamingo_box_resolution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.flamingo_lightcones.html#swiftlet.flamingo_lightcones.flamingo_shell_redshift_file"><code class="docutils literal notranslate"><span class="pre">flamingo_shell_redshift_file()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.repeat_check.html">swiftlet.repeat_check</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.repeat_check.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.repeat_check.html#swiftlet.repeat_check.find_close_cell_repeats"><code class="docutils literal notranslate"><span class="pre">find_close_cell_repeats()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.repeat_check.html#swiftlet.repeat_check.write_close_repeats"><code class="docutils literal notranslate"><span class="pre">write_close_repeats()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.repeat_check.html#swiftlet.repeat_check.CloseRepeatReport"><code class="docutils literal notranslate"><span class="pre">CloseRepeatReport</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.lightcone_projections.html">swiftlet.lightcone_projections</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.lightcone_projections.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.lightcone_projections.html#swiftlet.lightcone_projections.check_ptype"><code class="docutils literal notranslate"><span class="pre">check_ptype()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.lightcone_projections.html#swiftlet.lightcone_projections.BeamProjection"><code class="docutils literal notranslate"><span class="pre">BeamProjection</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.healpix_map_utils.html">swiftlet.healpix_map_utils</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.healpix_map_utils.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.check_healpy_pixel_weights"><code class="docutils literal notranslate"><span class="pre">check_healpy_pixel_weights()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.find_healpy_pixel_weights_dir"><code class="docutils literal notranslate"><span class="pre">find_healpy_pixel_weights_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.get_common_maps"><code class="docutils literal notranslate"><span class="pre">get_common_maps()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.get_related_ipix"><code class="docutils literal notranslate"><span class="pre">get_related_ipix()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.healpy_pixel_weights_available"><code class="docutils literal notranslate"><span class="pre">healpy_pixel_weights_available()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.read_rotation_angles"><code class="docutils literal notranslate"><span class="pre">read_rotation_angles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.rotate_map"><code class="docutils literal notranslate"><span class="pre">rotate_map()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.rotate_map_fast"><code class="docutils literal notranslate"><span class="pre">rotate_map_fast()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.sum_maps"><code class="docutils literal notranslate"><span class="pre">sum_maps()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.healpix_map_utils.html#swiftlet.healpix_map_utils.write_rotated_lightcone_chunks"><code class="docutils literal notranslate"><span class="pre">write_rotated_lightcone_chunks()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.mask_haloes.html">swiftlet.mask_haloes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.mask_haloes.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.attr_scalar"><code class="docutils literal notranslate"><span class="pre">attr_scalar()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.distribute_pixels"><code class="docutils literal notranslate"><span class="pre">distribute_pixels()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.exchange_particles"><code class="docutils literal notranslate"><span class="pre">exchange_particles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.get_map_rotation_angles"><code class="docutils literal notranslate"><span class="pre">get_map_rotation_angles()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.get_num"><code class="docutils literal notranslate"><span class="pre">get_num()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.mask_cluster_apertures_local"><code class="docutils literal notranslate"><span class="pre">mask_cluster_apertures_local()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.message"><code class="docutils literal notranslate"><span class="pre">message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.native_endian"><code class="docutils literal notranslate"><span class="pre">native_endian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.rank_message"><code class="docutils literal notranslate"><span class="pre">rank_message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.read_shell_halo_properties"><code class="docutils literal notranslate"><span class="pre">read_shell_halo_properties()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.rotate_cluster_coords"><code class="docutils literal notranslate"><span class="pre">rotate_cluster_coords()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.route_halos_to_pixel_owners"><code class="docutils literal notranslate"><span class="pre">route_halos_to_pixel_owners()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.mask_haloes.html#swiftlet.mask_haloes.write_binary_masks"><code class="docutils literal notranslate"><span class="pre">write_binary_masks()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.threads.html">swiftlet.threads</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.threads.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.threads.html#swiftlet.threads.available_cores"><code class="docutils literal notranslate"><span class="pre">available_cores()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.threads.html#swiftlet.threads.limit_numba_threads"><code class="docutils literal notranslate"><span class="pre">limit_numba_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.threads.html#swiftlet.threads.limit_openmp_threads"><code class="docutils literal notranslate"><span class="pre">limit_openmp_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.threads.html#swiftlet.threads.max_threads"><code class="docutils literal notranslate"><span class="pre">max_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.threads.html#swiftlet.threads.set_max_threads"><code class="docutils literal notranslate"><span class="pre">set_max_threads()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.threads.html#swiftlet.threads.thread_limit"><code class="docutils literal notranslate"><span class="pre">thread_limit()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="swiftlet.config.html">swiftlet.config</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="swiftlet.config.html#full-reference">Full reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.config.html#swiftlet.config.activate_scripts"><code class="docutils literal notranslate"><span class="pre">activate_scripts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.config.html#swiftlet.config.cli_configure"><code class="docutils literal notranslate"><span class="pre">cli_configure()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.config.html#swiftlet.config.configure"><code class="docutils literal notranslate"><span class="pre">configure()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.config.html#swiftlet.config.default_redshift_dir"><code class="docutils literal notranslate"><span class="pre">default_redshift_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.config.html#swiftlet.config.download_file"><code class="docutils literal notranslate"><span class="pre">download_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.config.html#swiftlet.config.download_shell_redshifts"><code class="docutils literal notranslate"><span class="pre">download_shell_redshifts()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.config.html#swiftlet.config.environment_data_dir"><code class="docutils literal notranslate"><span class="pre">environment_data_dir()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="swiftlet.config.html#swiftlet.config.export_paths_on_activate"><code class="docutils literal notranslate"><span class="pre">export_paths_on_activate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../tests/index.html">Tests</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">SWIFTLET</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">API reference</a></li>
+      <li class="breadcrumb-item active">swiftlet.snapshot_lightcone</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/api/generated/swiftlet.snapshot_lightcone.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-swiftlet.snapshot_lightcone">
+<span id="swiftlet-snapshot-lightcone"></span><h1>swiftlet.snapshot_lightcone<a class="headerlink" href="#module-swiftlet.snapshot_lightcone" title="Link to this heading"></a></h1>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.as_simulation" title="swiftlet.snapshot_lightcone.as_simulation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">as_simulation</span></code></a></p></td>
+<td><p>Returns a Simulation class object.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.define_redshift_at_comoving_distance_function" title="swiftlet.snapshot_lightcone.define_redshift_at_comoving_distance_function"><code class="xref py py-obj docutils literal notranslate"><span class="pre">define_redshift_at_comoving_distance_function</span></code></a></p></td>
+<td><p>Build an interpolation function for the redshift at a given comoving distance.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.message" title="swiftlet.snapshot_lightcone.message"><code class="xref py py-obj docutils literal notranslate"><span class="pre">message</span></code></a></p></td>
+<td><p>Print a new message if on the prime (zero) rank, or if not using MPI.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.print_coord_ranges" title="swiftlet.snapshot_lightcone.print_coord_ranges"><code class="xref py py-obj docutils literal notranslate"><span class="pre">print_coord_ranges</span></code></a></p></td>
+<td><p>Print the minimum and maximum of the coordinates along each axis.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.rank_message" title="swiftlet.snapshot_lightcone.rank_message"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rank_message</span></code></a></p></td>
+<td><p>Print a new message with a timestamp and the rank number on each rank.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.read_lightcone_metadata" title="swiftlet.snapshot_lightcone.read_lightcone_metadata"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_lightcone_metadata</span></code></a></p></td>
+<td><p>Read the settings written by write_lightcone_metadata.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.seperator_str" title="swiftlet.snapshot_lightcone.seperator_str"><code class="xref py py-obj docutils literal notranslate"><span class="pre">seperator_str</span></code></a></p></td>
+<td><p>Make fancy line separation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.write_halo_lightcone_file" title="swiftlet.snapshot_lightcone.write_halo_lightcone_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_halo_lightcone_file</span></code></a></p></td>
+<td><p>Write the halo lightcone data to a .hdf5 file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.write_lightcone_metadata" title="swiftlet.snapshot_lightcone.write_lightcone_metadata"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_lightcone_metadata</span></code></a></p></td>
+<td><p>Write the settings that made a lightcone as attributes of an HDF5 file, group or dataset.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Classes</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.FileReadSpec" title="swiftlet.snapshot_lightcone.FileReadSpec"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FileReadSpec</span></code></a></p></td>
+<td><p>Create new instance of FileReadSpec(snap_nr, tile, file_nr, offsets, lengths)</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.HaloCatalogueSpec" title="swiftlet.snapshot_lightcone.HaloCatalogueSpec"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HaloCatalogueSpec</span></code></a></p></td>
+<td><p>Create new instance of HaloCatalogueSpec(snap_nr, tile, filename, z_range)</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.HaloReadPiece" title="swiftlet.snapshot_lightcone.HaloReadPiece"><code class="xref py py-obj docutils literal notranslate"><span class="pre">HaloReadPiece</span></code></a></p></td>
+<td><p>Create new instance of HaloReadPiece(snap_nr, start, stop)</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.LightconeOutput" title="swiftlet.snapshot_lightcone.LightconeOutput"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LightconeOutput</span></code></a></p></td>
+<td><p>The output dictionary object for particles or haloes placed in a lightcone.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotAllSky" title="swiftlet.snapshot_lightcone.SnapshotAllSky"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SnapshotAllSky</span></code></a></p></td>
+<td><p>Class for constructing an all-sky lightcone from snapshots.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotBeam" title="swiftlet.snapshot_lightcone.SnapshotBeam"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SnapshotBeam</span></code></a></p></td>
+<td><p>Class for constructing a pencil beam lightcone, about a single line of sight, from snapshots.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotLightcone" title="swiftlet.snapshot_lightcone.SnapshotLightcone"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SnapshotLightcone</span></code></a></p></td>
+<td><p>Fundamental code used to construct lightcones from snapshots with SnapshotBeam and SnapshotAllSky sub classes.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotReadRecord" title="swiftlet.snapshot_lightcone.SnapshotReadRecord"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SnapshotReadRecord</span></code></a></p></td>
+<td><p>Create new instance of SnapshotReadRecord(snap_nr, tile, z_updated)</p></td>
+</tr>
+</tbody>
+</table>
+<section id="full-reference">
+<h2>Full reference<a class="headerlink" href="#full-reference" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.as_simulation">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">as_simulation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">boxsize_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_suite_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_base_dir_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_object</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#as_simulation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.as_simulation" title="Link to this definition"></a></dt>
+<dd><p>Returns a Simulation class object.</p>
+<dl class="simple">
+<dt>The simulation a lightcone is built from:</dt><dd><ul class="simple">
+<li><p>a Simulation given as simulation (or as boxsize_resolution, the first argument of the lightcone classes),</p></li>
+<li><p>made from boxsize_resolution and simulation_name (see simulations.Simulation.from_label)</p></li>
+</ul>
+</dd>
+</dl>
+<p>Transform inputs into swiftlet.simulations object and acts as wrapper.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>boxsize_resolution</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em> or </em><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation" title="swiftlet.simulation_suites.Simulation"><em>Simulation</em></a>) – box size and resolution label, e.g. “L1000N1800”, or a Simulation</p></li>
+<li><p><strong>simulation_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – name of the simulation, e.g. “HYDRO_FIDUCIAL”</p></li>
+<li><p><strong>simulation_suite_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – “flamingo” or “colibre”. If None, found from boxsize_resolution</p></li>
+<li><p><strong>simulation_base_dir_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – directory of the simulation, with {box_res} and {sim_name} fields. If None,
+the suite’s directory</p></li>
+<li><p><strong>simulation</strong> (<a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation" title="swiftlet.simulation_suites.Simulation"><em>Simulation</em></a>) – the simulation</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.define_redshift_at_comoving_distance_function">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">define_redshift_at_comoving_distance_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cosmo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zmin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_grid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'precise'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#define_redshift_at_comoving_distance_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.define_redshift_at_comoving_distance_function" title="Link to this definition"></a></dt>
+<dd><p>Build an interpolation function for the redshift at a given comoving distance.</p>
+<p>Returns a CubicSpline function taking comoving distance [Mpc] and returning redshift.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cosmo</strong> (<a class="reference internal" href="swiftlet.snapshot_cosmology.html#swiftlet.snapshot_cosmology.SnapshotCosmology" title="swiftlet.snapshot_cosmology.SnapshotCosmology"><em>SnapshotCosmology</em></a><em>, </em><em>astropy cosmology</em><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – cosmology of the simulation</p></li>
+<li><p><strong>zmin</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – minimum redshift of the grid</p></li>
+<li><p><strong>zmax</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – maximum redshift of the grid</p></li>
+<li><p><strong>n_grid</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – number of points in the grid</p></li>
+<li><p><strong>method</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – <p>‘fast’, a uniform grid in redshift, requires less computations now, but few % loss in
+precision when interpolating later on.
+‘precise’, a uniform grid in comoving distance, more transforms required now</p>
+<blockquote>
+<div><p>but less of a drop in precision when interpolating later on</p>
+</div></blockquote>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.message">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rank</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_date_update</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#message"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.message" title="Link to this definition"></a></dt>
+<dd><p>Print a new message if on the prime (zero) rank, or if not using MPI.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rank</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – MPI rank. If None, always print</p></li>
+<li><p><strong>m</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – message to print</p></li>
+<li><p><strong>time_date_update</strong> (<em>boolean</em>) – If True, prefix the message with the current time</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.print_coord_ranges">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">print_coord_ranges</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indent</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rank</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#print_coord_ranges"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.print_coord_ranges" title="Link to this definition"></a></dt>
+<dd><p>Print the minimum and maximum of the coordinates along each axis.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong> (<em>np.ndarray</em><em> or </em><em>unyt.unyt_array</em>) – coordinates, shape (N, 3)</p></li>
+<li><p><strong>indent</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – number of tabs to indent each line by</p></li>
+<li><p><strong>rank</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – MPI rank, only rank 0 prints. If None, always print</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.rank_message">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">rank_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rank</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#rank_message"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.rank_message" title="Link to this definition"></a></dt>
+<dd><p>Print a new message with a timestamp and the rank number on each rank.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rank</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – MPI rank</p></li>
+<li><p><strong>m</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – message to print</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.read_lightcone_metadata">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">read_lightcone_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hdf5_object</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#read_lightcone_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.read_lightcone_metadata" title="Link to this definition"></a></dt>
+<dd><p>Read the settings written by write_lightcone_metadata.</p>
+<p>Returns a dict of the settings, with “none” read back as None, except orientation_lock, which is recorded as “none”.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>hdf5_object</strong> (<a class="reference external" href="https://docs.h5py.org/en/stable/high/file.html#h5py.File" title="(in h5py v3.16)"><em>h5py.File</em></a><em>, </em><a class="reference external" href="https://docs.h5py.org/en/stable/high/group.html#h5py.Group" title="(in h5py v3.16)"><em>h5py.Group</em></a><em> or </em><a class="reference external" href="https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset" title="(in h5py v3.16)"><em>h5py.Dataset</em></a>) – h5py file, group or dataset holding the attributes</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.seperator_str">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">seperator_str</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">line_seperator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'~'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#seperator_str"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.seperator_str" title="Link to this definition"></a></dt>
+<dd><p>Make fancy line separation.</p>
+<p>Returns a newline followed by the separator line.
+:param  n:              number of characters in the line
+:type   n:              int
+:param  line_seperator: character used to draw the line
+:type   line_seperator: str</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.write_halo_lightcone_file">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">write_halo_lightcone_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">haloes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">soap_filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">properties</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nside</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nest'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#write_halo_lightcone_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.write_halo_lightcone_file" title="Link to this definition"></a></dt>
+<dd><p>Write the halo lightcone data to a .hdf5 file.</p>
+<p>Write haloes placed in a lightcone to a .hdf5 file in the format of the lightcone_io (FLAMINGO) halo lightcones,
+so lightcone_io.halo_reader.HaloLightconeFile can read it:</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – path of the HDF5 file to write, e.g. lightcone_haloes_0127.hdf5</p></li>
+<li><p><strong>haloes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a>) – haloes placed by place_haloes_in_shell, all of them on this rank</p></li>
+<li><p><strong>soap_filename</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – SOAP catalogue of the haloes’ snapshot, for the unit attributes and the Cosmology and
+Units groups</p></li>
+<li><p><strong>properties</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a>) – {name: values} of SOAP properties of each halo to write, e.g. {“InputHalos/IsCentral”: …}</p></li>
+<li><p><strong>metadata</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a>) – .metadata of the haloes placed, see SnapshotLightcone.lightcone_metadata</p></li>
+<li><p><strong>nside</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – HEALPix resolution of the index, as lightcone_io uses (16)</p></li>
+<li><p><strong>order</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – HEALPix pixel ordering of the index, “nest” or “ring”</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.write_lightcone_metadata">
+<span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">write_lightcone_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hdf5_object</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#write_lightcone_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.write_lightcone_metadata" title="Link to this definition"></a></dt>
+<dd><p>Write the settings that made a lightcone as attributes of an HDF5 file, group or dataset.</p>
+<p>None is written as “none”.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>hdf5_object</strong> (<a class="reference external" href="https://docs.h5py.org/en/stable/high/file.html#h5py.File" title="(in h5py v3.16)"><em>h5py.File</em></a><em>, </em><a class="reference external" href="https://docs.h5py.org/en/stable/high/group.html#h5py.Group" title="(in h5py v3.16)"><em>h5py.Group</em></a><em> or </em><a class="reference external" href="https://docs.h5py.org/en/stable/high/dataset.html#h5py.Dataset" title="(in h5py v3.16)"><em>h5py.Dataset</em></a>) – h5py file, group or dataset to add the attributes to</p></li>
+<li><p><strong>metadata</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a>) – the settings, see SnapshotLightcone.lightcone_metadata</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.FileReadSpec">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">FileReadSpec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snap_nr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_nr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offsets</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lengths</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#swiftlet.snapshot_lightcone.FileReadSpec" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a></p>
+<p>Create new instance of FileReadSpec(snap_nr, tile, file_nr, offsets, lengths)</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.FileReadSpec.file_nr">
+<span class="sig-name descname"><span class="pre">file_nr</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.FileReadSpec.file_nr" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.FileReadSpec.lengths">
+<span class="sig-name descname"><span class="pre">lengths</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.FileReadSpec.lengths" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 4</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.FileReadSpec.offsets">
+<span class="sig-name descname"><span class="pre">offsets</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.FileReadSpec.offsets" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 3</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.FileReadSpec.snap_nr">
+<span class="sig-name descname"><span class="pre">snap_nr</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.FileReadSpec.snap_nr" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.FileReadSpec.tile">
+<span class="sig-name descname"><span class="pre">tile</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.FileReadSpec.tile" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloCatalogueSpec">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">HaloCatalogueSpec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snap_nr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_range</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloCatalogueSpec" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a></p>
+<p>Create new instance of HaloCatalogueSpec(snap_nr, tile, filename, z_range)</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloCatalogueSpec.filename">
+<span class="sig-name descname"><span class="pre">filename</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloCatalogueSpec.filename" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloCatalogueSpec.snap_nr">
+<span class="sig-name descname"><span class="pre">snap_nr</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloCatalogueSpec.snap_nr" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloCatalogueSpec.tile">
+<span class="sig-name descname"><span class="pre">tile</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloCatalogueSpec.tile" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloCatalogueSpec.z_range">
+<span class="sig-name descname"><span class="pre">z_range</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloCatalogueSpec.z_range" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 3</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloReadPiece">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">HaloReadPiece</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snap_nr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloReadPiece" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a></p>
+<p>Create new instance of HaloReadPiece(snap_nr, start, stop)</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloReadPiece.snap_nr">
+<span class="sig-name descname"><span class="pre">snap_nr</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloReadPiece.snap_nr" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloReadPiece.start">
+<span class="sig-name descname"><span class="pre">start</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloReadPiece.start" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.HaloReadPiece.stop">
+<span class="sig-name descname"><span class="pre">stop</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.HaloReadPiece.stop" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.LightconeOutput">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">LightconeOutput</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#LightconeOutput"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.LightconeOutput" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">dict</span></code></a></p>
+<p>The output dictionary object for particles or haloes placed in a lightcone.</p>
+<p>The .metadata object tracks the settings used to make the lightcone.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotAllSky">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">SnapshotAllSky</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_object</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_suite_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boxsize_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_base_dir_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_lock</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotAllSky"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotAllSky" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotLightcone" title="swiftlet.snapshot_lightcone.SnapshotLightcone"><code class="xref py py-class docutils literal notranslate"><span class="pre">SnapshotLightcone</span></code></a></p>
+<p>Class for constructing an all-sky lightcone from snapshots.</p>
+<p>Define the all-sky lightcone, passed to SnapshotLightcone with no beam vector.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>simulation_suite_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – “flamingo” or “colibre”.
+If None, found from boxsize_resolution</p></li>
+<li><p><strong>simulation_object</strong> (<em>Simulation object</em><em> (</em><em>swiftlet class object</em><em>, </em><em>see swiftlet.simulation_suites</em><em>)</em>) – the simulation, can be passed instead of boxsize_resolution and
+simulation_name</p></li>
+<li><p><strong>boxsize_resolution</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em> or </em><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation" title="swiftlet.simulation_suites.Simulation"><em>Simulation</em></a>) – box size and resolution label, e.g. “L1000N1800” (FLAMINGO) or “L0200N1504”
+(COLIBRE), or a Simulation (see swiftlet.simulations), then pass
+the other arguments by keyword</p></li>
+<li><p><strong>simulation_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – name of the simulation, e.g. “HYDRO_FIDUCIAL”</p></li>
+<li><p><strong>orientation_seed</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – seed used to select the rotation, reflection and periodic shift of each box
+tile</p></li>
+<li><p><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – amount printed. 0: nothing, only warnings. 1: a summary of each call.
+2: details of every snapshot, box tile and file</p></li>
+<li><p><strong>orientation_lock</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – <dl class="simple">
+<dt>“none”:</dt><dd><p>every box tile has its own orientation.</p>
+</dd>
+<dt>”cube”:</dt><dd><dl class="simple">
+<dt>every box tile in a cube shell of boxes around the observer’s box shares</dt><dd><p>one orientation, so each shell is periodically continuous and the
+orientation only changes on the faces between shells.</p>
+</dd>
+</dl>
+</dd>
+<dt>”sphere”:</dt><dd><p>everything in a spherical shell, between (n-1/2) and (n+1/2) box
+sidelengths from the observer, shares one orientation, so the
+orientation only changes at those distances. A box crossing a
+sphere is used once for each shell, and tiles are labelled
+(nx, ny, nz, layer)</p>
+</dd>
+</dl>
+</p></li>
+<li><p><strong>simulation_base_dir_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – directory of the simulation, with {box_res} and {sim_name} fields. If None,
+the suite’s directory (see simulations.SimulationSuite.directory_format)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotAllSky.lightcone_diameter">
+<span class="sig-name descname"><span class="pre">lightcone_diameter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_comoving_dist</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotAllSky.lightcone_diameter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotAllSky.lightcone_diameter" title="Link to this definition"></a></dt>
+<dd><p>Returns diameter [Mpc] of the past lightcone at a given redshift.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>z</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – redshift, or comoving distance [Mpc] if use_comoving_dist is True</p></li>
+<li><p><strong>cosmo</strong> (<em>astropy cosmology object</em>) – cosmology. If given, replaces the stored cosmology</p></li>
+<li><p><strong>use_comoving_dist</strong> (<em>boolean</em>) – If True, then z is passed as a comoving distance from the observer</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotAllSky.get_snapshot_reposition_coords">
+<span class="sig-name descname"><span class="pre">get_snapshot_reposition_coords</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_sidelengths</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotAllSky.get_snapshot_reposition_coords"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotAllSky.get_snapshot_reposition_coords" title="Link to this definition"></a></dt>
+<dd><p>Returns the coordinate offset of a snapshot box from the observer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tile</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a>) – (nx, ny, nz) tile index</p></li>
+<li><p><strong>snapshot_sidelengths</strong> (<em>np.ndarray</em>) – side lengths [Mpc] of the snapshot box</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotBeam">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">SnapshotBeam</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_object</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_suite_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boxsize_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_base_dir_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beam_vector</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_lock</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotBeam"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotBeam" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#swiftlet.snapshot_lightcone.SnapshotLightcone" title="swiftlet.snapshot_lightcone.SnapshotLightcone"><code class="xref py py-class docutils literal notranslate"><span class="pre">SnapshotLightcone</span></code></a></p>
+<p>Class for constructing a pencil beam lightcone, about a single line of sight, from snapshots.</p>
+<p>Define the beam.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>simulation_suite_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – “flamingo” or “colibre”.
+If None, found from boxsize_resolution</p></li>
+<li><p><strong>boxsize_resolution</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em> or </em><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation" title="swiftlet.simulation_suites.Simulation"><em>Simulation</em></a><em> (</em><em>swiftlet object</em><em>)</em>) – box size and resolution label, e.g. “L1000N1800” (FLAMINGO) or “L0200N1504”
+(COLIBRE), or a Simulation (see swiftlet.simulations), then pass the
+other arguments by keyword</p></li>
+<li><p><strong>simulation_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – name of the simulation, e.g. “HYDRO_FIDUCIAL”</p></li>
+<li><p><strong>simulation_base_dir_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – directory of the simulation, with {box_res} and {sim_name} fields. If None,
+the suite’s directory (see
+simulation_suites.SimulationSuite.directory_format)</p></li>
+<li><p><strong>simulation_object</strong> (<a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation" title="swiftlet.simulation_suites.Simulation"><em>Simulation</em></a>) – the simulation, instead of boxsize_resolution and simulation_name</p></li>
+<li><p><strong>beam_vector</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><em>numpy.ndarray</em></a>) – direction vector of the line of sight as an array of 3 floats</p></li>
+<li><p><strong>orientation_seed</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – seed used to select the rotation, reflection and periodic shift of each
+box tile</p></li>
+<li><p><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – amount printed.
+0: nothing, only warnings.
+1: a summary of each call.
+2: details of every snapshot, box tile and file</p></li>
+<li><p><strong>orientation_lock</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – <dl class="simple">
+<dt>“none”:</dt><dd><p>every box tile has its own orientation.</p>
+</dd>
+<dt>”cube”:</dt><dd><p>every box tile in a cube shell of boxes around the observer’s box
+shares one orientation, so each shell is periodically continuous and the
+orientation only changes on the faces between shells.</p>
+</dd>
+<dt>”sphere”:</dt><dd><p>everything in a spherical shell, between (n-1/2) and (n+1/2) box
+sidelengths from the observer, shares one orientation, so the
+orientation only changes at those distances. A box crossing a
+sphere is used once for each shell, and tiles are labelled
+(nx, ny, nz, layer)</p>
+</dd>
+</dl>
+</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotBeam.beam_diameter">
+<span class="sig-name descname"><span class="pre">beam_diameter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_radius_deg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cosmo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_comoving_dist</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotBeam.beam_diameter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotBeam.beam_diameter" title="Link to this definition"></a></dt>
+<dd><p>Returns diameter [Mpc] of the beam’s cone (angular radius ang_radius_deg) at a given redshift.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>z</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – redshift, or comoving distance [Mpc] if use_comoving_dist is True</p></li>
+<li><p><strong>ang_radius_deg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – angular radius [deg] of the beam</p></li>
+<li><p><strong>cosmo</strong> (<em>astropy cosmology object</em>) – cosmology. If given, replaces the stored cosmology</p></li>
+<li><p><strong>use_comoving_dist</strong> (<em>boolean</em>) – If True, then z is passed as a comoving distance from the observer</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotBeam.get_snapshot_reposition_coords">
+<span class="sig-name descname"><span class="pre">get_snapshot_reposition_coords</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_sidelengths</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotBeam.get_snapshot_reposition_coords"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotBeam.get_snapshot_reposition_coords" title="Link to this definition"></a></dt>
+<dd><p>Returns the offset of a snapshots geometric centre at its position on the lattice of tiles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tile</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a>) – (nx, ny, n_los), the tile’s lattice position along the x, y or z axis
+closest to e1, e2 and beam_vec (see __init_tile_frame for more details)</p></li>
+<li><p><strong>snapshot_sidelengths</strong> (<em>np.ndarray</em>) – side lengths [Mpc] of the snapshot box</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">SnapshotLightcone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simulation_object</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_suite_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boxsize_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simulation_base_dir_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beam_vector</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_lock</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_table</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Fundamental code used to construct lightcones from snapshots with SnapshotBeam and SnapshotAllSky sub classes.</p>
+<p>Each sub class is built to handle their specific lightcone geometry.</p>
+<dl class="simple">
+<dt>This class tracks:</dt><dd><ol class="arabic simple">
+<li><dl class="simple">
+<dt>periodic replications of snapshots and their reorientation</dt><dd><p>to avoid exact replication of structures.</p>
+</dd>
+</dl>
+</li>
+<li><p>reading and placing particles from snapshots into the lightcone</p></li>
+<li><p>snapshot cosmology</p></li>
+<li><p>MPI ranks and communication between ranks</p></li>
+</ol>
+</dd>
+</dl>
+<p>The exact methods of identifying particles within the lightcones footprint and how the
+snapshot box replication occurs is handled in the SnapshotBeam and SnapshotAllSky sub classes.</p>
+<p>Define the lightcone’s cosmology, units and vector (where applicable) for the given simulation.</p>
+<p>Build a Simulation object from the given simulation suite, boxsize, resolution and simulation name.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>simulation_suite</strong><strong>)</strong><strong>name</strong> – “flamingo” or “colibre”.
+If None, found from boxsize_resolution,
+see simulation_suites.suite_for_label</p></li>
+<li><p><strong>boxsize_resolution</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em> or </em><a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation" title="swiftlet.simulation_suites.Simulation"><em>Simulation</em></a><em> (</em><em>swiftlet class object</em><em>)</em>) – box size and resolution label,
+e.g. “L1000N1800” (FLAMINGO) or “L0200N1504” (COLIBRE),
+or a Simulation (see swiftlet.simulations), then pass the other
+arguments by keyword</p></li>
+<li><p><strong>simulation_name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – name of the simulation, e.g. “HYDRO_FIDUCIAL”</p></li>
+<li><p><strong>simulation_base_dir_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – directory of the simulation, with {box_res} and {sim_name} fields.
+If None, the suite’s directory
+(see simulations.SimulationSuite.directory_format)</p></li>
+<li><p><strong>simulation_object</strong> (<a class="reference internal" href="swiftlet.simulation_suites.html#swiftlet.simulation_suites.Simulation" title="swiftlet.simulation_suites.Simulation"><em>Simulation</em></a><em>, </em><em>swiftlet Simulation class object</em>) – the simulation, instead of boxsize_resolution and simulation_name</p></li>
+<li><p><strong>beam_vector</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><em>numpy.ndarray</em></a>) – direction vector of the line of sight as an array of 3 floats. None for
+all-sky</p></li>
+<li><p><strong>orientation_seed</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – seed used to select the rotation, reflection and periodic shift of each box
+tile.</p></li>
+<li><p><strong>orientation_lock</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – <dl class="simple">
+<dt>“none”:</dt><dd><p>every box tile has its own orientation.</p>
+</dd>
+<dt>”cube”:</dt><dd><p>every box tile in a cube shell of boxes around the observer’s
+box shares one orientation, so each shell is periodically continuous
+and theorientation only changes on the faces between shells.</p>
+</dd>
+<dt>”sphere”:</dt><dd><p>everything in a spherical shell, between (n-1/2) and (n+1/2) box
+sidelengths from the observer, shares one orientation, so the
+orientation only changes at those distances. A box crossing a
+sphere is used once for each shell, and tiles are labelled
+(nx, ny, nz, layer)</p>
+</dd>
+</dl>
+</p></li>
+<li><p><strong>orientation_table</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – path of an HDF5 file of orientation tables (see
+snapshot_orientation.write_orientation_tables) to take the
+quarter turns, reflections and cell shifts of the box tiles from.
+If None, use the default tables.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.lightcone_metadata">
+<span class="sig-name descname"><span class="pre">lightcone_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">redshift_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_radius_deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.lightcone_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.lightcone_metadata" title="Link to this definition"></a></dt>
+<dd><p>Returns the lightcone metadata, a dict with the names LIGHTCONE_METADATA_NAMES.</p>
+<p>Metadata tracks the settings that made the lightcone and a record of everything placed in it:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>orientation_seed</p></li>
+<li><p>orientation_lock</p></li>
+<li><dl class="simple">
+<dt>orientation table (file and fingerprint of its contents) that set the</dt><dd><p>orientation of every box tile,</p>
+</dd>
+</dl>
+</li>
+<li><p>the simulation,</p></li>
+<li><p>the beam</p></li>
+<li><p>the redshift range.</p></li>
+</ul>
+</div></blockquote>
+<p>Given the same settings and snapshots, the same exact lightcone can be made again.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>redshift_range</strong> (<em>sequence</em><em> of </em><em>two floats</em>) – minimum and maximum redshift of the shell placed</p></li>
+<li><p><strong>ang_radius_deg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – angular radius [deg] of the beam, None for all-sky</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.snapshots_for_shell">
+<span class="sig-name descname"><span class="pre">snapshots_for_shell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shell_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">halo_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">range_tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.snapshots_for_shell"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.snapshots_for_shell" title="Link to this definition"></a></dt>
+<dd><p>Returns the snapshot numbers for the redshift range of the lightcone shell, from low to high redshift.</p>
+<p>Read ahead and find which snapshots are available (for particles and SOAP catalogues),
+then identify which snapshots fill the lightcones redshift range.</p>
+<p>If any snapshots are missing, fill the gap in redshft with the neighbouring available snapshots.
+When filling gaps raise a SnapshotGapWarning.</p>
+<p>Raise a ValueError if the redshift spacing between the snapshots is greater than
+the MAX_SNAPSHOT_SPACING.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shell_z</strong> (<em>sequence</em><em> of </em><em>two floats</em>) – minimum and maximum redshift of the lightcone shell [z_min, z_max]</p></li>
+<li><p><strong>halo_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – see gather_halo_catalogues. If None, the snapshot files are looked for</p></li>
+<li><p><strong>range_tol</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – a snapshot edge within range_tol of the shell counts as touching it</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.gather_files">
+<span class="sig-name descname"><span class="pre">gather_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">current_ptype</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shell_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_radius_deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_snapshots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.gather_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.gather_files" title="Link to this definition"></a></dt>
+<dd><p>Determine the snapshot files containing the particles needed to populate the lightcone.</p>
+<p>For a single particle type, determine every (snapshot, tile, file) needed to populate the
+given redshift shell, without reading any particle data.
+Serial-only.</p>
+<dl class="simple">
+<dt>Returns (numb_files, self.snap_file_offset_lengths).</dt><dd><p>the number of files found and the list of FileReadSpec entries itself.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>current_ptype</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – particle type to gather, e.g. “PartType1”</p></li>
+<li><p><strong>shell_z</strong> (<em>sequence</em><em> of </em><em>two floats</em>) – minimum and maximum redshift of the lightcone shell [z_min, z_max]</p></li>
+<li><p><strong>ang_radius_deg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – angular radius [deg] of the beam.
+Needed by SnapshotBeam, ignored if None.</p></li>
+<li><p><strong>use_snapshots</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> or </em><em>np.ndarray</em>) – snapshot numbers to use instead of the ones auto-selected from shell_z</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.place_file_in_shell">
+<span class="sig-name descname"><span class="pre">place_file_in_shell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_number</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_ptype</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">property_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_radius_deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.place_file_in_shell"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.place_file_in_shell" title="Link to this definition"></a></dt>
+<dd><p>Read and place a single file, selected by index, into the beam.</p>
+<p>Returns the same per property particle data as place_snapshot_particles_in_shell, but containing
+only the particles kept in the selected file.</p>
+<p>Returns an empty dictionary if there are no particles from the file inside the beam.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_number</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – index into self.snap_file_offset_lengths</p></li>
+<li><p><strong>current_ptype</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – particle type being placed, e.g. “PartType1”
+(must match the ptype passed to gather_files)</p></li>
+<li><p><strong>property_names</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a>) – particle properties to read, e.g. [“ParticleIDs”, “Coordinates”]</p></li>
+<li><p><strong>ang_radius_deg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – angular radius [deg] of the beam (must match the value passed to gather_files)
+Needed by SnapshotBeam, ignored if None.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.place_snapshot_particles_in_shell">
+<span class="sig-name descname"><span class="pre">place_snapshot_particles_in_shell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lightcone_redshift_range</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">property_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_radius_deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">particle_types</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['PartType0',</span> <span class="pre">'PartType1',</span> <span class="pre">'PartType5']</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_snapshots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">comm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">redistibute_particles</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.place_snapshot_particles_in_shell"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.place_snapshot_particles_in_shell" title="Link to this definition"></a></dt>
+<dd><p>Read and place every particle of the given type(s) into a lightcone shell.</p>
+<p>Returns a dict of particle data per particle type.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lightcone_redshift_range</strong> (<em>sequence</em><em> of </em><em>two floats</em>) – minimum and maximum redshift of the lightcone shell [z_min, z_max]</p></li>
+<li><p><strong>ang_radius_deg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – angular radius [deg] of the beam.
+Needed by SnapshotBeam, ignored if None.</p></li>
+<li><p><strong>property_names</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a>) – particle properties to read, e.g. [“ParticleIDs”, “Coordinates”]</p></li>
+<li><p><strong>particle_types</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a>) – particle type(s) to place, e.g. “PartType1”</p></li>
+<li><p><strong>use_snapshots</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> or </em><em>np.ndarray</em>) – snapshot numbers to use instead of the ones auto-selected</p></li>
+<li><p><strong>comm</strong> (<em>mpi4py.MPI.Comm</em>) – MPI communicator. If None, read in serial</p></li>
+<li><p><strong>redistibute_particles</strong> (<em>boolean</em>) – If True, redistribute particles evenly across MPI ranks</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.inverse_transform_snapshot_coordinates">
+<span class="sig-name descname"><span class="pre">inverse_transform_snapshot_coordinates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rot_angles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reflections</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">periodic_cell_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'xyz'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">degrees</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inplace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.inverse_transform_snapshot_coordinates"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.inverse_transform_snapshot_coordinates" title="Link to this definition"></a></dt>
+<dd><p>Given coordinates produced by transform_snapshot_coordinates, recover the original input coordinates.</p>
+<p>Params: identical to transform_snapshot_coordinates.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(N,3) snapshot-frame coordinates that, if passed
+through transform_snapshot_coordinates with the same other
+arguments, would reproduce the input <cite>coords</cite>.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Coordinates</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.Snapshot2Lightcone">
+<span class="sig-name descname"><span class="pre">Snapshot2Lightcone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snapshot_number</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.Snapshot2Lightcone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.Snapshot2Lightcone" title="Link to this definition"></a></dt>
+<dd><p>Translate snapshot coordinates into lightcone coordinates for every tile a snapshot supplies to the lightcone.</p>
+<p>This function only knows about tiles from the most recently gathered shell and relies on
+self.last_snapshot_read being populated by either gather_files, place_snapshot_particles_in_shell or
+the internal _gather_files_for_ptype they both call.</p>
+<p>Note: A single snapshot number can supply more than one periodic replica tile to the same shell due to
+independent rotation,  reflection and periodic shifts.</p>
+<p>Returns a dict {tile: lightcone_coords}, one entry per tile this snapshot supplies to the last gathered shell.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>snapshot_number</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – snapshot number</p></li>
+<li><p><strong>coords</strong> (<em>np.ndarray</em>) – comoving snapshot-frame (box) coordinates [Mpc], shape (N, 3)</p></li>
+<li><p><strong>tile</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a>) – a specific periodic replica described by (nx, ny, n_los) for SnapshotBeam or
+(nx, ny, nz) for SnapshotAllSky. If given, self.last_snapshot_read
+is not consulted at all, so this works as a standalone method (no gather_files/
+place_snapshot_particles_in_shell call needed first).
+If None, every tile this snapshot supplies to the last-gathered shell is used.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.Lightcone2Snapshot">
+<span class="sig-name descname"><span class="pre">Lightcone2Snapshot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_number</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.Lightcone2Snapshot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.Lightcone2Snapshot" title="Link to this definition"></a></dt>
+<dd><p>Inverse of Snapshot2Lightcone.</p>
+<p>Translate lightcone frame coordinates back into the snapshot numbers and snapshot frame coordinates.
+This function relies on self.last_snapshot_read and only knows about snapshots and tiles from the most
+recently gathered shell.
+Which snapshot a lightcone particle belongs to is determined from its comoving distance alone.
+Within a matched snapshot the snapshot number alone doesn’t say which of its tiles a given
+point’s orientation should be inverted to.
+Therefore, this function inverts every one of that snapshot’s tiles and returns all of them.
+Only one is the ‘real’ originating tile for any given point .</p>
+<dl>
+<dt>Returns a dict {snapshot_number: {tile: (point_index, snapshot_coords)}}.</dt><dd><dl class="simple">
+<dt>point_index:        an integer array indexing into the input coords, i.e., which of the input points</dt><dd><p>matched the snapshot_number</p>
+</dd>
+</dl>
+<p>snapshot_coords:    the corresponding snapshot frame coordinates after inverting through tile’s orientation</p>
+</dd>
+</dl>
+<p>Note: Points whose comoving distance doesn’t fall inside any recorded snapshot’s range are dropped</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>coords</strong> (<em>np.ndarray</em>) – comoving lightcone-frame coordinates [Mpc], shape (N, 3)</p></li>
+<li><p><strong>snapshot_number</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – skip distance-based snapshot matching and assume every point belongs to this
+snapshot</p></li>
+<li><p><strong>tile</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a>) – skip tile lookup and invert only through this one tile.
+Requires snapshot_number to also be given</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.gather_halo_catalogues">
+<span class="sig-name descname"><span class="pre">gather_halo_catalogues</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">halo_format</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shell_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_radius_deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_snapshots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_number</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.gather_halo_catalogues"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.gather_halo_catalogues" title="Link to this definition"></a></dt>
+<dd><p>Halo counterpart of gather_files.</p>
+<p>For every snapshot that populates the shell, find the tiles s snapshot is moved into, a done for the particles.
+The box and cell grid used to move haloes into the tiles are the same in every snapshot, so the cell metadata of
+only one snapshot is read (snapshot_number).</p>
+<p>SOAP catalogues are not sorted by cell, so unlike for particles no cells are selected and every halo of a
+catalogue is tested.</p>
+<p>Each SOAP catalogue to read is recorded with its tile and the tile’s redshift range as a HaloCatalogueSpec.
+As done for particles, the tiles are also recorded.</p>
+<p>Returns self.halo_catalogues_to_read</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>halo_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – format string of the SOAP catalogue filenames, using {snap_nr}</p></li>
+<li><p><strong>shell_z</strong> (<em>sequence</em><em> of </em><em>two floats</em>) – minimum and maximum redshift of the lightcone shell [z_min, z_max]</p></li>
+<li><p><strong>ang_radius_deg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – angular radius [deg] of the beam, ignored if None.
+Needed by SnapshotBeam and None for SnapshotAllSky.</p></li>
+<li><p><strong>use_snapshots</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> or </em><em>np.ndarray</em>) – snapshot numbers to use instead of the ones auto-selected from shell_z</p></li>
+<li><p><strong>snapshot_number</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – the snapshot to read the box and cell metadata from. If None, the lowest redshift
+snapshot used</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell">
+<span class="sig-name descname"><span class="pre">place_halos_in_shell</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">halo_format</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lightcone_redshift_range</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_radius_deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_snapshots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">soap_chunk_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">comm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">redistribute_halos</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">snapshot_number</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/swiftlet/snapshot_lightcone.html#SnapshotLightcone.place_halos_in_shell"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell" title="Link to this definition"></a></dt>
+<dd><p>Halo counterpart of place_snapshot_particles_in_shell.</p>
+<p>Place the haloes of SOAP catalogues in a lightcone shell, exactly as done for the particles.
+If gather_halo_catalogues has already been called with the same arguments then the first gather pass
+is not repeated. Then the catalogues are read, and their haloes moved into the lightcone exactly as
+particles are and kept if they are in the shell.</p>
+<dl class="simple">
+<dt>How the SOAP catalogues are read:</dt><dd><ul class="simple">
+<li><p>in serial (no comm, one MPI rank):  soap_chunk_size rows at a time, or each catalogue as a whole if None.</p></li>
+<li><dl class="simple">
+<dt>with MPI:    the catalogues are split into</dt><dd><dl class="simple">
+<dt>pieces of soap_chunk_size rows (if None, each catalogue into one piece per rank), shared between the</dt><dd><p>ranks as particle files are. Each rank reads only its own pieces, and returns the haloes it placed.
+With redistribute_halos, the haloes are then shared evenly between the ranks.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+<p>The haloes placed are the same whichever way the catalogues are read (serial or MPI).</p>
+<dl class="simple">
+<dt>Tracks the minimum number of properties needed to look up any other property in the SOAP catalogues later:</dt><dd><ul class="simple">
+<li><p>Lightcone/HaloCentre: the halo’s centre, transformed into the lightcone frame exactly like a particle’s
+Coordinates.</p></li>
+<li><p>Lightcone/ExpansionFactor: the expansion factor at the halo’s lightcone comoving distance.</p></li>
+<li><p>Lightcone/SnapshotNumber: the snapshot the halo came from.</p></li>
+<li><p>InputHalos/HaloCatalogueIndex: the halo’s index in that snapshot’s SOAP catalogue, as written in it.</p></li>
+<li><p>InputHalos/SOAPIndex: the row of the halo in that snapshot’s SOAP catalogue.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns a LightconeOutput of these properties, one row per halo placed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>halo_format</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – format string for SOAP catalogue filenames (using {snap_nr})</p></li>
+<li><p><strong>lightcone_redshift_range</strong> (<em>sequence</em><em> of </em><em>two floats</em>) – minimum and maximum redshift of the shell to populate [z_min, z_max]</p></li>
+<li><p><strong>ang_radius_deg</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – angular radius [deg] of the beam, ignored if None.
+Needed by SnapshotBeam and None for SnapshotAllSky.</p></li>
+<li><p><strong>use_snapshots</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> or </em><em>np.ndarray</em>) – snapshot numbers to use, as in gather_files, bypassing the usual
+redshift-range lookup</p></li>
+<li><p><strong>soap_chunk_size</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – number of rows of a SOAP catalogue read at a time. If None, see above</p></li>
+<li><p><strong>comm</strong> (<em>mpi4py.MPI.Comm</em>) – MPI communicator. If None, MPI.COMM_WORLD when more than one rank is
+running, otherwise serial</p></li>
+<li><p><strong>redistribute_halos</strong> (<em>boolean</em>) – If True, with MPI, share the haloes placed evenly between the ranks</p></li>
+<li><p><strong>snapshot_number</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – snapshot to read the box and cell metadata from,
+see gather_halo_catalogues</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotReadRecord">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">swiftlet.snapshot_lightcone.</span></span><span class="sig-name descname"><span class="pre">SnapshotReadRecord</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snap_nr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_updated</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotReadRecord" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></a></p>
+<p>Create new instance of SnapshotReadRecord(snap_nr, tile, z_updated)</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotReadRecord.snap_nr">
+<span class="sig-name descname"><span class="pre">snap_nr</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotReadRecord.snap_nr" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotReadRecord.tile">
+<span class="sig-name descname"><span class="pre">tile</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotReadRecord.tile" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="swiftlet.snapshot_lightcone.SnapshotReadRecord.z_updated">
+<span class="sig-name descname"><span class="pre">z_updated</span></span><a class="headerlink" href="#swiftlet.snapshot_lightcone.SnapshotReadRecord.z_updated" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="API reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="swiftlet.simulation_suites.html" class="btn btn-neutral float-right" title="swiftlet.simulation_suites" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, William McDonald.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -8,13 +8,13 @@ import cmasher as cmr  # noqa: F401 registers the "cmr.*" colour maps used by na
 from pathlib import Path
 
 """
-Create two different projections of slices through a beam from an observers past lightcone. 
+Example script to show the creation of two different projections of a slice through a beam of an observers past 
+lightcone. 
 
-Read in gas and dark matter particles from a lightcone of the fiducial L1_m9 FLAMINGO simulation (i.e. L1000N1800/HYDRO_FIDUCIAL). 
-Create a split beam projection for:
-    1) The surface mass density of gas, dark matter and total mass within the beam. 
-    2) The mass weighted and redshift weighted gas temperature within the lightcone. 
-        This demonstrates the  mass weighting function of BeamProjection class. 
+Read in gas and dark matter particles from a lightcone of the fiducial L1_m9 FLAMINGO simulation and then create a  
+split beam projection of:
+    1.  The surface mass density of gas, dark matter and total mass within the beam. 
+    2.  The mass weighted and redshift weighted gas temperature within the lightcone. 
 """
 
 

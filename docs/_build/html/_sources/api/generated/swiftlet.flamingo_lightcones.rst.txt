@@ -1,0 +1,35 @@
+﻿swiftlet.flamingo\_lightcones
+=============================
+
+.. automodule:: swiftlet.flamingo_lightcones
+   :no-members:
+
+
+
+.. rubric:: Functions
+
+.. autosummary::
+   :nosignatures:
+
+   flamingo_box_resolution
+   flamingo_shell_redshift_file
+
+
+
+
+
+
+
+
+
+
+
+Full reference
+--------------
+
+
+.. autofunction:: flamingo_box_resolution
+
+.. autofunction:: flamingo_shell_redshift_file
+
+

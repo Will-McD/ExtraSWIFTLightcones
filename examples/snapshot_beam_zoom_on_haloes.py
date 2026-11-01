@@ -22,13 +22,15 @@ from swiftlet.example_plot_settings import plot_settings
 
 
 """
-The same as map_zoom_on_halo.py but for haloes from the snapshots using lightcones built with SnapshotBeam. 
+An example script the same as map_zoom_on_halo but for haloes from the snapshots using lightcones built 
+with SnapshotBeam. 
+
 For the fiducial L1_m9 FLAMINGO simulation select haloes using the following criteria:
 
     1. Find haloes with M200c close to 10^14 Msun in the SOAP catalogues of the snapshots covering 0.1 < z < 0.2.
-    2. Keep the haloes if the zoomed region around them is inside the zero'th snapshot box, at distances SnapshotBeam fills from
-        the halo's own snapshot. Then select n_haloes from the remaining candidates
-    3. For each halo, build a beam pointing at it, through a slab around the halo, and make small HEALPix maps of
+    2. Keep the haloes if the zoomed region around them is inside the zero'th snapshot box, at distances SnapshotBeam 
+        fills from the halo's own snapshot,  then select n_haloes from the remaining candidates.
+    3. For each candidate halo, build a beam pointing at it, through a slab around the halo, and make smaller maps of
         its particles around the halo:
             - SmoothedGasMass:  gas mass smoothed with the SPH kernel, as the lightcone's maps.
             - GasTemperature:   mass weighted temperature of the gas, smoothed with the SPH kernel.
@@ -36,12 +38,12 @@ For the fiducial L1_m9 FLAMINGO simulation select haloes using the following cri
         distance of the halo.
 
 Notes 
-    1) SnapshotLightcone re-orients the coordinates of the box tiles but not the velocities, so the velocities are
-only along the right directions in the box tile (0, 0, 0), which is not re-oriented. The haloes are chosen so that
-every particle used is in that tile, and this is checked.
+    1. SnapshotLightcone re-orients the coordinates of the box tiles but not the velocities, so the velocities are
+        only along the right directions in the box tile (0, 0, 0), which is not re-oriented. 
+        The haloes are chosen so that every particle used is in that tile, and this is checked.
 
-    2) SnapshotBeam reads the snapshots and SOAP catalogues from the local FLAMINGO directories, so this needs to run
-on COSMA.
+    2. SnapshotBeam reads the snapshots and SOAP catalogues from the local FLAMINGO directories, so this needs to run
+        on COSMA.
 """
 
 # maps of each halo: the particle type, properties and how each particle is added to the map, the colour map and
@@ -190,9 +192,7 @@ def find_candidate_haloes(soap_format, simulation, z_max, log_mass_range, z_min=
     return {name: np.concatenate([haloes[name] for haloes in found]) for name in found[0]}
 
 
-def select_haloes(
-    candidates, box_centre, boxsize, cosmo, simulation, z_max, margin, n_haloes, target_log_mass, z_min=0.0
-):
+def select_haloes(candidates, box_centre, cosmo, simulation, z_max, margin, n_haloes, target_log_mass, z_min=0.0):
     """
     Choose the haloes to zoom on.
     Keep the haloes whose surrounding zoomed in region are
@@ -207,8 +207,6 @@ def select_haloes(
     :type   candidates:         dict
     :param  box_centre:         centre of the snapshot box [Mpc]
     :type   box_centre:         np.ndarray
-    :param  boxsize:            snapshot box sidelength [Mpc]
-    :type   boxsize:            float
     :param  cosmo:              cosmology of the snapshots
     :type   cosmo:              astropy.cosmology.FLRW
     :param  simulation:         the simulation, for its snapshots' redshifts
@@ -226,7 +224,6 @@ def select_haloes(
     # haloes offset from the centre of the box
     offset = candidates["SOAPCentre"] - box_centre
     distance = np.linalg.norm(offset, axis=1)  # distance to the haloes
-    # in_box = np.all(np.abs(offset) + margin[:, None] < 0.5 * boxsize, axis=1) # check if in tile (0,0,0)
 
     snap_z_range = np.array([simulation.snapshot_redshift_range(int(s)) for s in candidates["SnapshotNumber"]])
     z_near = comoving_distance_to_redshift(cosmo, np.maximum(distance - margin, 0.0))
@@ -529,7 +526,10 @@ if __name__ == "__main__":
     boxsize = snapshot_boxsize(simulation)  # [Mpc]
     box_centre = np.full(3, 0.5 * boxsize)
     print(
-        f"{simulation.box_res}/{simulation.name} ({simulation.suite.name}): box {boxsize:g} cMpc, {len(simulation.output_redshifts)} snapshots, SOAP catalogues {soap_format}"
+        (
+            f"{simulation.box_res}/{simulation.name} ({simulation.suite.name}): box {boxsize:g} cMpc, "
+            "{len(simulation.output_redshifts)} snapshots, SOAP catalogues {soap_format}"
+        )
     )
 
     # output dir of image, update as needed
@@ -592,11 +592,17 @@ if __name__ == "__main__":
         # give update on each selected candidate:
         # show catalogue info
         print(
-            f"\nhalo {halo['HaloCatalogueIndex']} of snapshot {snap_nr}:\tM200c {halo['M200c']:.4e} Msun, R200c {halo['R200c']:.3f} cMpc"
+            (
+                f"\nhalo {halo['HaloCatalogueIndex']} of snapshot {snap_nr}:"
+                "\tM200c {halo['M200c']:.4e} Msun, R200c {halo['R200c']:.3f} cMpc"
+            )
         )
         # SOAP info
         print(
-            f"\n\tSOAP centre ({', '.join(f'{x:.2f}' for x in halo['SOAPCentre'])}) cMpc, relative to the box centre ({', '.join(f'{x:.2f}' for x in offset)}) cMpc"
+            (
+                f"\n\tSOAP centre ({', '.join(f'{x:.2f}' for x in halo['SOAPCentre'])}) cMpc, "
+                "relative to the box centre ({', '.join(f'{x:.2f}' for x in offset)}) cMpc"
+            )
         )
         # Beam info
         beam_str = f"\n\tbeam vector ({', '.join(f'{x:.4f}' for x in beam_vector)})"  # vector
