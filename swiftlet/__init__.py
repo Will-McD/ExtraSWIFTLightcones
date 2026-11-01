@@ -6,7 +6,7 @@ The main classes and functions can be imported from the package::
 
     from swiftlet import SnapshotBeam, BeamProjection
 
-Or the submodule they come from::
+or the submodule they come from::
 
     snapshot_lightcone      SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS,
                             SnapshotGapWarning

@@ -1,4 +1,6 @@
 #!/bin/env python
+"""Utility functions for working with HEALPix maps."""
+
 import os
 import sys
 import numpy as np
@@ -10,22 +12,17 @@ from . import snapshot_units as sw_units
 from .threads import limit_openmp_threads
 from .flamingo_lightcones import flamingo_shell_redshift_file
 
-"""
-Utility functions for working with healpix maps. 
-"""
-
 
 def get_related_ipix(ipix, nside, levels, ordering="ring"):
     """
-    Return the parent or child HEALPix pixel indices.
-
-    Returns a tuple of (pixel indices at the new resolution, nside of the new map).
+    Returns the parent or child HEALPix pixel indices as a tuple
+    (pixel indices at the new resolution, nside of the new map).
 
     :param  ipix:       pixel indices in the input map
     :type   ipix:       int or np.ndarray
     :param  nside:      nside of the input map
     :type   nside:      int
-    :param  levels:     change in HEALPix resolution. Each level increases or decreases nside by a factor of 2.
+    :param  levels:     the change in HEALPix resolution, each level increases or decreases nside by a factor of 2:
                             levels > 0 returns child pixels at higher resolution
                             levels < 0 returns parent pixels at lower resolution
                             levels == 0 returns the input pixels unchanged
@@ -75,11 +72,11 @@ def find_healpy_pixel_weights_dir(datapath=None):
     """
     Find the healpy pixel weights directory.
 
-    Returns the first directory that contains a full_weights/ folder.
-    Check:
-        1. the datapath argument
-        2. the HEALPY_PIXEL_WEIGHTS environment variable
-        3. <venv>/share/healpy-data
+    Returns the first directory that contains a ``full_weights/`` folder. Checks, in order:
+
+    1. the datapath argument
+    2. the ``HEALPY_PIXEL_WEIGHTS`` environment variable
+    3. ``<venv>/share/healpy-data``
 
     Raises FileNotFoundError if none are found.
 

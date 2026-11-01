@@ -1,18 +1,18 @@
 #!/bin/env python
-import builtins
+"""
+Read SOAP halo catalogues with h5py.
 
+The properties are given the same units as ``lightcone_io.halo_catalogue.SOAPCatalogue.read``, so the values are the
+same whichever reader is used.
+Note that the scale factor ``a`` is dropped from all SOAP units.
+"""
+
+import builtins
+from collections.abc import Iterator
 import h5py
 import numpy as np
 import unyt
 import virgo.formats.swift as virgo_swift
-
-"""
-Functions for reading SOAP halo catalogues with h5py.
-These reading functions give soap properties the same units as lightcone_io.halo_catalogue.SOAPCatalogue.read() 
-so the values are the same regardless of the reader used. 
-
-Note that 'a' is dropped from all soap units. 
-"""
 
 
 # FORCE A PATCH FOR VIRGODC WITH NUMPY>2.4
@@ -118,12 +118,11 @@ def read_soap_rows(filename, property_names, start=0, stop=None):
         }
 
 
-def read_soap_in_chunks(filename, property_names, chunk_size):
+def read_soap_in_chunks(filename, property_names, chunk_size) -> Iterator[tuple]:
     """
-    Read properties of a SOAP catalogue chunk_size rows at a time.
+    Read properties of a SOAP catalogue chunk_size rows at a time, in serial, so only one chunk is in memory at once.
 
-    Done in serial, so only one chunk of the catalogue is in memory at once.
-    The units are made exactly as lightcone_io.halo_catalogue.SOAPCatalogue.read
+    The units are made exactly as lightcone_io.halo_catalogue.SOAPCatalogue.read.
 
     Returns a tuple for each chunk:
         (index of its first row in the catalogue, {name: unyt.unyt_array of its rows}).
@@ -134,6 +133,9 @@ def read_soap_in_chunks(filename, property_names, chunk_size):
     :type   property_names: list of str
     :param  chunk_size:     number of rows read at a time
     :type   chunk_size:     int
+    :yield:                 for each chunk, the index of its first row in the catalogue and {name: unyt.unyt_array of
+                            its rows}
+    :ytype:                 tuple
     """
     chunk_size = int(chunk_size)
     if chunk_size < 1:
@@ -197,25 +199,27 @@ def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
 
 def select_soap_rows(filename, select_name, select, property_names, chunk_size=2**22, units=None):
     """
-    Index the SOAP catalogue, by the 'select_name' and read all given properties after.
+    Read the rows of a SOAP catalogue selected by one of its properties.
 
-    Read data from 'select_name' in chunks, then read the other properties only for the rows kept.
-    The whole catalogue is never read or held in memory.
+    Read the data from select_name in chunks, then read the other properties only for the rows kept. The whole catalogue
+    is never read or held in memory.
 
-    Returns {name: unyt.unyt_array of the kept rows} for property_names (and select_name), with "row" holding the
-    indices of the kept rows.
+    Returns dictionary of read properties and 'row' which holds the indices of the kept rows.
 
     :param  filename:       path of the SOAP catalogue
     :type   filename:       str
     :param  select_name:    property to select the rows with, e.g. "SO/200_crit/TotalMass"
     :type   select_name:    str
-    :param  select:         function of a chunk of select_name (unyt.unyt_array, comoving, see comoving) returning
-                                True for the rows to keep, e.g. lambda m: m.to_value("Msun") > 1e14
-    :type   select:         function
+    :param  select:         callable function for indexing select_name (unyt.unyt_array, comoving, see comoving)
+                            that returns True for the rows to keep, e.g. lambda m: m.to_value("Msun") > 1e14
+    :type   select:         callable
     :param  property_names: names of the other datasets to read for the kept rows
     :type   property_names: list of str
     :param  chunk_size:     number of rows of select_name read at a time
     :type   chunk_size:     int
+    :param  units:          units to return each property in, {name: unit}. If given, the kept rows are returned as
+                            plain arrays of their comoving values in these units, instead of unyt arrays
+    :type   units:          dict
     """
     # build list of row starting points to slice catalogue with.
     rows = [

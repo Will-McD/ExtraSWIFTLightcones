@@ -1,25 +1,28 @@
 #!/bin/env python
-import os
-from contextlib import contextmanager
 
 """
-Maximum number of threads used by the threaded code:
+Maximum number of threads used by the threaded code.
 
-    - numba parallel functions (re-orienting the snapshot box tiles, and swiftsimio's parallel projections)
-    - healpy alm spherical harmonic transforms (map2alm, rotate_alm and alm2map)
+This covers:
+- numba parallel functions (re-orienting the snapshot box tiles, and swiftsimio's parallel projections)
+- healpy alm spherical harmonic transforms (``map2alm``, ``rotate_alm`` and ``alm2map``)
 
-The maximum number of threads is set by SWIFTLET_MAX_THREADS. 
-If SWIFTLET_MAX_THREADS is None then default to 30. Otherwise when set, it is never allowed it to be more than the 
-number of cores the process are allowed to run on (e.g. the cores given to a job or an MPI rank). 
-With SWIFTLET_MAX_THREADS=all there is no fixed maximum, and each process uses all the cores it is allowed. 
+The maximum number of threads is set by SWIFTLET_MAX_THREADS.
+If SWIFTLET_MAX_THREADS is None then default to 30. Otherwise when set, it is never allowed it to be more than the
+number of cores the process are allowed to run on (e.g. the cores given to a job or an MPI rank).
+With ``SWIFTLET_MAX_THREADS=all`` there is no fixed maximum, and each process uses all the cores it is allowed.
 
-SWIFTLET_MAX_THREADS can be changed as:
+``SWIFTLET_MAX_THREADS`` can be changed with::
 
     swiftlet-configure --max_threads N      # N or all, saved in the environment's activate script
     export SWIFTLET_MAX_THREADS=N           # for one shell or job script
     swiftlet.set_max_threads(N)             # while running, in Python
 
 """
+
+import os
+from contextlib import contextmanager
+
 
 MAX_THREADS_ENV = "SWIFTLET_MAX_THREADS"
 DEFAULT_MAX_THREADS = 30

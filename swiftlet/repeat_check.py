@@ -1,4 +1,9 @@
 #!/bin/env python
+"""
+Find close repeats of replicas of the same snapshot cell in a lightcone built from the snapshots, at the level of SWIFT
+cells.
+"""
+
 import warnings
 from dataclasses import dataclass, field
 import numpy as np
@@ -7,8 +12,8 @@ import numpy as np
 class CloseRepeatWarning(UserWarning):
     """
     Warning for when copies of the same snapshot cell lie next to each other, or are close together,
-    but in different tile layers along a line of sight, in a lightcone.
-    """  # noqa: D205
+    but in different tile layers along a line of sight.
+    """
 
 
 @dataclass
@@ -16,23 +21,40 @@ class CloseRepeatReport:
     """
     Class to report the result of find_close_cell_repeats.
 
-    nr_cell_copies:         number of cell copies in the shell (cells overlapping a tile's part of the shell)
-    nr_cells_repeated:      number of (snapshot, cell) with more than one copy in the shell
-    nr_touching:            number of pairs of copies of the same cell that share a face, counted once
-    nr_line_of_sight:       number of pairs of copies of the same cell within angle_deg of each other on the sky and
-                                closer than max_los_separation along the line of sight
-    closest_separation:     smallest distance [Mpc] between two copies of the same cell (inf if none is repeated)
-    cell_size:              side length [Mpc] of a cell
-    boxsize:                side length [Mpc] of the snapshot box
-    angle_deg:              angle [deg] used for the line of sight pairs
-    max_los_separation:     distance [Mpc] along the line of sight used for the line of sight pairs
-    pairs:                  the pairs reported (touching, along a line of sight, or closer than max_separation), a
-                                dict of arrays: "snapshot", "cell", "tile_a", "tile_b" (N, 4; the fourth entry is
-                                the layer for orientation_lock="sphere", -1 otherwise), "centre_a", "centre_b"
-                                (N, 3) [Mpc], "separation" [Mpc], "angle_deg", "los_separation" [Mpc], "touching"
-                                and "line_of_sight" (bool)
-    cells:                  every repeated (snapshot, cell): "snapshot", "cell", "nr_copies" and
-                                "closest_separation" [Mpc] to its own copies
+    :ivar nr_tiles:             number of box tiles the shell reaches
+    :vartype nr_tiles:          int
+    :ivar nr_cells:             number of (snapshot, cell) in the shell, each counted once however many copies it has
+    :vartype nr_cells:          int
+    :ivar nr_cell_copies:       number of cell copies in the shell (cells overlapping a tile's part of the shell)
+    :vartype nr_cell_copies:    int
+    :ivar nr_cells_repeated:    number of (snapshot, cell) with more than one copy in the shell
+    :vartype nr_cells_repeated: int
+    :ivar nr_cell_pairs:        number of pairs of copies of the same (snapshot, cell): every pair that could be a close
+                                    repeat, of which the touching and line of sight pairs are a part
+    :vartype nr_cell_pairs:     int
+    :ivar nr_touching:          number of pairs of copies of the same cell that share a face, counted once
+    :vartype nr_touching:       int
+    :ivar nr_line_of_sight:     number of pairs of copies of the same cell within angle_deg of each other on the sky and
+                                    closer than max_los_separation along the line of sight
+    :vartype nr_line_of_sight:  int
+    :ivar closest_separation:   smallest distance [Mpc] between two copies of the same cell (inf if none is repeated)
+    :vartype closest_separation: float
+    :ivar cell_size:            side length [Mpc] of a cell
+    :vartype cell_size:         float
+    :ivar boxsize:              side length [Mpc] of the snapshot box
+    :vartype boxsize:           float
+    :ivar angle_deg:            angle [deg] used for the line of sight pairs
+    :vartype angle_deg:         float
+    :ivar max_los_separation:   distance [Mpc] along the line of sight used for the line of sight pairs
+    :vartype max_los_separation: float
+    :ivar pairs:                the pairs reported (touching, along a line of sight, or closer than max_separation), a
+                                    dict of arrays: "snapshot", "cell", "tile_a", "tile_b", "centre_a", "centre_b"[Mpc],
+                                    "separation" [Mpc], "angle_deg", "los_separation" [Mpc], "touching" and
+                                    "line_of_sight" (bool)
+    :vartype pairs:             dict
+    :ivar cells:                every repeated (snapshot, cell): "snapshot", "cell", "nr_copies" and
+                                    "closest_separation" [Mpc] to its own copies
+    :vartype cells:             dict
     """
 
     nr_tiles: int

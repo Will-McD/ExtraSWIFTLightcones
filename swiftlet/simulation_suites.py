@@ -1,4 +1,17 @@
 #!/bin/env python
+"""
+The SWIFT simulation suites (FLAMINGO and COLIBRE) and their simulations.
+
+- ``SimulationSuite``: track information that is the same for every simulation of a suite
+- ``Simulation``: one simulation, with its suite, box size and resolution label, name and directory
+
+Note that the base directory of each suite's simulations are checked in this order:
+    1. the base directory (base_dir_format) given to Simulation.from_label
+    2. the suite's environment variable (SWIFTLET_FLAMINGO_DIR or SWIFTLET_COLIBRE_DIR), the directory holding
+        the simulations, each in <box_res>/<sim_name>
+    3. the suite's directory on COSMA
+"""
+
 import os
 import re
 import numpy as np
@@ -7,17 +20,6 @@ from functools import cached_property, lru_cache
 from importlib import resources
 from pathlib import Path
 from . import snapshot_redshifts
-
-"""
-SimulationSuite:    what is the same for every simulation of a suite, FLAMINGO and COLIBRE
-Simulation:         one simulation, its suite, box size and resolution label, name and directory   
-
-Note that the base directory of each suite's simulations are checked in this order:
-    1. base_dir_format, if given to Simulation.from_label,
-    2. the suite's environment variable (SWIFTLET_FLAMINGO_DIR or SWIFTLET_COLIBRE_DIR), the directory holding
-        the simulations, each in <box_res>/<sim_name>,
-    3. the suite's directory on COSMA.
-"""
 
 # the snapshot output redshift tables, see read_output_redshifts
 OUTPUT_REDSHIFT_DIR = resources.files(__package__) / "data" / "output_redshifts"
@@ -29,7 +31,7 @@ OUTPUT_REDSHIFT_COLUMNS = ("snapshot_number", "redshift")
 # make globally cached and callable read redshift tables function
 @lru_cache(maxsize=None)
 def _read_output_redshift_file(path):
-    """Read an output redshift file. Cached so each file is read once."""
+    """Read an output redshift file and cache it so each file is read once."""
     source = OUTPUT_REDSHIFT_DIR / path if os.path.basename(path) == path else Path(path)
     if path.lower().endswith((".yaml", ".yml")):
         from .table_files import read_table_file
@@ -67,12 +69,10 @@ def read_output_redshifts(path):
 
 
 def write_output_redshifts(filename, redshifts, description=None, **header):
-    """
-    Write the snapshot redshifts to .yml files.
+    r"""
 
-    Write the output redshifts of a simulation's snapshots to a YAML file,
-    one row per snapshot [snapshot_number, redshift].
-    The redshifts are written so they read back exactly.
+    Write the output redshifts of a simulation's snapshots to a YAML file, one row per
+    snapshot [snapshot_number, redshift].
 
     :param  filename:       path of the .yaml file to write
     :type   filename:       str or os.PathLike
@@ -80,7 +80,8 @@ def write_output_redshifts(filename, redshifts, description=None, **header):
     :type   redshifts:      array-like of float
     :param  description:    what the redshifts are, e.g. the simulations they are for
     :type   description:    str
-    :param  header:         more to write before the rows, e.g. suite="colibre"
+    :param  \*\*header:     more to write before the rows, e.g. suite="colibre"
+    :type   \*\*header:     dict
     """
     from .table_files import write_table_file
 
@@ -105,20 +106,25 @@ def write_output_redshifts(filename, redshifts, description=None, **header):
 @dataclass(frozen=True)  # do not allow this to be mutated
 class SimulationSuite:
     """
-    Class to contain SWIFT simulation suites (i.e. FLAMINGO and COLIBRE) and handle what differs between them.
+    A SWIFT simulation suite (i.e. FLAMINGO or COLIBRE), tracks what differs between the suites.
 
-    :param  name:                       "flamingo" or "colibre"
-    :type   name:                       str
-    :param  base_dir_format:            directory of a simulation, with {box_res} and {sim_name} fields
-    :type   base_dir_format:            str
-    :param  base_dir_env:               environment variable that, if set, replaces the directory holding the simulation
-    :type   base_dir_env:               str
-    :param  snapshot_format:            snapshot file, relative to the simulation's directory, with {snap_nr} and
-                                            {file_nr} fields
-    :type   snapshot_format:            str
-    :param  output_redshift_tables:     file of the output redshifts of the snapshots (see read_output_redshifts), for
-                                            each box size and resolution label; the file under "*" is used for any
-                                            label of the suite
+    :ivar name:                     "flamingo" or "colibre"
+    :vartype name:                  str
+    :ivar label_pattern:            regular expression matching the box size and resolution labels of the suite's
+                                        simulations, e.g. "L1000N1800"
+    :vartype label_pattern:         str
+    :ivar base_dir_format:          directory of a simulation, with {box_res} and {sim_name} fields
+    :vartype base_dir_format:       str
+    :ivar base_dir_env:             environment variable that, if set, replaces the directory holding the simulations
+    :vartype base_dir_env:          str
+    :ivar snapshot_format:          snapshot file, relative to the simulation's directory, with {snap_nr} and {file_nr}
+                                        fields
+    :vartype snapshot_format:       str
+    :ivar output_redshift_tables:   file of the output redshifts of the snapshots (see read_output_redshifts), for each
+                                        box size and resolution label; the file under "*" is used for any label of
+                                        the suite
+    :vartype output_redshift_tables: dict
+
     """
 
     # define types of each element
@@ -140,12 +146,7 @@ class SimulationSuite:
 
     def output_redshifts(self, boxsize_resolution=None):
         """
-        Snapshot redshift values.
-
-        Output redshifts of the snapshots of the suite's simulations of a box size and resolution, in order of
-        snapshot number.
-
-        Returns an np.ndarray.
+        Returns an array of the redshifts a simulations snapshots are output at, in order of snapshot number.
 
         :param  boxsize_resolution: box size and resolution label, e.g. "L1000N1800". Not needed for a suite with
                                         one table for every label (COLIBRE)
@@ -266,12 +267,7 @@ def suite_for_label(boxsize_resolution=None, simulation_suite_name=None):
 
 def output_redshifts(boxsize_resolution, simulation_suite_name=None):
     """
-    Return the stored output redshifts for a SWIFT simulation.
-
-    Output redshifts of the snapshots of a box size and resolution, as read from its snapshot number - redshift tables,
-    for when only the redshifts are needed (otherwise use Simulation.output_redshifts).
-
-    Returns an np.ndarray, in order of snapshot number.
+    Returns the stored output redshifts for a SWIFT simulation, in order of snapshot number.
 
     :param  boxsize_resolution:     box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
                                         (COLIBRE)
@@ -288,20 +284,19 @@ def output_redshifts(boxsize_resolution, simulation_suite_name=None):
 @dataclass(frozen=True)
 class Simulation:
     """
-    For one simulation: its suite name, box size and resolution str, model name and base directory.
+    For one simulation track its suite, box size and resolution label, model name and base directory.
 
-    For every simulation used, every path to a snapshot and every snapshot number - redshift conversion comes from this
-    class. This class allows for consistent use of snapshot number - redshift conversions and pathing for a swift
-    simulation suite
+    For every simulation used, every path to a snapshot and every snapshot number to redshift conversion comes from this
+    class, so they are the same wherever they are used.
 
-    :param  suite:              the simulation's suite, FLAMINGO or COLIBRE
-    :type   suite:              SimulationSuite
-    :param  box_res:            box size and resolution label, e.g. "L1000N1800"
-    :type   box_res:            str
-    :param  name:               name of the simulation, e.g. "HYDRO_FIDUCIAL"
-    :type   name:               str
-    :param  directory:          directory of the simulation
-    :type   directory:          str
+    :ivar suite:        the simulation's suite, FLAMINGO or COLIBRE
+    :vartype suite:     SimulationSuite
+    :ivar box_res:      box size and resolution label, e.g. "L1000N1800"
+    :vartype box_res:   str
+    :ivar name:         name of the simulation, e.g. "HYDRO_FIDUCIAL"
+    :vartype name:      str
+    :ivar directory:    directory of the simulation
+    :vartype directory: str
     """
 
     suite: SimulationSuite
@@ -312,19 +307,21 @@ class Simulation:
     @classmethod
     def from_label(cls, boxsize_resolution, simulation_name, simulation_suite_name=None, base_dir_format=None):
         """
-        Get a simulation suite name from its box size and resolution str and name.
+        Make the Simulation object of a box size and resolution label and a simulation name.
 
-        :param  boxsize_resolution: box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
+        Returns a Simulation.
+
+        :param  boxsize_resolution:     box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
                                         (COLIBRE)
-        :type   boxsize_resolution: str
-        :param  simulation_name:    name of the simulation, e.g. "HYDRO_FIDUCIAL"
-        :type   simulation_name:    str
-        :param  simulation_suite:   "flamingo" or "colibre" (or a SimulationSuite). If None, found from
+        :type   boxsize_resolution:     str
+        :param  simulation_name:        name of the simulation, e.g. "HYDRO_FIDUCIAL"
+        :type   simulation_name:        str
+        :param  simulation_suite_name:  "flamingo" or "colibre" (or a SimulationSuite). If None, found from
                                         boxsize_resolution
-        :type   simulation_suite:   str or SimulationSuite
-        :param  base_dir_format:    directory of the simulation, with {box_res} and {sim_name} fields.
-                                        If None, the suite's directory, see SimulationSuite.directory_format
-        :type   base_dir_format:    str
+        :type   simulation_suite_name:  str or SimulationSuite
+        :param  base_dir_format:        directory of the simulation, with {box_res} and {sim_name} fields. If None, the
+                                        suite's directory, see SimulationSuite.directory_format
+        :type   base_dir_format:        str
         """
         # find the suite
         suite = suite_for_label(boxsize_resolution, simulation_suite_name)
@@ -424,12 +421,16 @@ class Simulation:
 
     def snapshots_in_range(self, redshift_range, range_tol=1e-5, strict=False):
         """
-        Snapshots whose redshift ranges overlap a redshift range, including ranges that only touch it.
-
-        Returns an np.ndarray of snapshot numbers, increasing (from high to low redshift).
+        Returns the snapshot numbers, from high to low redshift,of snapshots whose redshift ranges overlap a redshift
+        range, including ranges that only touch it.
 
         :param  redshift_range: minimum and maximum redshifts [z_min, z_max]
         :type   redshift_range: sequence of two floats
+        :param  range_tol:      a snapshot edge within range_tol of the range counts as touching it
+        :type   range_tol:      float
+        :param  strict:         If True, leave out the snapshots whose ranges only touch the range (overlap it by no
+                                    more than range_tol)
+        :type   strict:         bool
         """
         return snapshot_redshifts.snapshots_in_range(
             self.output_redshifts, redshift_range=redshift_range, range_tol=range_tol, strict=strict

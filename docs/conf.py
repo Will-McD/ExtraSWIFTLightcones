@@ -4,6 +4,7 @@ import sys
 
 # make the package importable without installing it (and its heavy dependencies)
 sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("../tools"))
 
 project = "SWIFTLET"
 author = "William McDonald"
@@ -23,7 +24,6 @@ extensions = [
     "sphinx.ext.intersphinx",   # links to numpy, h5py, ... docs
     "sphinx_design",            # card grids, tabs, icons
 ]
-
 
 
 # packages Read the Docs can't install: Sphinx pretends they exist

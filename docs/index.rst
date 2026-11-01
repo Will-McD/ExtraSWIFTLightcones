@@ -60,3 +60,4 @@ provides tools to analyse and visualise them.
    examples/index
    api/index
    tests/index
+   developers

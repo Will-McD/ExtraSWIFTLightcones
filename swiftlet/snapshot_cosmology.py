@@ -65,7 +65,6 @@ def neutrino_masses(cosmology):
     Convert SWIFT neutrino masses to astropy format.
 
     Returns an np.ndarray of masses [eV], one per species (int(N_eff) of them).
-
     Raises ValueError for neutrinos astropy can't hold. i.e. degeneracies that aren't whole numbers, or massive and
     massless species that don't add up to N_eff.
 
@@ -92,21 +91,28 @@ def neutrino_masses(cosmology):
 
 class SnapshotCosmology:
     """
-    The cosmology from one of a snapshot .hdf5 file or of simulation class object (see swiftlet/simulations_suites.py).
+    The cosmology of a snapshot .hdf5 file, or of a Simulation (see swiftlet/simulation_suites.py).
 
-    Attributes:
-        snapshot_filename:  the snapshot file read
-        COSMO:              astropy w0waCDM cosmology
-        cosmology:          the snapshot's Cosmology attributes
-        internal_units:     the snapshot's InternalCodeUnits attributes (CGS conversion factors)
-        parameters:         the snapshot's Parameters attributes (the run's parameter file), {} if it has none
-        unit_registry:      unyt registry of the snapshot's units (snap_* and code_* units, a and h, see
-                                snapshot_units.unit_registry_from_metadata)
+    The cosmology is read from a SWIFT snapshot file; from_simulation and from_path find the snapshot file to read.
+
+    :ivar snapshot_filename:    the snapshot file read
+    :vartype snapshot_filename: str
+    :ivar COSMO:                astropy w0waCDM cosmology
+    :vartype COSMO:             astropy.cosmology.w0waCDM
+    :ivar cosmology:            the snapshot's Cosmology attributes
+    :vartype cosmology:         dict
+    :ivar internal_units:       the snapshot's InternalCodeUnits attributes (CGS conversion factors)
+    :vartype internal_units:    dict
+    :ivar parameters:           the snapshot's Parameters attributes (the run's parameter file), {} if it has none
+    :vartype parameters:        dict
+    :ivar unit_registry:        unyt registry of the snapshot's units (snap_* and code_* units, a and h, see
+                                    snapshot_units.unit_registry_from_metadata)
+    :vartype unit_registry:     unyt.unit_registry.UnitRegistry
     """
 
     def __init__(self, snapshot_filename):
         """
-        Read the cosmology of a snapshot file.
+        Read the cosmology of a snapshot file and initialise the SnapshotCosmology class.
 
         :param  snapshot_filename:  path of a SWIFT snapshot file (a virtual file or one file of a snapshot)
         :type   snapshot_filename:  str

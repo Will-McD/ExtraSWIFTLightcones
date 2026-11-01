@@ -52,7 +52,10 @@ jobs:
     - run: pip install ruff
     - name: Check the code
       run: ruff check . --output-format=github --statistics
-
+    - name: Check the docstring summaries (the first sentence, then a blank line)
+      if: success() || failure()
+      run: python tools/check_docstring_summaries.py
+    
   docstrings:
     name: Docstrings are valid reStructuredText and match the signatures (flake8)
     runs-on: ubuntu-latest
@@ -66,7 +69,7 @@ jobs:
     - run: pip install flake8 flake8-rst-docstrings pydoclint
     - name: Check the docstrings
       run: flake8 swiftlet --show-source --statistics
-
+      
   spelling:
     name: Spelling (codespell)
     runs-on: ubuntu-latest

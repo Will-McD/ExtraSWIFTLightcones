@@ -1,20 +1,19 @@
 #!/bin/env python
-import numpy as np
-from collections import namedtuple
-
 """
 The redshifts a simulation's snapshots are spread over in a lightcone.
 
-Nothing here depends on the simulation suite, instead the redshifts come from (FLAMINGO, COLIBRE, ...) 
-simulations.Simulation.
+Nothing here depends on the simulation suite: the redshifts come from a ``simulation_suites.Simulation`` (FLAMINGO,
+COLIBRE, ...).
 
-Each snapshot covers the redshifts closer to its own than to its neighbours'. 
-The edges are the midpoints between each snapshots own redshift and the redshifts of the snapshots before and after it. 
-The first and final snapshots end at their own redshifts, so nothing is placed earlier than the first output or later 
-than z = 0.
+Each snapshot covers the redshifts closer to its own than to its neighbours'. The edges are the midpoints between each
+snapshot's own redshift and the redshifts of the snapshots before and after it. The first and final snapshots end at
+their own redshifts, so nothing is placed earlier than the first output or later than z = 0.
 
-When snapshots are missing, fill the gap with the available snapshots. 
+When snapshots are missing, fill the gap with the available snapshots.
 """
+
+import numpy as np
+from collections import namedtuple
 
 # the largest redshift spacing between the snapshots filling a lightcone shell, see snapshot_coverage
 MAX_SNAPSHOT_SPACING = 0.1
@@ -75,12 +74,17 @@ def snapshot_redshift_range(redshifts, snapshot_number):
 
 def snapshots_in_range(redshifts, redshift_range, range_tol=1e-9, strict=False):
     """
-    Returns an array of snapshot numbers whose redshift ranges overlap with a given redshift range.
+    Returns an array of the snapshot numbers whose redshift ranges overlap a given redshift range.
 
     :param  redshifts:      redshift of each snapshot, in order of snapshot number
     :type   redshifts:      array-like
     :param  redshift_range: minimum and maximum redshift [z_min, z_max]
     :type   redshift_range: sequence of two floats
+    :param  range_tol:      a snapshot edge within range_tol of the range counts as touching it
+    :type   range_tol:      float
+    :param  strict:         If True, leave out the snapshots whose ranges only touch the range (overlap it by no more
+                            than range_tol)
+    :type   strict:         bool
     """
     if range_tol < 0:
         raise ValueError(f"range_tol must not be negative, not {range_tol}")
@@ -147,18 +151,18 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
     The snapshots that fill a redshift range when some snapshots are missing.
 
     Without missing snapshots, each snapshot fills its own range.
-    If any snapshots are missing, the available snapshots fill the range instead, each covering the redshifts
-    closer to its own than to its available neighbours.
+    If any snapshots are missing, the available snapshots fill the range instead, each covering the redshifts closer to
+    its own than to its available neighbours.
 
     Returns a SnapshotCoverage of:
-        snapshots:  the snapshot numbers filling the range (from high to low redshift)
-        ranges:     {snapshot number: (minimum redshift, maximum redshift)}
-        missing:    the snapshot numbers that would have filled the range but are not available
-                        (from high to low redshift)
-        filled_by:  {missing snapshot number: the snapshot numbers whose ranges now cover its redshifts}
+
+    - snapshots: the snapshot numbers filling the range (from high to low redshift)
+    - ranges: {snapshot number: (minimum redshift, maximum redshift)}
+    - missing: the snapshot numbers that would have filled the range but are not available (from high to low redshift)
+    - filled_by: {missing snapshot number: the snapshot numbers whose ranges now cover its redshifts}
 
     Raise a ValueError if the redshift spacing between neighbouring snapshots filling the range is greater than
-        max_spacing.
+    max_spacing.
 
     :param  redshifts:      redshift of each snapshot, in order of snapshot number
     :type   redshifts:      array-like
@@ -171,6 +175,7 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
     :param  range_tol:      a snapshot edge within range_tol of the range counts as touching it, see snapshots_in_range
     :type   range_tol:      float
     """
+    # get redshift range of snapshots, available snapshots and missing snapshots
     redshifts = _as_redshifts(redshifts)
     z_min, z_max = (float(z) for z in redshift_range)
     needed = snapshots_in_range(redshifts, (z_min, z_max), range_tol=range_tol)
@@ -189,11 +194,14 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
                     f"needs snapshots {needed.tolist()}"
                 )
             )
+
+        # get edges of available snapshots and find required overlaps
         avail, edges = available_redshift_edges(redshifts, available)
         overlaps = (edges[1:] <= z_max + range_tol) & (edges[:-1] >= z_min - range_tol)
         snapshots = avail[overlaps]
         ranges = {int(n): (float(edges[i + 1]), float(edges[i])) for i, n in zip(np.flatnonzero(overlaps), snapshots)}
         spacings = [(int(a), int(b), redshifts[a] - redshifts[b]) for a, b in zip(snapshots[:-1], snapshots[1:])]
+
         # missing snapshots beyond the first or last available one: it reaches out to the first or last output
         if snapshots[-1] == avail[-1] and avail[-1] < len(redshifts) - 1 and z_min < redshifts[avail[-1]]:
             spacings.append((int(avail[-1]), len(redshifts) - 1, redshifts[avail[-1]] - redshifts[-1]))
@@ -216,7 +224,7 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
         raise ValueError(
             f"the redshift spacing between snapshots is too large to fill {z_min} < z < {z_max}: {gaps} as {cause}"
         )
-
+    # fill in gaps and return the SnapshotCoverage named tuple
     filled_by = {}
     for n in missing:
         lo, hi = snapshot_redshift_range(redshifts, n)

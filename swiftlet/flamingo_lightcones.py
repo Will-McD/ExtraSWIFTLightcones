@@ -1,4 +1,6 @@
 #!/bin/env python
+"""Find the shell redshift files of the FLAMINGO lightcones, and the box size and resolution of a FLAMINGO run."""
+
 import os
 import re
 from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_redshifts, environment_data_dir

@@ -1,4 +1,6 @@
 #!/bin/env python
+"""Build lightcones from SWIFT snapshots and halo catalogues."""
+
 import numpy as np
 import os
 import unyt
@@ -107,23 +109,21 @@ def print_coord_ranges(x, indent=0, rank=None):
 
 
 # Named tuples for particle lightcone methods
-FileReadSpec = namedtuple(
-    "FileReadSpec", ["snap_nr", "tile", "file_nr", "offsets", "lengths"]
-)  # record the snapshot files used and link files to tiles
-SnapshotReadRecord = namedtuple(
-    "SnapshotReadRecord", ["snap_nr", "tile", "z_updated"]
-)  # record the snapshots used and link to tiles
+# record the snapshot files used and link files to tiles
+FileReadSpec = namedtuple("FileReadSpec", ["snap_nr", "tile", "file_nr", "offsets", "lengths"])
 
+# record the snapshots used and link to tiles
+SnapshotReadRecord = namedtuple("SnapshotReadRecord", ["snap_nr", "tile", "z_updated"])
 
 # Named tuples for halo lightcone methods
 # The SOAP catalogue to read for one tile of the lightcone: its haloes are moved into the tile and kept if they are in
 # the tile's redshift range of the shell
-HaloCatalogueSpec = namedtuple(
-    "HaloCatalogueSpec", ["snap_nr", "tile", "filename", "z_range"]
-)  # record the catalogue files and link to tiles
-HaloReadPiece = namedtuple(
-    "HaloReadPiece", ["snap_nr", "start", "stop"]
-)  # rows [start, stop) of a snapshot's SOAP catalogue, read by one rank
+
+# record the catalogue files and link to tiles
+HaloCatalogueSpec = namedtuple("HaloCatalogueSpec", ["snap_nr", "tile", "filename", "z_range"])
+
+# rows [start, stop) of a snapshot's SOAP catalogue, read by one rank
+HaloReadPiece = namedtuple("HaloReadPiece", ["snap_nr", "start", "stop"])
 
 
 # numba optimised function for flagging cells and particles in a wedge
@@ -186,9 +186,7 @@ if _HAVE_NUMBA:
 # set up redshift-comoving dist interpolation grid
 def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05, n_grid=3000, method="precise"):
     """
-    Build an interpolation function for the redshift at a given comoving distance.
-
-    Returns a CubicSpline function taking comoving distance [Mpc] and returning redshift.
+    Returns a CubicSpline function taking comoving distance [Mpc] and returning redshift at the comoving distance.
 
     :param  cosmo:  cosmology of the simulation
     :type   cosmo:  SnapshotCosmology, astropy cosmology or str
@@ -198,10 +196,12 @@ def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05,
     :type   zmax:   float
     :param  n_grid: number of points in the grid
     :type   n_grid: int
-    :param  method: 'fast', a uniform grid in redshift, requires less computations now, but few % loss in
-                        precision when interpolating later on.
-                        'precise', a uniform grid in comoving distance, more transforms required now
-                         but less of a drop in precision when interpolating later on
+    :param  method: how the grid is spaced:
+
+                        - 'fast': a uniform grid in redshift. Fewer calculations now, but a few % loss in precision
+                            when interpolating later on
+                        - 'precise': a uniform grid in comoving distance. More transforms now, but less loss of
+                            precision when interpolating later on
     :type   method: str
     """
     # ensure cosmology is correct format, use wrapper to read all used formats
@@ -279,6 +279,14 @@ class LightconeOutput(dict):
     """
 
     def __init__(self, data, metadata):  # noqa: D107
+        """
+        Initialise the LightconeOutput class.
+
+        :param  data:       the particle or halo data placed in the lightcone, {name: array}
+        :type   data:       dict
+        :param  metadata:   the settings used to make the lightcone, kept as .metadata
+        :type   metadata:   dict
+        """
         super().__init__(data)
         self.metadata = dict(metadata)
 
@@ -466,25 +474,24 @@ def as_simulation(
     simulation_object=None,
 ):
     """
-    Returns a Simulation class object.
+    Return the Simulation a lightcone is built from.
 
-    The simulation a lightcone is built from:
-        - a Simulation given as simulation (or as boxsize_resolution, the first argument of the lightcone classes),
-        - made from boxsize_resolution and simulation_name (see simulations.Simulation.from_label)
+    The simulation a lightcone is built from is either:
 
-    Transform inputs into swiftlet.simulations object and acts as wrapper.
+    - a Simulation, given as simulation_object (or as boxsize_resolution, the first argument of the lightcone classes)
+    - made from boxsize_resolution and simulation_name (see simulation_suites.Simulation.from_label)
 
     :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800", or a Simulation
     :type   boxsize_resolution:         str or Simulation
     :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
     :type   simulation_name:            str
-    :param  simulation_suite_name:           "flamingo" or "colibre". If None, found from boxsize_resolution
-    :type   simulation_suite_name:           str
-    :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
-                                            the suite's directory
+    :param  simulation_suite_name:      "flamingo" or "colibre". If None, found from boxsize_resolution
+    :type   simulation_suite_name:      str
+    :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None, the
+                                            suite's directory
     :type   simulation_base_dir_format: str
-    :param  simulation:                 the simulation
-    :type   simulation:                 Simulation
+    :param  simulation_object:          the simulation
+    :type   simulation_object:          Simulation
     """
     # check sim object is expected class
     if simulation_object is not None:
@@ -521,21 +528,21 @@ def as_simulation(
 
 class SnapshotLightcone:
     """
+    Construct lightcones from snapshots, the base of the SnapshotBeam and SnapshotAllSky classes.
 
-    Fundamental code used to construct lightcones from snapshots with SnapshotBeam and SnapshotAllSky sub classes.
-
-    Each sub class is built to handle their specific lightcone geometry.
+    It defines the lightcone's cosmology, units and vector (where applicable) for the given simulation. The simulation
+    is given as a Simulation, or made from the simulation suite, box size and resolution label and simulation name.
 
     This class tracks:
-        1. periodic replications of snapshots and their reorientation
-            to avoid exact replication of structures.
+
+        1. periodic replications of snapshots and their reorientation to avoid exact replication of structures.
         2. reading and placing particles from snapshots into the lightcone
         3. snapshot cosmology
         4. MPI ranks and communication between ranks
 
-
-    The exact methods of identifying particles within the lightcones footprint and how the
-    snapshot box replication occurs is handled in the SnapshotBeam and SnapshotAllSky sub classes.
+    The exact methods of identifying the particles within the lightcone's footprint, and how the snapshot box
+    replication occurs, are handled by the SnapshotBeam and SnapshotAllSky sub classes, each built for its own lightcone
+    geometry.
     """
 
     def __init__(
@@ -552,51 +559,48 @@ class SnapshotLightcone:
         verbose=1,
     ):
         """
-        Define the lightcone's cosmology, units and vector (where applicable) for the given simulation.
+        Initialise the SnapshotLightcone class.
 
-        Build a Simulation object from the given simulation suite, boxsize, resolution and simulation name.
-
-        :param  simulation_suite_)name:     "flamingo" or "colibre".
-                                                If None, found from boxsize_resolution,
-                                                see simulation_suites.suite_for_label
+        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
+        :type   simulation_object:          Simulation
+        :param  simulation_suite_name:      "flamingo" or "colibre". If None, found from boxsize_resolution, see
+                                            simulation_suites.suite_for_label
         :type   simulation_suite_name:      str
-        :param  boxsize_resolution:         box size and resolution label,
-                                                e.g. "L1000N1800" (FLAMINGO) or "L0200N1504" (COLIBRE),
-                                                or a Simulation (see swiftlet.simulations), then pass the other
-                                                arguments by keyword
-        :type   boxsize_resolution:         str or Simulation (swiftlet class object)
+        :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
+                                            (COLIBRE), or a Simulation (see swiftlet.simulation_suites), then pass the
+                                            other arguments by keyword
+        :type   boxsize_resolution:         str or Simulation
+
         :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
         :type   simulation_name:            str
-        :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields.
-                                                If None, the suite's directory
-                                                (see simulations.SimulationSuite.directory_format)
-        :type simulation_base_dir_format:   str
-        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
-        :type   simulation_object:          Simulation, swiftlet Simulation class object
+        :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
+                                            the suite's directory (see simulation_suites.SimulationSuite)
+        :type   simulation_base_dir_format: str
         :param  beam_vector:                direction vector of the line of sight as an array of 3 floats. None for
-                                                all-sky
+                                            all-sky
         :type   beam_vector:                numpy.ndarray
         :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
-                                                tile.
+                                            tile
         :type   orientation_seed:           int
-        :param  orientation_lock:           "none":
-                                                every box tile has its own orientation.
-                                            "cube":
-                                                every box tile in a cube shell of boxes around the observer's
-                                                box shares one orientation, so each shell is periodically continuous
-                                                and theorientation only changes on the faces between shells.
-                                            "sphere":
-                                                everything in a spherical shell, between (n-1/2) and (n+1/2) box
-                                                sidelengths from the observer, shares one orientation, so the
-                                                orientation only changes at those distances. A box crossing a
-                                                sphere is used once for each shell, and tiles are labelled
-                                                (nx, ny, nz, layer)
+        :param  orientation_lock:           how the orientations of the box tiles are shared:
+
+                                            - "none": every box tile has its own orientation.
+                                            - "cube": every box tile in a cube shell of boxes around the observer's box
+                                              shares one orientation, so each shell is periodically continuous and the
+                                              orientation only changes on the faces between shells.
+                                            - "sphere": everything in a spherical shell, between (n-1/2) and (n+1/2) box
+                                              sidelengths from the observer, shares one orientation, so the orientation
+                                              only changes at those distances. A box crossing a sphere is used once for
+                                              each shell, and tiles are labelled (nx, ny, nz, layer).
         :type   orientation_lock:           str
-        :param  orientation_table:          path of an HDF5 file of orientation tables (see
-                                                snapshot_orientation.write_orientation_tables) to take the
-                                                quarter turns, reflections and cell shifts of the box tiles from.
-                                                If None, use the default tables.
+        :param  orientation_table:          path of a file of orientation tables (see
+                                            snapshot_orientation.write_orientation_tables) to take the quarter turns,
+                                            reflections and cell shifts of the box tiles from. If None, use the default
+                                            tables
         :type   orientation_table:          str
+        :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call. 2:
+                                            details of every snapshot, box tile and file
+        :type   verbose:                    int
         """
         # simulation values
 
@@ -678,8 +682,7 @@ class SnapshotLightcone:
 
             - orientation_seed
             - orientation_lock
-            - orientation table (file and fingerprint of its contents) that set the
-                orientation of every box tile,
+            - orientation table (file and fingerprint of its contents) that set the orientation of every box tile,
             - the simulation,
             - the beam
             - the redshift range.
@@ -1095,14 +1098,18 @@ class SnapshotLightcone:
 
     def _log(self, m, level=1, every_rank=False, time_date_update=False):
         """
-        If self.verbose is equal to given level, print a message (prime (zero) rank only for MPI compatibility).
+        Print a message if self.verbose is at least the given level.
+
+        The message is printed by MPI rank 0 only, unless every_rank is True.
 
         :param  m:                  message to print
         :type   m:                  str
         :param  level:              1 for a summary, 2 for details
         :type   level:              int
+        :param  every_rank:         If True, print the message from every MPI rank, prefixed with its rank
+        :type   every_rank:         bool
         :param  time_date_update:   If True, prefix the message with the current time
-        :type   time_date_update:   boolean
+        :type   time_date_update:   bool
         """
         # if self.verbose >= level:
         if self.verbose < level:
@@ -1150,7 +1157,10 @@ class SnapshotLightcone:
 
     def _define_mpi_mode(self, comm, redistibute_particles):
         """
-        Enable MPI mode for this output. In MPI mode each rank reads a subset of the selected particles.
+        Enable MPI mode for this output.
+
+        Partition the tiles and corresponding particles across multiple ranks.
+        Each rank reads only the files required for its assigned tiles.
 
         :param  comm:                   MPI communicator. If None, use serial mode
         :type   comm:                   mpi4py.MPI.Comm
@@ -2128,8 +2138,8 @@ class SnapshotLightcone:
         given redshift shell, without reading any particle data.
         Serial-only.
 
-        Returns (numb_files, self.snap_file_offset_lengths).
-            the number of files found and the list of FileReadSpec entries itself.
+        Returns a tuple (number of files found, the list of FileReadSpec entries)
+
 
         :param  current_ptype:  particle type to gather, e.g. "PartType1"
         :type   current_ptype:  str
@@ -2219,19 +2229,18 @@ class SnapshotLightcone:
 
         :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
         :type   lightcone_redshift_range:   sequence of two floats
-        :param  ang_radius_deg:             angular radius [deg] of the beam.
-                                                Needed by SnapshotBeam, ignored if None.
-        :type   ang_radius_deg:             float
         :param  property_names:             particle properties to read, e.g. ["ParticleIDs", "Coordinates"]
         :type   property_names:             list
+        :param  ang_radius_deg:             angular radius [deg] of the beam. Needed by SnapshotBeam, ignored if None
+        :type   ang_radius_deg:             float
         :param  particle_types:             particle type(s) to place, e.g. "PartType1"
         :type   particle_types:             str or list
-        :param  use_snapshots:              snapshot numbers to use instead of the ones auto-selected
-        :type   use_snapshots:              list or np.ndarray
+        :param  use_snapshots:              snapshot numbers to use instead of the ones selected from the redshift range
+        :type   use_snapshots:              list or numpy.ndarray
         :param  comm:                       MPI communicator. If None, read in serial
         :type   comm:                       mpi4py.MPI.Comm
-        :param  redistibute_particles:      If True, redistribute particles evenly across MPI ranks
-        :type   redistibute_particles:      boolean
+        :param  redistibute_particles:      If True, redistribute the particles evenly across the MPI ranks
+        :type   redistibute_particles:      bool
         """
         self._validate_ang_radius_deg(ang_radius_deg)
 
@@ -2430,29 +2439,28 @@ class SnapshotLightcone:
         """
         Inverse of Snapshot2Lightcone.
 
-        Translate lightcone frame coordinates back into the snapshot numbers and snapshot frame coordinates.
-        This function relies on self.last_snapshot_read and only knows about snapshots and tiles from the most
-        recently gathered shell.
+        Translate lightcone frame coordinates back into the snapshot numbers and snapshot frame coordinates. This
+        function relies on self.last_snapshot_read, and only knows about the snapshots and tiles of the most recently
+        gathered shell.
         Which snapshot a lightcone particle belongs to is determined from its comoving distance alone.
-        Within a matched snapshot the snapshot number alone doesn't say which of its tiles a given
-        point's orientation should be inverted to.
-        Therefore, this function inverts every one of that snapshot's tiles and returns all of them.
-        Only one is the 'real' originating tile for any given point .
+        Within a matched snapshot, the snapshot number alone doesn't say which of its tiles a point's orientation
+        should be inverted to,so this function inverts every one of that snapshot's tiles and returns all of them.
+        Only one is the real originating tile of any given point.
+        Additionally, Points whose comoving distance doesn't fall inside any recorded snapshot's range are dropped.
 
-        Returns a dict {snapshot_number: {tile: (point_index, snapshot_coords)}}.
-            point_index:        an integer array indexing into the input coords, i.e., which of the input points
-                                    matched the snapshot_number
-            snapshot_coords:    the corresponding snapshot frame coordinates after inverting through tile's orientation
+        Returns a dict {snapshot_number: {tile: (point_index, snapshot_coords)}}, where:
 
-        Note: Points whose comoving distance doesn't fall inside any recorded snapshot's range are dropped
+        - point_index: an integer array indexing into the input coords, i.e. which of the input points matched the
+          snapshot_number
+        - snapshot_coords: the corresponding snapshot frame coordinates after inverting through the tile's orientation
 
-        :param  coords:             comoving lightcone-frame coordinates [Mpc], shape (N, 3)
-        :type   coords:             np.ndarray
-        :param  snapshot_number:    skip distance-based snapshot matching and assume every point belongs to this
-                                        snapshot
+        :param  coords:             comoving lightcone frame coordinates [Mpc], shape (N, 3)
+        :type   coords:             numpy.ndarray
+        :param  snapshot_number:    skip the distance-based snapshot matching and assume every point belongs to this
+                                    snapshot
         :type   snapshot_number:    int
-        :param  tile:               skip tile lookup and invert only through this one tile.
-                                        Requires snapshot_number to also be given
+        :param  tile:               skip the tile lookup and invert only through this one tile. Requires snapshot_number
+                                    to also be given
         :type   tile:               tuple
         """
         coords = np.asarray(coords, dtype=float)
@@ -2734,19 +2742,17 @@ class SnapshotLightcone:
         """
         Read the pieces of the SOAP catalogues and place their haloes in the lightcone.
 
-        Every halo is moved into each tile of its snapshot and kept if it is in the tile's part of the shell,
-        same as the particles.
+        Every halo is moved into each tile populated by its snapshot and kept if it is in the tile's part of the shell,
+        the same as the particles.
+        The haloes are in the order of self.halo_catalogues_to_read, then of the rows in each catalogue.
 
-        Returns tuple:
-            (
-                halo centres [Mpc],
-                snapshot numbers,
-                catalogue indices; HaloCatalogueIndex,
-                SOAP rows; SOAPIndex,
-                number of haloes read
-            )
+        Returns a tuple of:
 
-        Note: the returned tuple is in the order of self.halo_catalogues_to_read, then of the rows in the catalogue.
+        - the halo centres [Mpc]
+        - the snapshot numbers
+        - the catalogue indices (HaloCatalogueIndex)
+        - the SOAP rows (SOAPIndex)
+        - the number of haloes read
 
         :param  pieces:         pieces of the catalogues to read
         :type   pieces:         list of HaloReadPiece
@@ -3106,7 +3112,7 @@ class SnapshotLightcone:
 
 
 class SnapshotBeam(SnapshotLightcone):
-    """Class for constructing a pencil beam lightcone, about a single line of sight, from snapshots."""
+    """Construct a pencil beam lightcone, about a single line of sight, from snapshots."""
 
     def __init__(
         self,
@@ -3122,46 +3128,45 @@ class SnapshotBeam(SnapshotLightcone):
         verbose=1,
     ):
         """
-        Define the beam.
+        Define the beam and initialise the SnapshotBeam class.
 
-        :param  simulation_suite_name:      "flamingo" or "colibre".
-                                                If None, found from boxsize_resolution
+        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
+        :type   simulation_object:          Simulation
+        :param  simulation_suite_name:      "flamingo" or "colibre". If None, found from boxsize_resolution (see
+                                            simulation_suites.suite_for_label)
         :type   simulation_suite_name:      str
         :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
-                                                (COLIBRE), or a Simulation (see swiftlet.simulations), then pass the
-                                                other arguments by keyword
-        :type   boxsize_resolution:         str or Simulation (swiftlet object)
+                                            (COLIBRE), or a Simulation (see swiftlet.simulation_suites)
+        :type   boxsize_resolution:         str or Simulation
         :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
         :type   simulation_name:            str
         :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
-                                                the suite's directory (see
-                                                simulation_suites.SimulationSuite.directory_format)
+                                            the suite's directory (see simulation_suites.SimulationSuite)
         :type   simulation_base_dir_format: str
-        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
-        :type   simulation_object:          Simulation
         :param  beam_vector:                direction vector of the line of sight as an array of 3 floats
         :type   beam_vector:                numpy.ndarray
-        :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each
-                                                box tile
+        :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
+                                            tile
         :type   orientation_seed:           int
-        :param  verbose:                    amount printed.
-                                                0: nothing, only warnings.
-                                                1: a summary of each call.
-                                                2: details of every snapshot, box tile and file
-        :type   verbose:                    int
-        :param  orientation_lock:           "none":
-                                                every box tile has its own orientation.
-                                            "cube":
-                                                every box tile in a cube shell of boxes around the observer's box
-                                                shares one orientation, so each shell is periodically continuous and the
-                                                orientation only changes on the faces between shells.
-                                            "sphere":
-                                                everything in a spherical shell, between (n-1/2) and (n+1/2) box
-                                                sidelengths from the observer, shares one orientation, so the
-                                                orientation only changes at those distances. A box crossing a
-                                                sphere is used once for each shell, and tiles are labelled
-                                                (nx, ny, nz, layer)
+        :param  orientation_lock:           how the orientations of the box tiles are shared:
+
+                                            - "none": every box tile has its own orientation.
+                                            - "cube": every box tile in a cube shell of boxes around the observer's box
+                                              shares one orientation, so each shell is periodically continuous and the
+                                              orientation only changes on the faces between shells.
+                                            - "sphere": everything in a spherical shell, between (n-1/2) and (n+1/2) box
+                                              sidelengths from the observer, shares one orientation, so the orientation
+                                              only changes at those distances. A box crossing a sphere is used once for
+                                              each shell, and tiles are labelled (nx, ny, nz, layer).
         :type   orientation_lock:           str
+        :param  orientation_table:          path of a file of orientation tables (see
+                                            snapshot_orientation.write_orientation_tables) to take the quarter turns,
+                                            reflections and cell shifts of the box tiles from. If None, use the default
+                                            tables
+        :type   orientation_table:          str
+        :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call. 2:
+                                            details of every snapshot, box tile and file
+        :type   verbose:                    int
 
         """
         # build sim object from provided information
@@ -3463,7 +3468,7 @@ class SnapshotBeam(SnapshotLightcone):
 
 
 class SnapshotAllSky(SnapshotLightcone):
-    """Class for constructing an all-sky lightcone from snapshots."""
+    """Construct an all-sky lightcone from snapshots (a SnapshotLightcone with no beam vector)."""
 
     def __init__(
         self,
@@ -3478,42 +3483,44 @@ class SnapshotAllSky(SnapshotLightcone):
         verbose=1,
     ):
         """
-        Define the all-sky lightcone, passed to SnapshotLightcone with no beam vector.
+        Define the all-sky lightcone and initialise the SnapshotAllSky class.
 
-        :param  simulation_suite_name:      "flamingo" or "colibre".
-                                                If None, found from boxsize_resolution
+        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
+        :type   simulation_object:          Simulation
+        :param  simulation_suite_name:      "flamingo" or "colibre". If None, found from boxsize_resolution (see
+                                            simulation_suites.suite_for_label)
         :type   simulation_suite_name:      str
-        :param  simulation_object:          the simulation, can be passed instead of boxsize_resolution and
-                                                simulation_name
-        :type   simulation_object:          Simulation object (swiftlet class object, see swiftlet.simulation_suites)
         :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
-                                                (COLIBRE), or a Simulation (see swiftlet.simulations), then pass
-                                                the other arguments by keyword
+                                            (COLIBRE), or a Simulation (see swiftlet.simulation_suites), then pass the
+                                            other arguments by keyword
         :type   boxsize_resolution:         str or Simulation
         :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
         :type   simulation_name:            str
-        :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
-                                                tile
-        :type   orientation_seed:           int
-        :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call.
-                                                2: details of every snapshot, box tile and file
-        :type   verbose:                    int
-        :param  orientation_lock:           "none":
-                                                every box tile has its own orientation.
-                                            "cube":
-                                                every box tile in a cube shell of boxes around the observer's box shares
-                                                  one orientation, so each shell is periodically continuous and the
-                                                  orientation only changes on the faces between shells.
-                                            "sphere":
-                                                everything in a spherical shell, between (n-1/2) and (n+1/2) box
-                                                sidelengths from the observer, shares one orientation, so the
-                                                orientation only changes at those distances. A box crossing a
-                                                sphere is used once for each shell, and tiles are labelled
-                                                (nx, ny, nz, layer)
-        :type   orientation_lock:           str
         :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
-                                                the suite's directory (see simulations.SimulationSuite.directory_format)
+                                            the suite's directory (see simulation_suites.SimulationSuite)
         :type   simulation_base_dir_format: str
+        :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
+                                            tile
+        :type   orientation_seed:           int
+        :param  orientation_lock:           how the orientations of the box tiles are shared:
+
+                                            - "none": every box tile has its own orientation.
+                                            - "cube": every box tile in a cube shell of boxes around the observer's box
+                                              shares one orientation, so each shell is periodically continuous and the
+                                              orientation only changes on the faces between shells.
+                                            - "sphere": everything in a spherical shell, between (n-1/2) and (n+1/2) box
+                                              sidelengths from the observer, shares one orientation, so the orientation
+                                              only changes at those distances. A box crossing a sphere is used once for
+                                              each shell, and tiles are labelled (nx, ny, nz, layer).
+        :type   orientation_lock:           str
+        :param  orientation_table:          path of a file of orientation tables (see
+                                            snapshot_orientation.write_orientation_tables) to take the quarter turns,
+                                            reflections and cell shifts of the box tiles from. If None, use the default
+                                            tables
+        :type   orientation_table:          str
+        :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call. 2:
+                                            details of every snapshot, box tile and file
+        :type   verbose:                    int
         """
         # pass all info to SnapshotLightcone class.
         super().__init__(

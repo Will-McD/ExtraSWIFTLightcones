@@ -1,5 +1,4 @@
 #!/bin/env python
-
 """Dictionaries to transfer between swiftsimio naming conventions and lightcone naming conventions."""
 
 property_to_field = {

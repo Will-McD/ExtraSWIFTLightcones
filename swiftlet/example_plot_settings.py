@@ -1,11 +1,9 @@
 #!/bin/env python
+"""Setup for matplotlib plotting style and additional colour maps in example scripts."""
+
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.colors import LinearSegmentedColormap
-
-"""
-Function to import basic matplotlib settings for example scripts
-"""
 
 
 def plot_settings():

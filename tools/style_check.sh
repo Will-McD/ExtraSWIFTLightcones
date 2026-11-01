@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run SWIFTLET's style checks (the same as .github/workflows/styles.yml) and write their output to a log file.
+# Run SWIFTLET's style checks (.github/workflows/styles.yml) and write the output to a .log file
 #
 # Usage, from anywhere in the repository:
 #     bash tools/style_check.sh            # check everything, log to logs/style_check_<date>_<time>.log
@@ -8,13 +8,16 @@
 #     bash tools/style_check.sh --diff     # log the full formatting diff, not just the files ruff format would change
 #
 # Each check is run even if an earlier one fails. The log starts with a summary of the problems each check found,
-# followed by each check's full output. Needs: pip install ruff codespell interrogate flake8 flake8-rst-docstrings pydoclint
+# followed by each check's full output. 
+# Needs: pip install ruff codespell interrogate flake8 flake8-rst-docstrings pydoclint
 #
+
 set -u
 
 cd "$(git rev-parse --show-toplevel)" || exit 1
 mkdir -p logs
-log="logs/style_check_$(date +%Y%m%d_%H%M%S).log"
+#log="logs/style_check_$(date +%Y%m%d_%H%M%S).log"
+log="logs/style_check.log"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -31,7 +34,7 @@ for arg in "$@"; do
     esac
 done
 
-# run_check <name> <command...>: run a check, keep its output and record whether it passed
+# run_check <name> <command...>: run a check, keep its output and record if it passed
 run_check() {
     local name="$1"; shift
     echo "running ${name}..."
@@ -54,8 +57,10 @@ fi
 # the full list of problems, then a count of each rule
 run_check "ruff-check"   bash -c 'ruff check . --output-format=concise; status=$?; echo; echo "--- count per rule ---"; ruff check . --statistics; exit $status'
 run_check "docstrings"   flake8 swiftlet --show-source --statistics --count
+run_check "summaries"    python tools/check_docstring_summaries.py
 run_check "spelling"     codespell
 run_check "coverage"     interrogate swiftlet
+
 if $docs; then
     rm -rf docs/_build docs/api/generated
     run_check "docs" sphinx-build -E -W -n --keep-going -q -b html docs docs/_build/html
@@ -78,3 +83,4 @@ fi
 printf '%s\n' "${summary[@]}"
 echo "log written to ${log}"
 [ $failed -eq 0 ]
+

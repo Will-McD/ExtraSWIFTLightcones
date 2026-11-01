@@ -1,4 +1,7 @@
 #!/bin/env python
+
+"""Mask selection of haloes for a given radius and mass range."""
+
 import numpy as np
 import h5py
 import healpy as hp
@@ -18,11 +21,6 @@ from mpi4py import MPI
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
-
-
-"""
-Mask selection of haloes for a given radius and mass range. 
-"""
 
 
 def message(m):

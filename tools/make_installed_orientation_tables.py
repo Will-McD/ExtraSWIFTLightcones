@@ -1,29 +1,27 @@
 #!/bin/env python
+"""
+Make the orientation tables installed with SWIFTLET, as YAML files in ``swiftlet/data/orientation_tables``.
+
+``default_v1.yaml``
+    The first default table, originally hard-coded in SWIFTLET before default_v2 and copied here. The shifts are now
+    in eighths of the box (0, +-1, +-2 and 4; -16 cells, half the box). Note that this table is not clash-free, but it
+    is kept for tests and examples of cells touching their own replica.
+``default_v2.yaml``
+    The default table for SnapshotLightcone. No two rows make a SWIFT cell touch its own replica across the edge of
+    neighbouring tiles, for any orientation_lock and orientation_seed
+    (see docs/orientation_tables.md and docs/repeated_objects.md). The cell shifts of default_v2 are in eighths of the
+    box (0, +-1/8, +-1/4, +-3/8 and 1/2), and the rows are chosen from every distinct orientation
+    (48 turns and reflections, times 8^3 shifts = 24576), resulting in 5184 clash-free combinations, 108 for each of
+    the 48 turns and reflections, with the shifts along each axis close to even.
+
+Both default tables are checked against their unique fingerprints.
+"""
+
 import argparse
 import time
 from pathlib import Path
 import numpy as np
 from swiftlet import snapshot_orientation as so
-
-"""
-Make the orientation tables installed with SWIFTLET, as YAML files in swiftlet/data/orientation_tables:
-
-    default_v1.yaml:    the first default table. Originally hard-coded in SWIFTLET before default_v2 and copied here. 
-                        The shifts are now in eighths of the box (0, +-1, +-2 and 4; -16 cells, half the box,). 
-                        Note that this table is not clash-free, but it is kept for tests and examples of cells touching 
-                        their own replica. 
-    default_v2.yaml:    the default table. No two rows make a SWIFT cell touch its own replica across the edge of 
-                        neighbouring tiles, for any orientation_lock and orientation_seed (see 
-                        docs/orientation_tables.md and docs/repeated_objects.md).
-                        The cell shifts of default_v2 are in eighths of the box (0, +-1/8, +-1/4, +-3/8 and 1/2) and the
-                         rows are chosen from every distinct orientation 
-                        (48 turns and reflections, times 8^3 shifts = 24576), resulting in 5184 clash free combinations,
-                         108 for each of the 48 turns and reflections, with the shifts along each axis close to even.
-
-
-Both default tables are checked against their unique fingerprints. 
-
-"""
 
 # the fingerprints of the installed tables, see snapshot_orientation.orientation_tables_fingerprint
 FINGERPRINTS = {"default_v1": "dd43da3e96d8add4", "default_v2": "7006e905808e256f"}

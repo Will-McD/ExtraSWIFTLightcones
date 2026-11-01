@@ -1,4 +1,10 @@
 #!/bin/env python
+"""
+Units of SWIFT snapshot and SOAP catalogues.
+
+Build unyt registries from their metadata, and unit conversions.
+"""
+
 import numpy as np
 import unyt
 import unyt.dimensions as dim
@@ -6,7 +12,7 @@ import unyt.dimensions as dim
 
 def apply_expected_units(x, expected_units):
     """
-    Convert input to expected units. If the input has no units, the expected units are applied.
+    Convert input to expected units, if the input has no units, the expected units are applied.
 
     Returns the input as a unyt.unyt_array or unyt.unyt_quantity in the expected units.
 
@@ -45,12 +51,8 @@ def astropy_to_unyt(a):
 
 def snapshot_unit_metadata(snap):
     """
-    Get metadata for snapshots units.
-
-    Extract the plain-float metadata needed to build a snapshot's unit registry:
-    physical constants, cosmology, and the Units/InternalCodeUnits CGS conversion factors.
-
-    Returns plain dicts of Python floats/strings (no unyt objects).
+    Returns the plain-float metadata needed to build a snapshot's unit registry, which is the physical constants,
+    the cosmology, and the Units/InternalCodeUnits CGS conversion factors.
 
     :param  snap:   open snapshot file
     :type   snap:   h5py.File

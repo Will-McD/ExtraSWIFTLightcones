@@ -1,15 +1,14 @@
 #!/bin/env python
+"""
+The reading and writing functions for the required .yaml files.
+
+The orientation tables and the snapshot output redshifts installed with SWIFTLET (and any of
+your own) should all be .yaml files.
+"""
+
 import re
 import numpy as np
 
-"""
-The reading and writing functions for the required .yaml files. 
-The orientation tables and the snapshot output redshifts installed with SWIFTLET (and any of
-your own) should all .yaml files. 
-
-The files are plain YAML, read with yaml.safe_load by any YAML reader. read_table_file reads the rows written one per
-line, as write_table_file writes them, without the (slow, pure Python) YAML parser; any other layout is read with it.
-"""
 
 # a row of the table on a line of its own: "- [v, v, ...]", with an optional comment
 _ROW_LINE = re.compile(r"^\s+-\s*\[([^\]#]*)\]\s*(#.*)?$")

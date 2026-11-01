@@ -1,17 +1,17 @@
 #!/bin/env python
+"""
+Set up the data files SWIFTLET needs in the Python environment it is installed in.
+
+After installing the package with pip, run ``swiftlet-configure`` to download the FLAMINGO lightcone shell redshift
+files into ``<environment>/share/swiftlet/redshifts``, and export their paths (``L1_REDSHIFTS_FILENAME`` and
+``L2P8_REDSHIFTS_FILENAME``) whenever the environment is activated.
+"""
+
 import argparse
 import os
 import sys
 import urllib.request
 
-"""
-Set up the data files SWIFTLET needs in the Python environment it is installed in.
-
-After installing the package with pip, run: swiftlet-configure
-
-To download the FLAMINGO lightcone shell redshift files into <environment>/share/swiftlet/redshifts
-and export their paths (L1_REDSHIFTS_FILENAME and L2P8_REDSHIFTS_FILENAME) whenever the environment is activated.
-"""
 
 # FLAMINGO lightcone shell redshift files: environment variable, file name and download URL
 FLAMINGO_DATA_URL = "https://dataweb.cosma.dur.ac.uk:8443/hdfstream/download/FLAMINGO"
@@ -173,8 +173,6 @@ def _replace_marked_lines(filename, new_lines):
 def export_paths_on_activate(paths, verbose=True):
     """
     Export environment variables whenever the Python environment is activated, add them to its activate script(s).
-
-    Running this again replaces the values added before.
 
     Returns True if the variables were added, False if not in a venv or conda environment.
 
