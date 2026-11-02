@@ -10,7 +10,7 @@ that the table is read.
 The results are presented in a summary plot.
 
 Such checks are rather useful to check if custom oritentaion tables or certain configurations of a lightcone will result
-in the same objcts reapearing too many times in the same line of sight and introduce some bias for any analysis with
+in the same objects reapearing too many times in the same line of sight and introduce some bias for any analysis with
 the lightcones.
 Specifically here we are checking if pairs of the same cell of a snapshot, in adjacent tiles, are touching or within
 1 degree of one another along a line-of-sight.

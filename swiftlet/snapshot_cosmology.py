@@ -218,7 +218,7 @@ class SnapshotCosmology:
         :param  z:  redshift
         :type   z:  float
         :param  dt: time before z [Myr], or a unyt quantity of time
-        :type   dt: float or unyt.unyt_quantity
+        :type   dt: float or unyt.array.unyt_quantity
         """
         dt = sw_units.apply_expected_units(dt, unyt.Myr)
         earlier = unyt.unyt_array.from_astropy(self.COSMO.age(z)).to("Myr") - dt
@@ -240,9 +240,9 @@ class SnapshotCosmology:
         Returns the comoving volume [Mpc^3] of a lightcone between two comoving radii, over the whole sky or in a cone.
 
         :param  inner:          inner comoving radius [Mpc], or redshift if use_redshift is True
-        :type   inner:          float, numpy.ndarray or unyt.unyt_array
+        :type   inner:          float, numpy.ndarray or unyt.array.unyt_array
         :param  outer:          outer comoving radius [Mpc], or redshift if use_redshift is True
-        :type   outer:          float, numpy.ndarray or unyt.unyt_array
+        :type   outer:          float, numpy.ndarray or unyt.array.unyt_array
         :param  use_redshift:   If True, inner and outer are redshifts
         :type   use_redshift:   bool
         :param  half_angle:     half the opening angle of the cone [rad]. If None, the whole sky

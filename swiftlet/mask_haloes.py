@@ -147,16 +147,17 @@ def rotate_cluster_coords(cluster_coords, map_rotator_object):
     """
     Rotate cluster 3D Cartesian comoving positions to match a sky.
 
-    Rotation has already been applied to a HEALPix map via :func:`rotate_map_fast` and each cluster's comoving distance
-    from the observer is preserved.
+    Rotation has already been applied to a HEALPix map via :func:`swiftlet.healpix_map_utils.rotate_map_fast` and each
+    cluster's comoving distance from the observer is preserved.
 
     Returns the cluster positions in the rotated frame, with the same distances and rotated directions.
 
     :param  cluster_coords:     Cartesian comoving positions [Mpc] relative to the observer, shape (N, 3)
     :type   cluster_coords:     numpy.ndarray
-    :param  map_rotator_object: the SAME Rotator instance returned by :func:`rotate_map_fast` for this shell/rotation.
+    :param  map_rotator_object: the SAME Rotator instance returned by :func:`swiftlet.healpix_map_utils.rotate_map_fast`
+                                for this shell/rotation.
                                 Do not construct a new one from theta/phi independently.
-    :type   map_rotator_object: healpy.Rotator
+    :type   map_rotator_object: healpy.rotator.Rotator
     """
     cluster_coords = np.atleast_2d(np.asarray(cluster_coords, dtype=float))
     distances = np.linalg.norm(cluster_coords, axis=1)
@@ -467,10 +468,10 @@ def write_binary_masks(
     :type   nside:              int
     :param  latitudes:          latitude rotation angle per shell, applied to the halo positions
                                 (units of deg or equivalent)
-    :type   latitudes:          unyt.unyt_array
+    :type   latitudes:          unyt.array.unyt_array
     :param  longitudes:         longitude rotation angle per shell, applied to the halo positions
                                 (units of deg or equivalent)
-    :type   longitudes:         unyt.unyt_array
+    :type   longitudes:         unyt.array.unyt_array
     :param  lightcone_numbers:  lightcone numbers to make masks for
     :type   lightcone_numbers:  list
     :param  mask_filename:      name of the output mask file, prefixed with the lightcone number and bin method

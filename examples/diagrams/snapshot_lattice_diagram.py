@@ -1,6 +1,6 @@
 #!/bin/env python
 """
-This example demostrates how the lightcone is rebuild from sections of each snapshots comoving volume.
+This example demonstrates how the lightcone is rebuild from sections of each snapshots comoving volume.
 
 We begin by building fake FLAMINGO snapshots (redshift 0 - 0.425, written to a temporary directory) using a box
 sidelength of 1Gpc and placeing all particles in a regular lattice.

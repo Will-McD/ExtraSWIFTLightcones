@@ -1,9 +1,9 @@
 #!/bin/env python
 """
-This example script comapares the number density of dark matter particles in multiple Snapshot lightcones with the
+This example script compares the number density of dark matter particles in multiple Snapshot lightcones with the
 expected number density of dark matter particles in the snapshots box.
 
-The number densities should converge consistent given the volume of the lightcone is sufficently large and is a good
+The number densities should converge consistent given the volume of the lightcone is sufficiently large and is a good
 indication of the lightcone not incorrectly missing or double counting particles from the snapshots.
 
 We will iterativley repeat this comparison for multiple different orientation seeds for both FLAMINGO and COLIBRE:

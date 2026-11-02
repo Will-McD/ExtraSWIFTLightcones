@@ -19,7 +19,7 @@ def flamingo_shell_redshift_file(box, download=True):
         #. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
 
     If the files do not exist and download is True, the files are downloaded
-    (see :func:`config.download_shell_redshifts`).
+    (see :func:`swiftlet.config.download_shell_redshifts`).
     Raises ``FileNotFoundError`` if the file can't be found or downloaded.
 
     :param  box:        simulation box, "L1" or "L2p8"

@@ -664,7 +664,7 @@ class BeamPlot:
         :param  data_2D:                    2D histogram to plot
         :type   data_2D:                    numpy.ndarray
         :param  cmap:                       colour map
-        :type   cmap:                       str or matplotlib colour map type object
+        :type   cmap:                       str or matplotlib.colors.Colormap
         :param  pix_min:                    minimum pixel value shown. If None, the minimum of the data or the norm
         :type   pix_min:                    float
         :param  pix_max:                    maximum pixel value shown. If None, the maximum of the data or the norm
@@ -689,7 +689,7 @@ class BeamPlot:
                                                 the inner arc (0, rmin) to the outer arc (1, rmax).
         :type   title_radius:               float
         :param  norm:                       colour normalisation, "log", "linear" or a
-                                            :func:`matplotlib.colors.Normalize`, see :func:`colour_norm`
+                                            matplotlib.colors.Normalize, see :func:`colour_norm`
         :type   norm:                       str or matplotlib.colors.Normalize
         :param  interpolation:              matplotlib imshow interpolation of the image, (e.g. "nearest")
         :type   interpolation:              str

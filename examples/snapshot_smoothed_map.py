@@ -1,6 +1,6 @@
 #!/bin/env python
 """
-This example scrpit shows the construction of an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) for
+This example script shows the construction of an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) for
 redshifts  0.05 - 0.1 using a Snapshot Lightcone for the COLIBRE L400_m7 Thermal and FLAMINGO L1_m9 fiducial
 simulations.
 """

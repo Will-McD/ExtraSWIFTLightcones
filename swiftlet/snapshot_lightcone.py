@@ -109,7 +109,7 @@ def print_coord_ranges(x, indent=0, rank=None):
     Print the minimum and maximum of the coordinates along each axis.
 
     :param  x:      coordinates, shape (N, 3)
-    :type   x:      numpy.ndarray or unyt.unyt_array
+    :type   x:      numpy.ndarray or unyt.array.unyt_array
     :param  indent: number of tabs to indent each line by
     :type   indent: int
     :param  rank:   MPI rank, only rank 0 prints. If None, always print
@@ -277,7 +277,7 @@ def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05,
     Returns a CubicSpline function taking comoving distance [Mpc] and returning redshift at the comoving distance.
 
     :param  cosmo:  cosmology of the simulation
-    :type   cosmo:  SnapshotCosmology, astropy cosmology or str
+    :type   cosmo:  SnapshotCosmology, astropy.cosmology.w0waCDM or str
     :param  zmin:   minimum redshift of the grid
     :type   zmin:   float
     :param  zmax:   maximum redshift of the grid
@@ -426,10 +426,11 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
 
     :param  filename:       path of the HDF5 file to write, e.g. lightcone_haloes_0127.hdf5
     :type   filename:       str
-    :param  haloes:          haloes placed by :func:`place_halos_in_shell`, all of them on this rank
-    :type   haloes:          dict
+    :param  haloes:         haloes placed by :func:`swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell`,
+                             all of them on this rank
+    :type   haloes:         dict
     :param  soap_filename:  SOAP catalogue of the haloes' snapshot, for the unit attributes and the Cosmology and
-                                Units groups
+                            Units groups
     :type   soap_filename:  str
     :param  properties:     {name: values} of SOAP properties of each halo to write, e.g. {"InputHalos/IsCentral": ...}
     :type   properties:     dict
@@ -997,9 +998,9 @@ class SnapshotLightcone:
         Compute the scale factor of particles based on comoving distance from observer.
 
         :param  r:      comoving distance from the observer [Mpc]
-        :type   r:      float, numpy.ndarray or unyt.unyt_array
+        :type   r:      float, numpy.ndarray or unyt.array.unyt_array
         :param  cosmo:  cosmology. If None, use the snapshot cosmology
-        :type   cosmo:  astropy cosmology object
+        :type   cosmo:  astropy.cosmology.w0waCDM
         """
         cosmo = self.cosmo if cosmo is None else as_astropy_cosmology(cosmo)
 
@@ -1203,7 +1204,7 @@ class SnapshotLightcone:
         :param  title:  line printed before the ranges
         :type   title:  str
         :param  coords: coordinates, shape (N, 3)
-        :type   coords: numpy.ndarray or unyt.unyt_array
+        :type   coords: numpy.ndarray or unyt.array.unyt_array
         """
         if self.verbose >= 2:
             message(self.comm_rank, title)
@@ -2153,7 +2154,7 @@ class SnapshotLightcone:
         :param  method:         'exact', no buffer. 'approx', extend the shell by r_tol. 'all', keep every particle
         :type   method:         str
         :param  r_tol:          buffer distance used with the 'approx' method (units of Mpc or equivalent)
-        :type   r_tol:          float or unyt.unyt_quantity
+        :type   r_tol:          float or unyt.array.unyt_quantity
         """
         if method == "approx":
             buffer_length = sw_units.apply_expected_units(r_tol, unyt.Mpc).to_value("Mpc")
@@ -3423,9 +3424,9 @@ class SnapshotBeam(SnapshotLightcone):
         :type   return_bool:    bool
         :param  cosmo:          A cosmology object. If None, use the snapshot cosmology.
                                     If not None, then either an astropy of SnapshotCosmology object
-                                    (the swiftlet class object, i.e. a wrapper for astropy cosmology objects)
+                                    (the swiftlet class object, i.e. a wrapper for astropy.cosmology objects)
                                     or a path to the snapshot from which the cosmology info can be extracted
-        :type   cosmo:          astropy cosmology object, SnapshotCosmology object (a swiftlet class) or str
+        :type   cosmo:          astropy.cosmology.w0waCDM, SnapshotCosmology object (a swiftlet class) or str
         """
         if cosmo is None:
             cosmo = self.cosmo
@@ -3496,7 +3497,7 @@ class SnapshotBeam(SnapshotLightcone):
         :param  ang_radius_deg:     angular radius [deg] of the cone
         :type   ang_radius_deg:     float
         :param  cosmo:              cosmology. If given, replaces the stored cosmology
-        :type   cosmo:              astropy cosmology object, SnapshotCosmology (swiftlet class object), or str
+        :type   cosmo:              astropy.cosmology, SnapshotCosmology (swiftlet class object), or str
         :param  use_comoving_dist:  If True, then z is passed as a comoving distance from the observer
         :type   use_comoving_dist:  bool
         """
@@ -3520,7 +3521,7 @@ class SnapshotBeam(SnapshotLightcone):
         :param  ang_radius_deg:     angular radius [deg] of the beam
         :type   ang_radius_deg:     float
         :param  cosmo:              cosmology. If given, replaces the stored cosmology
-        :type   cosmo:              astropy cosmology object
+        :type   cosmo:              astropy.cosmology.w0waCDM
         :param  use_comoving_dist:  If True, then z is passed as a comoving distance from the observer
         :type   use_comoving_dist:  bool
         """
@@ -3708,9 +3709,9 @@ class SnapshotAllSky(SnapshotLightcone):
         :type   return_bool:    bool
         :param  cosmo:          A cosmology object. If None, use the snapshot cosmology.
                                     If not None, then either an astropy of SnapshotCosmology object
-                                    (the swiftlet class object, i.e. a wrapper for astropy cosmology objects)
+                                    (the swiftlet class object, i.e. a wrapper for astropy.cosmology objects)
                                     or a path to the snapshot from which the cosmology info can be extracted.
-        :type   cosmo:          astropy cosmology object, SnapshotCosmology object (a swiftlet class object) or str
+        :type   cosmo:          astropy.cosmology.w0waCDM, SnapshotCosmology object (a swiftlet class object) or str
         """
         # update to a new cosmology if one is given
         if cosmo is None:
@@ -3752,7 +3753,7 @@ class SnapshotAllSky(SnapshotLightcone):
         :param  ang_radius_deg:     unused, accepted for signature compatibility with SnapshotBeam
         :type   ang_radius_deg:     float
         :param  cosmo:              cosmology. If given, replaces the stored cosmology.
-        :type   cosmo:              astropy cosmology object, SnapshotCosmology object or str
+        :type   cosmo:              astropy.cosmology.w0waCDM, SnapshotCosmology object or str
         :param  use_comoving_dist:  If True, then redshift is passed as a comoving distance from the observer
         :type   use_comoving_dist:  bool
         """
@@ -3774,7 +3775,7 @@ class SnapshotAllSky(SnapshotLightcone):
         :param  z:                  redshift, or comoving distance [Mpc] if use_comoving_dist is True
         :type   z:                  float
         :param  cosmo:              cosmology. If given, replaces the stored cosmology
-        :type   cosmo:              astropy cosmology object
+        :type   cosmo:              astropy.cosmology.w0waCDM
         :param  use_comoving_dist:  If True, then z is passed as a comoving distance from the observer
         :type   use_comoving_dist:  bool
         """

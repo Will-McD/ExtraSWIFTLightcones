@@ -11,9 +11,9 @@ def apply_expected_units(x, expected_units):
     Returns the input as a unyt.unyt_array or unyt.unyt_quantity in the expected units, if possible.
 
     :param  x:              value(s) to convert
-    :type   x:              int, float, list, numpy.ndarray, unyt.unyt_quantity or unyt.unyt_array
+    :type   x:              int, float, list, numpy.ndarray, unyt.array.unyt_quantity or unyt.array.unyt_array
     :param  expected_units: units to convert to
-    :type   expected_units: unyt.Unit
+    :type   expected_units: unyt.unit_object.Unit
     """
     # check if output spectrum has units
     if hasattr(x, "units") or isinstance(x, unyt.unyt_array):
@@ -208,7 +208,7 @@ def attributes_from_units(units, physical, a_exponent):
     Returns a dict with the attributes.
 
     :param  units:      the Unit object
-    :type   units:      unyt.Unit
+    :type   units:      unyt.unit_object.Unit
     :param  physical:   If True, the value is stored as physical rather than comoving
     :type   physical:   bool
     :param  a_exponent: expansion factor exponent of the property. None if it cannot be converted to comoving
@@ -273,7 +273,7 @@ def drop_a_from_comoving_property(arr):
     Returns the input array with updated units.
 
     :param  arr:    comoving property in snapshot units
-    :type   arr:    unyt.unyt_array
+    :type   arr:    unyt.array.unyt_array
     """
     reg = arr.units.registry
 

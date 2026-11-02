@@ -61,7 +61,7 @@ def comoving(arr):
     a*snap_length become comoving snap_length. Properties without a in their units are returned as they are.
 
     :param  arr:    property read from a SOAP catalogue
-    :type   arr:    unyt.unyt_array
+    :type   arr:    unyt.array.unyt_array
     """
     expr = arr.units.expr
     a_symbols = [symbol for symbol in expr.free_symbols if str(symbol) == "a"]

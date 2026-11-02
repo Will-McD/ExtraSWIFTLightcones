@@ -195,13 +195,13 @@ def rotate_map(base_map, theta, phi, ell_max=None, map_rotator_object=None):
     :param  base_map:           healpix map to rotate
     :type   base_map:           numpy.ndarray
     :param  theta:              co-latitude rotation angle (units of deg or equivalent)
-    :type   theta:              unyt.unyt_quantity
+    :type   theta:              unyt.array.unyt_quantity
     :param  phi:                longitude rotation angle (units of deg or equivalent)
-    :type   phi:                unyt.unyt_quantity
+    :type   phi:                unyt.array.unyt_quantity
     :param  ell_max:            maximum multipole used in the rotation
     :type   ell_max:            int
     :param  map_rotator_object: rotator to use. If None, one is created from theta and phi
-    :type   map_rotator_object: healpy.Rotator
+    :type   map_rotator_object: healpy.rotator.Rotator
     """
     if theta == 0.0 and phi == 0.0:
         return base_map, map_rotator_object
@@ -225,15 +225,15 @@ def rotate_map_fast(base_map, theta, phi, nside, ell_max=None, map_rotator_objec
     :param  base_map:           healpix map to rotate
     :type   base_map:           numpy.ndarray
     :param  theta:              co-latitude rotation angle (units of deg or equivalent)
-    :type   theta:              unyt.unyt_quantity
+    :type   theta:              unyt.array.unyt_quantity
     :param  phi:                longitude rotation angle (units of deg or equivalent)
-    :type   phi:                unyt.unyt_quantity
+    :type   phi:                unyt.array.unyt_quantity
     :param  nside:              nside of the rotated map
     :type   nside:              int
     :param  ell_max:            maximum multipole used in the rotation
     :type   ell_max:            int
     :param  map_rotator_object: rotator to use. If None, one is created from theta and phi
-    :type   map_rotator_object: healpy.Rotator
+    :type   map_rotator_object: healpy.rotator.Rotator
     """
     if theta == 0.0 and phi == 0.0:
         return base_map, map_rotator_object
@@ -284,9 +284,9 @@ def write_rotated_lightcone_chunks(
     :param  map_names:              map names (quantities or datasets) to sum and rotate in chunks, e.g. ["TotalMass"]
     :type   map_names:              list
     :param  theta_arr_deg:          theta (co-latitude) values per shell [deg]
-    :type   theta_arr_deg:          numpy.ndarray or unyt.unyt_array
+    :type   theta_arr_deg:          numpy.ndarray or unyt.array.unyt_array
     :param  phi_arr_deg:            phi (longitude) values per shell [deg]
-    :type   phi_arr_deg:            numpy.ndarray or unyt.unyt_array
+    :type   phi_arr_deg:            numpy.ndarray or unyt.array.unyt_array
     :param  output_filename:        path of the .hdf5 file to write
     :type   output_filename:        str
     :param  output_nside:           nside of the output maps

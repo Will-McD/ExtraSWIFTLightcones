@@ -89,7 +89,7 @@ class BeamProjection:
         :param  cosmology:                  cosmology of the simulation, or a path to a snapshot to read it from
         :type   cosmology:                  astropy.cosmology.FLRW or str
         :param  slice_thickness:            thickness [Mpc] of the slice of particles, its length along the z-axis
-        :type   slice_thickness:            float or unyt.unyt_quantity
+        :type   slice_thickness:            float or unyt.array.unyt_quantity
         :param  store_snapshot_filename:    path to a snapshot to keep for the projections (its metadata and cosmology),
                                             so it doesn't need to be given to project_properties
         :type   store_snapshot_filename:    str
@@ -164,7 +164,7 @@ class BeamProjection:
         :param  particle_properties:    properties of the particles to keep
         :type   particle_properties:    list
         :param  slice_thickness:        thickness of the slice [Mpc], length along the z-axis, of particles
-        :type   slice_thickness:        unyt.unyt_quantity
+        :type   slice_thickness:        unyt.array.unyt_quantity
         :param  ptype:                  particle type, "Gas" or "DM"
         :type   ptype:                  str
         """
@@ -192,7 +192,7 @@ class BeamProjection:
         Returns particle coordinates rotated so they are aligned with the vector (1,0,0).
 
         :param  coordinates:    particle coordinates, shape (N, 3)
-        :type   coordinates:    unyt.unyt_array
+        :type   coordinates:    unyt.array.unyt_array
         """
         if self._beam_vec == (1, 0, 0):
             return coordinates
@@ -206,11 +206,11 @@ class BeamProjection:
         Returns a boolean array, True if particle is in slice.
 
         :param  coordinates:        rotated particle coordinates, shape (N, 3)
-        :type   coordinates:        unyt.unyt_array
+        :type   coordinates:        unyt.array.unyt_array
         :param  redshift:           redshift of each particle
         :type   redshift:           numpy.ndarray
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
-        :type   slice_thickness:    int, float or unyt.unyt_quantity
+        :type   slice_thickness:    int, float or unyt.array.unyt_quantity
         """
         dz = apply_expected_units(slice_thickness, unyt.Mpc).to_value("Mpc")
         z_coords = coordinates[:, -1].to_value("Mpc")
@@ -228,7 +228,7 @@ class BeamProjection:
         :param  dset_name:  name of the property
         :type   dset_name:  str
         :param  dset:       values of the property for all particles read, before selecting the slice
-        :type   dset:       unyt.unyt_array or numpy.ndarray
+        :type   dset:       unyt.array.unyt_array or numpy.ndarray
         :param  ptype:      particle type, "Gas" or "DM"
         :type   ptype:      str
         """
@@ -264,7 +264,7 @@ class BeamProjection:
                                     are assumed ["Coordinates", "ExpansionFactors","SmoothingLengths"]
         :type   gas_property_names: list
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
-        :type   slice_thickness:    int, float or unyt.unyt_quantity
+        :type   slice_thickness:    int, float or unyt.array.unyt_quantity
         :param  dm_particle_data:   dark matter particle data or a path to the particle lightcone that contains dark
                                         matter particles.
         :type   dm_particle_data:   lightcone_io.IndexedLightconeParticleType for 'DM' or a str
@@ -623,9 +623,9 @@ class BeamProjection:
 
         Returns the smoothing lengths as a cosmo_array.
         :param  coordinates:        particle coordinates, shape (N, 3)
-        :type   coordinates:        unyt.unyt_array
+        :type   coordinates:        unyt.array.unyt_array
         :param  snapshot_boxsize:   side lengths of the snapshot box
-        :type   snapshot_boxsize:   unyt.unyt_array
+        :type   snapshot_boxsize:   unyt.array.unyt_array
         """
         # 1) shift position of particles so they are inside the snapshot box
         # 2) generate smoothing lengths
