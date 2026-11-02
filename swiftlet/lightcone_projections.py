@@ -62,10 +62,12 @@ def check_ptype(ptype):
 # beam projection functions
 class BeamProjection:
     """
-    Make simple projections of past lightcone beams.
+    Make simple projections of a past lightcone beam.
 
-    It defines the beam and the slice through it to project, holds the particles placed in the slice, and projects
-    their properties onto 2D maps.
+    To build the projection first define the beam and a slice along the line of sight to project, then add particles
+    from the lightcone into the slice before projecting selected properties of the slices particles.
+    As the slice hold the particle data, multiple projections can be made from one slice using different properties and
+    particles or new properties can always be added to the slice.
     """
 
     def __init__(
@@ -78,8 +80,6 @@ class BeamProjection:
         store_snapshot_filename=None,
     ):
         """
-        Define the beam and the slice through it to project.
-
         :param  vector:                     direction vector as an array of 3 floats
         :type   vector:                     numpy.ndarray
         :param  angular_diameter:           angular diameter [deg] of the beam
@@ -91,7 +91,7 @@ class BeamProjection:
         :param  slice_thickness:            thickness [Mpc] of the slice of particles, its length along the z-axis
         :type   slice_thickness:            float or unyt.unyt_quantity
         :param  store_snapshot_filename:    path to a snapshot to keep for the projections (its metadata and cosmology),
-                                                so it doesn't need to be given to project_properties
+                                            so it doesn't need to be given to project_properties
         :type   store_snapshot_filename:    str
         """
         self._beam_vec = tuple(vector)
@@ -164,7 +164,7 @@ class BeamProjection:
         :param  particle_properties:    properties of the particles to keep
         :type   particle_properties:    list
         :param  slice_thickness:        thickness of the slice [Mpc], length along the z-axis, of particles
-        :type   slice_thickness:        unyt.unyt_quantity (units of Mpc or equivalent)
+        :type   slice_thickness:        unyt.unyt_quantity
         :param  ptype:                  particle type, "Gas" or "DM"
         :type   ptype:                  str
         """
@@ -208,9 +208,9 @@ class BeamProjection:
         :param  coordinates:        rotated particle coordinates, shape (N, 3)
         :type   coordinates:        unyt.unyt_array
         :param  redshift:           redshift of each particle
-        :type   redshift:           np.ndarray
+        :type   redshift:           numpy.ndarray
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
-        :type   slice_thickness:    int, float or unyt.unyt_quantity (units of Mpc or equivalent)
+        :type   slice_thickness:    int, float or unyt.unyt_quantity
         """
         dz = apply_expected_units(slice_thickness, unyt.Mpc).to_value("Mpc")
         z_coords = coordinates[:, -1].to_value("Mpc")
@@ -228,7 +228,7 @@ class BeamProjection:
         :param  dset_name:  name of the property
         :type   dset_name:  str
         :param  dset:       values of the property for all particles read, before selecting the slice
-        :type   dset:       unyt.unyt_array or np.ndarray
+        :type   dset:       unyt.unyt_array or numpy.ndarray
         :param  ptype:      particle type, "Gas" or "DM"
         :type   ptype:      str
         """
@@ -261,19 +261,19 @@ class BeamProjection:
         :param  gas_particle_data:  gas particle data or a path to the particle lightcone
         :type   gas_particle_data:  lightcone_io.IndexedLightconeParticleType for 'Gas' or a str
         :param  gas_property_names: properties of gas particles to add to the slice. If None then essential properties
-                                        are assumed ["Coordinates", "ExpansionFactors","SmoothingLengths"]
+                                    are assumed ["Coordinates", "ExpansionFactors","SmoothingLengths"]
         :type   gas_property_names: list
         :param  slice_thickness:    thickness of the slice [Mpc], length along the z-axis, of particles
-        :type   slice_thickness:    int, float or unyt.unyt_quantity (units of Mpc or equivalent)
+        :type   slice_thickness:    int, float or unyt.unyt_quantity
         :param  dm_particle_data:   dark matter particle data or a path to the particle lightcone that contains dark
                                         matter particles.
         :type   dm_particle_data:   lightcone_io.IndexedLightconeParticleType for 'DM' or a str
         :param  dm_property_names:  properties of dm particles to add to the slice. If dm_particle_data != None and
-                                        dm_property_names is None, all properties are loaded by
-                                        default ["Coordinates","ExpansionFactors"]
+                                    dm_property_names is None, all properties are loaded by default
+                                    ["Coordinates","ExpansionFactors"]
         :type   dm_property_names:  list
         :param  xy_buffer:          distance [Mpc] between the min and max position of a particle and the boundary of
-                                        the slice.
+                                    the slice.
         :type   xy_buffer:          float or int
         """
         # update units for the size of the slice

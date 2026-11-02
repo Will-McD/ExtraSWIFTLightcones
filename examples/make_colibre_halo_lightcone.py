@@ -1,4 +1,9 @@
 #!/bin/env python
+"""
+Build a full sky halo lightcone from the snapshots and SOAP catalogues of the COLIBRE L400_m7 Thermal simulation
+(L0400N3008/Thermal) for redshifts 0.001 < z < 0.1.
+"""
+
 import argparse
 from pathlib import Path
 import numpy as np
@@ -9,12 +14,6 @@ from swiftlet.simulation_suites import Simulation
 
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
-
-
-"""
-Build a full sky halo lightcone from the snapshots and SOAP catalogues of the COLIBRE L400_m7 Thermal simulation
-(L0400N3008/Thermal) for redshifts 0.001 < z < 0.1. 
-"""
 
 
 def gather_snapshot_haloes(halos, properties, snap_nr):

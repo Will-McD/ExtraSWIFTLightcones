@@ -1,21 +1,21 @@
 #!/bin/env python
 
 """
-Maximum number of threads used by the threaded code.
+Limit the number of threads used by the threaded code: numba's parallel functions and healpy's transforms.
 
 This covers:
 - numba parallel functions (re-orienting the snapshot box tiles, and swiftsimio's parallel projections)
 - healpy alm spherical harmonic transforms (``map2alm``, ``rotate_alm`` and ``alm2map``)
 
-The maximum number of threads is set by SWIFTLET_MAX_THREADS.
-If SWIFTLET_MAX_THREADS is None then default to 30. Otherwise when set, it is never allowed it to be more than the
+The maximum number of threads is set by ``SWIFTLET_MAX_THREADS``.
+If ``SWIFTLET_MAX_THREADS`` is None then default to 30. Otherwise when set, it is never allowed it to be more than the
 number of cores the process are allowed to run on (e.g. the cores given to a job or an MPI rank).
 With ``SWIFTLET_MAX_THREADS=all`` there is no fixed maximum, and each process uses all the cores it is allowed.
 
 ``SWIFTLET_MAX_THREADS`` can be changed with::
 
     swiftlet-configure --max_threads N      # N or all, saved in the environment's activate script
-    export SWIFTLET_MAX_THREADS=N           # for one shell or job script
+    export ``SWIFTLET_MAX_THREADS``=N           # for one shell or job script
     swiftlet.set_max_threads(N)             # while running, in Python
 
 """
@@ -56,8 +56,8 @@ def max_threads():
     """
     Returns the maximum number of threads.
 
-        - SWIFTLET_MAX_THREADS:     if a value is set.
-        - DEFAULT_MAX_THREADS:      if not value set
+        - ``SWIFTLET_MAX_THREADS``:     if a value is set.
+        - ``DEFAULT_MAX_THREADS``:      if not value set
         - None:                     if 'all' and no fixed maximum
 
     """
@@ -69,7 +69,7 @@ def max_threads():
 
 def set_max_threads(number):
     """
-    Set SWIFTLET_MAX_THREADS, the maximum number of threads to use.
+    Set ``SWIFTLET_MAX_THREADS``, the maximum number of threads to use.
 
     :param  number: maximum number of threads, at least 1, or "all" (or None) to use all the cores the process
                         is allowed
@@ -92,7 +92,7 @@ def thread_limit():
     Returns the maximum number of threads to use.
 
     The maximum cannot be more than the cores this process may run on, or all
-    of those cores if SWIFTLET_MAX_THREADS is "all".
+    of those cores if ``SWIFTLET_MAX_THREADS`` is "all".
     """
     maximum = max_threads()
     return available_cores() if maximum is None else max(1, min(maximum, available_cores()))
@@ -101,8 +101,6 @@ def thread_limit():
 def limit_numba_threads():
     """
     Set the number of threads numba's parallel functions use to thread_limit().
-
-    Called before running a numba parallel function.
 
     Returns the number of threads numba uses.
     """
@@ -118,7 +116,7 @@ def limit_numba_threads():
 def limit_openmp_threads():
     """
     Within the block, limit the thread pools to thread_limit() and restore them after, otherwise without it the threads
-    are not limited, and OMP_NUM_THREADS can be set instead.
+    are not limited, and ``OMP_NUM_THREADS`` can be set instead.
     """  # noqa: D205
     try:
         from threadpoolctl import threadpool_limits

@@ -60,7 +60,7 @@ def attr_scalar(value):
     Correctly return HDF5 attributes that are conceptually scalar but are stored as a length-1 array.
 
     :param  value:  HDF5 attribute value
-    :type   value:  scalar or np.ndarray
+    :type   value:  scalar or numpy.ndarray
     """
     return np.asarray(value).flat[0]
 
@@ -70,7 +70,7 @@ def native_endian(arr):
     Convert an array to native byte order.
 
     :param  arr:    array to convert
-    :type   arr:    np.ndarray
+    :type   arr:    numpy.ndarray
     """
     return arr.astype(arr.dtype.newbyteorder("="))
 
@@ -84,7 +84,7 @@ def exchange_particles(part_dest, arrays):
     Returns a list of the arrays received by this rank.
 
     :param  part_dest:  destination rank of each element
-    :type   part_dest:  np.ndarray
+    :type   part_dest:  numpy.ndarray
     :param  arrays:     1D or 2D arrays to exchange between ranks
     :type   arrays:     list
     """
@@ -147,15 +147,15 @@ def rotate_cluster_coords(cluster_coords, map_rotator_object):
     """
     Rotate cluster 3D Cartesian comoving positions to match a sky.
 
-    Rotation has already been applied to a HEALPix map via rotate_map_fast and each cluster's comoving distance
+    Rotation has already been applied to a HEALPix map via :func:`rotate_map_fast` and each cluster's comoving distance
     from the observer is preserved.
 
-    Returns the cluster positions in the rotated frame, shape (N, 3), with the same distances and rotated directions.
+    Returns the cluster positions in the rotated frame, with the same distances and rotated directions.
 
     :param  cluster_coords:     Cartesian comoving positions [Mpc] relative to the observer, shape (N, 3)
-    :type   cluster_coords:     np.ndarray
-    :param  map_rotator_object: the SAME Rotator instance returned by rotate_map_fast for this shell/rotation.
-                                    Do not construct a new one from theta/phi independently.
+    :type   cluster_coords:     numpy.ndarray
+    :param  map_rotator_object: the SAME Rotator instance returned by :func:`rotate_map_fast` for this shell/rotation.
+                                Do not construct a new one from theta/phi independently.
     :type   map_rotator_object: healpy.Rotator
     """
     cluster_coords = np.atleast_2d(np.asarray(cluster_coords, dtype=float))
@@ -194,7 +194,7 @@ def read_shell_halo_properties(
     :param  soap_filenames:     SOAP catalogue files, one per snapshot
     :type   soap_filenames:     list
     :param  snapshot_numbers:   snapshot numbers of the SOAP catalogues
-    :type   snapshot_numbers:   list or np.ndarray
+    :type   snapshot_numbers:   list or numpy.ndarray
     :param  radius_prop:        path to the radius property in the SOAP catalogue, e.g. 'SO/500_crit/SORadius'
     :type   radius_prop:        str
     :param  mass_prop:          path to the mass property in the SOAP catalogue, e.g. 'SO/500_crit/TotalMass'
@@ -343,9 +343,9 @@ def mask_cluster_apertures_local(nside, cluster_coords, radius_mpc, local_offset
     :param  nside:              nside of the map
     :type   nside:              int
     :param  cluster_coords:     Cartesian comoving positions [Mpc] relative to the observer, shape (N, 3)
-    :type   cluster_coords:     np.ndarray
+    :type   cluster_coords:     numpy.ndarray
     :param  radius_mpc:         comoving aperture radius [Mpc] for each halo, or a single radius for all haloes
-    :type   radius_mpc:         float or np.ndarray
+    :type   radius_mpc:         float or numpy.ndarray
     :param  local_offset:       global index of the first pixel on this rank
     :type   local_offset:       int
     :param  nr_local_pixels:    number of pixels on this rank
@@ -383,11 +383,11 @@ def route_halos_to_pixel_owners(theta_boundary, cluster_coords, radius_mpc, extr
     forwarded to it by other ranks whose aperture reaches this rank's band.
 
     :param  theta_boundary: theta boundaries of each rank's band of pixels, from distribute_pixels
-    :type   theta_boundary: np.ndarray
+    :type   theta_boundary: numpy.ndarray
     :param  cluster_coords: comoving positions, shape (N, 3), of this rank's local halos only
-    :type   cluster_coords: np.ndarray
+    :type   cluster_coords: numpy.ndarray
     :param  radius_mpc:     comoving aperture radius, shape (N,), for each halo.
-    :type   radius_mpc:     np.ndarray
+    :type   radius_mpc:     numpy.ndarray
     :param  extra_arrays:   additional 1D/2D per-halo arrays to carry
     :type   extra_arrays:   list
     :param  comm:           MPI communicator
@@ -466,9 +466,11 @@ def write_binary_masks(
     :param  nside:              nside of the masks
     :type   nside:              int
     :param  latitudes:          latitude rotation angle per shell, applied to the halo positions
-    :type   latitudes:          unyt.unyt_array (units of deg or equivalent)
+                                (units of deg or equivalent)
+    :type   latitudes:          unyt.unyt_array
     :param  longitudes:         longitude rotation angle per shell, applied to the halo positions
-    :type   longitudes:         unyt.unyt_array (units of deg or equivalent)
+                                (units of deg or equivalent)
+    :type   longitudes:         unyt.unyt_array
     :param  lightcone_numbers:  lightcone numbers to make masks for
     :type   lightcone_numbers:  list
     :param  mask_filename:      name of the output mask file, prefixed with the lightcone number and bin method
@@ -493,7 +495,7 @@ def write_binary_masks(
     :type   log_mass_bin_width: float
     :param  scale_radius:       coefficients to scale the given radius property by when drawing apertures about
                                     each halo. If None, then assume coefficients of 0.2, 0.5, 1.0, 2.0 and 5.0
-    :type   scale_radius:       list or np.ndarray
+    :type   scale_radius:       list or numpy.ndarray
     :param  hdf5_dset_kwargs:   keyword arguments passed to h5py create_dataset.
                                     If not given, use gzip compression level 9 with shuffle. If None, no compression
     :type   hdf5_dset_kwargs:   dict

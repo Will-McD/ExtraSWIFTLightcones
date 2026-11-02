@@ -1,11 +1,7 @@
 #!/bin/env python
-import numpy as np
-import pytest
-
-pytest.importorskip("yaml")
-from swiftlet import snapshot_orientation as so
-
 """
+Orientation table tests.
+
 Tests of the orientation tables of the snapshot tiles:
     - the default tables
     - generating tables with every distinct orientation
@@ -13,6 +9,12 @@ Tests of the orientation tables of the snapshot tiles:
     - reading + writing .yaml or .yml files
 
 """
+
+import numpy as np
+import pytest
+
+pytest.importorskip("yaml")
+from swiftlet import snapshot_orientation as so
 
 
 def orientation_keys(tables):
@@ -187,7 +189,6 @@ def test_generated_tables_are_reproducible():
 
 
 def test_generated_tables_options():
-
     tables = so.generate_orientation_tables(n_rows=100)
     assert len(tables["QuarterTurns"]) == 100
 

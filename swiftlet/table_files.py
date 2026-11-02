@@ -1,6 +1,6 @@
 #!/bin/env python
 """
-The reading and writing functions for the required .yaml files.
+Read and write the YAML files of the orientation and output redshifts tables.
 
 The orientation tables and the snapshot output redshifts installed with SWIFTLET (and any of
 your own) should all be .yaml files.
@@ -45,9 +45,8 @@ def read_table_file(source, columns, kind="a table"):
     """
     Read a YAML table file and check its columns.
 
-    Returns (header, rows),
-    header is a dict of everything but "columns" and "rows", rows an np.ndarray of shape
-    (number of rows, number of columns), of int64 if every value is a whole number written as one, otherwise float.
+    Returns (header, rows), header is a dict of everything but "columns" and "rows", rows an np.ndarray of
+    (number of rows, number of columns)
 
     :param  source:     path of the file, or an importlib.resources Traversable
     :type   source:     str, os.PathLike or Traversable
@@ -138,7 +137,7 @@ def _yaml_value(value):
 
 def write_table_file(filename, header, columns, rows, comment=None):
     """
-    Write a YAML table file.
+    Write a table to a YAML file.
 
     The comment, the header, the columns, then the rows one per line.
     Floats are written with repr, so they read back exactly.

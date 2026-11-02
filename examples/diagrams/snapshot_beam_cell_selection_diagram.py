@@ -1,4 +1,19 @@
 #!/bin/env python
+"""
+Example script to show how SnapshotBeam selects tiles and the cells within each tile before any particle data is read:
+
+It works in 2 steps:
+
+#. tiles:   find every periodic replica of the snapshot box (i.e. a tile), that the beam's cone can reach. Tiles are
+built on a regular lattice.
+
+#. cells:   for each tile keep the cells whose centres are within the beam, with a buffer of one cell length. Only the
+particles of those cells are then read.
+
+We will illustrate this with a diagram of a beam that points along the x-axis, showing both the tiles crossed and the
+cells selected for the x-z plane at y=0 and for the beams circular cross-section.
+"""
+
 import numpy as np
 import matplotlib
 
@@ -12,18 +27,6 @@ import astropy.units as u
 from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.example_plot_settings import plot_settings
 
-"""
-Example script to show how SnapshotBeam selects tiles and the cells within each tile before any particle data is read:
-    
-    1. tiles:   find every periodic replica of the snapshot box (i.e. a tile), that the beam's cone can reach.  
-                    Tiles are a built on a regular lattice.
-    2. cells:   for each tile keep the cells whose centres are within the beam, with a buffer
-                    of one cell length. Only the particles of those cells are then read.
-
-Draw a diagram of a that beam points along the x-axis, showing both the tiles crossed and selected cells for 
-the plane y=0 and a the beams circular cross-section. 
-
-"""
 
 ###################################
 # set colours used in the plot
@@ -104,8 +107,10 @@ def select_tiles_and_cells(beam, L, n_cells, r_max, half_angle_deg, cosmo):
 
 def draw_tiles(ax, tiles, h_range, v_range, n_cells, project_axis):
     """
-    Draw the tiles in a plane. used tiles are shaded and overlaied with the grid
-    of cells of used tiles. Cells in the lightcone are hatch shaded.
+    Draw the lattice of tiles.
+
+    Tiles used in the lightcone are shaded and overlaied with the grid of cells.
+    Cells in the intersected by the lightcone are hatched.
 
     :param  ax:             axes to plot onto
     :type   ax:             matplotlib.axes._axes.Axes
@@ -184,28 +189,29 @@ def plot_beam_cell_selection(
     filename="./snapshot_beam_cell_selection.png",
 ):
     """
-    Make 2 diagrams for the tiles and cells SnapshotBeam selects for a beam along the x-axis,
-    1. a side view on the plane x-z plane at y = 0
-    2. a cross-section of the beam on y-z plane at x=x_cross
+    Make 2 diagrams of the tiles and cells SnapshotBeam selects for a beam along the x-axis.
 
-    :param  L:              box sidelength [Mpc]
-    :type   L:              float
-    :param  n_cells:        number of cells along each axis of the box
-    :type   n_cells:        int
-    :param  half_angle_deg: angular radius [deg] of the beam
-    :type   half_angle_deg: float
-    :param  r_max_L:        maximum distance of the beam from the observer, in box sidelengths
-    :type   r_max_L:        float
-    :param  n_along:        number of tiles shown along the beam beyond the observer's tile
-    :type   n_along:        int
-    :param  x_cross:        lattice position (in box sidelengths) along x of the cross-section
-    :type   x_cross:        int
-    :param  n_transverse:   number of tiles shown either side of the beam's axis
-    :type   n_transverse:   int
-    :param  figsize:        size of the figure
-    :type   figsize:        tuple
-    :param  filename:       path to write the plot to
-    :type   filename:       str
+    1. a side view, on the x-z plane at y = 0
+    2. a cross-section of the beam, on the y-z plane at x = x_cross
+
+        :param  L:              box sidelength [Mpc]
+        :type   L:              float
+        :param  n_cells:        number of cells along each axis of the box
+        :type   n_cells:        int
+        :param  half_angle_deg: angular radius [deg] of the beam
+        :type   half_angle_deg: float
+        :param  r_max_L:        maximum distance of the beam from the observer, in box sidelengths
+        :type   r_max_L:        float
+        :param  n_along:        number of tiles shown along the beam beyond the observer's tile
+        :type   n_along:        int
+        :param  x_cross:        lattice position (in box sidelengths) along x of the cross-section
+        :type   x_cross:        int
+        :param  n_transverse:   number of tiles shown either side of the beam's axis
+        :type   n_transverse:   int
+        :param  figsize:        size of the figure
+        :type   figsize:        tuple
+        :param  filename:       path to write the plot to
+        :type   filename:       str
     """
     cosmo = FlatLambdaCDM(H0=68.1, Om0=0.306)
     beam = diagram_beam((1, 0, 0))

@@ -1,23 +1,27 @@
 #!/bin/env python
+"""
+Example script to show how locking the orientation per layer with an ``orientation_lock`` decides which
+periodic replicas (i.e. tiles) of the snapshot boxes share the same orientation.
+
+The possible locks:
+
+- None or "none":   every box tile has its own orientation. Structures are cut at every tile face.
+- "cube":            every tile in a cube shell of boxes around the observer's box, max(|mx|, |my|, |mz|) = n, shares
+one orientation. The orientation only changes on the tile faces between shells.
+- "sphere":          everything between (n-1/2) and (n+1/2) box sidelengths from the observer shares one
+orientation. The orientation only changes at those distances, cutting through boxes.
+
+Draw a diagram of a slice through the x-z plane, which holds the observer, colouring each of the tiles by the
+orientation. As in SnapshotLightcone, the tiles sit on a regular lattice of whole box sidelengths, centred
+on (mx, my, mz) * L.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.lines import Line2D
 from pathlib import Path
 from swiftlet.example_plot_settings import plot_settings, cmap_MCG
-
-"""
-Example script to show how the locking the orientation per layer with orientation_lock decides which
-periodic replicas (i.e. tiles) of the snapshot boxes share the same orientation:
-    None or "none":         every box tile has its own orientation. Structures are cut at every tile face.
-    "cube":                 every tile in a cube shell of boxes around the observer's box, max(|mx|, |my|, |mz|) = n,
-                                shares one orientation. The orientation only changes on the tile faces between shells.
-    "sphere":               everything between (n-1/2) and (n+1/2) box sidelengths from the observer shares one
-                                orientation. The orientation only changes at those distances, cutting through boxes.
-
-The diagram is a slice through the x-z plane, which holds the observer.
-As in SnapshotLightcone, the tiles sit on a regular lattice of whole box sidelengths, centred on (mx, my, mz) * L.
-"""
 
 
 def slice_to_3d(x, z):
@@ -36,9 +40,7 @@ def slice_to_3d(x, z):
 
 def box_lattice_position(pos, L):
     """
-
-    Returns the lattice positions (mx, my, mz) of the tile holding
-    each position for a side length of L. Each tile is centred on (mx, my, mz) * L.
+    Returns the lattice positions (mx, my, mz) of the tile holding each position for a side length of L.
 
     :param  pos:    positions, shape (..., 3)
     :type   pos:    np.ndarray
@@ -53,12 +55,13 @@ def orientation_layer(pos, L, orientation_lock):
     The orientation each position in the lattice is given.
 
     Returns an integer array:
-        orientation_lock=None:      a different number for every box.
-        orientation_lock="cube":    the cube shell of the box, max(|mx|, |my|, |mz|).
-        orientation_lock="sphere":  the spherical shell, floor(r / L + 1/2).
+
+    - orientation_lock=None: a different number for every box
+    - orientation_lock="cube": the cube shell of the box, ``max(|mx|, |my|, |mz|)``
+    - orientation_lock="sphere": the spherical shell, ``floor(r / L + 1/2)``
 
     :param  pos:                positions, shape (..., 3)
-    :type   pos:                np.ndarray
+    :type   pos:                numpy.ndarray
     :param  L:                  box sidelength
     :type   L:                  float
     :param  orientation_lock:   None, "cube" or "sphere"
@@ -75,9 +78,8 @@ def orientation_layer(pos, L, orientation_lock):
 
 def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
     """
-    Check if point is inside the lightcone by comparing against the maximum comoving
-    distance from the observer and if a beam, compare against the
-    direction of the beam and the beams angular radius.
+    Check if a point is inside the lightcone by comparing against the maximum comoving distance from the observer and
+    for a beam compare against the direction of the beam and the beams angular radius if.
 
     Returns a boolean array, True if in the lightcone and False otherwise
 
@@ -114,6 +116,7 @@ def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
 def beam_in_slice(beam_vector):
     """
     Returns the direction of a beam in the slice, as a unit vector in (x, z).
+
     The beam must lie in the plane defined for y = 0.
 
     :param  beam_vector:    direction of the beam
@@ -127,8 +130,8 @@ def beam_in_slice(beam_vector):
 
 def box_label_positions(s, z, layer, inside, min_pixels=0):
     """
-
     Returns the label of each tile in the lightcone.
+
     The label is placed as close to the centre of a tiles overlapping area with the lightcone.
 
     :param  s:          coordinate along x of each pixel
@@ -263,8 +266,8 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
 
 def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20.0, figsize=(11, 11), filename="./orientation_locks.png"):
     """
-    Plot the orientations of the box tiles for each orientation lock (rows), for a full sky lightcone,
-    a beam along (0, 0, 1) and a beam along (1, 0, 1) (columns).
+    Plot the orientations of the box tiles for each orientation lock (rows), for a full sky lightcone, a beam
+    along (0, 0, 1) and a beam along (1, 0, 1) (columns).
 
     :param  L:              box sidelength
     :type   L:              float

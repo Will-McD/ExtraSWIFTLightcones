@@ -1,4 +1,16 @@
 #!/bin/env python
+"""
+Tests of where SnapshotLightcone places objects, using small fake snapshots and SOAP catalogues
+written to a temporary directory.
+
+No simulation data is required.
+
+- Haloes placed from a SOAP catalogue (place_halos_in_shell) end up exactly where a particle at the
+  same position in the snapshot is placed (place_snapshot_particles_in_shell).
+- Particles on a uniform lattice across the whole snapshot, placed in a shell reaching just under
+  half a box length from the observer, end up on the same lattice centred on the observer, each once.
+"""
+
 import json
 import os
 import shutil
@@ -16,17 +28,6 @@ snapshot_lightcone = pytest.importorskip("swiftlet.snapshot_lightcone")
 from swiftlet import snapshot_redshifts
 from swiftlet.simulation_suites import output_redshifts
 
-"""
-Tests of where SnapshotLightcone places objects, using small fake snapshots and SOAP catalogues
-written to a temporary directory. 
-
-No simulation data is required.
-
-- Haloes placed from a SOAP catalogue (place_halos_in_shell) end up exactly where a particle at the
-  same position in the snapshot is placed (place_snapshot_particles_in_shell).
-- Particles on a uniform lattice across the whole snapshot, placed in a shell reaching just under
-  half a box length from the observer, end up on the same lattice centred on the observer, each once.
-"""
 
 # make fake FLAMINGO snapshot data
 BOX_RES = "L1000N0900"

@@ -1,7 +1,12 @@
 #!/bin/env python
+"""
+Tests the SOAP reader functions using a set of small fake SOAP catalogues written to a temporary directory.
+
+Check every reader gives the same rows and values, with units correct units which drop the comoving expansion factors.
+"""
+
 import os
 import sys
-
 import numpy as np
 import pytest
 import unyt
@@ -11,10 +16,6 @@ soap_reader = pytest.importorskip("swiftlet.soap_reader")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_snapshot_lightcone_placement as placement  # noqa: E402
 
-"""
-Tests the SOAP reader functions using a set of small fake SOAP catalogues written to a temporary directory. 
-Check every reader gives the same rows and values, with units correct units which drop the comoving expansion factors.
-"""
 
 SNAP_NR = 75
 NHALOS = 5000

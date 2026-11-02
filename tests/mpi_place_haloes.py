@@ -1,4 +1,13 @@
 #!/bin/env python
+"""
+Place the haloes of the fake SOAP catalogues into a lightcone shell and then run under mpiexec by
+test_snapshot_lightcone_placement.test_mpi_haloes_match_serial.
+
+Each rank saves the haloes it placed to <output>.<rank>.npz.
+The json arguments are run_dir, beam_vector (null for all-sky), ang_radius_deg, redshift_range, orientation_lock,
+soap_chunk_size, redistribute and output.
+"""
+
 import json
 import os
 import sys
@@ -10,16 +19,6 @@ from mpi4py import MPI
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_snapshot_lightcone_placement as placement  # noqa: E402
-
-"""
-Place the haloes of the fake SOAP catalogues into a lightcone shell and then run under mpiexec by
-test_snapshot_lightcone_placement.test_mpi_haloes_match_serial. 
-Each rank saves the haloes it placed to <output>.<rank>.npz.
-
-The json arguments are run_dir, beam_vector (null for all-sky), ang_radius_deg, redshift_range, orientation_lock,
-soap_chunk_size, redistribute and output.
-
-"""
 
 
 def main(args):

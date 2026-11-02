@@ -1,15 +1,28 @@
 #!/bin/env python
 """
-The SWIFT simulation suites (FLAMINGO and COLIBRE) and their simulations.
+The SWIFT simulation suites (FLAMINGO and COLIBRE) and their simulations: where their files are and the redshifts they
+were output at.
+
+Every path to a snapshot and every conversion between snapshot numbers and redshifts comes from a
+:class:`~swiftlet.simulation_suites.Simulation`, so they are the same wherever they are used.
 
 - ``SimulationSuite``: track information that is the same for every simulation of a suite
 - ``Simulation``: one simulation, with its suite, box size and resolution label, name and directory
 
-Note that the base directory of each suite's simulations are checked in this order:
-    1. the base directory (base_dir_format) given to Simulation.from_label
-    2. the suite's environment variable (SWIFTLET_FLAMINGO_DIR or SWIFTLET_COLIBRE_DIR), the directory holding
-        the simulations, each in <box_res>/<sim_name>
-    3. the suite's directory on COSMA
+The base directory of each suite's simulations is taken from, in this order:
+
+1. the base directory (``base_dir_format``) if given to :meth:`~swiftlet.simulation_suites.Simulation.from_label`
+2. the suite's environment variable (``SWIFTLET_FLAMINGO_DIR`` or ``SWIFTLET_COLIBRE_DIR``), the directory holding the
+   simulations, each in ``<box_res>/<sim_name>``
+3. the suite's directory on COSMA
+
+For example::
+
+    from swiftlet import Simulation
+
+    simulation = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")  # the suite is found from the label
+    simulation.snapshot_file(77, 0)  # path of file 0 of snapshot 77
+    simulation.snapshot_redshift(77)  # its output redshift
 """
 
 import os
@@ -59,7 +72,7 @@ def read_output_redshifts(path):
     per line, "snapshot_number, redshift", with the snapshot numbers 0, 1, 2, ... in order.
     Lines starting with '#' are comments.
 
-    Returns an np.ndarray of the redshifts, in order of snapshot number.
+    Returns an numpy.ndarray of the redshifts, in order of snapshot number.
 
     :param  path:   a file name, for the tables shipped with the package (in OUTPUT_REDSHIFT_DIR), or the path of a
                         file of your own
@@ -106,7 +119,8 @@ def write_output_redshifts(filename, redshifts, description=None, **header):
 @dataclass(frozen=True)  # do not allow this to be mutated
 class SimulationSuite:
     """
-    A SWIFT simulation suite (i.e. FLAMINGO or COLIBRE), tracks what differs between the suites.
+    For a SWIFT simulation suite (FLAMINGO and COLIBRE) track what is common for all simulations in the suite:
+    the directories and path formats for the snapshots, halo catalogues and output redshifts.
 
     :ivar name:                     "flamingo" or "colibre"
     :vartype name:                  str
@@ -124,7 +138,6 @@ class SimulationSuite:
                                         box size and resolution label; the file under "*" is used for any label of
                                         the suite
     :vartype output_redshift_tables: dict
-
     """
 
     # define types of each element
@@ -284,10 +297,11 @@ def output_redshifts(boxsize_resolution, simulation_suite_name=None):
 @dataclass(frozen=True)
 class Simulation:
     """
-    For one simulation track its suite, box size and resolution label, model name and base directory.
+    Define one simulation within a SimulationSuite and track its essential information.
 
-    For every simulation used, every path to a snapshot and every snapshot number to redshift conversion comes from this
-    class, so they are the same wherever they are used.
+    This class informs us about what simulation is being used (model name, box size and resolution label), what suite it
+    belongs to ('flamingo' or 'colibre'), the redshift that each snapshot was output at and the paths to both the
+    snapshots and halo catalogues.
 
     :ivar suite:        the simulation's suite, FLAMINGO or COLIBRE
     :vartype suite:     SimulationSuite
@@ -395,7 +409,7 @@ class Simulation:
         Output redshift of a snapshot (or of an array of snapshots).
 
         :param  snap_nr:    snapshot number
-        :type   snap_nr:    int or np.ndarray
+        :type   snap_nr:    int or numpy.ndarray
         """
         return self.output_redshifts[snap_nr]
 

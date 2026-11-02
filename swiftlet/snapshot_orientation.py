@@ -1,9 +1,12 @@
 #!/bin/env python
 """
-The orientation of the tiles of a lightcone built from the snapshots.
+Re-orient the tiles of a lightcone built from the snapshots, so the same structures are not seen repeated along a given
+line of sight.
 
-The rotations (quarter turns), reflections and periodic cell shifts that make each tile a new copy of the initial
-snapshot box, the tables they are chosen from, and the rotation of coordinates with them.
+Each tile is a copy of the snapshot box, turned by quarter turns, reflected and shifted periodically by a whole number
+of cells. Each tile takes these from one row of the orientation tables.
+The tables are installed with SWIFTLET (``default_v2`` by default, which has no clashing rows), or can be written to and
+read from a file of your own.
 """
 
 import functools
@@ -23,16 +26,14 @@ except ImportError:
 
 def _build_rotation_matrix(rot_angles, order="xyz", degrees=False):
     """
-    Build 3x3 rotation matrix.
-
-    Returns the rotation matrix as a (3, 3) np.ndarray.
+    Returns the rotation matrix as a (3, 3) numpy.ndarray.
 
     :param  rot_angles: (angle_x, angle_y, angle_z), radians unless degrees=True
     :type   rot_angles: array-like, shape (3,)
     :param  order:      the order of axes that coordinates are rotated about, a permutation of "x", "y", "z"
     :type   order:      str
     :param  degrees:    If True, then angles are given in degrees
-    :type   degrees:    boolean
+    :type   degrees:    bool
     """
     rot_angles = np.asarray(rot_angles, dtype=np.float64)
 
@@ -82,11 +83,11 @@ if _HAVE_NUMBA:
         Rotate coordinates by the rotation matrix, writing into out.
 
         :param  coords: coordinates, shape (N, 3)
-        :type   coords: np.ndarray
+        :type   coords: numpy.ndarray
         :param  R:      rotation matrix, shape (3, 3)
-        :type   R:      np.ndarray
+        :type   R:      numpy.ndarray
         :param  out:    output buffer, shape (N, 3)
-        :type   out:    np.ndarray
+        :type   out:    numpy.ndarray
         """
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[0, 1], R[0, 2]
@@ -110,15 +111,15 @@ if _HAVE_NUMBA:
         Periodically shift coordinates, then rotate them about the box centre.
 
         :param  coords: coordinates, shape (N, 3)
-        :type   coords: np.ndarray
+        :type   coords: numpy.ndarray
         :param  R:      rotation matrix, shape (3, 3)
-        :type   R:      np.ndarray
+        :type   R:      numpy.ndarray
         :param  shift:  shift along x, y, z
-        :type   shift:  np.ndarray
+        :type   shift:  numpy.ndarray
         :param  L:      side lengths of the box along x, y, z
-        :type   L:      np.ndarray
+        :type   L:      numpy.ndarray
         :param  out:    output buffer, shape (N, 3)
-        :type   out:    np.ndarray
+        :type   out:    numpy.ndarray
         """
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[0, 1], R[0, 2]
@@ -152,15 +153,15 @@ if _HAVE_NUMBA:
         Inverse of _apply_rotation_periodic_numba.
 
         :param  coords: rotated coordinates, shape (N, 3)
-        :type   coords: np.ndarray
+        :type   coords: numpy.ndarray
         :param  R:      rotation matrix used in the forward rotation, shape (3, 3)
-        :type   R:      np.ndarray
+        :type   R:      numpy.ndarray
         :param  shift:  shift along x, y, z used in the forward rotation
-        :type   shift:  np.ndarray
+        :type   shift:  numpy.ndarray
         :param  L:      side lengths of the box along x, y, z
-        :type   L:      np.ndarray
+        :type   L:      numpy.ndarray
         :param  out:    output buffer, shape (N, 3)
-        :type   out:    np.ndarray
+        :type   out:    numpy.ndarray
         """
         n = coords.shape[0]
         r00, r01, r02 = R[0, 0], R[1, 0], R[2, 0]
@@ -203,7 +204,7 @@ def rotate_coords_cartesian(
 
 
     :param  coords:         coordinates, shape (N, 3)
-    :type   coords:         np.ndarray
+    :type   coords:         numpy.ndarray
     :param  rot_angles:     (angle_x, angle_y, angle_z), radians unless degrees=True
     :type   rot_angles:     array-like, shape (3,)
     :param  reflections:    per-axis reflection signs (+1/-1). Pass None for no reflection
@@ -215,13 +216,13 @@ def rotate_coords_cartesian(
     :param  order:          rotation composition order, a permutation of "x", "y", "z"
     :type   order:          str
     :param  degrees:        If True, then angles are given in degrees
-    :type   degrees:        boolean
+    :type   degrees:        bool
     :param  out:            preallocated output buffer, shape (N, 3) (avoids reallocation on repeated calls)
-    :type   out:            np.ndarray
+    :type   out:            numpy.ndarray
     :param  inplace:        If True, overwrite coords in place instead of allocating new memory
-    :type   inplace:        boolean
+    :type   inplace:        bool
     :param  invert:         If True, apply the inverse of the rotation and periodic shift. Requires periodic_shift
-    :type   invert:         boolean
+    :type   invert:         bool
     """
     coords = np.asarray(coords, dtype=np.float64)
     if coords.ndim != 2 or coords.shape[1] != 3:
@@ -355,12 +356,8 @@ def _installed_orientation_tables(name):
 
 def default_orientation_tables(name=DEFAULT_ORIENTATION_TABLE):
     """
-    Returns the orientation tables reverted to when no orientation table is given,
-    these tables are installed with SWIFTLET.
-
-    The current default tables (DEFAULT_ORIENTATION_TABLE): "default_v2"
-
-    Returns the tables as a dict, see check_orientation_tables.
+    Returns the default orientation tables (DEFAULT_ORIENTATION_TABLE), that are installed with SWIFTLET and reverted to
+      when no orientation table is given.
 
     :param  name:   name of the installed tables, one of INSTALLED_ORIENTATION_TABLES
     :type   name:   str
@@ -375,9 +372,9 @@ def default_orientation_tables(name=DEFAULT_ORIENTATION_TABLE):
 
 def cell_shifts_in_cells(cell_shift, nr_cells_axis):
     """
-    Returns the cell shift in number of cells.
+    Convert the cell shift from eigths of a snapshot sidelength to the number of whole cells.
 
-    Convert the tables cell shift from multiples of 1/8 to number of cells.
+    Returns the cell shift in number of cells.
 
     :param  cell_shift:         shift along x, y and z, in eighths of the box
     :type   cell_shift:         array-like of int, shape (3,)
@@ -398,15 +395,14 @@ def check_orientation_tables(tables):
     """
     Check orientation tables are correctly formatted and have the required columns.
 
-    Three columns with the same number of rows (at least 1) of 3 whole numbers to build new snapshot tiles:
+    Tables need three columns per row, with each column being a tuple with a value per axis (x,y,z)
+    and at least 1 row to build new snapshot tiles:
 
         - the quarter turns about the x, y and z axes
-        - reflections of +1 or -1 per axis
-        - periodic shifts in eighths of the box per axis and in EIGHTH_SHIFT_VALUES
+        - reflections are either +1 or -1 per axis
+        - periodic shifts in eighths of the box per axis
 
-    The tables can also hold "cell_shift_unit", which must be "eighths".
-
-    Returns the tables as a dict.
+    Returns the tables as a dictionary.
 
     :param  tables: {"QuarterTurns", "Reflections", "CellShifts"}
     :type   tables: dict
@@ -452,9 +448,8 @@ def _check_cell_shift_unit(unit):
 
 def orientation_tables_fingerprint(tables):
     """
-    Fingerprint of the contents of orientation tables, the same for the same tables wherever they come from.
-
-    Returns the first 16 hexadecimal digits of the tables hashlib SHA-256 hash.
+    Returns the fingerprint as a unique identifier for the table, given by the first 16 hexadecimal digits of the tables
+      hashlib SHA-256 hash.
 
     :param  tables: orientation tables
     :type   tables: dict
@@ -475,15 +470,16 @@ def orientation_tables_fingerprint(tables):
 
 def generate_orientation_tables(seed=0, n_rows=None, cell_shift_values=EIGHTH_SHIFT_VALUES):
     """
-    Build an orientation table for all possible combinations of quarter turns, reflections and periodic cell shifts.
+    Build an orientation table for all possible combinations of quarter turns, reflections and periodic cell shifts per
+    axis.
 
-    Orientation tables holding every distinct orientation: each of the 48 ways of turning and reflecting the box
-    (the signed permutations of the axes) with each combination of the cell shifts along x, y and z, e.g.
-    48 x 7^3 = 16464 rows for the default shifts.
+    Orientation tables hold every distinct orientation, this includes each of the 48 ways of turning and reflecting the
+    box with each combination of the possible cell shifts along the x, y and z axes (e.g. 48 x 7^3 = 16464 rows for the
+    default shifts). The cell shifts are written in units of eights of the snapshots box sidelength.
     The first row leaves the box unchanged, so the observer's box tile (0, 0, 0) is not re-oriented with
     orientation_seed=0, and the other rows are shuffled.
 
-    Returns the tables as a dict, see check_orientation_tables.
+    Returns the tables as a dict, see ``check_orientation_tables``.
 
     :param  seed:               seed of the shuffle of the rows, the same seed gives the same tables
     :type   seed:               int
@@ -535,15 +531,11 @@ def write_orientation_tables(
     """
     Write orientation tables to a YAML file.
 
-    The tables are given, or generated, with every distinct orientation; combination of quarter turns, reflections and
-    periodic shifts along each axis.
     The output file holds the tables 'QuarterTurns', 'Reflections' and 'CellShifts', and the attributes describing them.
-    The periodic cell shifts ('CellShifts') should be in units of 1/8 of the snapshot box for reproducibility
-    and so that the table can be applied to all COLIBRE and FLAMINGO simulations.
-    Additionally this function generates a tables unique fingerprint so that it can be itentified from
-    the SnapshotLightcone metadata.
+    The periodic cell shifts ('CellShifts') are in units of 1/8 of the snapshot box for so that each table can be
+    applied to all COLIBRE and FLAMINGO simulations.
 
-    Returns the fingerprint of the tables.
+    Returns the tables fingerprint (each tables unique identifier)
 
     :param  filename:           path of the file to write, .yaml or .yml
     :type   filename:           str
@@ -631,7 +623,7 @@ def _read_orientation_tables_yaml(filename):
 
 def read_orientation_tables(filename):
     """
-    Read and check orientation tables written by write_orientation_tables, Table must be a file ending in .yaml or .yml.
+    Read the tables written by write_orientation_tables.
 
     Returns the tables as a dict.
 
@@ -650,7 +642,7 @@ def read_orientation_tables(filename):
 
 class NeighbourTileReport:
     """
-    The result of check_neighbouring_tiles, reports clashes of replica cells in neighbouring tiles.
+    The result of :func:`check_neighbouring_tiles`, reports clashes of cells in neighbouring tiles.
 
     :ivar nr_neighbour_pairs:       number of pairs of tiles sharing a face that were checked
     :vartype nr_neighbour_pairs:    int
@@ -671,7 +663,6 @@ class NeighbourTileReport:
 
     def __init__(self, nr_neighbour_pairs, nr_reoriented_pairs, touching, shell=None):  # noqa: D107
         """
-        Initialise the NeighbourTileReport class.
 
         :param  nr_neighbour_pairs:     number of pairs of tiles sharing a face that were checked
         :type   nr_neighbour_pairs:     int
@@ -709,17 +700,18 @@ def check_neighbouring_tiles(
     tables, nr_cells_axis, orientation_lock=None, orientation_seed=0, extent=3, warn=True, boxsize=None, shell=None
 ):
     """
-    Returns a NeighbourTileReport after checking the orientation tables for clashing tiles.
+    Returns a :class:`NeighbourTileReport` after checking the orientation tables for clashing cells in neighbouring
+    tiles.
 
-    Check orientation tables for cells that touch their own copy in a neighbouring tile, as a cell sharing a face with
-    its own copy puts the same structures side by side.
+    At the level of the orientation tables, check for rows that can results in the neighbouring tiles where a cell
+    can be sharing a face with its own copy.
     Only neighbouring tiles that are oriented differently can make copies of the same cell touch, e.g. with
     orientation_lock="cube" cells can only touch on the faces between layers.
 
-    This method is quicker and coarser than swiftlet.repeat_check.find_close_cell_repeats, which builds the actual
-    lightcone shell of a simulation and also finds copies close along a line of sight.
+    This method is quicker and coarser than :func:`swiftlet.repeat_check.find_close_cell_repeats`, which builds the
+    actual lightcone shell of a simulation and also finds copies close along a line of sight.
     As this is only a coarse check, orientation_lock="sphere" cannot be used with it, as that needs a more complete
-    rebuild of the lightcone. To check "sphere", use swiftlet.repeat_check.find_close_cell_repeats.
+    rebuild of the lightcone. To check "sphere", use :func:`swiftlet.repeat_check.find_close_cell_repeats`.
 
     :param  tables:             orientation tables, as a dict (see check_orientation_tables) or the path of a table file
                                 (see write_orientation_tables)
@@ -919,14 +911,12 @@ class _ClashIndex:
     """
     Which rows of orientation tables clash: put the same cell on both sides of the face between neighbouring tiles.
 
-    Built once from the face keys (see _face_cell_keys); neighbours(row) gives the rows clashing with a row, along
-    any axis and either way round.
+    Built once from the face keys (see :func:`_face_cell_keys`); neighbours(row) gives the rows clashing with a row,
+    along any axis and either way round.
     """
 
     def __init__(self, tables, nr_cells_axis):
         """
-        Initialise the _ClashIndex class.
-
         :param  tables:         orientation tables, see check_orientation_tables
         :type   tables:         dict
         :param  nr_cells_axis:  number of SWIFT cells along each axis of the snapshots
@@ -946,7 +936,7 @@ class _ClashIndex:
         """
         The rows clashing with row: row's + face against their - face, or their + face against row's - face.
 
-        Returns np.ndarray of int, sorted and unique.
+        Returns numpy.ndarray of int, sorted and unique.
         """
         found = []
         for axis in range(3):
@@ -967,32 +957,32 @@ class _ClashIndex:
 
 def generate_clash_free_tables(seed=21, nr_cells_axis=16, cell_shift_values=EIGHTH_SHIFT_VALUES, shuffle_seed=0):
     """
-    Generate an orientation table that doesn't allow for replica cells to be touching.
+    Generate an orientation table that doesn't allow for the same cell in adjacent tiles to be in contact.
 
     Orientation tables in which no two rows clash:
-        - no cell touches its own replica in a neighbouring tile regardless of which two rows the tiles take read from
-            the table, for any orientation_lock and orientation_seed.
-        - the cell shifts are in eighths of the box, so the clashes are the same for every number of cells per axis
-            that is a multiple of 8 and at least 16 (checked for 16, 32 and 64)
-        - one table serves every FLAMINGO and COLIBRE simulation.
 
-    To build the table:
-        1. identify the candidate rows to add to the table, every possible combition of distinct orientations,
-            48 turns and reflections, times the shifts along each axis (see generate_orientation_tables)
-        2. identify which candidate rows clash, each distinct orientation has the same number of clashes as they are
-            all symmetric with each other
-        3. group the candidate rows into 48 groups based on combinations of quarter turns and reflections
-        4. in rounds draw a candidate from each of the 48 groups, add the drawn row to the new table if it does not
-            clash with any of the previously added rows, otherwise skip to drawing from the next group
-        5. after adding all possible rows to the table, reduce the number of rows in the table from each group to
-            down to the size of the smalled group to avoid bias towards any given orientation
-        6. set unchanged row (no rotation, reflection or shifts) as the first entry and then randomly shuffle the order
-            of the remaining rows added to the table.
+    -   ensure no cell touches its own replica in a neighbouring tile regardless of which two rows the tiles take read
+        from the table, for any orientation_lock and orientation_seed.
+    -   define the cell shifts in eighths of the snapshot sidelength, so the clashes are the same for every number of
+        cells per axis that is a multiple of 8 and at least 16 (checked for 16, 32 and 64).
+    -   can be used for every FLAMINGO and COLIBRE simulation.
 
-    This is how the installed default_v2 tables were made (seed 21, the most even of seeds 4 to 63; see
-    tools/make_installed_orientation_tables.py).
 
-    Returns the tables as a dict, see check_orientation_tables.
+    To build clash free tables:
+
+    #.  identify the candidate rows to add to the table, every possible combition of distinct orientations, 48 turns and
+        reflections, times the shifts along each axis (see generate_orientation_tables).
+    #.  identify which candidate rows clash, each distinct orientation has the same number of clashes as they are all
+        symmetric with each other.
+    #.  group the candidate rows into 48 groups based on combinations of quarter turns and reflections.
+    #.  in rounds draw a candidate from each of the 48 groups, add the drawn row to the new table if it does not clash
+        with any of the previously added rows, otherwise skip to drawing from the next group.
+    #.  after adding all possible rows to the table, reduce the number of rows in the table from each group to down to
+        the size of the smalled group to avoid bias towards any given orientation.
+    #.  set unchanged row (no rotation, reflection or shifts) as the first entry and then randomly shuffle the order of
+        the remaining rows added to the table.
+
+    Returns the tables as a dict, see :func:`check_orientation_tables`.
 
     :param  seed:               seed of the random order in which the rows are chosen
     :type   seed:               int

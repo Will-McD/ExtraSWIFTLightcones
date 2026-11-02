@@ -1,7 +1,16 @@
 #!/bin/env python
 """
-Find close repeats of replicas of the same snapshot cell in a lightcone built from the snapshots, at the level of SWIFT
-cells.
+Identify and report replicas of the same SWIFT snapshot cells in a SnapshotLightcone.
+
+To generate a report of closeley repeated copies of cells in a lightcone::
+
+    from swiftlet import Simulation, SnapshotAllSky
+    from swiftlet.repeat_check import find_close_cell_repeats
+
+    lightcone = SnapshotAllSky(Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL"), orientation_lock="cube")
+    report = find_close_cell_repeats(lightcone, (0.0, 0.1))
+    print(report.summary())
+
 """
 
 import warnings
@@ -12,7 +21,7 @@ import numpy as np
 class CloseRepeatWarning(UserWarning):
     """
     Warning for when copies of the same snapshot cell lie next to each other, or are close together,
-    but in different tile layers along a line of sight.
+    but in different tiles along a line of sight.
     """
 
 
@@ -73,7 +82,7 @@ class CloseRepeatReport:
     cells: dict = field(repr=False)
 
     def summary(self):
-        """Summary message describing the close repeats found."""
+        """Returns a summary message describing the close repeats found."""
         summary_message = f"{self.nr_touching} pairs of cell replicas sharing a face"  # main message
         summary_message += f"\n{self.nr_line_of_sight} pairs are with {self.angle_deg:g} deg on the sky"
         summary_message += (
@@ -204,16 +213,16 @@ def find_close_cell_repeats(
     copies_per_block=4_000_000,
 ):
     """
-    Identify touching or close together cell replicas.
+    Identify where replicas of the same snapshot cells in adjacent tiles that are either touching or have a small
+    angular separation on the sky.
 
-    Find copies of the same cell of a snapshot that lie next to each other (i.e. share a face), or are close together
-    along a line of sight.
-    Computed using only the cell centres (i.e. no particles are read).
+    Construct the lightcone at a cell level (no particle data is read) and identify, at the edges of
+    neighbouring tiles in the lightcone, if replicas of any cell are either in contact or within a given distance
+    (in general, max_separation, or along a given line of sight, max_los_separation).
+    This function works for any COLIBRE or FLAMINGO simulation and all orientation tables (orientation lock and seeds
+    included).
 
-    Works for any simulation, orientation table, orientation_lock and orientation_seed, but is serial
-    only (a lightcone without a communicator).
-
-    Returns a CloseRepeatReport.
+    Returns the separation between pairs of repeated cells as a CloseRepeatReport.
 
     :param  lightcone:          the lightcone (SnapshotAllSky or SnapshotBeam), without an MPI communicator
     :type   lightcone:          SnapshotLightcone
@@ -226,15 +235,15 @@ def find_close_cell_repeats(
     :param  angle_deg:          two copies within this angle [deg] on the sky are on the same line of sight
     :type   angle_deg:          float
     :param  max_los_separation: copies on the same line of sight closer than this [Mpc] along it are reported. If
-                                    None, half the box size
+                                None, half the box size
     :type   max_los_separation: float
     :param  max_separation:     if given, also report every pair of copies closer than this [Mpc]
     :type   max_separation:     float
     :param  output_file:        if given, write the pairs and the closest separation of every repeated cell to this
-                                    HDF5 file
+                                HDF5 file
     :type   output_file:        str
     :param  warn:               if True, warn (CloseRepeatWarning) if touching or line of sight pairs are found
-    :type   warn:               boolean
+    :type   warn:               bool
     :param  copies_per_block:   most cell copies compared at once, to limit the memory needed
     :type   copies_per_block:   int
     """
@@ -437,15 +446,18 @@ def find_close_cell_repeats(
 
 def write_close_repeats(filename, report, lightcone, redshift_range, ang_radius_deg=None):
     """
-    Write a report on the number of touching and close cell pairs (CloseRepeatReport) to a HDF5 file.
+    Write a report on the number of repeated cell pairs (CloseRepeatReport) to a HDF5 file.
 
-        - The "pairs" and "cells" groups hold arrays of report.pairs and report.cells.
-        - The file's attributes store the counts, the settings of the check, and the
-            lightcone's metadata (simulation, orientation seed, lock and table)
+    In the output file:
+
+    -   The "pairs" and "cells" groups contain datasets for every pair of repeated cells and corresponding cell flagged
+        in the report, written directly from the report.pairs and report.cells of CloseRepeatReport.
+    -   The file's attributes store the counts, the settings of the check, and the lightcone's metadata
+        (simulation, orientation seed, lock and table).
 
     :param  filename:       path of the HDF5 file
     :type   filename:       str
-    :param  report:         the report of find_close_cell_repeats
+    :param  report:         the report from find_close_cell_repeats
     :type   report:         CloseRepeatReport
     :param  lightcone:      the lightcone checked
     :type   lightcone:      SnapshotLightcone

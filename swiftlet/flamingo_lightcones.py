@@ -1,5 +1,5 @@
 #!/bin/env python
-"""Find the shell redshift files of the FLAMINGO lightcones, and the box size and resolution of a FLAMINGO run."""
+"""Find FLAMINGO's own lightcone products: the redshift bounds of its lightcone shells, and the label of a run."""
 
 import os
 import re
@@ -8,20 +8,19 @@ from .config import SHELL_REDSHIFT_FILES, default_redshift_dir, download_shell_r
 
 def flamingo_shell_redshift_file(box, download=True):
     """
-    Fetch redshift shell paths.
-
     Returns the absolute path to the FLAMINGO shell redshifts .txt file for the 1000 Mpc ("L1") or
     2800 Mpc ("L2p8") box sidelength simulations.
 
     Checks, in order:
 
-    1. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
-    2. <environment>/share/swiftlet/redshifts/<file>, where swiftlet-configure downloads the files to
-    3. ~/.cache/swiftlet/redshifts/<file>, used when the environment can't be written to
-    4. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
+        #. the L1_REDSHIFTS_FILENAME / L2P8_REDSHIFTS_FILENAME environment variable
+        #. <environment>/share/swiftlet/redshifts/<file>, where swiftlet-configure downloads the files
+        #. ~/.cache/swiftlet/redshifts/<file>, used when the environment can't be written to
+        #. <repo>/data/redshifts/<file> (only when called from inside the package, e.g. an editable install)
 
-    If none exist and download is True, the files are downloaded (see config.download_shell_redshifts).
-    Raises FileNotFoundError if the file can't be found or downloaded.
+    If the files do not exist and download is True, the files are downloaded
+    (see :func:`config.download_shell_redshifts`).
+    Raises ``FileNotFoundError`` if the file can't be found or downloaded.
 
     :param  box:        simulation box, "L1" or "L2p8"
     :type   box:        str
@@ -65,7 +64,7 @@ def flamingo_shell_redshift_file(box, download=True):
 
 def flamingo_box_resolution(path):
     """
-    Find the box size / resolution label of a FLAMINGO simulation from a path to the simulation's data.
+    Find the box size and resolution label of a FLAMINGO simulation from a path to the simulation's data.
 
     Returns the label, e.g. "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/data/products.." -> "L1000N1800"
 

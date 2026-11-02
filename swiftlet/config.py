@@ -1,6 +1,6 @@
 #!/bin/env python
 """
-Set up the data files SWIFTLET needs in the Python environment it is installed in.
+Set up SWIFTLET in the Python environment it is installed in, with the ``swiftlet-configure`` command.
 
 After installing the package with pip, run ``swiftlet-configure`` to download the FLAMINGO lightcone shell redshift
 files into ``<environment>/share/swiftlet/redshifts``, and export their paths (``L1_REDSHIFTS_FILENAME`` and
@@ -38,21 +38,19 @@ OLD_CONDA_SCRIPT = "extra_swift_lightcones.sh"
 
 def environment_data_dir():
     """
-    Directory for the data files inside the Python environment the package is installed in.
-
-    Returns <sys.prefix>/share/swiftlet.
+    Returns the directory for the data files inside the Python environment the package is installed in
+    (<sys.prefix>/share/swiftlet).
     """
     return os.path.join(sys.prefix, "share", "swiftlet")
 
 
 def default_redshift_dir():
     """
-    Directory the shell redshift files are downloaded to.
+    Returns the directory the shell redshift files are downloaded to.
 
     Defaults to the Python environment when possible, otherwise use cache
     (~/.cache/swiftlet/redshifts).
 
-    Returns the directory.
     """
     env_dir = os.path.join(environment_data_dir(), "redshifts")
     existing = env_dir
@@ -99,9 +97,9 @@ def download_shell_redshifts(dest_dir=None, force=False, verbose=True):
                             If None use default directory set by default_redshift_dir()
     :type   dest_dir:   str
     :param  force:      If True, download the files again even if they already exist
-    :type   force:      boolean
+    :type   force:      bool
     :param  verbose:    If True, print what is downloaded
-    :type   verbose:    boolean
+    :type   verbose:    bool
     """
     dest_dir = os.path.abspath(dest_dir if dest_dir is not None else default_redshift_dir())
     os.makedirs(dest_dir, exist_ok=True)
@@ -125,14 +123,12 @@ def activate_scripts():
     """
     Activate config scripts.
 
-    Scripts run when the Python environment is activated: bin/activate for a virtual environment (venv),
+    The scripts run when the Python environment is activated: bin/activate for a virtual environment (venv),
     and etc/conda/activate.d / deactivate.d scripts for a conda environment.
 
-    Returns a tuple
-        (environment type, activate script, deactivate script).
+    Returns a tuple (environment type, activate script, deactivate script).
 
-    The deactivate script is None for a venv, and the environment
-        type is None when not in a venv or conda environment.
+    The deactivate script is None for a venv, and the environment type is None when not in a venv or conda environment.
     """
     if os.path.isdir(os.path.join(sys.prefix, "conda-meta")):
         return (
@@ -149,7 +145,8 @@ def activate_scripts():
 
 def _replace_marked_lines(filename, new_lines):
     """
-    Remove the lines added by an earlier run (ACTIVATE_MARKER and OLD_ACTIVATE_MARKERS) from a file and append new ones.
+    Remove the lines added by an earlier run (``ACTIVATE_MARKER`` and ``OLD_ACTIVATE_MARKERS``) from a file and append
+    new ones.
 
     :param  filename:   file to update
     :type   filename:   str
@@ -179,7 +176,7 @@ def export_paths_on_activate(paths, verbose=True):
     :param  paths:      {environment variable name: value}
     :type   paths:      dict
     :param  verbose:    If True, print where the variables were added
-    :type   verbose:    boolean
+    :type   verbose:    bool
     """
     env_type, activate, deactivate = activate_scripts()
     if env_type is None:
@@ -212,15 +209,15 @@ def configure(dest_dir=None, force=False, update_activate=True, max_threads=None
     :param  dest_dir:           directory to download the files to. If None, see default_redshift_dir
     :type   dest_dir:           str
     :param  force:              If True, download the files again even if they already exist
-    :type   force:              boolean
+    :type   force:              bool
     :param  update_activate:    If True, add the paths to the environment's activate script(s)
-    :type   update_activate:    boolean
+    :type   update_activate:    bool
     :param  max_threads:        maximum number of threads to export as SWIFTLET_MAX_THREADS, or "all" to
                                     use all the cores each job is allowed. If None, use the value
                                     for SWIFTLET_MAX_THREADS or 30 if it set
     :type   max_threads:        int or str
     :param  verbose:            If True, print what is done
-    :type   verbose:            boolean
+    :type   verbose:            bool
     """
     # set max number of threads for numba and healpy alm functions
     from . import threads

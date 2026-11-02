@@ -19,7 +19,7 @@ def get_related_ipix(ipix, nside, levels, ordering="ring"):
     (pixel indices at the new resolution, nside of the new map).
 
     :param  ipix:       pixel indices in the input map
-    :type   ipix:       int or np.ndarray
+    :type   ipix:       int or numpy.ndarray
     :param  nside:      nside of the input map
     :type   nside:      int
     :param  levels:     the change in HEALPix resolution, each level increases or decreases nside by a factor of 2:
@@ -74,9 +74,9 @@ def find_healpy_pixel_weights_dir(datapath=None):
 
     Returns the first directory that contains a ``full_weights/`` folder. Checks, in order:
 
-    1. the datapath argument
-    2. the ``HEALPY_PIXEL_WEIGHTS`` environment variable
-    3. ``<venv>/share/healpy-data``
+        #. the datapath argument
+        #. the ``HEALPY_PIXEL_WEIGHTS`` environment variable
+        #. ``<venv>/share/healpy-data``
 
     Raises FileNotFoundError if none are found.
 
@@ -97,9 +97,8 @@ def find_healpy_pixel_weights_dir(datapath=None):
 
 def check_healpy_pixel_weights(nside, datapath=None):
     """
-    Check that the healpy pixel weights file for this nside can be found.
-
-    Looks for <datapath>/full_weights/healpix_full_weights_nside_XXXX.fits
+    Check that the healpy pixel weights file for this nside can be found, looks for
+    ``<datapath>/full_weights/healpix_full_weights_nside_XXXX.fits``.
 
     Returns the datapath to pass to hp.map2alm.
 
@@ -172,9 +171,7 @@ def get_common_maps(filenames):
 
 def read_rotation_angles(filename):
     """
-    Read 'theta' (co-latitude) and 'phi' (longitude) angles from hdf5 file.
-
-    Assume that theta and phi are given in radians.
+    Read 'theta' (co-latitude) and 'phi' (longitude) angles from hdf5 file (assuming angles are in radians).
 
     Returns a tuple of (co-latitude, longitude) in degrees.
 
@@ -196,11 +193,11 @@ def rotate_map(base_map, theta, phi, ell_max=None, map_rotator_object=None):
     Returns a tuple, (rotated map, rotator object)
 
     :param  base_map:           healpix map to rotate
-    :type   base_map:           np.ndarray
-    :param  theta:              co-latitude rotation angle
-    :type   theta:              unyt.unyt_quantity (units of deg or equivalent)
-    :param  phi:                longitude rotation angle
-    :type   phi:                unyt.unyt_quantity (units of deg or equivalent)
+    :type   base_map:           numpy.ndarray
+    :param  theta:              co-latitude rotation angle (units of deg or equivalent)
+    :type   theta:              unyt.unyt_quantity
+    :param  phi:                longitude rotation angle (units of deg or equivalent)
+    :type   phi:                unyt.unyt_quantity
     :param  ell_max:            maximum multipole used in the rotation
     :type   ell_max:            int
     :param  map_rotator_object: rotator to use. If None, one is created from theta and phi
@@ -220,18 +217,17 @@ def rotate_map(base_map, theta, phi, ell_max=None, map_rotator_object=None):
 
 def rotate_map_fast(base_map, theta, phi, nside, ell_max=None, map_rotator_object=None):
     """
-    Rotate a given map using alm space via the passed as theta (co-latitude) and phi (longitude).
-
-    Use the healpy pixel weights for the map to alm transform.
+    Rotate a given map in alm space via the passed as theta (co-latitude) and phi (longitude), using the healpix map
+    pixel weights if possible.
 
     Returns a tuple (rotated map, rotator object)
 
     :param  base_map:           healpix map to rotate
-    :type   base_map:           np.ndarray
-    :param  theta:              co-latitude rotation angle
-    :type   theta:              unyt.unyt_quantity (units of deg or equivalent)
-    :param  phi:                longitude rotation angle
-    :type   phi:                unyt.unyt_quantity (units of deg or equivalent)
+    :type   base_map:           numpy.ndarray
+    :param  theta:              co-latitude rotation angle (units of deg or equivalent)
+    :type   theta:              unyt.unyt_quantity
+    :param  phi:                longitude rotation angle (units of deg or equivalent)
+    :type   phi:                unyt.unyt_quantity
     :param  nside:              nside of the rotated map
     :type   nside:              int
     :param  ell_max:            maximum multipole used in the rotation
@@ -288,9 +284,9 @@ def write_rotated_lightcone_chunks(
     :param  map_names:              map names (quantities or datasets) to sum and rotate in chunks, e.g. ["TotalMass"]
     :type   map_names:              list
     :param  theta_arr_deg:          theta (co-latitude) values per shell [deg]
-    :type   theta_arr_deg:          np.ndarray or unyt.unyt_array
+    :type   theta_arr_deg:          numpy.ndarray or unyt.unyt_array
     :param  phi_arr_deg:            phi (longitude) values per shell [deg]
-    :type   phi_arr_deg:            np.ndarray or unyt.unyt_array
+    :type   phi_arr_deg:            numpy.ndarray or unyt.unyt_array
     :param  output_filename:        path of the .hdf5 file to write
     :type   output_filename:        str
     :param  output_nside:           nside of the output maps
@@ -308,7 +304,7 @@ def write_rotated_lightcone_chunks(
     :param  ell_max:                maximum multipole used in the rotation
     :type   ell_max:                int
     :param  save_chunks:            If True, write each individual chunk to the output file
-    :type   save_chunks:            boolean
+    :type   save_chunks:            bool
     :param  hdf5_dset_kwargs:       keyword arguments passed to h5py create_dataset.
                                         If not given, use gzip compression level 9 with shuffle.
                                         If None, default h5py compression applied

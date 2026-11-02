@@ -1,4 +1,29 @@
 #!/bin/env python
+"""
+An example script the same as ``map_zoom_on_halo`` but for haloes from the snapshots using lightcones built
+with SnapshotBeam.
+
+For the fiducial L1_m9 FLAMINGO simulation select haloes using the following criteria:
+
+    1.  Find haloes with M200c close to 10^14 Msun in the SOAP catalogues of the snapshots covering 0.1 < z < 0.2.
+    2.  Keep the haloes if the zoomed region around them is inside the zero'th snapshot box, at distances SnapshotBeam
+        fills from the halo's own snapshot,  then select n_haloes from the remaining candidates.
+    3.  For each candidate halo, build a beam pointing at it, through a slab around the halo, and make smaller maps of
+        its particles around the halo:
+            - SmoothedGasMass:  gas mass smoothed with the SPH kernel, as the lightcone's maps.
+            - GasTemperature:   mass weighted temperature of the gas, smoothed with the SPH kernel.
+    4.  Plot a row of the zooms for each halo. The masses are shown as the projected mass per comoving area at the
+        distance of the halo.
+
+Notes
+    1.  SnapshotLightcone re-orients the coordinates of the box tiles but not the velocities, so the velocities are
+        only along the right directions in the box tile (0, 0, 0), which is not re-oriented. The haloes are chosen so
+        that every particle used is in that tile, and this is checked.
+
+    2. SnapshotBeam reads the snapshots and SOAP catalogues from the local FLAMINGO directories, so this needs to run
+        on COSMA.
+"""
+
 import argparse
 import os
 import h5py
@@ -20,31 +45,6 @@ from swiftlet.soap_reader import select_soap_rows
 from swiftlet.simulation_suites import Simulation
 from swiftlet.example_plot_settings import plot_settings
 
-
-"""
-An example script the same as map_zoom_on_halo but for haloes from the snapshots using lightcones built 
-with SnapshotBeam. 
-
-For the fiducial L1_m9 FLAMINGO simulation select haloes using the following criteria:
-
-    1. Find haloes with M200c close to 10^14 Msun in the SOAP catalogues of the snapshots covering 0.1 < z < 0.2.
-    2. Keep the haloes if the zoomed region around them is inside the zero'th snapshot box, at distances SnapshotBeam 
-        fills from the halo's own snapshot,  then select n_haloes from the remaining candidates.
-    3. For each candidate halo, build a beam pointing at it, through a slab around the halo, and make smaller maps of
-        its particles around the halo:
-            - SmoothedGasMass:  gas mass smoothed with the SPH kernel, as the lightcone's maps.
-            - GasTemperature:   mass weighted temperature of the gas, smoothed with the SPH kernel.
-    4. Plot a row of the zooms for each halo. The masses are shown as the projected mass per comoving area at the
-        distance of the halo.
-
-Notes 
-    1. SnapshotLightcone re-orients the coordinates of the box tiles but not the velocities, so the velocities are
-        only along the right directions in the box tile (0, 0, 0), which is not re-oriented. 
-        The haloes are chosen so that every particle used is in that tile, and this is checked.
-
-    2. SnapshotBeam reads the snapshots and SOAP catalogues from the local FLAMINGO directories, so this needs to run
-        on COSMA.
-"""
 
 # maps of each halo: the particle type, properties and how each particle is added to the map, the colour map and
 # the colour bar label
@@ -93,7 +93,9 @@ def comoving_distance_to_redshift(cosmo, distance, z_max=3.0, n_grid=20000):
 def snapshot_boxsize(simulation):
     """
     Sidelength of the snapshot box of a simulation, from the header of its redshift 0 snapshot.
+
     Returns the box sidelength [comoving Mpc].
+
     :param  simulation: the simulation
     :type   simulation: Simulation
     """
@@ -105,8 +107,7 @@ def snapshot_boxsize(simulation):
 
 def bin_particles(part_pos, part_val, nside, selected_pix):
     """
-    Add the particles to the pixels they are in.
-    Assume a HEALPix map that is ring ordered.
+    Add the particles to the pixels they are in, assuming a HEALPix map that is ring ordered.
 
     Returns the value of each selected pixel.
 
@@ -132,14 +133,9 @@ def find_candidate_haloes(soap_format, simulation, z_max, log_mass_range, z_min=
     """
     Find the haloes with M200c in a range in the SOAP catalogues of the snapshots covering z <= z_max.
 
-    Returns a dict of arrays, one entry per halo:
-        {
-            "SnapshotNumber",
-            "HaloCatalogueIndex",
-            "SOAPCentre" [cMpc],
-            "M200c" [Msun],
-            "R200c" [cMpc],
-        }
+    Returns a dict of arrays, one entry per halo: "SnapshotNumber", "HaloCatalogueIndex", "SOAPCentre" [cMpc], "M200c"
+    [Msun] and "R200c" [cMpc].
+
 
     :param  soap_format:    format string of the SOAP catalogue filenames (using {snap_nr})
     :type   soap_format:    str
@@ -147,10 +143,11 @@ def find_candidate_haloes(soap_format, simulation, z_max, log_mass_range, z_min=
     :type   simulation:     Simulation
     :param  z_max:          largest redshift to search
     :type   z_max:          float
-    :param  z_min:          lowest redshift to search
-    :type   z_min:          float
     :param  log_mass_range: minimum and maximum log10(M200c / Msun)
     :type   log_mass_range: tuple
+    :param  z_min:          lowest redshift to search
+    :type   z_min:          float
+
     """
 
     found = []
@@ -195,9 +192,11 @@ def find_candidate_haloes(soap_format, simulation, z_max, log_mass_range, z_min=
 def select_haloes(candidates, box_centre, cosmo, simulation, z_max, margin, n_haloes, target_log_mass, z_min=0.0):
     """
     Choose the haloes to zoom on.
-    Keep the haloes whose surrounding zoomed in region are
-        - inside the snapshot box, without crossing its faces. e.g. SnapshotBeam shows them being in tile (0, 0, 0)
-        - A distance from the box centre, below z_max and above z_min
+
+    Keep the haloes whose surrounding zoomed in region is:
+
+    - inside the snapshot box, without crossing its faces, e.g. so SnapshotBeam shows them in tile (0, 0, 0)
+    - at a distance from the box centre below z_max and above z_min
 
     Choose the n_haloes from the candidates, that have M200c closest to the target.
 
@@ -219,6 +218,8 @@ def select_haloes(candidates, box_centre, cosmo, simulation, z_max, margin, n_ha
     :type   n_haloes:           int
     :param  target_log_mass:    log10(M200c / Msun) to choose the haloes closest to
     :type   target_log_mass:    float
+    :param  z_min:              smallest redshift of the haloes in the SnapshotBeam
+    :type   z_min:              float
     """
 
     # haloes offset from the centre of the box

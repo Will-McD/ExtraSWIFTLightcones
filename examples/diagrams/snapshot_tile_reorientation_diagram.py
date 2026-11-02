@@ -1,15 +1,16 @@
 #!/bin/env python
+
+"""
+Example script to highlilght how cells within the snapshots boxes (and tiles in lightcone) are repositioned when
+creating new 'unique' tiles as they placed in to the lightcone.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 from matplotlib.lines import Line2D
 from pathlib import Path
 from swiftlet.example_plot_settings import plot_settings, cmap_MCG
-
-"""
-Example script to highlilght how cells within the snapshots boxes (and tiles in lightcone)
-are repositioned when creating new 'unique' tiles as they placed in to the lightcone. 
-"""
 
 ###################################
 # Colors for each stage of repositioning snapshot cells into the lightcone
@@ -54,6 +55,18 @@ def transform_point(p, reflection, angle_deg, centre):
 
 
 def wrap_point(p, shift, L):
+    """
+    Shift a point periodically, wrapping it back into the box.
+
+    Returns the shifted point, numpy.ndarray.
+
+    :param  p:      the point
+    :type   p:      numpy.ndarray
+    :param  shift:  the periodic shift
+    :type   shift:  numpy.ndarray
+    :param  L:      box sidelength
+    :type   L:      float
+    """
     return np.mod(p + shift, L)
 
 

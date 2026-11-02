@@ -1,4 +1,10 @@
 #!/bin/env python
+"""
+This example scrpit shows the construction of an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) for
+redshifts  0.05 - 0.1 using a Snapshot Lightcone for the COLIBRE L400_m7 Thermal and FLAMINGO L1_m9 fiducial
+simulations.
+"""
+
 import argparse
 import numpy as np
 import h5py
@@ -14,10 +20,6 @@ from swiftlet.snapshot_lightcone import SnapshotAllSky, write_lightcone_metadata
 from swiftlet.simulation_suites import Simulation
 from swiftlet.snapshot_units import apply_expected_units
 
-"""
-Make an all-sky HEALPix map of the smoothed gas mass (SmoothedGasMass) for redshifts  0.05 - 0.1 using a Snapshot 
-Lightcone for the COLIBRE L400_m7 Thermal and FLAMINGO L1_m9 fiducial simulations.
-"""
 
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
@@ -37,8 +39,8 @@ def message(m):
 
 def share_pieces(npart_per_piece, nr_ranks):
     """
-    Share pieces of the lightcones tiles between MPI ranks from the largest to the rank
-    with the fewest particles so far.
+    Share pieces of the lightcones tiles between MPI ranks from the largest to the rank with the fewest particles so
+    far.
 
     Returns a list of the indices of the pieces given to each rank.
 
@@ -63,7 +65,7 @@ def place_piece(lightcone, piece_nr, ptype="PartType0"):
     """
     Place the gas particles into the lightcones tiles.
 
-    Returns a tuple (positions [Mpc], smoothing lengths [Mpc], masses [Msun])
+    Returns a tuple (positions [Mpc], smoothing lengths [Mpc], masses [Msun]).
     The tiuple is empty if piece_nr is None or no particles are inside the lightcone.
 
     :param  lightcone:  serial SnapshotAllSky, after gather_files
@@ -87,7 +89,7 @@ def place_piece(lightcone, piece_nr, ptype="PartType0"):
 def make_smoothed_sky_map(part_pos, part_hsml, part_val, nside, progress=False):
     """
     Smooth the particles onto a HEALPix map distributed over the MPI ranks, as
-    lightcone_io.smoothed_map.make_sky_map does for a particle lightcone.
+    :mod:`lightcone_io.smoothed_map.make_sky_map` does for a particle lightcone.
 
     Returns the local pixels of the map on this rank (ring order).
 
@@ -257,10 +259,10 @@ def plot_map(map_filename, dataset_name, plot_filename):
 
 def ensure_map_units(part_pos, part_hsml, part_val, val_units="solMass"):
     """
-    Put the particles going onto the map in the units the map expects.
-    Positions & smoothing lengths are always in Mpc.
+    Ensure that particles beign added to the map are in units the map expects.
 
-    Arrays without units are given them; arrays with the wrong dimensions raise an error.
+    Positions & smoothing lengths are always in Mpc. Arrays without units are given them; arrays with the wrong
+    dimensions raise an error.
 
     Returns a tuple (positions [Mpc], smoothing lengths [Mpc], values [val_units]).
 
@@ -281,8 +283,8 @@ def ensure_map_units(part_pos, part_hsml, part_val, val_units="solMass"):
 
 def make_map(snap_all_sky, redshift_range, nside, output_filename, ptype="PartType0", dataset_name="SmoothedGasMass"):
     """
-    Make, write and plot the smoothed gas mass map of the shell, placing its particles a round at a time (see the
-    module docstring).
+    Make, write and plot the smoothed gas mass map of the shell, placing its particles a round at a time.
+
     :param  snap_all_sky:       SnapshotAllSky, one on each rank, with the same orientation on every rank
     :type   snap_all_sky:       SnapshotAllSky
     :param  redshift_range:     minimum and maximum redshift of the shell [z_min, z_max]

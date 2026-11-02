@@ -1,4 +1,7 @@
 #!/bin/env python
+
+"""Example script to show the placement of snapshot particles in pencil beam for a set lightcone redshift shell."""
+
 import numpy as np
 import matplotlib
 import matplotlib.layout_engine
@@ -9,16 +12,11 @@ from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.example_plot_settings import plot_settings
 
 
-"""
-Place snapshot particles in pencil beam for a set lightcone redshift shell and plot where each particle is
-for beams pointing in different directions.
-"""
-
-
 def beam_frame(beam_vector):
     """
-    Orthonormal frame of a beam: two axes across the beam and the line of sight. For a beam along
-    the z-axis this is the x, y, z frame.
+    Orthonormal frame of a beam: two axes across the beam and the line of sight.
+
+    For a beam along the z-axis this is the x, y, z frame.
 
     Returns a tuple of (frame, axis_names).
         frame:          shape (3, 3), with rows (e1, e2, line of sight), so coords @ frame.T gives
@@ -74,8 +72,8 @@ def in_lightcone(
     beam_vector=(0.0, 0.0, 1.0),
 ):
     """
-    Determine which points fall inside the lightcone shell defined by an angular radius and
-    redshift range (z_min, z_max).
+    Determine which points fall inside the lightcone shell defined by an angular radius and redshift range
+    (z_min, z_max).
 
     Returns a boolean mask. True for points inside the lightcone wedge.
 
@@ -173,16 +171,18 @@ def plot_lightcone_projection_3panel(
 ):
     """
     Plot the lightcone's foot print for a beam along the z-axis these are the x-y, x-z and y-z planes.
-    The panel across the beam shows the wedge's projected on-sky footprint as a filled disk.
-    All three panels share a single combined legend below the figure.
 
-    The plotted points are classified as inside, outside and on the edge of the 3D lightcone.
+    The panel across the beam shows the wedge's projected on-sky footprint as a filled disk. All three panels share a
+    single combined legend below the figure. The plotted points are classified as inside, outside and on the edge of
+    the 3D lightcone.
+
     These points are drawn using the following criteria:
-        "edge":     always individual scatter points, regardless of contours.
-        "inside":   as density contours when contours=True and falling back to scatter if there are
-                        too few points for a meaningful contour. Otherwise as scatter points when contours=False.
-        "outside":  as density contours when contours=True AND the group is large enough
-                        (>= contour_min_points). Otherwise scatter.
+
+    -   "edge":     always individual scatter points, regardless of contours.
+    -   "inside":   as density contours when contours=True and falling back to scatter if there are too few points for a
+        meaningful contour. Otherwise as scatter points when contours=False.
+    -   "outside":  as density contours when contours=True AND the group is large enough (>= contour_min_points),
+        otherwise scatter.
 
     Returns the three axes used for plotting (ax_xy, ax_xz, ax_yz).
 
@@ -682,8 +682,9 @@ def plot_particles_in_beam(
     output_dir="./",
 ):
     """
-    Plot the radial distribution, coordinate distributions and a 3-panel projection of the
-    particles against the lightcone geometry.
+    Plot the radial distribution, coordinate distributions and a 3-panel projection of the particles against the
+    lightcone geometry.
+
     The output filenames include the particle type, beam direction and shell number.
 
     :param  coords:         comoving coordinates [Mpc] of the particles in the beam, shape (N, 3)

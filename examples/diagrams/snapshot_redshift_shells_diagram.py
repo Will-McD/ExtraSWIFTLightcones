@@ -1,4 +1,12 @@
 #!/bin/env python
+"""
+Example script to show the redshift range of a lightcone that is populated by a snapshot, for both all-sky lightcone
+(:class:`swiftlet.SnapshotAllSky`) and a beam (:class:`swiftlet.SnapshotBeam`).
+
+For a slice through the x-z plane of a lightcone (using the FLAMINGO L1_m9 simulation), overlay the redshift range of
+each snapshot on the lightcones regular lattice of tiles (the tiles sidelength is the same as snapshot boxes).
+"""
+
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,14 +20,6 @@ from astropy.cosmology import FlatLambdaCDM
 from swiftlet.example_plot_settings import plot_settings, cmap_MCG
 from swiftlet.simulation_suites import Simulation
 
-"""
-Example script to show the redshift ranges a snapshot populates within a lightcone, for both 
-all-sky lightcone (SnapshotAllSky) and a beam (SnapshotBeam).
-
-For a slice through the x-z plane of a lightcone for FLAMINGO L1_m9, overlay the redshift 
-range of each snapshot on the lightcones regular lattice of tiles (the tiles sidelength is 
-the same as snapshot boxes). 
-"""
 
 # use the FLAMINGO fiducial cosmology, build it as an astropy cosmology object
 FLAMINGO_COSMOLOGY = FlatLambdaCDM(
@@ -29,9 +29,8 @@ FLAMINGO_COSMOLOGY = FlatLambdaCDM(
 
 def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
     """
-    Check if point is inside the lightcone by comparing against the maximum comoving
-    distance from the observer and if a beam, then also compare against the
-    direction of the beam and the beams angular radius.
+    Check if point is inside the lightcone by comparing against the maximum comoving distance from the observer and if
+    a beam, then also compare against the direction of the beam and the beams angular radius.
 
     Returns a boolean array, True if in the lightcone and False otherwise
 
@@ -199,9 +198,9 @@ def draw_shell_panel(ax, L, r_edges, extent, beam_vector=None, half_angle_deg=No
 def label_snapshots(ax, snapshot_numbers, r_edges, L, ray_angle, offset_deg=0.0, min_radius=0.1):
     """
     Label each snapshot's shell with its snapshot number.
-    Place the half way through the shell along a ray from the observer and  neighbouring labels
-    alternate either side of the ray.
-    Shells closer to the observer than min_radius (in units of the lightcone radius) are left unlabelled
+
+    Place the half way through the shell along a ray from the observer and  neighbouring labels alternate either side
+    of the ray. Shells closer to the observer than min_radius (in units of the lightcone radius) are left unlabelled.
 
     :param  ax:                 axes to plot onto
     :type   ax:                 matplotlib.axes._axes.Axes
@@ -252,7 +251,11 @@ def plot_snapshot_shells(
     filename_format="./snapshot_shells_{lc_name}.png",
 ):
     """
-    Plot the tiles of an all-sky lightcone and a beam, coloured by the snapshot populating each part of the lightcone.
+    Plot the tiles of an all-sky lightcone and two beams, coloured by the snapshot populating each part of the
+    lightcone.
+
+    The beams point along (0, 0, 1), on a box axis, and (1, 0, 1), off the box axes. Each lightcone is plotted in its
+    own figure.
 
     :param  z_max:              maximum redshift of the lightcone
     :type   z_max:              float
@@ -260,14 +263,13 @@ def plot_snapshot_shells(
     :type   simulation:         swiftlet.simulation_suites.Simulation
     :param  L:                  box sidelength [Mpc]
     :type   L:                  float
-    :param  beam_vector:        direction of the beam, in the plane y = 0
-    :type   beam_vector:        array-like, shape (3,)
-    :param  half_angle_deg:     angular radius [deg] of the beam
+    :param  half_angle_deg:     angular radius [deg] of the beams
     :type   half_angle_deg:     float
-    :param  figsize:            size of the figure
+    :param  figsize:            size of each figure
     :type   figsize:            tuple
-    :param  filename:           path to write the plot to
-    :type   filename:           str
+    :param  filename_format:    path to write each plot to, with a {lc_name} field: "fullsky", "beam_onaxis" or
+                                "beam_offaxis"
+    :type   filename_format:    str
     """
 
     # if no simulation given then assume fiducial flamingo L1_m9 for example

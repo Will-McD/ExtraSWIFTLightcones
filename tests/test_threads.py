@@ -1,6 +1,8 @@
 #!/bin/env python
 """
-Tests for swiftlet.threads:
+Tests for swiftlet.threads.
+
+This includes:
     - test for both sets of numba and healpy alm functions that rely on threads set
     - maximum number of threads is set by SWIFTLET_MAX_THREADS
     - abides by default 30

@@ -1,11 +1,5 @@
 #!/bin/env python
-"""
-Read SOAP halo catalogues with h5py.
-
-The properties are given the same units as ``lightcone_io.halo_catalogue.SOAPCatalogue.read``, so the values are the
-same whichever reader is used.
-Note that the scale factor ``a`` is dropped from all SOAP units.
-"""
+"""Read SOAP halo catalogues with h5py."""
 
 import builtins
 from collections.abc import Iterator
@@ -27,7 +21,7 @@ def _float(value):
     catalogues. Used as float inside virgo.formats.swift only, until virgodc is fixed.
 
     :param  value:  number or one-element array
-    :type   value:  float or np.ndarray
+    :type   value:  float or numpy.ndarray
     """
     if np.size(value) == 1:
         return builtins.float(np.asarray(value).reshape(-1)[0])
@@ -66,8 +60,6 @@ def comoving(arr):
     Drop the expansion factor 'a' from the units of a SOAP property without changing its values, e.g. lengths in
     a*snap_length become comoving snap_length. Properties without a in their units are returned as they are.
 
-    Returns a unyt.unyt_array.
-
     :param  arr:    property read from a SOAP catalogue
     :type   arr:    unyt.unyt_array
     """
@@ -94,11 +86,9 @@ def soap_catalogue_length(filename, property_name="InputHalos/HaloCatalogueIndex
 
 def read_soap_rows(filename, property_names, start=0, stop=None):
     """
-    Read rows [start, stop) of properties of a SOAP catalogue.
+    Returns rows [start, stop) of properties of a SOAP catalogue.
 
     Done in serial, with the same units as reading the whole catalogue with lightcone_io.halo_catalogue.SOAPCatalogue.
-
-    Returns {name: unyt.unyt_array of the rows}.
 
     :param  filename:       path of the SOAP catalogue
     :type   filename:       str
@@ -124,8 +114,7 @@ def read_soap_in_chunks(filename, property_names, chunk_size) -> Iterator[tuple]
 
     The units are made exactly as lightcone_io.halo_catalogue.SOAPCatalogue.read.
 
-    Returns a tuple for each chunk:
-        (index of its first row in the catalogue, {name: unyt.unyt_array of its rows}).
+    Returns a tuple for each chunk (index of its first row in the catalogue, {name: unyt.unyt_array of its rows}).
 
     :param  filename:       path of the SOAP catalogue
     :type   filename:       str
@@ -162,7 +151,7 @@ def _read_rows(dataset, rows, batch_size):
     :param  dataset:    dataset
     :type   dataset:    h5py.Dataset
     :param  rows:       sorted, unique row indices
-    :type   rows:       np.ndarray
+    :type   rows:       numpy.ndarray
     :param  batch_size: number of rows read at a time
     :type   batch_size: int
     """
@@ -173,7 +162,7 @@ def _read_rows(dataset, rows, batch_size):
 
 def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
     """
-    Read only the given rows of properties of a SOAP catalogue, in batches.
+    Read only the given rows of properties of a SOAP catalogue, in batches of `batch_size` rows.
 
     Returns {name: unyt.unyt_array of the rows}, in the order of rows.
 
@@ -182,7 +171,7 @@ def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
     :param  property_names: names of the datasets to read, e.g. "InputHalos/HaloCentre"
     :type   property_names: list of str
     :param  rows:           sorted, unique row indices
-    :type   rows:           np.ndarray
+    :type   rows:           numpy.ndarray
     :param  batch_size:     number of rows read at a time
     :type   batch_size:     int
     """
@@ -201,10 +190,10 @@ def select_soap_rows(filename, select_name, select, property_names, chunk_size=2
     """
     Read the rows of a SOAP catalogue selected by one of its properties.
 
-    Read the data from select_name in chunks, then read the other properties only for the rows kept. The whole catalogue
-    is never read or held in memory.
+    Read the data from select_name in chunks, identify the rows to keep via a given `select` criteria and then read the
+    other properties only for the rows kept. The whole catalogue is never read or held in memory.
 
-    Returns dictionary of read properties and 'row' which holds the indices of the kept rows.
+    Returns a dictionary of the read properties and 'row' which holds the indices of the kept rows.
 
     :param  filename:       path of the SOAP catalogue
     :type   filename:       str

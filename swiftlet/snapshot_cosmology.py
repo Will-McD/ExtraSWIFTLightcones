@@ -2,10 +2,18 @@
 """
 The cosmology of a SWIFT simulation (FLAMINGO or COLIBRE), read from one of its snapshots.
 
-The cosmology uses the snapshot's own unit registry. It is the astropy w0waCDM of the snapshot's Cosmology group: H0,
-Omega_m, Omega_lambda, Omega_b, w_0, w_a and T_CMB_0.
+The cosmology is the astropy w0waCDM given by the snapshot's Cosmology group (H0, Omega_m, Omega_lambda, Omega_b, w_0,
+w_a and T_CMB_0), with the hubble constant converted from SWIFT units to time using the snapshot's own unit registry.
 
 Adapted from lightcone_io/xray_utils.py of LightconeIO.
+
+For example::
+
+    from swiftlet import Simulation, SnapshotCosmology
+
+    cosmology = SnapshotCosmology.from_simulation(Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL"))
+    cosmology.comoving_distance(0.1)  # [Mpc]
+    cosmology.COSMO  # the astropy cosmology
 """
 
 import os
@@ -64,7 +72,7 @@ def neutrino_masses(cosmology):
     """
     Convert SWIFT neutrino masses to astropy format.
 
-    Returns an np.ndarray of masses [eV], one per species (int(N_eff) of them).
+    Returns an numpy.ndarray of masses [eV], one per species (int(N_eff) of them).
     Raises ValueError for neutrinos astropy can't hold. i.e. degeneracies that aren't whole numbers, or massive and
     massless species that don't add up to N_eff.
 
@@ -91,9 +99,7 @@ def neutrino_masses(cosmology):
 
 class SnapshotCosmology:
     """
-    The cosmology of a snapshot .hdf5 file, or of a Simulation (see swiftlet/simulation_suites.py).
-
-    The cosmology is read from a SWIFT snapshot file; from_simulation and from_path find the snapshot file to read.
+    The cosmology of a Simulation (see :mod:`~swiftlet.simulation_suites`), as read from a snapshot.
 
     :ivar snapshot_filename:    the snapshot file read
     :vartype snapshot_filename: str
@@ -112,8 +118,6 @@ class SnapshotCosmology:
 
     def __init__(self, snapshot_filename):
         """
-        Read the cosmology of a snapshot file and initialise the SnapshotCosmology class.
-
         :param  snapshot_filename:  path of a SWIFT snapshot file (a virtual file or one file of a snapshot)
         :type   snapshot_filename:  str
         """
@@ -159,7 +163,7 @@ class SnapshotCosmology:
         The cosmology of a Simulation, read from the simulations lowest redshift snapshot.
 
         :param  simulation: the simulation
-        :type   simulation: swiftlet.simulations.Simulation
+        :type   simulation: swiftlet.simulation_suites.Simulation
         """
         filename = simulation.snapshot_file(simulation.z0_snapshot, 0)
         if os.path.isfile(filename):
@@ -200,7 +204,7 @@ class SnapshotCosmology:
 
     def comoving_distance(self, z):
         """
-        Comoving distance to redshift(s), unyt_array [Mpc].
+        Returns the comoving distance(s) [Mpc] from an observer to redshift(s).
 
         :param  z:  redshift(s)
         :type   z:  float or array-like
@@ -209,9 +213,7 @@ class SnapshotCosmology:
 
     def redshift_with_time_offset(self, z, dt):
         """
-        Redshift a time dt before redshift z.
-
-        Returns the redshift as a float.
+        Returns the redshift a time dt before redshift z.
 
         :param  z:  redshift
         :type   z:  float
@@ -224,9 +226,8 @@ class SnapshotCosmology:
 
     def shell_comoving_radii(self, redshift_filename):
         """
-        Comoving radii of lightcone shells from a file of their redshifts.
-
-        Returns a unyt_array [Mpc] of shape (number of shells, 2), [inner, outer] for each shell.
+        Returns the comoving radii (inner, outer) [Mpc] of a lightcones redshift shells, read directly from the file
+        containing the redshift shells.
 
         :param  redshift_filename:  path of the shell redshift file
         :type   redshift_filename:  str
@@ -236,16 +237,14 @@ class SnapshotCosmology:
 
     def lightcone_volume(self, inner, outer, use_redshift=False, half_angle=None):
         """
-        Comoving volume of a lightcone shell between two radii, over the whole sky or in a cone.
-
-        Returns a unyt_quantity (or unyt_array) [Mpc^3].
+        Returns the comoving volume [Mpc^3] of a lightcone between two comoving radii, over the whole sky or in a cone.
 
         :param  inner:          inner comoving radius [Mpc], or redshift if use_redshift is True
-        :type   inner:          float, np.ndarray or unyt.unyt_array
+        :type   inner:          float, numpy.ndarray or unyt.unyt_array
         :param  outer:          outer comoving radius [Mpc], or redshift if use_redshift is True
-        :type   outer:          float, np.ndarray or unyt.unyt_array
+        :type   outer:          float, numpy.ndarray or unyt.unyt_array
         :param  use_redshift:   If True, inner and outer are redshifts
-        :type   use_redshift:   boolean
+        :type   use_redshift:   bool
         :param  half_angle:     half the opening angle of the cone [rad]. If None, the whole sky
         :type   half_angle:     float
         """
@@ -263,8 +262,8 @@ def as_astropy_cosmology(cosmology):
     """
     Transform to astropy cosmology object.
 
-    Make all cosmologies used consistently transformed too astropy format,
-    handle reading cosmology as done in LightconeIO, from a hdf5 group and a Simulation object.
+    Make all cosmologies used consistently transformed to the astropy format, handle reading cosmology as done in
+    LightconeIO, from either a hdf5 group or a Simulation object.
 
     Returns an astropy cosmology.
 

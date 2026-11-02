@@ -1,4 +1,21 @@
 #!/bin/env python
+"""
+Example script for reading and plotting only a section of pixels from a healpix map.
+
+Here we will select a halo in the lightcone and then only read a subset of pixels from the larger map that correspond
+to a small region of the sky centred around the selected halo. We will make a quick projection of the subset of pixels.
+
+Notes:
+    1. This example uses Nside 16384 maps read from the remote comsa6 server,
+        to reduce memory required change nside_output to 4096.
+
+    2. The zoomed image is centred on the pixel containing the selected halo.
+        The centre of the halo is not necessarily where it will appear to be brightest or most dense.
+
+    3. The selected halo can be split across multiple redshift shells. If the halo or part of the halo doesn't appear
+        in the loaded map you can change the shell number used.
+"""
+
 import re
 import numpy as np
 import healpy as hp
@@ -18,23 +35,6 @@ from swiftlet.example_plot_settings import plot_settings
 
 from pathlib import Path
 import hdfstream
-
-"""
-Example script for reading and plotting only a section of pixels from a healpix map.
-
-Here we will select a halo in the lightcone and then only read a subset of pixels from the larger map that correspond 
-to a small region of the sky centred around the selected halo. We will make a quick projection of the subset of pixels. 
-
-Notes:
-    1. This example uses Nside 16384 maps read from the remote comsa6 server, 
-        to reduce memory required change nside_output to 4096. 
-
-    2. The zoomed image is centred on the pixel containing the selected halo. 
-        The centre of the halo is not necessarily where it will appear to be brightest or most dense. 
-
-    3. The selected halo can be split across multiple redshift shells. If the halo or part of the halo doesn't appear 
-        in the loaded map you can change the shell number used. 
-"""
 
 
 def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False):
@@ -75,8 +75,9 @@ def assign_shell_number(input_redshifts, redshift_filename, return_bounds=False)
 def read_selected_pixels(healpix_map, pixel_idx):
     """
     Read only the selected pixels of HEALPix map without reading the whole map.
-    The pixels are read as runs of consecutive pixel indices, assuming ring order,
-    in one request if using hdf5stream otherwise local maps are read row by row.
+
+    The pixels are read as runs of consecutive pixel indices, assuming ring order, in one request if using
+    hdf5stream otherwise local maps are read row by row.
 
     Returns the values of the pixels, in the order of the sorted pixel indices.
 
@@ -117,6 +118,7 @@ def read_selected_pixels(healpix_map, pixel_idx):
 def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, return_empty_map=False):
     """
     Retrieve selected pixels from a map to make a zoomed in gnomview plot.
+
     For large or high Nside maps to reduce peak memory return_empty_map=False.
 
     Returns a tuple of (map of the selected pixels, value of the centre pixel).
@@ -211,8 +213,8 @@ def fetch_zoom_pixels(filename, centre_pixel_idx, pixel_idx, nside, map_name, re
 
 def no_frac_latex(unit_obj):
     """
-    Return a string for the latex expression for a unyt object for a single line plot axis label,
-    i.e. replace '\frac{}{}' with '/'.
+    Return a string for the latex expression for a unyt object for a single line plot axis label, i.e. replace
+    '\frac{}{}' with '/'.
 
     :param  unit_obj:   units to write as latex
     :type   unit_obj:   unyt.Unit
@@ -237,20 +239,21 @@ def find_haloes_in_shell(
 ):
     """
     Find the haloes of the halo lightcone in the given on the sky area within a lightcones redshift shell.
+
     Haloes in one shell can come from multiple halo lightcone files as each file contains haloes from only one snapshot.
 
-    Returns a dict of arrays (one entry per halo):
-        {
-            "HaloCentre" [cMpc],
-            "Redshift",
-            "M200c" [Msun],
-            "R200c" [cMpc],
-            "SnapshotNumber",
-            "vectors" (unit vectors of their directions),
-            "angular_radius" (of R200c),
-            "offset" (from centre_vector) [radians],
-            **extra_properties...
-        }
+    Returns a dict of arrays, one entry per halo:
+
+    - "HaloCentre" [cMpc]
+    - "Redshift"
+    - "M200c" [Msun]
+    - "R200c" [cMpc]
+    - "SnapshotNumber"
+    - "vectors": unit vectors of their directions
+    - "angular_radius": of R200c
+    - "offset": from centre_vector [radians]
+    - one entry for each of extra_properties
+
 
     :param  halo_format:            format string of the halo lightcone filenames (using {snap_nr})
     :type   halo_format:            str
@@ -270,6 +273,9 @@ def find_haloes_in_shell(
     :type   min_mass:               unyt.unyt_quantity
     :param  extra_properties:       other halo properties to read, if the files have them
     :type   extra_properties:       sequence of str
+    :param  centre_vector:          direction to centre the map on, which must be in the pixel centre_pix_idx. If None,
+                                    the centre of that pixel
+    :type   centre_vector:          array-like, shape (3,)
     """
     centre_vector = np.asarray(centre_vector, dtype=float) / np.linalg.norm(centre_vector)
     z_min, z_max = shell_redshift_range

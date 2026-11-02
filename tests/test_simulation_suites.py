@@ -1,7 +1,13 @@
 #!/bin/env python
+"""
+Tests of Simulations and SimulationSuite classes.
+
+Test each simulation's paths and snapshot redshifts come from its suite and the
+that lightcone classes take a Simulation or the box size and resolution label and name.
+"""
+
 import numpy as np
 import pytest
-
 from swiftlet import snapshot_lightcone
 from swiftlet.simulation_suites import (
     COLIBRE,
@@ -13,11 +19,6 @@ from swiftlet.simulation_suites import (
     suite_for_label,
 )
 
-"""
-Tests of Simulations and SimulationSuite classes.
-Test each simulation's paths and snapshot redshifts come from its suite and the 
-that lightcone classes take a Simulation or the box size and resolution label and name.
-"""
 
 FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.yaml")
 FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.yaml")

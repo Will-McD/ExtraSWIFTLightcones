@@ -1,4 +1,11 @@
 #!/bin/env python
+"""
+Tests swiftlet.cosmology.
+
+The cosmology of FLAMINGO and COLIBRE simulations, read from fake SWIFT snapshots with the Cosmology, units and
+parameters groups SWIFT writes.
+"""
+
 import numpy as np
 import pytest
 import unyt
@@ -9,11 +16,6 @@ from astropy.cosmology import w0waCDM
 from swiftlet.snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology, find_snapshot_files, neutrino_masses
 from swiftlet.simulation_suites import Simulation
 
-"""
-Tests swiftlet.cosmology
-The cosmology of FLAMINGO and COLIBRE simulations, read from fake SWIFT snapshots with the Cosmology, units and 
-parameters groups SWIFT writes.
-"""
 
 # build mock cosmology params
 MPC_CM = 3.08567758149e24

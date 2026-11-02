@@ -1,4 +1,14 @@
 #!/bin/env python
+"""
+Test the config.py works correctly.
+
+Tests for swiftlet.config:
+    - download the FLAMINGO shell redshift files into the environment
+    - export paths when the environment is activated.
+    - max number of threads are correctly set and abided by
+
+"""
+
 import functools
 import http.server
 import os
@@ -8,13 +18,6 @@ import pytest
 from swiftlet import config
 from swiftlet import flamingo_lightcones
 
-"""
-Tests for swiftlet.config:
-    - download the FLAMINGO shell redshift files into the environment
-    - export paths when the environment is activated.
-    - max number of threads are correctly set and abided by
-
-"""
 
 FILE_CONTENTS = {
     "L1": "0.0, 0.05\n0.05, 0.1\n",

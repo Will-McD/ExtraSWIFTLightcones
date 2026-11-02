@@ -1,4 +1,9 @@
 #!/bin/env python
+"""
+For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create a binary mask for a full-sky map, where all pixels
+within R500c of a haloes centre of mass are masked out.
+"""
+
 import argparse
 import numpy as np
 from swiftlet.mask_haloes import write_binary_masks
@@ -139,12 +144,6 @@ from mpi4py import MPI
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
-
-"""
-For the L1_M9 HYDRO_FIDCUIAL FLAMINGO simulation create a binary mask for a full-sky map, where all pixels 
-within R500c of a haloes centre of mass are masked out.  
-"""
-
 
 if __name__ == "__main__":
     if comm_rank == 0:

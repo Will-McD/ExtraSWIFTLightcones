@@ -1,5 +1,29 @@
 #!/bin/env python
-#
+"""
+This example demostrates how the lightcone is rebuild from sections of each snapshots comoving volume.
+
+We begin by building fake FLAMINGO snapshots (redshift 0 - 0.425, written to a temporary directory) using a box
+sidelength of 1Gpc and placeing all particles in a regular lattice.
+We then build multiple lightcones from these snapshots, where if done correctly the lattice structure should be exactly
+preserved and can be used to see how the original coordinates in the snapshot are transformed into lightcone
+coordinates.
+Hence, a correct lightcone will replicate the lattice structure exactly and places every point of the snapshot:
+    - exactly once
+    - with no gaps
+    - with no repeats
+    - for many box tiles
+    - works the same for particles and haloes
+    - if there is no rotation, reflection or shift we check the exact structure is perfectly replicated
+
+We repeat this for when we do and do-not re-orient the tiles:
+    - not re-oriented:  every box tile is the snapshot box as it is (no rotation, reflection or shift). To do this
+                            we build a using an orientation table of one unchanged row, resulting in the lightcone
+                            being just the initial snapshot box repeated periodically. Therefore each particle is
+                            where its periodic copy of the box puts it.
+    - re-oriented:      the default orientation tables, with each orientation lock: "none", "cube" and "sphere".
+
+"""
+
 import argparse
 import tempfile
 from pathlib import Path
@@ -15,28 +39,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from swiftlet.example_plot_settings import plot_settings, cmap_MCG
-
-"""
-Build fake FLAMINGO snapshots (redshift 0 - 0.425, written to a temporary directory) using a box sidelength of 1Gpc and 
-placeing all particles in a regular lattice write snapshots .
-
-Repeat this for when we do and do-not re-orient the tiles:
-    - not re-oriented:  every box tile is the snapshot box as it is (no rotation, reflection or shift). To do this 
-                            we build a using an orientation table of one unchanged row, resulting in the lightcone 
-                            being just the initial snapshot box repeated periodically. Therefore each particle is 
-                            where its periodic copy of the box puts it.
-    - re-oriented:      the default orientation tables, with each orientation lock: "none", "cube" and "sphere".
-
-
-A correct lightcone will replicate the lattice structure exactly and places every point of the snapshot:
-    - exactly once
-    - with no gaps
-    - with no repeats
-    - for many box tiles
-    - works the same for particles and haloes
-    - if there is no rotation, reflection or shift we check the exact structure is perfectly replicated
-
-"""
 
 ############################################################################################################
 # DEFINE GLOBAL VARIABLES FOR THE FAKE SNAPSHOTS
@@ -336,9 +338,8 @@ def write_unchanged_orientation_table(run_dir):
 
 def new_lightcone(simulation, beam_vector, orientation_lock, orientation_table=None):
     """
-    Return the SnapshotLightcone object,
-        SnapshotBeam if beam_vector is given
-        SnapshotAllSky if beam_vector is None
+    Return the :class:`SnapshotLightcone` object: it is a :class:`SnapshotBeam` if ``beam_vector`` is given, or a
+    :class:`SnapshotAllSky` if ``beam_vector`` is None.
 
     :param  simulation:         the simulation
     :type   simulation:         Simulation
@@ -384,12 +385,10 @@ def redshift_at_distance(cosmo, r):
 def place_lattice(lightcone, redshift_range, ang_radius_deg, kind, halo_format):
     """
     Place the input lattice in a lightcone shell.
-    Use kind to select between reading particles from the fake snapshots or haloes from
-    the fake SOAP catalogue.
 
-    All outputs are sorted by snapshot number and ID
+    Use kind to select between reading particles from the fake snapshots or haloes from the fake SOAP catalogue.
 
-    Returns (snapshot number, ID, position [Mpc] relative to the observer),
+    Returns (snapshot number, ID, position [Mpc] relative to the observer), sorted by snapshot number and ID
 
     :param  lightcone:      the lightcone
     :type   lightcone:      SnapshotAllSky or SnapshotBeam

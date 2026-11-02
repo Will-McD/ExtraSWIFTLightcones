@@ -1,5 +1,10 @@
 #!/bin/env python
-"""Plot projections of a past lightcone beam as wedges, with redshift, comoving distance and angular axes."""
+"""
+Plot projections of a past lightcone beam as wedges, with redshift, comoving distance and angular axes.
+
+This module is only for managing how the projections are plotted, the projections themselves are
+made by :class:`~swiftlet.lightcone_projections.BeamProjection`.
+"""
 
 import copy
 import math
@@ -26,7 +31,7 @@ def round_down_10(x):
 
 def round_up_10(x):
     """
-    Round up to 2 significant figures.
+    Round up to the nearest multiple of 10.
 
     :param  x:  value to round
     :type   x:  float
@@ -74,7 +79,7 @@ def upright_rotation(angle_deg):
     return angle_deg
 
 
-# geometry helpers
+# geometry functions and helpers
 
 
 def arc_xy(comoving_dist, theta_degree, n=360):
@@ -169,9 +174,9 @@ def labels_loc(ax, p1, p2, offset=12, dpi=None, tick_length=1):
 
 def offset_point_from_tick(ax, x, y, ux, uy, offset):
     """
-    Use display coordinates to move tick label away from the tick by shifting it in the direction (ux,uy).
+    Use display coordinates to move a tick label away from the tick by shifting it in the direction of (ux,uy).
 
-    Returns the new (x, y) position in data coordinates.
+    Returns the new label position (x, y) in data coordinates.
 
     :param  ax:     axes of the plot
     :type   ax:     matplotlib.axes._axes.Axes
@@ -415,17 +420,15 @@ class BeamPlot:
 
     def __init__(self, cosmology, angular_diameter=None, redshift_range=None, axes_extent=None):
         """
-        Initialise the BeamPlot class.
-
         :param  cosmology:          the simulation's cosmology
         :type   cosmology:          astropy.cosmology.FLRW
         :param  angular_diameter:   total angular diameter [deg] of the beam. Required by split_beam_plot
         :type   angular_diameter:   float
-        :param  redshift_range:     minimum and maximum redshift of the beam shown, [z_min, z_max]. Required by
+        :param  redshift_range:     minimum and maximum redshift of the beam shown, [z_min, z_max], required by
                                     split_beam_plot
         :type   redshift_range:     sequence of two floats
-        :param  axes_extent:        extent of the projected images, in coordinate space, [xmin, xmax, ymin, ymax].
-                                    Required by split_beam_plot and add_wedge
+        :param  axes_extent:        extent of the projected images, in coordinate space, [xmin, xmax, ymin, ymax],
+                                    required by :func:`split_beam_plot` and :func:`add_wedge`
         :type   axes_extent:        list
         """
         self.cosmology = as_astropy_cosmology(
@@ -459,7 +462,7 @@ class BeamPlot:
         :param  numb_wedges:        number of wedges or different projections to show in the beam
         :type   numb_wedges:        int
         :param  projection_data:    nested list of the segments of the beam: the 2D array to plot and
-                                        a tuple of the min and max values shown in the img, [2D array, (min, max)]
+                                    a tuple of the min and max values shown in the img, [2D array, (min, max)]
         :type   projection_data:    list
         :param  colour_maps:        colour map of each segment of the beam
         :type   colour_maps:        list
@@ -468,23 +471,25 @@ class BeamPlot:
         :param  filename:           None, if given, write plot to this file
         :type   filename:           str
         :param  update_badcol:      If True, modify all colour maps so that the minimum, nan and None values are shown
-                                        as black pixels
+                                    as black pixels
         :type   update_badcol:      bool
         :param  figsize:            size of the figure, used if axs is None
         :type   figsize:            tuple
         :param  titles:             title of each wedge
         :type   titles:             list
         :param  title_radius:       where the title of each wedge is placed along it, as a fraction of the way from the
-                                        inner arc (0) to the outer arc (1), see add_wedge
+                                    inner arc (0) to the outer arc (1), see :func:`add_wedge`
         :type   title_radius:       list of float
         :param  norms:              colour normalisation of each segment of the beam: "log", "linear" or a
-                                        matplotlib.colors.Normalize (see colour_norm), if None, all are "log"
+                                    matplotlib.colors.Normalize (see colour_norm), if None, all are "log"
         :type   norms:              list
         :param  outline_kwargs:     keyword arguments of an outline of the whole beam drawn over the wedges, so the
-                                        outer edges can be styled differently from the lines between the wedges. Same
-                                        keys and defaults as wedge_kwargs (see wedge_style). If None, no outline drawn
+                                    outer edges can be styled differently from the lines between the wedges. Same
+                                    keys and defaults as wedge_kwargs (see :func:`wedge_style`). If None, no outline
+                                    is drawn
         :type   outline_kwargs:     dict
-        :param  \*\*kwargs:         all additional arguments to be passed onto the add_wedge and add_beam_axes functions
+        :param  \*\*kwargs:         all additional arguments to be passed onto the :func:`add_wedge` and
+                                    :func:`add_beam_axes` functions
         :type   \*\*kwargs:         dict
         """
         # define wedge angles
@@ -657,7 +662,7 @@ class BeamPlot:
         :param  wedge_idx:                  order that the wedge is added to the plot.
         :type   wedge_idx:                  int
         :param  data_2D:                    2D histogram to plot
-        :type   data_2D:                    np.ndarray
+        :type   data_2D:                    numpy.ndarray
         :param  cmap:                       colour map
         :type   cmap:                       str or matplotlib colour map type object
         :param  pix_min:                    minimum pixel value shown. If None, the minimum of the data or the norm
@@ -683,8 +688,8 @@ class BeamPlot:
         :param  title_radius:               where the title is placed along the wedge, as a fraction of the way from
                                                 the inner arc (0, rmin) to the outer arc (1, rmax).
         :type   title_radius:               float
-        :param  norm:                       colour normalisation, "log", "linear" or a matplotlib.colors.Normalize,
-                                                see colour_norm
+        :param  norm:                       colour normalisation, "log", "linear" or a
+                                            :func:`matplotlib.colors.Normalize`, see :func:`colour_norm`
         :type   norm:                       str or matplotlib.colors.Normalize
         :param  interpolation:              matplotlib imshow interpolation of the image, (e.g. "nearest")
         :type   interpolation:              str
@@ -1093,10 +1098,10 @@ class BeamPlot:
         :param  comoving_tick_range:    minimum and maximum comoving distance [Mpc] of the axis
         :type   comoving_tick_range:    list
         :param  major_ticks:            comoving distance [Mpc] of the major ticks. If None, chosen from the range
-        :type   major_ticks:            np.ndarray
+        :type   major_ticks:            numpy.ndarray
         :param  minor_ticks:            comoving distance [Mpc] of the minor ticks. If None, chosen from the major tick
                                             spacing
-        :type   minor_ticks:            np.ndarray
+        :type   minor_ticks:            numpy.ndarray
         """
         # order of magnitude of most distant comoving tick
         order_of_mag = orderOfMagnitude(comoving_tick_range[-1])
@@ -1207,7 +1212,7 @@ class BeamPlot:
         :param  ax:                 axes to plot onto
         :type   ax:                 matplotlib.axes._axes.Axes
         :param  angles_deg:         angle [deg] of each tick
-        :type   angles_deg:         np.ndarray
+        :type   angles_deg:         numpy.ndarray
         :param  beam_radius_deg:    maximum angular radius [deg] of the beam
         :type   beam_radius_deg:    float
         :param  rmin:               minimum comoving distance [Mpc], start of the grid lines
@@ -1223,7 +1228,7 @@ class BeamPlot:
         :param  label_style:        keyword arguments of the tick labels. If None, no labels
         :type   label_style:        dict
         :param  theta_ticks_abs:    If true, label the ticks with absolute values
-        :type   theta_ticks_abs:    boolean
+        :type   theta_ticks_abs:    bool
         :param  grid_line_style:    keyword arguments of the grid lines. If None, no grid lines
         :type   grid_line_style:    dict
         """

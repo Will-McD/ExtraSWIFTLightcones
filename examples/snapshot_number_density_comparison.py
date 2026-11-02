@@ -1,5 +1,20 @@
 #!/bin/env python
-import sys
+"""
+This example script comapares the number density of dark matter particles in multiple Snapshot lightcones with the
+expected number density of dark matter particles in the snapshots box.
+
+The number densities should converge consistent given the volume of the lightcone is sufficently large and is a good
+indication of the lightcone not incorrectly missing or double counting particles from the snapshots.
+
+We will iterativley repeat this comparison for multiple different orientation seeds for both FLAMINGO and COLIBRE:
+    -   for each orientation seed (seeds 0 to nr_seeds - 1 by default) use SnapshotAllSky with orientation_lock="cube"
+    -   the dark matter particles are counted in bins of comoving distance from the observer and
+        each bin has an equal comoving volume
+    -   each seed re-orients the box tiles differently, so each is the same shell built from the same snapshots with a
+        different arrangement of the cells: the same as having different observers
+
+"""
+
 import os
 import argparse
 from pathlib import Path
@@ -17,19 +32,6 @@ from mpi4py import MPI
 comm = MPI.COMM_WORLD
 comm_rank = comm.Get_rank()
 comm_size = comm.Get_size()
-
-"""
-Compare the number density of dark matter particles from Snapshot lightcones with the expected number density
-of the snapshots. 
-
-Iterativley repeat this comparison for multiple different orientation seeds for both FLAMINGO and COLIBRE:
-    - for each orientation seed (seeds 0 to nr_seeds - 1 by default) use SnapshotAllSky with orientation_lock="cube"
-    - the dark matter particles are counted in bins of comoving distance from the observer and 
-        each bin has an equal comoving volume
-    - each seed re-orients the box tiles differently, so each is the same shell built from the same snapshots with a 
-        different arrangement of the cells: the same as having different observers
-
-"""
 
 
 def seed_row_vals(seed, edges, counts, expected, mean_density):
@@ -72,6 +74,7 @@ def read_density_file(filename):
     Read the .txt file written by this example.
 
     Returns a tuple of (the settings of the comment line as {key: value}, the columns as a structured np.ndarray).
+
     :param  filename:   path of the .txt file
     :type   filename:   str
     """
@@ -159,8 +162,8 @@ def plot_seed_densities(filenames, output_filename):
 
 def snapshot_mean_number_density(simulation, ptype="PartType1"):
     """
-    Mean number density of a particle type in a whole snapshot.
-    Computed from the header of the lowest redshift snapshot.
+    Mean number density of a particle type in a whole snapshot, computed from the header of the lowest redshift
+    snapshot.
 
     Returns the number density [comoving Mpc^-3] and the number of particles.
 
@@ -201,7 +204,9 @@ def equal_volume_edges(r_min, r_max, nr_bins):
 def subshell_redshift_ranges(cosmo, redshift_range, nr_shells, n_grid=20001):
     """
     Split a redshift range into consecutive thinner shells of equal comoving volume, so each holds a similar number of
-    particles. Neighbouring shells share their boundary redshift, so together they cover the range exactly once.
+    particles.
+
+    Neighbouring shells share their boundary redshift, so together they cover the range exactly once.
 
     Returns a list of nr_shells (z_min, z_max) tuples, from low to high redshift.
 
@@ -272,9 +277,7 @@ def count_in_bins(coords, edges, vector=None, ang_radius_rad=None):
 
 def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radius_deg, ptype="PartType1"):
     """
-    Count the particles of a lightcone in each bin.
-
-    Share the snapshot pieces between the ranks (see snapshot_dark_matter_map.py).
+    Count the particles of a lightcone in each bin and share the snapshot pieces between the ranks.
 
     Returns the counts summed over the ranks (on every rank), and the number of particles in the largest piece.
 

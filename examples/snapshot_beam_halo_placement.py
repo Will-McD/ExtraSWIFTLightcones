@@ -1,4 +1,8 @@
 #!/bin/env python
+"""
+Example script to show the placement of haloes from the SOAP catalogues into a SnapshotBeam lightcone shell.
+"""
+
 import os
 import warnings
 import numpy as np
@@ -11,11 +15,6 @@ from swiftlet.simulation_suites import Simulation
 from swiftlet.soap_reader import read_soap_selected_rows, comoving
 from swiftlet.example_plot_settings import plot_settings, cmap_MCG
 
-
-"""
-Place haloes from the SOAP catalogues into a SnapshotBeam lightcone shell. 
-Plot the central haloes, scale the size and shape of the marker used by M200c of each halo. 
-"""
 
 # environmental variables for the plots
 # halo mass shown, and the colour map of its log10: one hue, from light (low mass) to dark (high mass)
@@ -56,12 +55,6 @@ def lookup_soap_property(halo_format, snap_numbers, soap_index, property_name):
     # halo_cat = hc.SOAPCatalogue(halo_format, int(snap_numbers.min()), int(snap_numbers.max()))
     values = None
     for snap_nr in np.unique(snap_numbers):
-        #    soap = halo_cat.read(int(snap_nr), ["InputHalos/HaloCatalogueIndex", property_name])
-        #    soap_index = soap["InputHalos/HaloCatalogueIndex"].value.astype(int)
-        #    order = np.argsort(soap_index)
-        #    in_snap = snap_numbers == snap_nr
-        #    rows = order[np.searchsorted(soap_index, halo_index[in_snap], sorter=order)]
-
         in_snap = np.flatnonzero(snap_numbers == snap_nr)
         rows, where = np.unique(soap_index[in_snap], return_inverse=True)
         column = comoving(
@@ -69,9 +62,7 @@ def lookup_soap_property(halo_format, snap_numbers, soap_index, property_name):
         )
 
         if values is None:
-            # values = np.zeros(len(halo_index)) * soap[property_name].units
             values = np.zeros(len(snap_numbers)) * column.units
-        # values[in_snap] = soap[property_name][rows]
         values[in_snap] = column[where]
     return values
 
@@ -212,8 +203,9 @@ def plot_halos_in_beam_3panel(
     show=False,
 ):
     """
-    Scatter plot of halo centres placed into the beam, projected onto the
-    x-y, x-z, y-z planes, coloured and sized by the log of their mass.
+    Scatter plot of halo centres placed into the beam, projected onto the x-y, x-z, y-z planes, coloured and sized by
+    the log of their mass.
+
     Haloes without a mass are not shown, e.g. satellites, which have no SO masses in SOAP-HBT.
 
     Returns the figure.

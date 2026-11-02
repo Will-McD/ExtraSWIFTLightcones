@@ -1,3 +1,18 @@
+#!/bin/env python
+"""
+Test the cell-level close repeat checker on fake snapshots built with a regular lattice
+of particles that is the same across all snapshots.
+
+This includes:
+    - without re-orientation (an orientation table of one unchanged row) nothing is reported
+    - with orientation_lock="cube" no two copies of a cell in the same layer are reported
+    - every close repeat of a particle (two copies within 1 deg on the sky and closer than a box length) is in a
+        reported cell pair
+    - a table that reflects some tiles and not others makes copies of the cells on the faces between them touch
+    - the touching cells can also found from the tables alone (snapshot_orientation.check_neighbouring_tiles)
+    - the warning and the HDF5 file
+"""
+
 import sys
 import warnings
 from pathlib import Path
@@ -14,17 +29,6 @@ from swiftlet.snapshot_cosmology import SnapshotCosmology  # noqa: E402
 from swiftlet.snapshot_lightcone import SnapshotAllSky  # noqa: E402
 from swiftlet.snapshot_orientation import write_orientation_tables  # noqa: E402
 
-"""
-Test the cell-level close repeat checker on fake snapshots built with a regular lattice 
-of particles that is the same across all snapshots: 
-    - without re-orientation (an orientation table of one unchanged row) nothing is reported
-    - with orientation_lock="cube" no two copies of a cell in the same layer are reported
-    - every close repeat of a particle (two copies within 1 deg on the sky and closer than a box length) is in a
-        reported cell pair
-    - a table that reflects some tiles and not others makes copies of the cells on the faces between them touch
-    - the touching cells can also found from the tables alone (snapshot_orientation.check_neighbouring_tiles)
-    - the warning and the HDF5 file
-"""
 
 ALL_SKY_SHELL = (440.0, 1110.0)  # [Mpc], from snapshots 72 to 75, through 27 tiles
 

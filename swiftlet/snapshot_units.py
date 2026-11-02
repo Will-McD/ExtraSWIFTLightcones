@@ -1,9 +1,5 @@
 #!/bin/env python
-"""
-Units of SWIFT snapshot and SOAP catalogues.
-
-Build unyt registries from their metadata, and unit conversions.
-"""
+"""The units of SWIFT snapshots and SOAP catalogues used for building lightcones."""
 
 import numpy as np
 import unyt
@@ -12,12 +8,10 @@ import unyt.dimensions as dim
 
 def apply_expected_units(x, expected_units):
     """
-    Convert input to expected units, if the input has no units, the expected units are applied.
-
-    Returns the input as a unyt.unyt_array or unyt.unyt_quantity in the expected units.
+    Returns the input as a unyt.unyt_array or unyt.unyt_quantity in the expected units, if possible.
 
     :param  x:              value(s) to convert
-    :type   x:              int, float, list, np.ndarray, unyt.unyt_quantity or unyt.unyt_array
+    :type   x:              int, float, list, numpy.ndarray, unyt.unyt_quantity or unyt.unyt_array
     :param  expected_units: units to convert to
     :type   expected_units: unyt.Unit
     """
@@ -41,7 +35,7 @@ def apply_expected_units(x, expected_units):
 
 def astropy_to_unyt(a):
     """
-    Convert an astropy array with units to a unyt_array.
+    Convert an array with astropy units to a unyt_array.
 
     :param  a:  array with astropy units
     :type   a:  astropy.units.Quantity
@@ -51,8 +45,8 @@ def astropy_to_unyt(a):
 
 def snapshot_unit_metadata(snap):
     """
-    Returns the plain-float metadata needed to build a snapshot's unit registry, which is the physical constants,
-    the cosmology, and the Units/InternalCodeUnits CGS conversion factors.
+    Returns the plain-float metadata needed to build a snapshot's unit registry: the physical constants, the cosmology,
+    and the Units/InternalCodeUnits CGS conversion factors.
 
     :param  snap:   open snapshot file
     :type   snap:   h5py.File
@@ -72,9 +66,9 @@ def snapshot_unit_metadata(snap):
 
 def unit_registry_from_metadata(metadata):
     """
-    Create a unyt UnitRegistry from the metadata extracted by snapshot_unit_metadata.
+    Create a unyt UnitRegistry from the metadata extracted by :func:`snapshot_unit_metadata`.
 
-    Returns a unyt.unit_registry.UnitRegistry with the snapshot and code unit systems, a and h defined.
+    Returns a unyt.unit_registry.UnitRegistry with the snapshot and code unit systems, `a` and `h` defined.
 
     :param  metadata:   physical constants, cosmology and CGS unit conversion factors of the snapshot
     :type   metadata:   dict
@@ -216,7 +210,7 @@ def attributes_from_units(units, physical, a_exponent):
     :param  units:      the Unit object
     :type   units:      unyt.Unit
     :param  physical:   If True, the value is stored as physical rather than comoving
-    :type   physical:   boolean
+    :type   physical:   bool
     :param  a_exponent: expansion factor exponent of the property. None if it cannot be converted to comoving
     :type   a_exponent: float
     """
@@ -270,14 +264,13 @@ def attributes_from_units(units, physical, a_exponent):
 
 def drop_a_from_comoving_property(arr):
     """
-    Drop the a factor from the units of a comoving property without changing the value.
+    Drop the `a` factor from the units of a comoving property (lengths, densities, areas, volumes and pressures)
+    without changing the value.
 
-    Coordinates in the lightcone are comoving but the expansion factor varies
-    so it cannot be explicitly included in the units as done with snapshots.
+    Coordinates in the lightcone are comoving but the expansion factor varies so it cannot be explicitly included in
+    the units as done with snapshots, e.g. lengths in units of a*snap_length are reinterpreted as just snap_length.
 
-    e.g. lengths in units of a*snap_length are reinterpreted as just snap_length.
-
-    Supports lengths, densities, areas, volumes and pressures.
+    Returns the input array with updated units.
 
     :param  arr:    comoving property in snapshot units
     :type   arr:    unyt.unyt_array

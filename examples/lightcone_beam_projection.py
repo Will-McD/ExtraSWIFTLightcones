@@ -1,4 +1,16 @@
 #!/bin/env python
+"""
+Example script to show the creation of two different projections of a slice through a beam of an observers past
+lightcone.
+
+Read in gas and dark matter particles from a lightcone of the fiducial L1_m9 FLAMINGO simulation and then create a
+split beam projection of:
+
+#.  The surface mass density of gas, dark matter and total mass within the beam.
+#.  The mass weighted and redshift weighted gas temperature within the lightcone.
+
+"""
+
 import numpy as np
 import unyt
 import lightcone_io.particle_reader as pr
@@ -7,19 +19,20 @@ from swiftlet.example_plot_settings import plot_settings
 import cmasher as cmr  # noqa: F401 registers the "cmr.*" colour maps used by name
 from pathlib import Path
 
-"""
-Example script to show the creation of two different projections of a slice through a beam of an observers past 
-lightcone. 
-
-Read in gas and dark matter particles from a lightcone of the fiducial L1_m9 FLAMINGO simulation and then create a  
-split beam projection of:
-    1.  The surface mass density of gas, dark matter and total mass within the beam. 
-    2.  The mass weighted and redshift weighted gas temperature within the lightcone. 
-"""
-
 
 def surface_density_projection(BP, gas_particle_data, gas_property_names, dm_particle_data):
-    # project a slice through a beam to show the surface mass density within the lightcone
+    """
+    Project a slice through a beam to show the surface mass density of the gas, the dark matter and their total.
+
+    :param  BP:                 the beam to project
+    :type   BP:                 swiftlet.lightcone_projections.BeamProjection
+    :param  gas_particle_data:  the gas particles of the lightcone
+    :type   gas_particle_data:  dict
+    :param  gas_property_names: names of the gas particle properties to place in the slice
+    :type   gas_property_names: list of str
+    :param  dm_particle_data:   the dark matter particles of the lightcone
+    :type   dm_particle_data:   dict
+    """
 
     # add particle data to the slice
     BP.place_particles_in_slice(
@@ -66,7 +79,18 @@ def surface_density_projection(BP, gas_particle_data, gas_property_names, dm_par
 
 
 def temperature_projection(BP, gas_particle_data, gas_property_names):
-    # Repeat example 1 but now with custom datasets to show mass and redshift dependence
+    """
+    Project a slice through a beam to show the mass weighted and the redshift weighted gas temperature.
+
+    It repeats :func:`surface_density_projection`, but with custom datasets added to the slice.
+
+    :param  BP:                 the beam to project
+    :type   BP:                 swiftlet.lightcone_projections.BeamProjection
+    :param  gas_particle_data:  the gas particles of the lightcone
+    :type   gas_particle_data:  dict
+    :param  gas_property_names: names of the gas particle properties to place in the slice
+    :type   gas_property_names: list of str
+    """
 
     # add particle data to the slice
     BP.place_particles_in_slice(gas_particle_data, gas_property_names)

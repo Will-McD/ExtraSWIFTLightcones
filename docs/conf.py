@@ -29,13 +29,87 @@ extensions = [
 # packages Read the Docs can't install: Sphinx pretends they exist
 autodoc_mock_imports = ["mpi4py", "virgo", "lightcone_io", "hdfstream"]
 
-autodoc_member_order = "bysource"
+autodoc_member_order = "bysource"# keep functions in the order they appear in the file
 autosummary_generate = True
 templates_path = ["_templates"]
-autodoc_member_order = "bysource"   # keep functions in the order they appear in the file
+
+# functions and classes left out of the API docs, by their full name
+autosummary_context = {
+    "hidden": [
+        "swiftlet.snapshot_lightcone.seperator_str",
+        "swiftlet.snapshot_lightcone.message",
+        "swiftlet.snapshot_lightcone.rank_message",
+        "swiftlet.snapshot_lightcone.print_coord_ranges",
+        "swiftlet.snapshot_lightcone.FileReadSpec",
+        "swiftlet.snapshot_lightcone.HaloCatalogueSpec",
+        "swiftlet.snapshot_lightcone.HaloReadPiece",
+        "swiftlet.snapshot_lightcone.SnapshotReadRecord",
+        "swiftlet.lightcone_projections.check_ptype",
+        "swiftlet.snapshot_redshifts.SnapshotCoverage",
+        "swiftlet.mask_haloes.message",
+        "swiftlet.mask_haloes.rank_message",
+        "swiftlet.mask_haloes.get_num",
+        "swiftlet.mask_haloes.attr_scalar",
+        "swiftlet.mask_haloes.native_endian",
+        "swiftlet.soap_reader.comoving"
+    ]
+}
 
 # show each class's __init__ docstring (its parameters) on the class page, after the class docstring
 autoclass_content = "both"
+
+# autoclass_content = "both" also shows the docstring Python writes for a named tuple's __new__
+# ("Create new instance of X(a, b)"), and :undoc-members: gives each field of a named tuple or dataclass its own entry,
+# although the class docstring already lists them with :ivar:. These hooks leave them out, so a class page shows the
+# class's own summary, the parameters of its own __init__, and its methods
+def _drop_named_tuple_new(app, what, name, obj, options, lines):
+    """Remove the "Create new instance of ..." text that a named tuple adds to its class docstring."""
+    if what != "class":
+        return
+    for i, line in enumerate(lines):
+        if line.startswith("Create new instance of "):
+            del lines[i:]
+            while lines and not lines[-1].strip():
+                lines.pop()
+            return
+
+
+# the class autodoc is documenting: its docstring is processed before its members are
+_current_class = [None]
+
+
+def _note_class(app, what, name, obj, options, lines):
+    """Remember the class whose members autodoc documents next."""
+    if what == "class":
+        _current_class[0] = obj
+
+
+def _skip_fields(app, what, name, obj, skip, options):
+    """
+    Leave out __init__, and the fields of named tuples and dataclasses, which their class docstrings list with :ivar:.
+
+    The other methods of these classes are still documented.
+    """
+    #if name == "__init__":
+    #    # its parameters are already shown after the class docstring (autoclass_content = "both"), so it gets no entry
+    #    # of its own, even with special-members (e.g. autodoc_default_options = {"special-members": "__init__"})
+    #    return True
+    #Never document the constructor as a separate method
+    if name == "__init__" or name.endswith(".__init__"):
+        return True
+    if (getattr(obj, "__doc__", None) or "").startswith("Alias for field number"):
+        return True
+    fields = getattr(_current_class[0], "__dataclass_fields__", {})
+    if what == "class" and name in fields:
+        return True
+    return None
+
+
+def setup(app):
+    """Connect the hooks above to autodoc."""
+    app.connect("autodoc-process-docstring", _note_class)
+    app.connect("autodoc-process-docstring", _drop_named_tuple_new)
+    app.connect("autodoc-skip-member", _skip_fields)
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),

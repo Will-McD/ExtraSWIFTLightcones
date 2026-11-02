@@ -1,15 +1,15 @@
 #!/bin/env python
+"""
+Tests for the modules top level: public names are imported when first used, and importing the
+module doesn't import the modules that need MPI.
+"""
+
 import importlib
 import importlib.util
 import subprocess
 import sys
 import pytest
 import swiftlet as esl
-
-"""
-Tests for the modules top level: public names are imported when first used, and importing the
-module doesn't import the modules that need MPI.
-"""
 
 
 def test_import_does_not_load_submodules():

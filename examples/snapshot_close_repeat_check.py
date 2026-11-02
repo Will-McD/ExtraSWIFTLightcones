@@ -1,5 +1,22 @@
 #!/bin/env python
 #
+"""
+An example script to show how the :mod:`swiftlet.close_repeat` can be used to identify where the same structures can be
+closely replicated along the same line of sight.
+
+Here we check a lightcone for close repeats of the same snapshot cells before adding particles of haloes to it.
+We repeat will repeat this check for each orientation lock and a sample of orientation seeds to change the order seeds,
+that the table is read.
+The results are presented in a summary plot.
+
+Such checks are rather useful to check if custom oritentaion tables or certain configurations of a lightcone will result
+in the same objcts reapearing too many times in the same line of sight and introduce some bias for any analysis with
+the lightcones.
+Specifically here we are checking if pairs of the same cell of a snapshot, in adjacent tiles, are touching or within
+1 degree of one another along a line-of-sight.
+
+"""
+
 import argparse
 import tempfile
 import warnings
@@ -16,22 +33,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
-"""
-Check a lightcone for close repeats before building it, compare a given table for different orientation locks and seeds,
- then make a summary figure.
-
-Importanty we want to find out if there are replica cells with touching faces and then if there are any replica cells 
-close one another along the same line of sight.
-
-Every tile of a lightcone is a re-oriented copy of a snapshot box, so the same structures can re-apear multiple time 
-along a line of sight when the radius of the lightcone surpases the size the one snapshot box. 
-When tiles of differeing orientations are placed next to each other, two copies of the same cell can end up touching, 
-or in nearly the same direction from the observer and closer than a box length apart. 
-
-"""
 
 # SET GLOBAL VARIABLES FOR LOCKS
-
 LOCKS = [None, "cube", "sphere"]  # selection of orientation locks to cycle through
 LOCK_COLOURS = {None: "darkmagenta", "cube": "darkcyan", "sphere": "darkgoldenrod"}  # colours to display each lock with
 
@@ -56,9 +59,10 @@ def fake_simulation(run_dir):
 
 def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, orientation_table=None):
     """
-    Return the SnapshotLightcone object,
-        SnapshotBeam if beam_vector is given
-        SnapshotAllSky if beam_vector is None
+    Return the SnapshotLightcone object.
+
+    It is a SnapshotBeam if beam_vector is given, or a SnapshotAllSky if beam_vector is None.
+
 
     :param  simulation:         the simulation
     :type   simulation:         Simulation
@@ -87,8 +91,8 @@ def check_cases(
     simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_deg, output_dir, orientation_table=None
 ):
     """
-    Check the lightcone for close repeats with every orientation lock and seed,
-    print a line for each combination and write each report to an HDF5 file.
+    Check the lightcone for close repeats with every orientation lock and seed, print a line for each combination
+    and write each report to an HDF5 file.
 
     Returns {(lock, seed): CloseRepeatReport}.
 
@@ -256,20 +260,22 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
     """
     Check every lock and seed, write the reports and plot them.
 
-    :param  simulation:     the simulation
-    :type   simulation:     Simulation
-    :param  redshift_range: minimum and maximum redshift of the shell
-    :type   redshift_range: tuple
-    :param  seeds:          orientation seeds to check
-    :type   seeds:          list of int
-    :param  beam_vector:    direction of the beam, or None for all-sky
-    :type   beam_vector:    tuple
-    :param  ang_radius_deg: angular radius [deg] of the beam, None for all-sky
-    :type   ang_radius_deg: float
-    :param  angle_deg:      angle [deg] on the sky within which copies are on the same line of sight
-    :type   angle_deg:      float
-    :param  output_dir:     directory to write the reports and figure to
-    :type   output_dir:     str
+    :param  simulation:         the simulation
+    :type   simulation:         Simulation
+    :param  redshift_range:     minimum and maximum redshift of the shell
+    :type   redshift_range:     tuple
+    :param  seeds:              orientation seeds to check
+    :type   seeds:              list of int
+    :param  beam_vector:        direction of the beam, or None for all-sky
+    :type   beam_vector:        tuple
+    :param  ang_radius_deg:     angular radius [deg] of the beam, None for all-sky
+    :type   ang_radius_deg:     float
+    :param  angle_deg:          angle [deg] on the sky within which copies are on the same line of sight
+    :type   angle_deg:          float
+    :param  output_dir:         directory to write the reports and figure to
+    :type   output_dir:         str
+    :param  orientation_table:  file of orientation tables, or None for the default tables
+    :type   orientation_table:  str
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -1,12 +1,15 @@
 #!/bin/env python
+"""
+Tests of swiftlet.snapshot_redshifts.
+
+Ensure that the correct files are located, read and can fill spaces of missing snapshots.
+"""
+
 import numpy as np
 import pytest
 from swiftlet import snapshot_redshifts as sr
 from swiftlet.simulation_suites import Simulation, read_output_redshifts
 
-"""
-Tests of swiftlet.snapshot_redshifts, the redshift ranges snapshots cover.
-"""
 
 FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.yaml")
 FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.yaml")

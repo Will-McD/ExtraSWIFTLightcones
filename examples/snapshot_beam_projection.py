@@ -1,4 +1,16 @@
 #!/bin/env python
+"""
+
+Use :class:`SnapshotBeam` to build a beam through a past lightcone of gas particles from the snapshots of the fiducial
+L1_m10 FLAMINGO and L400_m7 COLIBRE simulations then project a slice through the beams to show the gas surface density.
+
+For each simulation the beams are built for each orientation lock in orientation_locks ('none', 'cube', 'sphere'),
+and the gas surface densities are plotted side by side.
+Without a lock ('none') every snapshot tile has its own orientation, so discontinuities appear at every tile face
+the beam crosses. With "cube" or "sphere" locks the tiles in each layer share one orientation, so structures continue
+across the tiles faces within a layer.
+"""
+
 import numpy as np
 import unyt
 import matplotlib.pyplot as plt
@@ -8,18 +20,6 @@ from swiftlet.simulation_suites import Simulation
 from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.lightcone_projections import BeamProjection
 
-
-"""
-Use SnapshotBeam to build a beam through a past lightcone of gas particles from the snapshots of the
-fiducial L1_m10 FLAMINGO and L400_m7 COLIBRE simulations. 
-Project a slice through the beams to show the gas surface density.
-
-For each simulation the beams are built for each orientation lock in orientation_locks ('none', 'cube', 'sphere'), 
-and the gas surface densities are plotted side by side. 
-Without a lock ('none') every snapshot tile has its own orientation, so discontinuities appear at every tile face 
-the beam crosses. With "cube" or "sphere" locks the tiles in each 
-layer share one orientation, so structures continue across the tiles faces within a layer.
-"""
 
 # units of the properties passed to the beam projection
 PROPERTY_UNITS = {
@@ -173,6 +173,14 @@ def beam_projection_lock_comparison(
 
 
 def main_flamingo(simulation_object, output_dir):
+    """
+    Compare the surface density of a SnapshotBeam of the FLAMINGO simulation built with each orientation lock.
+
+    :param  simulation_object:  the simulation
+    :type   simulation_object:  Simulation
+    :param  output_dir:         directory to write the figure to
+    :type   output_dir:         str
+    """
     # snapshot used for its metadata when projecting, the redshift 0 snapshot
     snapshot_filename = simulation_object.snapshot_file(simulation_object.z0_snapshot)
 
@@ -205,6 +213,14 @@ def main_flamingo(simulation_object, output_dir):
 
 
 def main_colibre(simulation_object, output_dir):
+    """
+    Compare the surface density of a SnapshotBeam of the COLIBRE simulation built with each orientation lock.
+
+    :param  simulation_object:  the simulation
+    :type   simulation_object:  Simulation
+    :param  output_dir:         directory to write the figure to
+    :type   output_dir:         str
+    """
     # snapshot used for its metadata when projecting, the redshift 0 snapshot
     snapshot_filename = simulation_object.snapshot_file(simulation_object.z0_snapshot)
 
