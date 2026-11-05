@@ -29,5 +29,6 @@ box_res="L0400N3008"
 sim_name="${SLURM_JOB_NAME:-Thermal}"
 output_dir="./example_outputs/colibre_halo_lightcones/${box_res}/${sim_name}"
 
+
 mpirun -- python3 -m mpi4py ./examples/make_colibre_halo_lightcone.py \
-    --box_res="${box_res}" --sim_name="${sim_name}" --zmin=0.001 --zmax=0.1 --output_dir="${output_dir}"
+    --box_res="${box_res}" --sim_name="${sim_name}" --snapshot_number=127 --zmin=0.001 --zmax=0.1 --output_dir="${output_dir}"

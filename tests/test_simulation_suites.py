@@ -8,6 +8,7 @@ that lightcone classes take a Simulation or the box size and resolution label an
 
 import numpy as np
 import pytest
+import dataclasses
 from swiftlet import snapshot_lightcone
 from swiftlet.simulation_suites import (
     COLIBRE,
@@ -39,6 +40,14 @@ def test_flamingo_from_label():
     assert sim.snapshot_file(77, 3) == (
         "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/snapshots/flamingo_0077/flamingo_0077.3.hdf5"
     )
+    assert (
+        sim.soap_file(77)
+        == "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/SOAP-HBT/halo_properties_0077.hdf5"
+    )
+    assert sim.soap_dir == "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/SOAP-HBT"
+    assert sim.snapshot_format_whole.format(snap_nr=77) == (
+        "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/snapshots/flamingo_0077/flamingo_0077.hdf5"
+    )
     assert sim.z0_snapshot == 77
     assert sim.snapshot_redshift(73) == 0.2
     assert sim.snapshot_redshift_range(73) == pytest.approx((0.175, 0.225))
@@ -50,6 +59,10 @@ def test_colibre_from_label():
     assert sim.directory == "/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal"
     assert sim.snapshot_file(127) == (
         "/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/snapshots/colibre_0127/colibre_0127.0.hdf5"
+    )
+    assert sim.soap_file(127) == "/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/SOAP-HBT/halo_properties_0127.hdf5"
+    assert sim.snapshot_format_whole == (
+        "/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/snapshots/colibre_{snap_nr:04d}/colibre_{snap_nr:04d}.hdf5"
     )
     assert sim.z0_snapshot == 127
     assert np.array_equal(sim.snapshot_redshifts()[1], COLIBRE_REDSHIFTS)
@@ -319,3 +332,17 @@ def test_lightcone_argument_errors(cosmology_from):
         snapshot_lightcone.SnapshotBeam(simulation_object=sim, verbose=0)
     with pytest.raises(TypeError, match=f"simulation_object must be a swiftlet.Simulation"):
         snapshot_lightcone.SnapshotAllSky(simulation_object="L1000N1800", verbose=0)
+
+
+def test_soap_format(tmp_path, monkeypatch):
+    # the SOAP catalogues follow the simulation's directory, wherever it is
+    monkeypatch.setenv("SWIFTLET_FLAMINGO_DIR", str(tmp_path))
+    sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
+    assert sim.soap_format == f"{tmp_path}/L1000N1800/HYDRO_FIDUCIAL/SOAP-HBT/halo_properties_{{snap_nr:04d}}.hdf5"
+    assert sim.soap_file(np.int64(5)) == sim.soap_format.format(snap_nr=5)
+    assert Simulation.from_path(sim.directory).soap_file(77) == sim.soap_file(77)
+    # a suite whose SOAP catalogues are elsewhere in the simulation's directory
+    suite = dataclasses.replace(FLAMINGO, soap_format="SOAP/halo_properties_{snap_nr:04d}.hdf5")
+    other = Simulation(suite, "L1000N1800", "HYDRO_FIDUCIAL", str(tmp_path))
+    assert other.soap_file(3) == f"{tmp_path}/SOAP/halo_properties_0003.hdf5"
+    assert other.soap_dir == f"{tmp_path}/SOAP"

@@ -521,15 +521,16 @@ if __name__ == "__main__":
 
     # the simulation: its paths, output redshifts, cosmology and box, read locally on COSMA
     simulation = Simulation.from_label(args.box_res, args.sim_name)
-    soap_dir = args.soap_dir or f"{simulation.directory}/SOAP-HBT"
-    soap_format = f"{soap_dir}/halo_properties_{{snap_nr:04d}}.hdf5"
+    soap_format = simulation.soap_format
+    if args.soap_dir is not None:
+        soap_format = os.path.join(args.soap_dir, os.path.basename(soap_format))
     cosmo = SnapshotCosmology.from_simulation(simulation).COSMO
     boxsize = snapshot_boxsize(simulation)  # [Mpc]
     box_centre = np.full(3, 0.5 * boxsize)
     print(
         (
             f"{simulation.box_res}/{simulation.name} ({simulation.suite.name}): box {boxsize:g} cMpc, "
-            "{len(simulation.output_redshifts)} snapshots, SOAP catalogues {soap_format}"
+            f"{len(simulation.output_redshifts)} snapshots, SOAP catalogues {soap_format}"
         )
     )
 

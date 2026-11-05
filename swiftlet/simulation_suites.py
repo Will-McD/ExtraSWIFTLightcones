@@ -3,7 +3,7 @@
 The SWIFT simulation suites (FLAMINGO and COLIBRE) and their simulations: where their files are and the redshifts they
 were output at.
 
-Every path to a snapshot and every conversion between snapshot numbers and redshifts comes from a
+Every path to a snapshot or SOAP catalogue and every conversion between snapshot numbers and redshifts comes from a
 :class:`~swiftlet.simulation_suites.Simulation`, so they are the same wherever they are used.
 
 - ``SimulationSuite``: track information that is the same for every simulation of a suite
@@ -22,7 +22,9 @@ For example::
 
     simulation = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")  # the suite is found from the label
     simulation.snapshot_file(77, 0)  # path of file 0 of snapshot 77
+    simulation.soap_file(77)  # path of the SOAP catalogue of snapshot 77
     simulation.snapshot_redshift(77)  # its output redshift
+
 """
 
 import os
@@ -138,6 +140,8 @@ class SimulationSuite:
                                         box size and resolution label; the file under "*" is used for any label of
                                         the suite
     :vartype output_redshift_tables: dict
+    :ivar soap_format:              SOAP halo catalogue, relative to the simulation's directory, with a {snap_nr} field
+    :vartype soap_format:           str
     """
 
     # define types of each element
@@ -146,7 +150,9 @@ class SimulationSuite:
     base_dir_format: str
     base_dir_env: str
     snapshot_format: str
+    snapshot_format_whole: str = "snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.hdf5"
     output_redshift_tables: dict = field(compare=False, hash=False, repr=False)
+    soap_format: str = "SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"
 
     def recognises(self, boxsize_resolution):
         """
@@ -375,6 +381,16 @@ class Simulation:
         return os.path.join(self.directory, self.suite.snapshot_format)
 
     @property
+    def snapshot_format_whole(self):
+        """
+        Formatted path of the whole snapshot file, with a {snap_nr} field.
+
+        It is snapshot_format without its file number, e.g. .../flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.hdf5: the
+        virtual file that combines a snapshot's files.
+        """
+        return re.sub(r"\.\{file_nr[^}]*\}", "", self.snapshot_format)
+
+    @property
     def snapshot_dir(self):
         """Base directory of the snapshots."""
         return os.path.join(self.directory, "snapshots")
@@ -389,6 +405,25 @@ class Simulation:
         :type   file_nr:    int
         """
         return self.snapshot_format.format(snap_nr=int(snap_nr), file_nr=int(file_nr))
+
+    @property
+    def soap_format(self):
+        """Formatted path of the SOAP halo catalogues, with a {snap_nr} field, e.g. for gather_halo_catalogues."""
+        return os.path.join(self.directory, self.suite.soap_format)
+
+    @property
+    def soap_dir(self):
+        """Directory of the SOAP halo catalogues."""
+        return os.path.dirname(self.soap_format)
+
+    def soap_file(self, snap_nr):
+        """
+        Path of the SOAP halo catalogue of a snapshot.
+
+        :param  snap_nr:    snapshot number
+        :type   snap_nr:    int
+        """
+        return self.soap_format.format(snap_nr=int(snap_nr))
 
     # make sure to cache output redshifts once read
     @cached_property
