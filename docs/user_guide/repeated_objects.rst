@@ -117,7 +117,7 @@ Repeats along a line of sight
 -----------------------------
 
 Within a region of the same orientation (one tile without a lock, one cube layer, or one sphere layer) the tiles are the
-same box, forming one continous periodically repeating layer. In such a region all objects are then replicated every 
+same box, forming one continuous periodically repeating layer. In such a region all objects are then replicated every 
 whole box sidelength. Meaning the length between each replica (:math:`\lambda`) is equal to the snapshots 
 sidelength (:math:`L`) when looking along the axis of the snapshots sidelength, :math:`\sqrt{2}L` along a face diagonal 
 and :math:`\sqrt{3}L` along the longest diagonal within the snapshots box. 

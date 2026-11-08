@@ -69,7 +69,7 @@ Lightcones from snapshots
 
    * - ``snapshot_number_density_comparison.py`` / ``.sh``
      - compares the number density of dark matter particles in the snapshot lightcones with the expected 
-       number density from the inital snapshots
+       number density from the initial snapshots
 
    * - ``snapshot_close_repeat_check.py`` / ``.sh``
      - checks a lightcone for close repeats of the same SWIFT cells before building it, for every orientation lock and 
