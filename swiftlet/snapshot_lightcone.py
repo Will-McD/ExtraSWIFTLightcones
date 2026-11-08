@@ -434,7 +434,8 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
     :type   soap_filename:  str
     :param  properties:     {name: values} of SOAP properties of each halo to write, e.g. {"InputHalos/IsCentral": ...}
     :type   properties:     dict
-    :param  metadata:       .metadata of the haloes placed, see SnapshotLightcone.lightcone_metadata
+    :param  metadata:       .metadata of the haloes placed, see
+                            :func:`swiftlet.snapshot_lightcone.SnapshotLightcone.lightcone_metadata`
     :type   metadata:       dict
     :param  nside:          HEALPix resolution of the index, as lightcone_io uses (16)
     :type   nside:          int
@@ -1336,6 +1337,16 @@ class SnapshotLightcone:
             return int(tile[3])
         return max(abs(int(n)) for n in tile[:3])
 
+    def _lattice_tile(self, tile):
+        """
+        Returns the position (nx, ny, nz) of a tile in the regular lattice along the x, y and z axes, in units of tile
+        numbers.
+
+        :param  tile:   periodic replica tile index
+        :type   tile:   tuple
+        """
+        return tuple(int(n) for n in tile[:3])
+
     def _snapshot_reorientation(self, tile):
         """
         Orientation (rotation, reflection, periodic shift) for snapshot 'tile' (nx, ny, n_los).
@@ -1358,7 +1369,7 @@ class SnapshotLightcone:
         if self.orientation_lock is not None:
             nx, ny, nz = 0, 0, self._orientation_layer(tile)
         else:
-            nx, ny, nz = tile
+            nx, ny, nz = self._lattice_tile(tile)
 
         p1, p2, p3 = TILE_HASH_PRIMES
         tile_hash = nx * p1 + ny * p2 + nz * p3 + self.orientation_seed * TILE_HASH_SEED_PRIME
@@ -3527,6 +3538,23 @@ class SnapshotBeam(SnapshotLightcone):
         """
         return self._diameter_at_redshift(z, ang_radius_deg, cosmo=cosmo, use_comoving_dist=use_comoving_dist)
 
+    def _lattice_tile(self, tile):
+        """
+        Transform the position of the tile from the beams coordnates (nx, ny, n_los) into the coordaintes of the regular
+        lattice of tiles along x, y and z, (nx, ny, nz).
+
+        This function over-rides the version in SnapshotLightcone as it uses the Beams specific geometry. This is
+        necessary for the Beam to be be able to reproduce the same off-axis subvolumes of the lightcone that are found
+        in the all-sky lightcones. A tiles orientation is hashed from this function , so a tile now takes the same
+        orientation as in a SnapshotAllSky.
+
+        Returns a tuple of 3 ints.
+
+        :param  tile:   (nx, ny, n_los), the tile's label in the beam's frame
+        :type   tile:   tuple
+        """
+        return tuple(int(n) for n in self._tile_frame.T @ np.asarray(tile[:3], dtype=np.int64))
+
     def get_snapshot_reposition_coords(self, tile, snapshot_sidelengths):
         """
         Returns the offset of a snapshots geometric centre at its position on the lattice of tiles.
@@ -3538,9 +3566,7 @@ class SnapshotBeam(SnapshotLightcone):
         :type   snapshot_sidelengths:   numpy.ndarray
         """
         # lattice position of the tile along x, y, z
-        lattice_position = self._tile_frame.T @ np.asarray(
-            tile[:3], dtype=np.int64
-        )  # lattice_position = self._tile_frame.T @ np.asarray(tile, dtype=np.int64)
+        lattice_position = np.asarray(self._lattice_tile(tile), dtype=np.int64)
 
         snapshot_sidelengths = np.asarray(snapshot_sidelengths, dtype=float)
         return -0.5 * snapshot_sidelengths + lattice_position * snapshot_sidelengths

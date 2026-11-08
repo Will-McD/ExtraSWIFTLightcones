@@ -1046,12 +1046,12 @@ def test_consecutive_shells(fake_runs, beam_vector, ang_radius_deg, redshift_ran
     assert_same_particles(tuple(a[order] for a in combined), whole)
 
 
-@pytest.mark.parametrize("orientation_lock", ["cube", "sphere"])
-@pytest.mark.parametrize("beam_vector", [(0, 0, 1), (1, 2, 3), (-1, 0.5, 0.2)])
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+@pytest.mark.parametrize("beam_vector", [(0, 0, 1), (1, 2, 3), (-1, 0.5, 0.2), (0.1, 0.5, -0.9)])
 def test_beam_is_part_of_all_sky(fake_runs, beam_vector, orientation_lock):
     """
-    Test that for a given orientation lock (i.e. every tile's orientation is set by its layer) a beam is exactly the
-    part of the all-sky lightcone inside its cone.
+    Test that for all orientation locks a beam is exactly the part of the all-sky lightcone inside its cone.
+
     The overlapping footprints of the BEAM and ALLSKY methods should return the same particles from the same snapshots
     at the same positions.
     """
@@ -1468,9 +1468,10 @@ def test_number_density(fake_runs, beam_vector, ang_radius_deg, redshift_range, 
         return density * fraction_of_sky * solid_angle / 3 * (r_hi**3 - r_lo**3)
 
     def assert_poisson(count, expected, what):
-        assert abs(count - expected) < 3 * np.sqrt(expected), (
+        fail_str = (
             f"{what}: {count} particles, {expected:.0f} expected ({(count - expected) / np.sqrt(expected):+.1f} sigma)"
         )
+        assert abs(count - expected) < 3 * np.sqrt(expected), fail_str
 
     # whole shell
     assert_poisson(len(snap_nr), expected_count(*redshift_range), "whole shell")
@@ -1595,17 +1596,17 @@ def assert_no_repeats_in_a_tile(snap_nr, ids, tiles, what):
     rows = np.column_stack([snap_nr, ids, tiles])
     unique_rows, counts = np.unique(rows, axis=0, return_counts=True)
     repeated = unique_rows[counts > 1]
-    assert len(repeated) == 0, (
+    fail_str = (
         f"{len(repeated)} {what} placed more than once in a tile, e.g. (snapshot, ID, tile) = {repeated[:3].tolist()}"
     )
+    assert len(repeated) == 0, fail_str
 
     objects, placements = np.unique(np.column_stack([snap_nr, ids]), axis=0, return_counts=True)
     for snap in np.unique(snap_nr):
         n_tiles = len(np.unique(tiles[snap_nr == snap], axis=0))
         most = placements[objects[:, 0] == snap].max()
-        assert most <= n_tiles, (
-            f"a {what[:-1]} of snapshot {snap} placed {most} times, its snapshot fills {n_tiles} tiles"
-        )
+        fail_str = f"a {what[:-1]} of snapshot {snap} placed {most} times, its snapshot fills {n_tiles} tiles"
+        assert most <= n_tiles, fail_str
     assert np.all(placements <= len(np.unique(tiles, axis=0)))
     return placements.max()
 

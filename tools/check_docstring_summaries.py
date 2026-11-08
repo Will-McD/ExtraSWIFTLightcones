@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 """
-Check that the first sentence of every docstring is followed by a blank line.
+Check the style of all docstring summaries.
 
+This check includes:
 
 1. The first sentence (the summary) can run over several lines, but must end with a full stop at the end of a line,
    then a blank line before the rest of the docstring. ruff checks the rest of the layout: D400 (the first paragraph

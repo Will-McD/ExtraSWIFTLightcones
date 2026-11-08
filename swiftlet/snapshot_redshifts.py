@@ -10,12 +10,53 @@ When snapshots are missing, attempt to fill the gap with the available snapshots
 redshift spacing between adjacent snapshots (``MAX_SNAPSHOT_SPACING = 0.1``).
 """
 
+import os
+import warnings
 import numpy as np
 from typing import NamedTuple
 
 
-# the largest redshift spacing between the snapshots filling a lightcone shell, see snapshot_coverage
+# the advised largest redshift spacing between the snapshots filling a lightcone shell.
 MAX_SNAPSHOT_SPACING = 0.1
+
+# the environment variable that sets another limit, see max_snapshot_spacing
+MAX_SNAPSHOT_SPACING_ENV = "SWIFTLET_MAX_SNAPSHOT_SPACING"
+
+
+def max_snapshot_spacing():
+    """
+    The redshift spacing between the snapshots filling a lightcone shell at which to fail.
+
+    MAX_SNAPSHOT_SPACING, unless the environment variable SWIFTLET_MAX_SNAPSHOT_SPACING is set to another
+    positive number. It is read each time, so changing the variable while running takes effect from the next shell.
+    Provide a clear warning if above above MAX_SNAPSHOT_SPACING.
+
+    Returns a float.
+    """
+    severe_warning_limit = 0.25
+    value = os.environ.get(MAX_SNAPSHOT_SPACING_ENV, "").strip()
+    if value == "":
+        return MAX_SNAPSHOT_SPACING
+    try:
+        spacing = float(value)
+    except ValueError:
+        raise ValueError(f"{MAX_SNAPSHOT_SPACING_ENV} must be a positive number, not {value!r}") from None
+    if not np.isfinite(spacing) or spacing <= 0:
+        raise ValueError(f"{MAX_SNAPSHOT_SPACING_ENV} must be a positive number, not {value!r}")
+    if spacing > severe_warning_limit:
+        warnings.warn(
+            f"!!! {MAX_SNAPSHOT_SPACING_ENV}={spacing:g} lets snapshots more than {severe_warning_limit:g} apart in "
+            "redshift populate a lightcone. The spacing is too large and will cause large discontinuities between "
+            "neighbouring snapshots !!!",
+            stacklevel=3,
+        )
+    elif spacing > MAX_SNAPSHOT_SPACING:
+        warnings.warn(
+            f"{MAX_SNAPSHOT_SPACING_ENV}={spacing:g} is above the default {MAX_SNAPSHOT_SPACING:g}. Snapshots"
+            " further apart in redshift result in larger discontinuities in the lightcone",
+            stacklevel=3,
+        )
+    return spacing
 
 
 # the snapshots filling a redshift range, see snapshot_coverage
@@ -164,7 +205,7 @@ def available_redshift_edges(redshifts, available):
     return snapshots, edges
 
 
-def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX_SNAPSHOT_SPACING, range_tol=0.0):
+def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=None, range_tol=0.0):
     """
     The snapshots that fill a redshift range when some snapshots are missing.
 
@@ -183,13 +224,20 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
     :type   redshift_range: sequence of two floats
     :param  available:      numbers of the snapshots that are available. If None, all are
     :type   available:      array-like of int
-    :param  max_spacing:    the redshift spacing between snapshots at which to fail
+    :param  max_spacing:    the redshift spacing between snapshots at which to fail. If None, use
+                            MAX_SNAPSHOT_SPACING (0.1), or the environment variable SWIFTLET_MAX_SNAPSHOT_SPACING if it
+                            is set
     :type   max_spacing:    float
     :param  range_tol:      a snapshot edge within range_tol of the range counts as touching it, see snapshots_in_range
     :type   range_tol:      float
     """
     # get redshift range of snapshots, available snapshots and missing snapshots
     redshifts = _as_redshifts(redshifts)
+
+    # check upper limit from advised hard coded limit vs environmental variable
+    if max_spacing is None:
+        max_spacing = max_snapshot_spacing()
+
     z_min, z_max = (float(z) for z in redshift_range)
     needed = snapshots_in_range(redshifts, (z_min, z_max), range_tol=range_tol)
     available = np.arange(len(redshifts)) if available is None else np.unique(np.asarray(available, dtype=int))
@@ -236,6 +284,7 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=MAX
         )
         raise ValueError(
             f"the redshift spacing between snapshots is too large to fill {z_min} < z < {z_max}: {gaps} as {cause}"
+            f"(the limit {max_spacing:g}, can be set by {MAX_SNAPSHOT_SPACING_ENV})"
         )
     # fill in gaps and return the SnapshotCoverage named tuple
     filled_by = {}

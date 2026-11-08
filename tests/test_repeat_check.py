@@ -28,6 +28,7 @@ from swiftlet.repeat_check import find_close_cell_repeats, CloseRepeatWarning  #
 from swiftlet.snapshot_cosmology import SnapshotCosmology  # noqa: E402
 from swiftlet.snapshot_lightcone import SnapshotAllSky  # noqa: E402
 from swiftlet.snapshot_orientation import write_orientation_tables  # noqa: E402
+from clashing_orientation_tables import clashing_tables, write_clashing_tables  # noqa: E402
 
 
 ALL_SKY_SHELL = (440.0, 1110.0)  # [Mpc], from snapshots 72 to 75, through 27 tiles
@@ -177,9 +178,10 @@ def test_particle_close_repeats_are_in_reported_cell_pairs(lattice_run, orientat
         reported.add((int(s), int(c), frozenset([tuple(ta[:3]), tuple(tb[:3])])))
 
     for s, c, ta, tb in zip(pair_snap, pair_cell, tile(coords_a), tile(coords_b)):
-        assert (int(s), int(c), frozenset([tuple(ta), tuple(tb)])) in reported, (
+        fail_str = (
             f"close repeat of a particle of cell {c} of snapshot {s} in tiles {tuple(ta)}, {tuple(tb)} not reported"
         )
+        assert (int(s), int(c), frozenset([tuple(ta), tuple(tb)])) in reported, fail_str
 
 
 def test_reflected_tiles_make_touching_cells(lattice_run, tmp_path):
@@ -222,7 +224,7 @@ def test_reflected_tiles_make_touching_cells(lattice_run, tmp_path):
 
 
 @pytest.mark.parametrize("orientation_seed", [0, 2])
-def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orientation_seed):
+def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orientation_seed, tmp_path):
     """
     The touching cells of the lightcone shell (find_close_cell_repeats) are found from the tables alone
     (snapshot_orientation.check_neighbouring_tiles), in the same two tiles: the two move the cells alike. Without the
@@ -230,14 +232,17 @@ def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orie
     the shell check counts.
     """
 
-    from swiftlet.snapshot_orientation import check_neighbouring_tiles, default_orientation_tables
+    from swiftlet.snapshot_orientation import check_neighbouring_tiles
 
     simulation, cosmo, _ = lattice_run
     r_range = (110.0, 1610.0)
 
     # the first default tables, which make some cells touch (the default tables make none)
     lightcone = SnapshotAllSky(
-        simulation_object=simulation, orientation_seed=orientation_seed, orientation_table="default_v1", verbose=0
+        simulation_object=simulation,
+        orientation_seed=orientation_seed,
+        orientation_table=write_clashing_tables(tmp_path),
+        verbose=0,
     )
     report = find_close_cell_repeats(lightcone, shell(cosmo, r_range), warn=False)
 
@@ -257,14 +262,14 @@ def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orie
         }
 
     whole_tiles = check_neighbouring_tiles(
-        default_orientation_tables("default_v1"), lattice.NCELLS_AXIS, None, orientation_seed, extent=3, warn=False
+        clashing_tables(), lattice.NCELLS_AXIS, None, orientation_seed, extent=3, warn=False
     )
     assert in_shell < touching_cells(whole_tiles)
 
     shell_r_range = tuple(cosmo.COSMO.comoving_distance(list(shell(cosmo, r_range))).to_value("Mpc"))
 
     in_tables_shell = check_neighbouring_tiles(
-        default_orientation_tables("default_v1"),
+        clashing_tables(),
         lattice.NCELLS_AXIS,
         None,
         orientation_seed,
@@ -295,6 +300,59 @@ def test_close_repeat_check_example(lattice_run, tmp_path):
     assert (tmp_path / "close_repeats.png").is_file()
 
 
+def test_copies_from_nearby_snapshots(lattice_run):
+    """
+    When using max_snapshot_difference, copies of the same cell from snapshots at most that far apart are paired: every
+    pair found from one snapshot is still found, with pairs between copies from different snapshots, never further apart
+    than the window, and more of them the wider the window (None: any snapshots). The cells are counted whatever their
+    snapshots.
+    """
+    simulation, cosmo, _ = lattice_run
+    r_range = shell(cosmo, (110.0, 1610.0))
+
+    def report(window):
+        return find_close_cell_repeats(
+            lattice.new_lightcone(simulation, None, None), r_range, warn=False, max_snapshot_difference=window
+        )
+
+    same, within_2, any_snapshot = report(0), report(2), report(None)
+    assert (same.max_snapshot_difference, within_2.max_snapshot_difference, any_snapshot.max_snapshot_difference) == (
+        0,
+        2,
+        None,
+    )
+    np.testing.assert_array_equal(same.pairs["snapshot"], same.pairs["snapshot_b"])
+    apart = np.abs(within_2.pairs["snapshot"] - within_2.pairs["snapshot_b"])
+    assert np.any(apart > 0) and np.all(apart <= 2)
+    assert same.nr_cell_copies == within_2.nr_cell_copies == any_snapshot.nr_cell_copies
+    assert any_snapshot.nr_cells == within_2.nr_cells <= lattice.NCELLS_AXIS**3 < same.nr_cells
+    assert same.nr_cell_pairs < within_2.nr_cell_pairs < any_snapshot.nr_cell_pairs
+    assert same.nr_line_of_sight < within_2.nr_line_of_sight <= any_snapshot.nr_line_of_sight
+    assert same.nr_touching <= within_2.nr_touching <= any_snapshot.nr_touching
+    assert same.closest_separation >= within_2.closest_separation >= any_snapshot.closest_separation
+    # a cell on the hand-over between two snapshots is placed by both at the same place: one piece of space, not a pair
+    assert any_snapshot.closest_separation > 0.0 and np.all(any_snapshot.cells["closest_separation"] > 0.0)
+
+    def pair_keys(pairs, selection):
+        return {
+            (int(c), frozenset([(int(sa),) + tuple(ta), (int(sb),) + tuple(tb)]))
+            for c, sa, sb, ta, tb in zip(
+                pairs["cell"][selection],
+                pairs["snapshot"][selection],
+                pairs["snapshot_b"][selection],
+                pairs["tile_a"][selection],
+                pairs["tile_b"][selection],
+            )
+        }
+
+    for kind in ("line_of_sight", "touching"):
+        assert (
+            pair_keys(same.pairs, same.pairs[kind])
+            <= pair_keys(within_2.pairs, within_2.pairs[kind])
+            <= pair_keys(any_snapshot.pairs, any_snapshot.pairs[kind])
+        )
+
+
 def test_warning_and_hdf5_file(lattice_run, tmp_path):
     """
     Close repeats give a CloseRepeatWarning, and the HDF5 file holds the pairs, the repeated cells, the counts and
@@ -304,9 +362,9 @@ def test_warning_and_hdf5_file(lattice_run, tmp_path):
     filename = tmp_path / "close_repeats.hdf5"
 
     # the first default tables, which make some cells touch (the default tables make none)
-    lightcone = lattice.new_lightcone(simulation, None, None, orientation_table="default_v1")
+    lightcone = lattice.new_lightcone(simulation, None, None, orientation_table=write_clashing_tables(tmp_path))
 
-    with pytest.warns(CloseRepeatWarning, match="replicas sharing a face"):
+    with pytest.warns(CloseRepeatWarning, match="pairs of .* sharing a face"):
         report = find_close_cell_repeats(lightcone, shell(cosmo, (110.0, 1610.0)), output_file=str(filename))
 
     assert report.nr_touching > 0

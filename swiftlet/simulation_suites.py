@@ -109,7 +109,7 @@ def write_output_redshifts(filename, redshifts, description=None, **header):
         header,
         OUTPUT_REDSHIFT_COLUMNS,
         rows,
-        comment="SWIFTLET output redshifts of the snapshots, see docs/simulation_suites.md",
+        comment="SWIFTLET output redshifts of the snapshots, see docs/user_guide/new_simulations_and_suites.rst",
     )
 
 
@@ -150,7 +150,6 @@ class SimulationSuite:
     base_dir_format: str
     base_dir_env: str
     snapshot_format: str
-    snapshot_format_whole: str = "snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.hdf5"
     output_redshift_tables: dict = field(compare=False, hash=False, repr=False)
     soap_format: str = "SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"
 

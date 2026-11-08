@@ -224,3 +224,50 @@ def test_coverage_fails_for_large_redshift_spacing():
     assert sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.0, 0.1), [n for n in range(78) if n != 73]).missing == []
     with pytest.raises(ValueError, match="none of the snapshots are available"):
         sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.0, 0.1), [])
+
+
+def test_max_snapshot_spacing_from_the_environment(monkeypatch):
+    """
+    Check the largest spacing between the snapshots filling a shell is 0.1 by default, and SWIFTLET_MAX_SNAPSHOT_SPACING
+    sets another, with a warning above 0.1 and a stronger one above 0.25.
+    """
+
+    monkeypatch.delenv(sr.MAX_SNAPSHOT_SPACING_ENV, raising=False)
+
+    assert sr.max_snapshot_spacing() == sr.MAX_SNAPSHOT_SPACING == 0.1
+
+    missing_73 = [n for n in range(78) if n != 73]
+
+    # by default the 0.1 gap left by a missing snapshot fails, and the message says how to change the limit
+    with pytest.raises(ValueError, match=sr.MAX_SNAPSHOT_SPACING_ENV):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.05, 0.3), missing_73)
+
+    # a larger limit lets it through, with a warning
+    monkeypatch.setenv(sr.MAX_SNAPSHOT_SPACING_ENV, "0.2")
+    with pytest.warns(UserWarning, match="above the default 0.1"):
+        coverage = sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.05, 0.3), missing_73)
+
+    assert coverage.missing == [73]
+
+    # the outputs are 0.75 apart; above 0.25 the warning is stronger
+    with pytest.warns(UserWarning), pytest.raises(ValueError, match="output redshifts are spaced this widely"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (2.75, 3.5))
+
+    monkeypatch.setenv(sr.MAX_SNAPSHOT_SPACING_ENV, "0.6")
+    with pytest.warns(UserWarning, match="spacing is too large"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (3.0, 3.5))
+
+    # a limit given to snapshot_coverage is used instead of the environment's
+    with pytest.raises(ValueError, match="the limit 0.12"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (3.0, 3.5), max_spacing=0.12)
+
+    # check non positive or numerical values fail
+    for value in ("abc", "0", "-0.2", "nan"):
+        monkeypatch.setenv(sr.MAX_SNAPSHOT_SPACING_ENV, value)
+        with pytest.raises(ValueError, match="must be a positive number"):
+            sr.max_snapshot_spacing()
+
+    # an empty value is the default
+    monkeypatch.setenv(sr.MAX_SNAPSHOT_SPACING_ENV, " ")
+
+    assert sr.max_snapshot_spacing() == 0.1

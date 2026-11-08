@@ -312,6 +312,7 @@ def rotate_coords_cartesian(
 
 ORIENTATION_TABLE_NAMES = ("QuarterTurns", "Reflections", "CellShifts")
 
+
 # the columns of an orientation table file in YAML: each table along x, y and z
 ORIENTATION_TABLE_COLUMNS = tuple(f"{name}_{axis}" for name in ORIENTATION_TABLE_NAMES for axis in "xyz")
 
@@ -322,15 +323,21 @@ CELL_SHIFT_UNIT = "eighths"
 EIGHTH_SHIFT_VALUES = (0, 1, -1, 2, -2, 3, -3, 4)
 
 # the orientation tables installed with SWIFTLET, by name, as YAML files in swiftlet/data/orientation_tables
-#   default_v1: the first default tables, 79 rows, not clash-free; kept for tests and examples of close repeats
-#   default_v2: 5184 rows with no two rows making a cell touch its own copy in neighbouring tiles, shifts in eighths
-#                   of the box
+#   default_v2: 5184 rows with no two rows making a cell clash with its own copy in neighbouring tiles, shifts
+#                   in eighths of the box
+#   no_reorientation: 1 row, the unchanged box (no turns, no reflections, no shift): every tile is an exact periodic
+#                   replica of the snapshot box
+#   cube_quarter_spacing: 49 rows of quarter turns, reflections and shifts, every two of which keep the copies of a
+#                   cell in neighbouring tiles at least a quarter of the box apart; made for orientation_lock="cube"
+#   sphere_quarter_spacing: 44 rows of quarter turns, reflections and shifts, every two of which keep the copies of a
+#                   cell at least a quarter of the box apart in the same tile or neighbouring ones; made for the
+#                   sphere orientation lock
 
-INSTALLED_ORIENTATION_TABLES = ("default_v1", "default_v2")
+INSTALLED_ORIENTATION_TABLES = ("default_v2", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing")
 DEFAULT_ORIENTATION_TABLE = "default_v2"
 
-##################################################################
-# FUNCTIONS GENERATING, READING AND CHECKING ORIENTATION TABLES
+###################################################################
+# FUNCTIONS FOR GENERATING, READING AND CHECKING ORIENTATION TABLES
 
 
 def installed_orientation_table_file(name=DEFAULT_ORIENTATION_TABLE):
@@ -449,7 +456,7 @@ def _check_cell_shift_unit(unit):
 def orientation_tables_fingerprint(tables):
     """
     Returns the fingerprint as a unique identifier for the table, given by the first 16 hexadecimal digits of the tables
-      hashlib SHA-256 hash.
+    hashlib SHA-256 hash.
 
     :param  tables: orientation tables
     :type   tables: dict
@@ -587,7 +594,7 @@ def write_orientation_tables(
         header,
         ORIENTATION_TABLE_COLUMNS,
         rows,
-        comment="SWIFTLET orientation tables, see docs/orientation_tables.md",
+        comment="SWIFTLET orientation tables, see docs/user_guide/orientation_tables.rst",
     )
 
     return fingerprint
@@ -683,9 +690,9 @@ class NeighbourTileReport:
         self.nr_touching_pairs = len(np.unique(pairs, axis=0)) if len(pairs) else 0
 
     def summary(self):
-        """Returns a message describing the touching cells found."""
+        """Returns a message describing the clashing cells found."""
         summary_str = (
-            f"{self.nr_touching_cells} cells touching their own replica across the faces of"
+            f"{self.nr_touching_cells} cells clashing with (in contact with) their own replica across the faces of "
             f"{self.nr_touching_pairs} pairs of neighbouring tiles"
             f"({self.nr_reoriented_pairs} / {self.nr_neighbour_pairs} pairs of neighbouring tiles are "
             "oriented differently)."
@@ -770,7 +777,7 @@ def check_neighbouring_tiles(
     tiles = np.indices((2 * extent + 1,) * 3).reshape(3, -1).T - extent
     tile_rows = {tuple(int(t) for t in tile): row_of(tuple(int(t) for t in tile)) for tile in tiles}
 
-    # only cells on the shared face can touch: the cells on each face of the box after each row used moves it, as
+    # only cells on the shared face can clash: the cells on each face of the box after each row used moves it, as
     # keys (cell, u, v), see _face_cell_keys. A cell of tile a touches its copy in the next tile along an axis if
     # its key is on the + face of a's row and on the - face of the next tile's row
     rows_used = np.unique(list(tile_rows.values()))
@@ -779,7 +786,7 @@ def check_neighbouring_tiles(
     touching_keys = {}
 
     def touching_on_face(row_a, row_b, axis):
-        # keys of the cells touching their copy between a tile of row_a and the next tile along axis, of row_b
+        # keys of the cells clashing their copy between a tile of row_a and the next tile along axis, of row_b
         key = (row_a, row_b, axis)
         if key not in touching_keys:
             touching_keys[key] = np.intersect1d(
@@ -836,7 +843,7 @@ def check_neighbouring_tiles(
     def joined(arrays, shape):
         return np.concatenate(arrays).astype(np.int64) if arrays else np.zeros(shape, dtype=np.int64)
 
-    # reporting touching cells from table alone
+    # reporting clashing cells from table alone
     report = NeighbourTileReport(
         nr_neighbour_pairs,
         nr_reoriented_pairs,
@@ -867,8 +874,8 @@ def _face_cell_keys(tables, nr_cells_axis):
     The cells on each face of the box after each row of the tables moves it, as sorted keys (cell, u, v), the cell's
     index and its position on the face.
 
-    A cell of a tile touches its own replica in the next tile along an axis if the key is on the + face of the first
-    tile's row and the - face of the second's.
+    A cell of a tile clashes with its own replica in the next tile along an axis if the key is on the + face of the
+    first tile's row and the - face of the second's.
 
     Returns a tuple (plus, minus), the keys (cell, u, v) on the + and - face along each axis
 
@@ -952,7 +959,7 @@ class _ClashIndex:
 
 
 ##################################################################
-# FUNCTIONS TO GENERATE TABLES WITHOUT TOUCHING REPLICA CELLS
+# FUNCTIONS TO GENERATE TABLES WITHOUT CLASHING PAIRS OF CELLS
 
 
 def generate_clash_free_tables(seed=21, nr_cells_axis=16, cell_shift_values=EIGHTH_SHIFT_VALUES, shuffle_seed=0):
@@ -961,8 +968,8 @@ def generate_clash_free_tables(seed=21, nr_cells_axis=16, cell_shift_values=EIGH
 
     Orientation tables in which no two rows clash:
 
-    -   ensure no cell touches its own replica in a neighbouring tile regardless of which two rows the tiles take read
-        from the table, for any orientation_lock and orientation_seed.
+    -   ensure no cell clashes with its own replica in a neighbouring tile regardless of which two rows the tiles take
+        read from the table, for any orientation_lock and orientation_seed.
     -   define the cell shifts in eighths of the snapshot sidelength, so the clashes are the same for every number of
         cells per axis that is a multiple of 8 and at least 16 (checked for 16, 32 and 64).
     -   can be used for every FLAMINGO and COLIBRE simulation.
@@ -1059,9 +1066,9 @@ def generate_clash_free_tables(seed=21, nr_cells_axis=16, cell_shift_values=EIGH
 
 def tables_are_clash_free(tables, nr_cells_axis=16):
     """
-    Check that an orientation table will not produce touching cell replicas.
+    Check that an orientation table will not produce clashing cell replicas.
 
-    Check that no two rows of orientation tables (nor a row with itself) make a cell touch its own copy across the
+    Check that no two rows of orientation tables (nor a row with itself) make a cell clash with its own copy across the
     face between neighbouring tiles.
 
     Returns the number of clashing (row, row) pairs, 0 if the tables are clash-free.
