@@ -1,6 +1,11 @@
 #
-# Build SWIFTLET and run tests.
+# Build SWIFTLET
 #
+# The style checks are in styles.yml and the documentation build in docs.yml. 
+# This workflow only stops on the errors that mean the code can't run 
+# (syntax errors and undefined names), then installs SWIFTLET and runs the tests.
+#
+
 name: Build and test
 
 on:
@@ -11,9 +16,9 @@ on:
   # every release (and pre-release) when it is published, testing the code of its tag
   release:
     types: [ "published" ]
-    # a "Run workflow" button in the Actions tab, to test any branch by hand
+  # a "Run workflow" button in the Actions tab, to test any branch by hand
   workflow_dispatch:
-  
+
 permissions:
   contents: read
 
@@ -37,20 +42,17 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Lint with ruff
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff
+        # stop the build if there are Python syntax errors or undefined names
+        ruff check . --select E9,F63,F7,F82 --output-format=github --statistics
+
     - name: Install MPI (needed to build mpi4py)
       run: |
         sudo apt-get update
         sudo apt-get install -y libopenmpi-dev openmpi-bin
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8
-
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
     - name: Install module
       run: |

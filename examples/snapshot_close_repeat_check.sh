@@ -3,7 +3,7 @@
 #
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=8
 #SBATCH -J snapshot_close_repeat_check
 #SBATCH -o ./logs/snapshot_close_repeat_check.%j.out
 #SBATCH -p cosma8-serial
@@ -28,7 +28,7 @@ export SWIFTLET_MAX_THREADS=${SLURM_CPUS_PER_TASK}
 # the simulations to check, as "box_res sim_name zmax", and the shell
 # set zmax so the comoving volume of the lightcone is approx 5 times larger than a snapshot box.
 
-simulations=("L0400N3008 Thermal 0.1" "L1000N1800 HYDRO_FIDUCIAL 0.25")
+simulations=("L1000N1800 HYDRO_FIDUCIAL 0.25" "L0400N3008 Thermal 0.1")
 zmin=0.001
 seeds="13 27 54 6 19"
 

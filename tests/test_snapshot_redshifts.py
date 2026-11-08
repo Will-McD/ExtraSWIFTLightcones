@@ -1,18 +1,22 @@
 #!/bin/env python
+"""
+Tests of swiftlet.snapshot_redshifts.
+
+Ensure that the correct files are located, read and can fill spaces of missing snapshots.
+"""
+
 import numpy as np
 import pytest
 from swiftlet import snapshot_redshifts as sr
 from swiftlet.simulation_suites import Simulation, read_output_redshifts
 
-"""
-Tests of swiftlet.snapshot_redshifts, the redshift ranges snapshots cover.
-"""
 
 FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.yaml")
 FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.yaml")
 COLIBRE_REDSHIFTS = read_output_redshifts("colibre.yaml")
 
 TABLES = {"FLAMINGO L1": FLAMINGO_L1_REDSHIFTS, "FLAMINGO L2p8": FLAMINGO_L2P8_REDSHIFTS, "COLIBRE": COLIBRE_REDSHIFTS}
+
 
 @pytest.mark.parametrize("redshifts", TABLES.values(), ids=TABLES.keys())
 def test_edges(redshifts):
@@ -37,15 +41,18 @@ def test_edges(redshifts):
 def test_snapshots_in_range_is_every_overlapping_snapshot(redshifts):
     rng = np.random.default_rng(0)
     nr_snapshots = len(redshifts)
-    shells = [tuple(sorted(rng.uniform(0., 3., 2))) for _ in range(200)]
+    shells = [tuple(sorted(rng.uniform(0.0, 3.0, 2))) for _ in range(200)]
     # shells on the edges, tiny shells and shells at z = 0
     edges = sr.redshift_edges(redshifts)
-    shells += [(edges[n + 1], edges[n]) for n in range(nr_snapshots)] + [(0., 1e-6), (0., 0.2), (1., 1.0001)]
+    shells += [(edges[n + 1], edges[n]) for n in range(nr_snapshots)] + [(0.0, 1e-6), (0.0, 0.2), (1.0, 1.0001)]
     for z_min, z_max in shells:
-        brute_force = [n for n in range(nr_snapshots)
-                       if sr.snapshot_redshift_range(redshifts, n)[0] <= z_max
-                       and sr.snapshot_redshift_range(redshifts, n)[1] >= z_min]
-        assert sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0.).tolist() == brute_force
+        brute_force = [
+            n
+            for n in range(nr_snapshots)
+            if sr.snapshot_redshift_range(redshifts, n)[0] <= z_max
+            and sr.snapshot_redshift_range(redshifts, n)[1] >= z_min
+        ]
+        assert sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0.0).tolist() == brute_force
 
 
 def test_snapshots_in_range_examples():
@@ -54,8 +61,8 @@ def test_snapshots_in_range_examples():
     assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1, 0.2)).tolist() == [73, 74, 75]
     assert sr.snapshots_in_range(COLIBRE_REDSHIFTS, (0.1, 0.2)).tolist() == list(range(114, 120))
     # a thin shell inside one snapshot (the pre-selection before snapshot_redshifts found none for this one)
-    assert sr.snapshots_in_range(COLIBRE_REDSHIFTS, (1., 1.0001)).tolist() == [92]
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0., 0.01)).tolist() == [77]
+    assert sr.snapshots_in_range(COLIBRE_REDSHIFTS, (1.0, 1.0001)).tolist() == [92]
+    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.0, 0.01)).tolist() == [77]
 
 
 @pytest.mark.parametrize("redshifts", TABLES.values(), ids=TABLES.keys())
@@ -63,75 +70,98 @@ def test_strict_bounds_leave_out_touching_snapshots(redshifts):
     rng = np.random.default_rng(1)
     nr_snapshots = len(redshifts)
     edges = sr.redshift_edges(redshifts)
-    shells = [tuple(sorted(rng.uniform(0., 3., 2))) for _ in range(200)]
-    shells += [(edges[n + 1], edges[n]) for n in range(nr_snapshots)] + [(1., 1.)]
+    shells = [tuple(sorted(rng.uniform(0.0, 3.0, 2))) for _ in range(200)]
+    shells += [(edges[n + 1], edges[n]) for n in range(nr_snapshots)] + [(1.0, 1.0)]
     for z_min, z_max in shells:
-        brute_force = [n for n in range(nr_snapshots)
-                       if sr.snapshot_redshift_range(redshifts, n)[0] < z_max
-                       and sr.snapshot_redshift_range(redshifts, n)[1] > z_min]
-        assert sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0., strict=True).tolist() == brute_force
+        brute_force = [
+            n
+            for n in range(nr_snapshots)
+            if sr.snapshot_redshift_range(redshifts, n)[0] < z_max
+            and sr.snapshot_redshift_range(redshifts, n)[1] > z_min
+        ]
+        assert sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0.0, strict=True).tolist() == brute_force
 
 
 def test_redshift_buffer():
     sim = Simulation.from_label("L1000N1800", "X")
     # 0.1 < z < 0.2 is snapshots 73 to 75; widened by 0.025 either side it touches 72 and 76 too
     assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1, 0.2)).tolist() == [73, 74, 75]
-    redshift_buffer=0.025
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1-redshift_buffer, 0.2+redshift_buffer)).tolist() == [72, 73, 74, 75, 76]
-    redshift_buffer=0.025
-    assert sim.snapshots_in_range((0.1-redshift_buffer, 0.2+redshift_buffer)).tolist() == [72, 73, 74, 75, 76]
+    redshift_buffer = 0.025
+    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1 - redshift_buffer, 0.2 + redshift_buffer)).tolist() == [
+        72,
+        73,
+        74,
+        75,
+        76,
+    ]
+    redshift_buffer = 0.025
+    assert sim.snapshots_in_range((0.1 - redshift_buffer, 0.2 + redshift_buffer)).tolist() == [72, 73, 74, 75, 76]
     # strict leaves out the ones the widened range only touches
-    redshift_buffer=0.025
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1-redshift_buffer, 0.2+redshift_buffer), strict=True).tolist() == [73, 74, 75]
+    redshift_buffer = 0.025
+    assert sr.snapshots_in_range(
+        FLAMINGO_L1_REDSHIFTS, (0.1 - redshift_buffer, 0.2 + redshift_buffer), strict=True
+    ).tolist() == [73, 74, 75]
     # different buffers below and above, and the same as widening the range by hand
-    redshift_buffer=(0.06, 0.)
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1-redshift_buffer[0], 0.2+redshift_buffer[1])).tolist() == [73, 74, 75, 76]
-    
-    redshift_buffer=(0.01, 0.07)
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1-redshift_buffer[0], 0.2+redshift_buffer[1])).tolist() == \
-        sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.09, 0.27)).tolist()
+    redshift_buffer = (0.06, 0.0)
+    assert sr.snapshots_in_range(
+        FLAMINGO_L1_REDSHIFTS, (0.1 - redshift_buffer[0], 0.2 + redshift_buffer[1])
+    ).tolist() == [73, 74, 75, 76]
+
+    redshift_buffer = (0.01, 0.07)
+    assert (
+        sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1 - redshift_buffer[0], 0.2 + redshift_buffer[1])).tolist()
+        == sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.09, 0.27)).tolist()
+    )
     # below z = 0 there are no more snapshots
-    redshift_buffer=0.5
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0., 0.01+redshift_buffer)).tolist() == list(range(67, 78))  # up to z = 0.51
+    redshift_buffer = 0.5
+    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.0, 0.01 + redshift_buffer)).tolist() == list(
+        range(67, 78)
+    )  # up to z = 0.51
     with pytest.raises(ValueError, match="redshifts must not be negative"):
-        redshift_buffer=-0.3
-        sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1-redshift_buffer, 0.2+redshift_buffer) )
+        redshift_buffer = -0.3
+        sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1 - redshift_buffer, 0.2 + redshift_buffer))
 
 
 def test_tolerance():
     # 0.275 + 0.05 = 0.325, but the edge between snapshots 70 and 71 is stored as 0.32499999999999996: snapshot 70
     # only touches the widened range, so "strict" should leave it out, which it does within the tolerance
     edge = sr.redshift_edges(FLAMINGO_L1_REDSHIFTS)[71]
-    assert edge < 0.275 + 0.05 and np.isclose(edge, 0.325, rtol=0., atol=1e-12)
-    redshift_buffer=(0., 0.05)
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.25-redshift_buffer[0], 0.275+redshift_buffer[1]),strict=True).tolist() == [71, 72]
-    redshift_buffer=(0., 0.05)
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.25-redshift_buffer[0], 0.275+redshift_buffer[1]), range_tol=0.).tolist() == [70, 71, 72]
+    assert edge < 0.275 + 0.05 and np.isclose(edge, 0.325, rtol=0.0, atol=1e-12)
+    redshift_buffer = (0.0, 0.05)
+    assert sr.snapshots_in_range(
+        FLAMINGO_L1_REDSHIFTS, (0.25 - redshift_buffer[0], 0.275 + redshift_buffer[1]), strict=True
+    ).tolist() == [71, 72]
+    redshift_buffer = (0.0, 0.05)
+    assert sr.snapshots_in_range(
+        FLAMINGO_L1_REDSHIFTS, (0.25 - redshift_buffer[0], 0.275 + redshift_buffer[1]), range_tol=0.0
+    ).tolist() == [70, 71, 72]
     # "equal" takes it either way, as it touches
-    
-    redshift_buffer=(0., 0.05)
-    assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.25-redshift_buffer[0], 0.275+redshift_buffer[1])).tolist() == [70, 71, 72]
-    
+
+    redshift_buffer = (0.0, 0.05)
+    assert sr.snapshots_in_range(
+        FLAMINGO_L1_REDSHIFTS, (0.25 - redshift_buffer[0], 0.275 + redshift_buffer[1])
+    ).tolist() == [70, 71, 72]
+
     # a range ending a hair before an edge touches it within the tolerance, not without
     assert 70 in sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.25, edge - 1e-12)).tolist()
-    assert 70 not in sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.25, edge - 1e-12), range_tol=0.).tolist()
+    assert 70 not in sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.25, edge - 1e-12), range_tol=0.0).tolist()
     with pytest.raises(ValueError, match="range_tol must not be negative"):
-        sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1, 0.2), range_tol=-1.)
+        sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1, 0.2), range_tol=-1.0)
 
 
 def test_snapshot_at_redshift():
-    assert sr.snapshot_at_redshift(FLAMINGO_L1_REDSHIFTS, 0.) == 77
-    assert sr.snapshot_at_redshift(FLAMINGO_L2P8_REDSHIFTS, 0.) == 78
-    assert sr.snapshot_at_redshift(COLIBRE_REDSHIFTS, 1.) == 92
+    assert sr.snapshot_at_redshift(FLAMINGO_L1_REDSHIFTS, 0.0) == 77
+    assert sr.snapshot_at_redshift(FLAMINGO_L2P8_REDSHIFTS, 0.0) == 78
+    assert sr.snapshot_at_redshift(COLIBRE_REDSHIFTS, 1.0) == 92
     with pytest.raises(ValueError, match="no snapshot at redshift 0.01"):
         sr.snapshot_at_redshift(FLAMINGO_L1_REDSHIFTS, 0.01)
 
 
 def test_input_checks():
     with pytest.raises(ValueError, match="decrease with snapshot number"):
-        sr.redshift_edges([0., 0.5, 1.])
+        sr.redshift_edges([0.0, 0.5, 1.0])
     with pytest.raises(ValueError, match="at least 2 snapshots"):
-        sr.redshift_edges([0.])
+        sr.redshift_edges([0.0])
     with pytest.raises(ValueError, match="must be \\[z_min, z_max\\]"):
         sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.2, 0.1))
     with pytest.raises(IndexError, match="out of range for 78 snapshots"):
@@ -143,13 +173,14 @@ def test_simulation_uses_its_tables():
     assert np.array_equal(Simulation.from_label("L1000N0900", "X").output_redshifts, FLAMINGO_L1_REDSHIFTS)
     assert np.array_equal(Simulation.from_label("L200m6", "X").output_redshifts, COLIBRE_REDSHIFTS)
 
+
 @pytest.mark.parametrize("redshifts", TABLES.values(), ids=TABLES.keys())
 def test_coverage_without_missing_snapshots(redshifts):
     # with every snapshot available, the snapshots of snapshots_in_range, each filling its own range
     rng = np.random.default_rng(2)
-    for z_min, z_max in [tuple(sorted(rng.uniform(0., 2., 2))) for _ in range(100)]:
+    for z_min, z_max in [tuple(sorted(rng.uniform(0.0, 2.0, 2))) for _ in range(100)]:
         coverage = sr.snapshot_coverage(redshifts, (z_min, z_max))
-        assert coverage.snapshots == sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0.).tolist()
+        assert coverage.snapshots == sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0.0).tolist()
         assert coverage.missing == [] and coverage.filled_by == {}
         assert all(coverage.ranges[n] == sr.snapshot_redshift_range(redshifts, n) for n in coverage.snapshots)
 
@@ -173,9 +204,9 @@ def test_coverage_fills_missing_snapshots():
 
 def test_coverage_fills_missing_snapshots_at_the_ends():
     # without the z = 0 snapshot, the last available one reaches down to z = 0 (0.05 below its own redshift)
-    coverage = sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0., 0.06), list(range(77)))
+    coverage = sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.0, 0.06), list(range(77)))
     assert coverage.snapshots == [76] and coverage.missing == [77] and coverage.filled_by == {77: [76]}
-    np.testing.assert_allclose(coverage.ranges[76], (0., 0.075), rtol=0., atol=1e-12)
+    np.testing.assert_allclose(coverage.ranges[76], (0.0, 0.075), rtol=0.0, atol=1e-12)
 
 
 def test_coverage_fails_for_large_redshift_spacing():
@@ -185,11 +216,58 @@ def test_coverage_fails_for_large_redshift_spacing():
         sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.05, 0.3), [n for n in range(78) if n != 73])
     # without the two lowest redshift snapshots, the last available one would reach 0.1 down to z = 0
     with pytest.raises(ValueError, match="0.1 between snapshots 75"):
-        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0., 0.06), list(range(76)))
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.0, 0.06), list(range(76)))
     # the output redshifts themselves are 0.25 apart above z = 3
     with pytest.raises(ValueError, match="output redshifts are spaced this widely"):
         sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (3.0, 3.5))
     # a missing snapshot that does not fill the shell does not matter
-    assert sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0., 0.1), [n for n in range(78) if n != 73]).missing == []
+    assert sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.0, 0.1), [n for n in range(78) if n != 73]).missing == []
     with pytest.raises(ValueError, match="none of the snapshots are available"):
-        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0., 0.1), [])
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.0, 0.1), [])
+
+
+def test_max_snapshot_spacing_from_the_environment(monkeypatch):
+    """
+    Check the largest spacing between the snapshots filling a shell is 0.1 by default, and SWIFTLET_MAX_SNAPSHOT_SPACING
+    sets another, with a warning above 0.1 and a stronger one above 0.25.
+    """
+
+    monkeypatch.delenv(sr.MAX_SNAPSHOT_SPACING_ENV, raising=False)
+
+    assert sr.max_snapshot_spacing() == sr.MAX_SNAPSHOT_SPACING == 0.1
+
+    missing_73 = [n for n in range(78) if n != 73]
+
+    # by default the 0.1 gap left by a missing snapshot fails, and the message says how to change the limit
+    with pytest.raises(ValueError, match=sr.MAX_SNAPSHOT_SPACING_ENV):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.05, 0.3), missing_73)
+
+    # a larger limit lets it through, with a warning
+    monkeypatch.setenv(sr.MAX_SNAPSHOT_SPACING_ENV, "0.2")
+    with pytest.warns(UserWarning, match="above the default 0.1"):
+        coverage = sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (0.05, 0.3), missing_73)
+
+    assert coverage.missing == [73]
+
+    # the outputs are 0.75 apart; above 0.25 the warning is stronger
+    with pytest.warns(UserWarning), pytest.raises(ValueError, match="output redshifts are spaced this widely"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (2.75, 3.5))
+
+    monkeypatch.setenv(sr.MAX_SNAPSHOT_SPACING_ENV, "0.6")
+    with pytest.warns(UserWarning, match="spacing is too large"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (3.0, 3.5))
+
+    # a limit given to snapshot_coverage is used instead of the environment's
+    with pytest.raises(ValueError, match="the limit 0.12"):
+        sr.snapshot_coverage(FLAMINGO_L1_REDSHIFTS, (3.0, 3.5), max_spacing=0.12)
+
+    # check non positive or numerical values fail
+    for value in ("abc", "0", "-0.2", "nan"):
+        monkeypatch.setenv(sr.MAX_SNAPSHOT_SPACING_ENV, value)
+        with pytest.raises(ValueError, match="must be a positive number"):
+            sr.max_snapshot_spacing()
+
+    # an empty value is the default
+    monkeypatch.setenv(sr.MAX_SNAPSHOT_SPACING_ENV, " ")
+
+    assert sr.max_snapshot_spacing() == 0.1

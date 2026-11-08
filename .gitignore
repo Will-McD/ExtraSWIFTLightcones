@@ -26,7 +26,12 @@ extra_swift_lightcones
 extra_swift_lightcones/hmf.py
 examples/large_examples/
 tests/test_lightcone_projections.pytest_figures/
+tests/test_small_boxes.py
 lightcone_comp/
 talk_examples/
 colibre_test/
-swiftlet/swift_snapshot_redshift_conversion.py
+docs/_build
+**/_build
+docs/api/generated/
+tools/commands.sh
+

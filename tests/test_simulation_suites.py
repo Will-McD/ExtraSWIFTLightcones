@@ -1,16 +1,25 @@
 #!/bin/env python
-import numpy as np
-import pytest
-
-from swiftlet import snapshot_lightcone
-from swiftlet.simulation_suites import (COLIBRE, FLAMINGO, Simulation, get_suite, output_redshifts, read_output_redshifts,
-                                  suite_for_label)
-
 """
 Tests of Simulations and SimulationSuite classes.
-Test each simulation's paths and snapshot redshifts come from its suite and the 
+
+Test each simulation's paths and snapshot redshifts come from its suite and the
 that lightcone classes take a Simulation or the box size and resolution label and name.
 """
+
+import numpy as np
+import pytest
+import dataclasses
+from swiftlet import snapshot_lightcone
+from swiftlet.simulation_suites import (
+    COLIBRE,
+    FLAMINGO,
+    Simulation,
+    get_suite,
+    output_redshifts,
+    read_output_redshifts,
+    suite_for_label,
+)
+
 
 FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.yaml")
 FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.yaml")
@@ -28,7 +37,17 @@ def test_flamingo_from_label():
     sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
     assert sim.suite is FLAMINGO
     assert sim.directory == "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL"
-    assert sim.snapshot_file(77, 3) == ("/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/snapshots/flamingo_0077/flamingo_0077.3.hdf5")
+    assert sim.snapshot_file(77, 3) == (
+        "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/snapshots/flamingo_0077/flamingo_0077.3.hdf5"
+    )
+    assert (
+        sim.soap_file(77)
+        == "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/SOAP-HBT/halo_properties_0077.hdf5"
+    )
+    assert sim.soap_dir == "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/SOAP-HBT"
+    assert sim.snapshot_format_whole.format(snap_nr=77) == (
+        "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/snapshots/flamingo_0077/flamingo_0077.hdf5"
+    )
     assert sim.z0_snapshot == 77
     assert sim.snapshot_redshift(73) == 0.2
     assert sim.snapshot_redshift_range(73) == pytest.approx((0.175, 0.225))
@@ -38,7 +57,13 @@ def test_colibre_from_label():
     sim = Simulation.from_label("L0200N1504", "Thermal")
     assert sim.suite is COLIBRE
     assert sim.directory == "/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal"
-    assert sim.snapshot_file(127) == ("/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/snapshots/colibre_0127/colibre_0127.0.hdf5")
+    assert sim.snapshot_file(127) == (
+        "/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/snapshots/colibre_0127/colibre_0127.0.hdf5"
+    )
+    assert sim.soap_file(127) == "/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/SOAP-HBT/halo_properties_0127.hdf5"
+    assert sim.snapshot_format_whole == (
+        "/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/snapshots/colibre_{snap_nr:04d}/colibre_{snap_nr:04d}.hdf5"
+    )
     assert sim.z0_snapshot == 127
     assert np.array_equal(sim.snapshot_redshifts()[1], COLIBRE_REDSHIFTS)
     assert np.array_equal(sim.snapshots_in_range((0.1, 0.2)), np.arange(114, 120))
@@ -65,12 +90,15 @@ def test_directories(monkeypatch, tmp_path):
     assert Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL").directory.startswith("/cosma8/data/dp004/flamingo")
 
 
-@pytest.mark.parametrize("path, suite, box_res, name", [
-    ("/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL", FLAMINGO, "L1000N1800", "HYDRO_FIDUCIAL"),
-    ("/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/", COLIBRE, "L0200N1504", "Thermal"),
-    # a label the patterns don't know, the suite from "colibre" in the path
-    ("/data/colibre/L0800N6000/NEW_RUN", COLIBRE, "L0800N6000", "NEW_RUN"),
-])
+@pytest.mark.parametrize(
+    "path, suite, box_res, name",
+    [
+        ("/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL", FLAMINGO, "L1000N1800", "HYDRO_FIDUCIAL"),
+        ("/cosma8/data/dp004/colibre/Runs/L0200N1504/Thermal/", COLIBRE, "L0200N1504", "Thermal"),
+        # a label the patterns don't know, the suite from "colibre" in the path
+        ("/data/colibre/L0800N6000/NEW_RUN", COLIBRE, "L0800N6000", "NEW_RUN"),
+    ],
+)
 def test_from_path(path, suite, box_res, name):
     sim = Simulation.from_path(path)
     assert (sim.suite, sim.box_res, sim.name) == (suite, box_res, name)
@@ -81,21 +109,25 @@ FLAMINGO_LABELS = ["L1000N0900", "L1000N1800", "L1000N3600", "L2800N5040"]
 COLIBRE_LABELS = ["L0025N0188", "L0200N1504", "L0400N3008", "L200m6", "L025_m5"]
 
 
-@pytest.mark.parametrize("label, suite", [(label, FLAMINGO) for label in FLAMINGO_LABELS]
-                         + [(label, COLIBRE) for label in COLIBRE_LABELS])
+@pytest.mark.parametrize(
+    "label, suite", [(label, FLAMINGO) for label in FLAMINGO_LABELS] + [(label, COLIBRE) for label in COLIBRE_LABELS]
+)
 def test_suite_for_label(label, suite):
     assert suite_for_label(label) is suite
     assert suite_for_label(label, suite.name.upper()) is suite
     assert suite_for_label(label, suite) is suite
 
 
-@pytest.mark.parametrize("kwargs, match", [
-    ({"boxsize_resolution": "L1000N1800", "simulation_suite_name": "colibre"}, "is a FLAMINGO simulation"),
-    ({"boxsize_resolution": "L0200N1504", "simulation_suite_name": "flamingo"}, "is a COLIBRE simulation"),
-    ({"simulation_suite_name": "eagle"}, "must be one of"),
-    ({"boxsize_resolution": "L0100N9999X"}, "can't tell which simulation suite"),
-    ({}, "can't tell which simulation suite"),
-])
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        ({"boxsize_resolution": "L1000N1800", "simulation_suite_name": "colibre"}, "is a FLAMINGO simulation"),
+        ({"boxsize_resolution": "L0200N1504", "simulation_suite_name": "flamingo"}, "is a COLIBRE simulation"),
+        ({"simulation_suite_name": "eagle"}, "must be one of"),
+        ({"boxsize_resolution": "L0100N9999X"}, "can't tell which simulation suite"),
+        ({}, "can't tell which simulation suite"),
+    ],
+)
 def test_suite_for_label_errors(kwargs, match):
     with pytest.raises(ValueError, match=match):
         suite_for_label(**kwargs)
@@ -114,9 +146,14 @@ def test_output_redshifts():
         output_redshifts("L0800N6000", "flamingo")
 
 
-@pytest.mark.parametrize("label, redshifts", [
-    ("L1000N1800", FLAMINGO_L1_REDSHIFTS), ("L2800N5040", FLAMINGO_L2P8_REDSHIFTS), ("L0200N1504", COLIBRE_REDSHIFTS),
-])
+@pytest.mark.parametrize(
+    "label, redshifts",
+    [
+        ("L1000N1800", FLAMINGO_L1_REDSHIFTS),
+        ("L2800N5040", FLAMINGO_L2P8_REDSHIFTS),
+        ("L0200N1504", COLIBRE_REDSHIFTS),
+    ],
+)
 def test_snapshot_redshifts_of_a_simulation(label, redshifts):
     sim = Simulation.from_label(label, "TEST")
     numbers, table = sim.snapshot_redshifts()
@@ -127,7 +164,7 @@ def test_snapshot_redshifts_of_a_simulation(label, redshifts):
         assert sim.snapshot_number(z) == snap_nr
     # the redshift ranges tile the redshifts from the first output to z = 0
     ranges = np.array([sim.snapshot_redshift_range(snap_nr) for snap_nr in range(len(redshifts))])
-    assert ranges[0, 1] == redshifts[0] and ranges[-1, 0] == 0.
+    assert ranges[0, 1] == redshifts[0] and ranges[-1, 0] == 0.0
     assert np.array_equal(ranges[:-1, 0], ranges[1:, 1])
 
 
@@ -147,32 +184,40 @@ def test_colibre_and_flamingo_differ():
         flamingo.snapshot_redshift(100)
 
 
-@pytest.mark.parametrize("filename, nr_snapshots, first, last", [
-    ("flamingo_L1.yaml", 78, 15., 0.), ("flamingo_L2p8.yaml", 79, 15., 0.), ("colibre.yaml", 128, 30., 0.),
-])
+@pytest.mark.parametrize(
+    "filename, nr_snapshots, first, last",
+    [
+        ("flamingo_L1.yaml", 78, 15.0, 0.0),
+        ("flamingo_L2p8.yaml", 79, 15.0, 0.0),
+        ("colibre.yaml", 128, 30.0, 0.0),
+    ],
+)
 def test_output_redshift_files(filename, nr_snapshots, first, last):
     redshifts = read_output_redshifts(filename)
     assert len(redshifts) == nr_snapshots and (redshifts[0], redshifts[-1]) == (first, last)
     # each call gives its own copy, so changing it doesn't change the table
-    redshifts[0] = -1.
+    redshifts[0] = -1.0
     assert read_output_redshifts(filename)[0] == first
 
 
 def test_output_redshifts_from_a_file_of_your_own(tmp_path):
     good = tmp_path / "my_run.txt"
     good.write_text("# my run\n# snapshot_number, redshift\n0, 2.0\n1, 1.0\n2, 0.0\n")
-    assert read_output_redshifts(good).tolist() == [2., 1., 0.]
+    assert read_output_redshifts(good).tolist() == [2.0, 1.0, 0.0]
     # a suite of your own, with its output redshifts from the file
     from dataclasses import replace
+
     suite = replace(COLIBRE, output_redshift_tables={"*": str(good)})
     sim = Simulation(suite, "L0050N0752", "MY_RUN", str(tmp_path))
     assert sim.z0_snapshot == 2 and sim.snapshot_redshift_range(1) == (0.5, 1.5)
 
     # given by name with its label
     sim = Simulation.from_label("L0050N0752", "MY_RUN", simulation_suite_name=suite, base_dir_format=str(tmp_path))
-    assert sim.suite is suite and sim.output_redshifts.tolist() == [2., 1., 0.]
+    assert sim.suite is suite and sim.output_redshifts.tolist() == [2.0, 1.0, 0.0]
     with pytest.raises(ValueError, match="is a COLIBRE simulation"):
-        Simulation.from_label("L0050N0752", "MY_RUN", simulation_suite_name=replace(FLAMINGO, output_redshift_tables={"*": str(good)}))
+        Simulation.from_label(
+            "L0050N0752", "MY_RUN", simulation_suite_name=replace(FLAMINGO, output_redshift_tables={"*": str(good)})
+        )
 
     one_column = tmp_path / "one_column.txt"
     one_column.write_text("2.0\n1.0\n0.0\n")
@@ -183,6 +228,7 @@ def test_output_redshifts_from_a_file_of_your_own(tmp_path):
     with pytest.raises(ValueError, match="snapshot numbers must be 0, 1, 2"):
         read_output_redshifts(out_of_order)
 
+
 def test_output_redshifts_in_yaml(tmp_path):
     """
     Output redshifts written to a YAML file read back exactly, also with yaml.safe_load, and work as a suite's table;
@@ -191,7 +237,8 @@ def test_output_redshifts_in_yaml(tmp_path):
     yaml = pytest.importorskip("yaml")
     from dataclasses import replace
     from swiftlet.simulation_suites import OUTPUT_REDSHIFT_DIR, write_output_redshifts
-    redshifts = [15.0, 1. / 3., 1.0e-5, 0.0]
+
+    redshifts = [15.0, 1.0 / 3.0, 1.0e-5, 0.0]
     filename = tmp_path / "my_run.yaml"
     write_output_redshifts(filename, redshifts, description="my run", suite="colibre")
     assert read_output_redshifts(filename).tolist() == redshifts
@@ -199,7 +246,7 @@ def test_output_redshifts_in_yaml(tmp_path):
         contents = yaml.safe_load(f)
     assert contents["description"] == "my run" and contents["number_of_snapshots"] == 4
     assert contents["columns"] == ["snapshot_number", "redshift"]
-    assert contents["rows"] == [[0, 15.0], [1, 1. / 3.], [2, 1.0e-5], [3, 0.0]]
+    assert contents["rows"] == [[0, 15.0], [1, 1.0 / 3.0], [2, 1.0e-5], [3, 0.0]]
     suite = replace(COLIBRE, output_redshift_tables={"*": str(filename)})
     assert Simulation(suite, "L0050N0752", "MY_RUN", str(tmp_path)).output_redshifts.tolist() == redshifts
 
@@ -219,10 +266,12 @@ class _CosmologyFrom:
     """
     Stand in for swiftlet.cosmology.SnapshotCosmology, recording the file the cosmology was read from.
     """
+
     filenames = []
 
     def __init__(self, filename):
         from astropy import cosmology
+
         self.filenames.append(filename)
         self.COSMO = cosmology.FlatLambdaCDM(H0=68, Om0=0.3)
 
@@ -240,13 +289,17 @@ def cosmology_from(monkeypatch):
 
 def test_lightcone_from_a_simulation(cosmology_from):
     sim = Simulation.from_label("L0200N1504", "Thermal")
-    
+
     for lightcone in (
         snapshot_lightcone.SnapshotAllSky(simulation_object=sim, verbose=0),
-        snapshot_lightcone.SnapshotBeam(simulation_object=sim, beam_vector=[0., 0., 1.], verbose=0)
+        snapshot_lightcone.SnapshotBeam(simulation_object=sim, beam_vector=[0.0, 0.0, 1.0], verbose=0),
     ):
         assert lightcone.simulation is sim
-        assert (lightcone.box_res, lightcone.sim_name, lightcone.simulation_suite_name) == ("L0200N1504", "Thermal", "colibre")
+        assert (lightcone.box_res, lightcone.sim_name, lightcone.simulation_suite_name) == (
+            "L0200N1504",
+            "Thermal",
+            "colibre",
+        )
         assert lightcone.lightcone_metadata()["simulation_suite_name"] == "colibre"
     # the cosmology is read from COLIBRE's z = 0 snapshot
     assert all(filename == sim.snapshot_file(127) for filename in cosmology_from)
@@ -254,16 +307,18 @@ def test_lightcone_from_a_simulation(cosmology_from):
 
 def test_lightcone_from_a_label(cosmology_from, tmp_path):
     # the call before Simulation still works, with the same paths as Simulation.from_label
-    lightcone = snapshot_lightcone.SnapshotAllSky(boxsize_resolution="L1000N1800", simulation_name="HYDRO_FIDUCIAL", verbose=0)
+    lightcone = snapshot_lightcone.SnapshotAllSky(
+        boxsize_resolution="L1000N1800", simulation_name="HYDRO_FIDUCIAL", verbose=0
+    )
     assert lightcone.simulation == Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
     assert cosmology_from[-1] == lightcone.simulation.snapshot_file(77)
     beam = snapshot_lightcone.SnapshotBeam(
-                                    boxsize_resolution="L0200N1504", 
-                                    simulation_name="Thermal",
-                                    beam_vector=[1., 0., 0.],
-                                    verbose=0,
-                                    simulation_base_dir_format=str(tmp_path) + "/{box_res}/{sim_name}"
-                                    )
+        boxsize_resolution="L0200N1504",
+        simulation_name="Thermal",
+        beam_vector=[1.0, 0.0, 0.0],
+        verbose=0,
+        simulation_base_dir_format=str(tmp_path) + "/{box_res}/{sim_name}",
+    )
     assert beam.simulation_dir == str(tmp_path / "L0200N1504" / "Thermal")
     assert beam.simulation_suite_name == "colibre"
 
@@ -278,3 +333,16 @@ def test_lightcone_argument_errors(cosmology_from):
     with pytest.raises(TypeError, match=f"simulation_object must be a swiftlet.Simulation"):
         snapshot_lightcone.SnapshotAllSky(simulation_object="L1000N1800", verbose=0)
 
+
+def test_soap_format(tmp_path, monkeypatch):
+    # the SOAP catalogues follow the simulation's directory, wherever it is
+    monkeypatch.setenv("SWIFTLET_FLAMINGO_DIR", str(tmp_path))
+    sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
+    assert sim.soap_format == f"{tmp_path}/L1000N1800/HYDRO_FIDUCIAL/SOAP-HBT/halo_properties_{{snap_nr:04d}}.hdf5"
+    assert sim.soap_file(np.int64(5)) == sim.soap_format.format(snap_nr=5)
+    assert Simulation.from_path(sim.directory).soap_file(77) == sim.soap_file(77)
+    # a suite whose SOAP catalogues are elsewhere in the simulation's directory
+    suite = dataclasses.replace(FLAMINGO, soap_format="SOAP/halo_properties_{snap_nr:04d}.hdf5")
+    other = Simulation(suite, "L1000N1800", "HYDRO_FIDUCIAL", str(tmp_path))
+    assert other.soap_file(3) == f"{tmp_path}/SOAP/halo_properties_0003.hdf5"
+    assert other.soap_dir == f"{tmp_path}/SOAP"

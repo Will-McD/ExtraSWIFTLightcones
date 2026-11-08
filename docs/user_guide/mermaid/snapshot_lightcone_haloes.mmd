@@ -1,0 +1,43 @@
+%%{init: {"htmlLabels": false, "themeVariables": {"fontFamily": "arial, helvetica, sans-serif", "fontSize": "14px"}, "flowchart": {"htmlLabels": false, "wrappingWidth": 400, "padding": 30, "nodeSpacing": 40, "rankSpacing": 45}}}%%
+flowchart TD
+    A("place_halos_in_shell(<br/>halo_format, z_range,<br/>ang_radius_deg, use_snapshots,<br/>soap_chunk_size, comm,<br/>redistribute_halos)") --> B
+    A2("gather_halo_catalogues(<br/>halo_format, z_range,<br/>ang_radius_deg)<br/>dry run: no haloes read") --> G0
+    B["validate ang_radius_deg,<br/>comm = COMM_WORLD if None<br/>and more than one rank"] --> C
+    C{"already<br/>gathered?"} -- no --> G0
+    C -- "yes, same<br/>settings" --> P
+
+    subgraph GATHER ["Gather"]
+        G0["choose the snapshots<br/>as for particles, from the<br/>SOAP catalogues on disk<br/>(gaps filled with a warning,<br/>ValueError if 0.1 apart)"] --> G1
+        G1["box and cell metadata<br/>from one snapshot only<br/>(highest redshift one used<br/>with its file 0 on disk)"] --> G2
+        G2{{"for each<br/>snapshot"}} --> G3
+        G3["clip its redshift range<br/>to the shell, find the tiles<br/>(and spherical layers)<br/>the shell or beam crosses"] --> G4
+        G4["record a HaloCatalogueSpec<br/>(snapshot, tile, catalogue,<br/>z range) per tile, and the<br/>catalogue's number of haloes"]
+    end
+
+    G4 --> GX{"dry run<br/>only?"}
+    GX -- "yes: gather_halo_<br/>catalogues" --> GY("return the<br/>HaloCatalogueSpecs")
+    GX -- no --> P
+
+    subgraph READ ["Read and place"]
+        P["split the catalogues<br/>into pieces of<br/>soap_chunk_size rows"] --> P1{"comm<br/>given?"}
+        P1 -- "no (serial)" --> P2["all pieces<br/>on one process"]
+        P1 -- "yes (MPI)" --> P3["at least one piece<br/>per rank, shared<br/>between the ranks"]
+        P2 --> Q
+        P3 --> Q
+        Q{{"for each<br/>piece"}} --> R
+        R["read HaloCentre and<br/>HaloCatalogueIndex<br/>of its rows, once"] --> S
+        S{{"for each tile of<br/>its snapshot"}} --> T
+        T["apply the tile transform<br/>to the halo centres,<br/>as for particles"] --> U
+        U["keep the haloes exactly<br/>inside the tile's part of<br/>the shell, record the snapshot,<br/>HaloCatalogueIndex and<br/>SOAPIndex (the row)"]
+    end
+
+    U --> V{"rebalance<br/>ranks?"}
+    V -- "yes: redistribute_<br/>halos" --> V2["repartition the haloes<br/>evenly between the ranks"] --> W
+    V -- no --> W
+    W["attach ExpansionFactor<br/>from comoving distance"] --> Z
+    Z("return LightconeOutput:<br/>Lightcone/HaloCentre,<br/>Lightcone/ExpansionFactor,<br/>Lightcone/SnapshotNumber,<br/>InputHalos/HaloCatalogueIndex,<br/>InputHalos/SOAPIndex<br/>with its .metadata")
+
+    classDef loop fill:#F1EFE8,stroke:#333;
+    classDef out fill:#d6eeee,stroke:darkcyan;
+    class G2,Q,S loop;
+    class A,A2,Z,GY out;

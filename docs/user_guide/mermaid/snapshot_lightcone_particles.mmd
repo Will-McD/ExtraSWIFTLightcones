@@ -1,0 +1,68 @@
+%%{init: {"htmlLabels": false, "themeVariables": {"fontFamily": "arial, helvetica, sans-serif", "fontSize": "14px"}, "flowchart": {"htmlLabels": false, "wrappingWidth": 400, "padding": 30, "nodeSpacing": 40, "rankSpacing": 45}}}%%
+flowchart TD
+    A("place_snapshot_particles_in_shell(<br/>z_range, property_names,<br/>ang_radius_deg, particle_types,<br/>use_snapshots, comm)") --> C
+    A2("gather_files(ptype, z_range,<br/>ang_radius_deg)<br/>serial only") --> E0
+    C["validate ang_radius_deg:<br/>SnapshotBeam needs one,<br/>SnapshotAllSky none.<br/>Serial if comm is None"] --> D
+
+    D{{"for each<br/>particle type"}} --> E0
+
+    subgraph SNAPS ["Choose the snapshots"]
+        E0{"use_<br/>snapshots?"} -- no --> E1["snapshots_for_shell:<br/>which snapshots are on disk<br/>(file 0, looked for once)"]
+        E1 --> E2{"gap of 0.1<br/>or more?"}
+        E2 -- "yes: snapshots too<br/>far apart" --> EX["ValueError,<br/>before anything is read"]
+        E2 -- no --> E3{"any<br/>missing?"}
+        E3 -- yes --> E4["SnapshotGapWarning:<br/>the available snapshots<br/>fill the gaps, each nearest<br/>in redshift to its own"] --> E6
+        E3 -- no --> E6
+        E0 -- yes --> E5["FileNotFoundError if missing,<br/>SnapshotGapWarning for<br/>gaps left (not filled)"] --> E6
+        E6["drop snapshots<br/>outside the shell"]
+    end
+
+    E6 --> F
+
+    subgraph GATHER ["Stage 1, gather"]
+        F{{"for each<br/>snapshot"}} --> G
+        G["clip its redshift range<br/>to the shell, load its cell<br/>metadata and which files<br/>hold the particle type"] --> H
+        H["find the box tiles<br/>(nx, ny, nz) the shell<br/>or beam crosses"] --> H2
+        H2{"sphere<br/>lock?"} -- yes --> H3["split the tiles<br/>into spherical layers,<br/>each with its own<br/>redshift range"] --> I
+        H2 -- no --> I
+        I{{"for each<br/>tile"}} --> J
+        J["tile orientation from a hash<br/>of (lattice position or layer,<br/>seed): rotation, reflection,<br/>periodic cell shift"] --> K
+        K["transform the cell centres<br/>and move them to<br/>the tile's position"] --> L
+        L["keep the cells inside<br/>the tile's part of the shell<br/>(buffer of one cell length)"] --> M
+        M["record a FileReadSpec<br/>(snapshot, tile, file,<br/>offsets, lengths) for each<br/>file with particles"]
+    end
+
+    M --> N{"any<br/>particles?"}
+    N -- no --> Z0["empty dict for<br/>this particle type"]
+    N -- "yes, from<br/>gather_files" --> FB["return the FileReadSpecs,<br/>then place_file_in_shell(i)<br/>places one at a time"]
+    N -- "yes, whole<br/>shell" --> O{"comm<br/>given?"}
+
+    subgraph READ ["Stage 2, read and place"]
+        O -- "no (serial)" --> P["all FileReadSpecs<br/>on one process"]
+        O -- "yes (MPI)" --> P2["a block of FileReadSpecs<br/>on each rank<br/>(phdf5.assign_files)"]
+        P --> Q
+        P2 --> Q
+        Q{{"for each<br/>FileReadSpec"}} --> R
+        R["read only the cells' particles:<br/>Coordinates, ParticleIDs,<br/>SmoothingLengths (not DM)<br/>and property_names"] --> S
+        S["apply the tile transform<br/>to the coordinates<br/>(and to Velocities, if read:<br/>turns and reflections only)"] --> T
+        T["keep the particles exactly<br/>inside the tile's part<br/>of the shell, add<br/>SnapshotNumber"]
+    end
+
+    FB --> Q
+    T --> U["concatenate the kept particles<br/>(MPI: empty arrays on<br/>ranks without files)"]
+    U --> V["attach ExpansionFactors<br/>from comoving distance"]
+    V --> W{"rebalance<br/>ranks?"}
+    W -- "yes: redistribute_<br/>particles" --> W2["repartition the particles<br/>evenly between the ranks"] --> X
+    W -- no --> X
+    Z0 --> X
+    X["particle data<br/>for this type"] --> D
+
+    D -- "all types<br/>done" --> Y["lightcone_metadata(<br/>z_range, ang_radius_deg)"]
+    Y --> Z("return<br/>LightconeOutput<br/>{ptype: data}<br/>with its .metadata")
+
+    classDef loop fill:#F1EFE8,stroke:#333;
+    classDef out fill:#d6eeee,stroke:darkcyan;
+    classDef err fill:#f6dcdc,stroke:#a33;
+    class D,F,I,Q loop;
+    class A,A2,Z,FB out;
+    class EX err;
