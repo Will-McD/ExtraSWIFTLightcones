@@ -41,7 +41,7 @@ provides tools to analyse and visualise them.
       :link-type: doc
       :class-card: sd-shadow-sm
 
-      Every public class & function (generated from docstrings).
+      Every public class & function.
 
    .. grid-item-card:: :octicon:`beaker;1.5em;sd-mr-1` Tests and developers
       :link: tests/index

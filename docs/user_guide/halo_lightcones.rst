@@ -3,7 +3,7 @@ Halo lightcones
 
 .. currentmodule:: swiftlet.snapshot_lightcone
 
-A halo lightcone is built from a simulations SOAP catalogues, exactly as a particle lightcone is
+A halo lightcone is built from a simulation's SOAP catalogues, exactly as a particle lightcone is
 built from the snapshots. Each halo from the catalogue is moved into every tile its snapshot fills, as a particle at its 
 centre would be, and kept if it lies in the shell (and the beam). This page covers placing the haloes, finding their 
 SOAP properties, writing them to files that LightconeIO can read, and placing them with MPI.
@@ -13,7 +13,7 @@ Placing haloes
 --------------
 
 :meth:`SnapshotLightcone.place_halos_in_shell` places the haloes of a redshift shell. It takes the paths of the SOAP
-catalogues as a format string with a ``{snap_nr}`` field,  usually the simulation's ``soap_format`` (see
+catalogues as a format string with a ``{snap_nr}`` field, usually the simulation's ``soap_format`` (see
 :ref:`soap-halo-catalogues`).
 
 .. code-block:: python
@@ -57,7 +57,7 @@ the lightcones and to map them back to their position in the SOAP catalogue:
      - the row of the halo in its snapshot's SOAP catalogue, so all other related properties can be mapped to the 
        lightcone
 
-Its ``.metadata`` records the settings that made halo lightcone (simulation, orientation table, lock, seed, beam and 
+Its ``.metadata`` records the settings that made the halo lightcone (simulation, orientation table, lock, seed, beam and 
 redshift range), as for particles (see :doc:`building_lightcones`).
 
 A halo appears once in every tile its snapshot fills, where its copy lies in the shell, so the same halo can be in the
@@ -157,8 +157,8 @@ Read a file back with LightconeIO, e.g. only the haloes within an angle of a dir
 With MPI
 --------
 
-With MPI, the rows of the catalogues are shared between the ranks, with each rank receiving ``soap_chunk_size`` rows
-(see :doc:`parallel_and_hpc`) and each rank returns the haloes it placed unless ``redistribute_halos=True``, then all 
-haloes are shared them evenly between the ranks. 
+With MPI, the rows of the catalogues are distributed across the ranks, with each rank receiving ``soap_chunk_size`` 
+rows (see :doc:`parallel_and_hpc`). Each rank returns the haloes it placed unless ``redistribute_halos=True``, then all 
+haloes are shared evenly between the ranks. 
 The example ``make_colibre_halo_lightcone.py`` builds an all-sky halo lightcone of COLIBRE L400_m7 (see
 :doc:`../examples`).

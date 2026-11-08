@@ -1,5 +1,5 @@
-Output redshift tables and simulations suites
-=============================================
+Output redshift tables and simulation suites
+============================================
 
 .. currentmodule:: swiftlet.simulation_suites
 
@@ -44,15 +44,8 @@ These files require:
 *   **Two columns:** ``snapshot_number`` and ``redshift``.
 *   **Snapshot numbers:** `0, 1, 2, ...` in order, with none missing.
 *   **Redshifts:** decreasing with snapshot number, at least two snapshots.
-*   **z = 0:** must include an output at z = 0. :meth:`Simulation.z0_snapshot` looks for it. 
+*   **z = 0:** must include an output at z = 0. :attr:`Simulation.z0_snapshot` looks for it. 
 
-
-In the lightcone, each snapshot fills the redshifts between the midpoints to its neighbours. It is also a requirement 
-that each lightcone built is continuous in redshift (doesn't have gaps in redshift), therefore if a snapshot is missing 
-on disk, its redshift range is filled by its neighbours, as long as the spacing between snapshots output redshifts 
-doesn't surpase the ``MAX_SNAPSHOT_SPACING``. By default  ``MAX_SNAPSHOT_SPACING=0.1``  (see 
-:doc:`environment_variables`), however the limit can be changed with :envvar:`SWIFTLET_MAX_SNAPSHOT_SPACING` 
-(see :ref:`max-snapshot-spacing`).
 
 
 The tables installed with SWIFTLET are stored in ``swiftlet/data/output_redshifts``:
@@ -91,7 +84,9 @@ Adding new ``Simulations`` and ``Suites``
 -----------------------------------------
 
 Below we cover how to modify :class:`Simulation <swiftlet.simulation_suites.Simulation>` and 
-:class:`SimulationSuite <swiftlet.simulation_suites.SimulationSuite>` for: 
+:class:`SimulationSuite <swiftlet.simulation_suites.SimulationSuite>` for: using an existing suite that has a different 
+output, a new simulation that is part of an existing suite, a new simulation suite and adding new snapshots from a 
+simulation. 
 
 
 An existing suite with a different output
@@ -123,15 +118,16 @@ A new label (box size and resolution) needs:
 #.  A label pattern that matches it. FLAMINGO's labels are listed one by one 
     (``L1000N0900|L1000N1800|L1000N3600|L2800N5040``). COLIBRE matches any zero padded label, e.g. ``L0200N1504``, or 
     e.g. ``L200m6``.
-#.  An output redshift table for it, if it isn't covered by `"*"`.
+#.  An output redshift table for it, if it isn't covered by ``"*"``.
 
 For a one-off use case, replace the suite as above, adding the label to ``label_pattern`` and its table to 
-``output_redshift_tables``. For longterm use edit the suite in :mod:`swiftlet.simulation_suites` and add the 
+``output_redshift_tables``. For long term use edit the suite in :mod:`swiftlet.simulation_suites` and add the 
 tables file to ``swiftlet/data/output_redshifts`` with the existing files installed with the package. 
 
-A simulation of a known label just needs its name, e.g. :func:``Simulation.from_label("L1000N1800", "HYDRO_STRONG_AGN")``. 
-If it is kept somewhere other than the suite's directory, see :doc:`environment_variables` and if its SOAP catalogues 
-are somewhere else, give it its own ``soap_format`` (see :ref:`soap-halo-catalogues`).
+A simulation of a known label just needs its name, e.g. 
+:func:`Simulation.from_label("L1000N1800", "HYDRO_STRONG_AGN") <swiftlet.simulation_suites.Simulation>`. If it is kept 
+somewhere other than the suite's directory, see :doc:`environment_variables` and if its SOAP catalogues are somewhere 
+else, give it its own ``soap_format`` (see :ref:`soap-halo-catalogues`).
 
 
 A new simulation suite
@@ -183,12 +179,12 @@ Which can be accessed as:
     from swiftlet import SimulationSuite, Simulation, SnapshotBeam
 
     MYSUITE = SimulationSuite(
-    name="mysuite",
-    label_pattern=r"L\d{4}N\d{4}*my",
-    base_dir_format="/data/mysuite/{box_res}/{sim_name}",
-    base_dir_env="SWIFTLET_MYSUITE_DIR",
-    snapshot_format="snapshots/snap*{snap_nr:04d}/snap_{snap_nr:04d}.{file_nr}.hdf5",
-    output_redshift_tables={"*": "/data/mysuite/outputs.yaml"},
+        name="mysuite",
+        label_pattern=r"L\d{4}N\d{4}_my",
+        base_dir_format="/data/mysuite/{box_res}/{sim_name}",
+        base_dir_env="SWIFTLET_MYSUITE_DIR",
+        snapshot_format="snapshots/snap_{snap_nr:04d}/snap_{snap_nr:04d}.{file_nr}.hdf5",
+        output_redshift_tables={"*": "/data/mysuite/outputs.yaml"},
     )
 
     sim = Simulation.from_label("L0100N0512_my", "Fiducial", simulation_suite_name=MYSUITE)
@@ -208,7 +204,7 @@ To find the suite from a label without passing it each time, add it to the regis
 
 The label patterns of the suites must not overlap. A label matching more than one suite, or none, raises a 
 ``ValueError`` asking for ``simulation_suite_name``. To make the suite part of SWIFTLET, define it next to 
-``FLAMINGO`` and ``COLIBRE`` in ``swiftlet/simulation_suites`` and add it to the existing ``SUITES`` there.
+``FLAMINGO`` and ``COLIBRE`` in ``swiftlet/simulation_suites.py`` and add it to the existing ``SUITES`` there.
 
 
 
@@ -235,7 +231,7 @@ snapshot found in ``<simulation>/snapshots``. That search only recognises files 
 Checking a simulation
 ---------------------
 
-To check what values are stored by a :class:`Simulation <swiftlet.simulation_suites.Simulation>`, 
+To check what values are stored by a :class:`Simulation <swiftlet.simulation_suites.Simulation>`. 
 
 .. code-block:: python
 

@@ -43,11 +43,11 @@ operation on the tiles is:
 #. the tile is rotated. 
 
 
-**The shifts are in eighths of the box** and it is converted to a number of whole cells 
+**The shifts are in eighths of the box** and it is converted from eighths to a number of whole cells 
 using a snapshots cell metadata (:func:`cell_shifts_in_cells`). A shift wraps around the box, so `4` (half the box) is
-the same as `-4`; use `4` and particles on cell faces stay on cell faces.  The advantage of using eigths of a box is 
-that the same table can be used for all simulations given the number of cells per axis is a multiple of 8, which is True 
-for all FLAMINGO and COLIBRE simulations. 
+the same as `-4`; use `4`.  The advantage of using eighths of a box is that the same table can be used for all 
+simulations given the number of cells per axis is a multiple of 8, which is true for all FLAMINGO and COLIBRE 
+simulations. 
 
 .. _orientation-row:
 
@@ -65,13 +65,13 @@ where the ``p`` are fixed primes, so:
 *   the same tile and ``orientation_seed`` always give the same orientation and the lightcone can be reproduced exactly 
 *   a different ``orientation_seed`` alters the order that the tables are read, giving every tile a different row 
 *   with ``orientation_lock="cube"`` or ``"sphere"``, every layer of tiles out from the observer uses the same row
-    ``(nx, ny, nz) = (0, 0, layer)``, so each layer becomes one continuous continuous perodic boundary and each tile 
+    ``(nx, ny, nz) = (0, 0, layer)``, so each layer becomes one continuous perodic boundary and each tile 
     has the same orientation
 
-The default tables
-------------------
+The installed tables
+--------------------
 
-The default tables are installed with SWIFTLET as YAML files in ``swiftlet/data/orientation_tables``, which you can open
+These tables are installed with SWIFTLET as YAML files in ``swiftlet/data/orientation_tables``, which you can open
 in any text editor and are named:
 
 .. list-table::
@@ -114,9 +114,9 @@ in any text editor and are named:
 
 
 The default tables are installed with SWIFTLET and can be rebuilt at any time with the provided tools: 
-`tools/make_installed_orientation_tables.py <https://github.com/USERNAME/REPOSITORY/blob/latest/tools/make_installed_orientation_tables.py>`_ 
-. The default tables will always have the same fingerprint, the unique identifier for each table, so the files 
-hold exactly the tables lightcones have been made with:
+`make_installed_orientation_tables <../tools/make_installed_orientation_tables.py>`_ . The default tables will always
+have the same fingerprint, the unique identifier for each table, so the files hold exactly the tables lightcones have 
+been made with:
 
 .. code-block:: bash
 
@@ -132,11 +132,11 @@ by name:
     from swiftlet.snapshot_orientation import default_orientation_tables
 
     default_table = default_orientation_tables()                      # default_v2 table
-    unchanged_table = default_orientation_tables("no_reorientation")  # one row tables that leaves the box unchanged
+    unchanged_table = default_orientation_tables("no_reorientation")  # A one row table that leaves the box unchanged
 
 
-The default tables should be selected based the intended use of the lightcones you are building and only used with the 
-``orientation_locks`` that are best designed to work with. 
+The default tables should be selected based on the intended use of the lightcones and they should be used with the 
+``orientation_locks`` that are designed to work with. 
 
 **default_v2 is clash-free between tiles, but not for orientation_lock="sphere".** With no lock (``"none"``) and with
 ``"cube"``, the orientation only changes on the faces between tiles, so no cell clashes with its own copy, for any 
@@ -149,7 +149,6 @@ with its own copy, and **default_v2 cannot rule this out** (``sphere_quarter_spa
 ``default_v2`` (see :ref:`checking-a-lightcone-for-close-repeats-before-building-it`), and choose a seed that allows you 
 to avoid clashes. 
 
-Clash free tables such as ``default_v2`` can be generated with :func:`generate_clash_free_tables`.
 
 .. _tables-keeping-copies-apart:
 
@@ -157,23 +156,23 @@ Tables built for cubic and spherical layers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``default_v2`` table rules out copies of the same cells being in contact but copies can still be one or two cells 
-apart between neighbouring tiles or layers. The **``cube_quarter_spacing`` tables are made for 
-``orientation_lock="cube"``**, where the orientation of the tiles only changes between the cubic layers 
+apart between neighbouring tiles or layers. The ``cube_quarter_spacing`` **tables are made for** 
+``orientation_lock="cube"``, where the orientation of the tiles only changes between the cubic layers 
 (see :ref:`orientation lock diagram <fig-layers-example>`). Any two rows read from these tables keep **the centres** of 
-all copies of the same cell in neighbouring tiles **at least a quarter of the box's sidelength (:math:`L/4`) apart**. As 
+all copies of the same cell in neighbouring tiles **at least a quarter of the box's sidelength** (:math:`L/4`) apart. As 
 any two rows can meet between two layers, regardless of the orientation seed, no cell is ever closer than :math:`L/4` to 
 its own copy in the next layer (within the same layer every cell is one sidelength apart from its own copies). There are 
-very few orientations that can fulfill this requirement so the table only has 44 rows, meaning a lightcone with this 
-table can at most have 44 unique layers. However this should be sufficient for most cases as only around 8 layers are 
+very few orientations that can fulfill this requirement so the table only has 49 rows, meaning a lightcone made with this 
+table can at most have 49 unique layers. However, this should be sufficient for most cases as only around 8 layers are 
 required for a lightcone ranging from :math:`z =0 - 3` for the fiducial FLAMINGO L1_m9 simulation (:math:`L = 1` Gpc). 
 This table **does not work for when the lock is "sphere"** as the layers are inside of a tile instead of the edges. 
 
-**The ``sphere_quarter_spacing`` tables are made for ``orientation_lock="sphere"``**. Here, the sphereical layers cross 
+**The** ``sphere_quarter_spacing`` **tables are made for** ``orientation_lock="sphere"``. Here, the sphereical layers cross 
 through tiles (see :ref:`orientation lock diagram <fig-layers-example>`), meaning the tile is split into two layers,
 each with its own orientation, so the copies of a cell from two rows can be in the same tile as well as in neighbouring 
 ones. Any two rows from these tables keep the copies of every cell at least a quarter of the box apart in both (the 
-distance is measured across the periodic box) so **no cell's centre is closer than :math:`L/4` to its own copy in the
-next layer**, wherever the sphere passes through the tiles, for any orientation seed. As this requires more strict 
+distance is measured across the periodic box) so no cell's centre is closer than :math:`L/4` to its own copy in the
+next layer, wherever the sphere passes through the tiles, for any orientation seed. As this requires more strict 
 conditions than for the ``cube_quarter_spacing`` tables, the ``sphere_quarter_spacing`` tables also work for when the 
 ``orientation_lock ="cube"``. 
 
@@ -185,9 +184,8 @@ To use these tables to build lightcones:
   lightcone = SnapshotAllSky(simulation_object=sim, orientation_lock="sphere", orientation_table="sphere_quarter_spacing")
 
 .. important::
-  Whilst clashes can be removed by the tables, close repeats of the same cell along a line of sight, cannot be easily 
-  removed by any table, see :doc:`Repeated particles and haloes <repeated_objects>`.
-
+  Whilst clashes can be removed by the tables copies of the same cell can appear close together along a line of sight 
+  cannot be easily removed by any table (see :doc:`Repeated particles and haloes <repeated_objects>`).
 
 
 
@@ -208,7 +206,7 @@ per axis (every eighth of the box) there are :math:`48 \times 8^3 = 24576` disti
 *   The first row leaves the box unchanged, so the observer's tile ``(0, 0, 0)`` is not re-oriented 
     with ``orientation_seed=0``.
 *   The other rows are shuffled; ``seed`` sets the shuffle, so the same ``seed`` writes the same tables.
-*   ``n_rows`` keeps only the first ``n_rows`` rows of the tables, e.g. `n_rows=500`.
+*   ``n_rows`` keeps only the first ``n_rows`` rows of the tables, e.g. ``n_rows=500``.
 *   ``cell_shift_values`` sets the shifts each axis can take, among ``EIGHTH_SHIFT_VALUES`` (``0, ±1, ±2, ±3, 4``), 
     which must include ``0`` and have no repeats, e.g. ``(0, 2, -2, 4)`` for quarters of the box only.
 
@@ -219,12 +217,6 @@ To make the tables in Python without writing them, use
 :func:`generate_orientation_tables(seed, n_rows, cell_shift_values) <generate_orientation_tables>`, which takes the same
 arguments.
 
-
-Snapshots with a different number of cells
--------------------------------------------
-
-The same tables work for every simulation, where the number of cells per axis that is a multiple of 8. Snapshots with 
-any other number of cells per axis cannot be used.
 
 
 Writing tables of your own
@@ -248,7 +240,7 @@ shape ``(N, 3)``:
 The shifts are in eighths of the box and the tables are checked before they're written 
 (:func:`check_orientation_tables`), where a ``ValueError`` is raised if:
 
-*   a table is missing, or isn't of shape `(N, 3)` with at least one row
+*   a table is missing, or isn't of shape ``(N, 3)`` with at least one row
 *   the tables have different numbers of rows
 *   any value isn't a whole number
 *   a reflection isn't `+1` or `-1`
@@ -282,7 +274,7 @@ other tile:
 Given ``boxsize`` and a ``shell`` (minimum and maximum comoving distance in Mpc), only clashing cells overlapping the 
 lightcones shell are counted, the same way :func:`swiftlet.repeat_check.find_close_cell_repeats` counts these clashes for 
 a lightcone shell.
-:func:`check_neighbouring_tiles` is a course grain search using only the tables rows, so it is not accurate for when
+:func:`check_neighbouring_tiles` is a coarse-grained search using only the tables rows, so it is not accurate for
 ``orientation_lock="sphere"`` (which splits tiles between layers by distance), instead you should use 
 :func:`swiftlet.repeat_check.find_close_cell_repeats`, which builds the actual lightcone at the cell level 
 (see :doc:`Repeated particles and haloes <repeated_objects>`). 
@@ -312,12 +304,12 @@ Each cell is numbered by its place in the snapshot box, so its two copies can be
 :ref:`the clashing cells diagrams <fig-clashing-cells>` and :ref:`example figures <fig-pairs-on-sky>` for more).
 
 
-Tables files
-------------
+Table files
+-----------
 
 Orientation tables are written as YAML files (ending in ``.yaml`` or ``.yml``), which can be written and read with  
-:func:`write_orientation_tables` and `read_orientation_tables` respectively. Each file must have the column names and 
-one row from the tables per line: the quarter turns, reflections and cell shifts, each along x, y  and z. 
+:func:`write_orientation_tables` and :func:`read_orientation_tables` respectively. Each file must have the column names 
+and one row from the tables per line: the quarter turns, reflections and cell shifts, each along x, y and z. 
 
 For example, the start of ``default_v2.yaml``:
 
@@ -399,8 +391,8 @@ table as ``orientation_table``:
 
     from swiftlet import SnapshotAllSky
 
-    lightcone = SnapshotAllSky("L1000N1800", "HYDRO_FIDUCIAL", orientation_seed=0, orientation_lock="cube",
-    orientation_table="orientation_tables.yaml")
+    lightcone = SnapshotAllSky(simulation_object=Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL"), 
+    orientation_seed=0, orientation_lock="cube", orientation_table="orientation_tables.yaml")
 
 
 This works exactly the same way for :class:`swiftlet.snapshot_lightcone.SnapshotBeam`.
@@ -408,12 +400,7 @@ This works exactly the same way for :class:`swiftlet.snapshot_lightcone.Snapshot
 Reproducing a lightcone
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-The lightcone's ``.metadata`` records which tables were used when making it:
-
-*   ``orientation_table``: either the name of installed tables or the path of the file
-*   the tables fingerprint, from :func:`orientation_tables_fingerprint(tables) <orientation_tables_fingerprint>`
-*   the lightcones ``orientation_seed`` and ``orientation_lock``
-
+The lightcone's ``.metadata`` records which tables were used when making it (see :ref:`lightcone output <lightcone-output>`). 
 As the fingerprint depends only on the contents of the tables, if a file containing a table is moved or renamed, the 
 same fingerprint shows it holds the same tables. If two files have the same name but different fingerprints, they hold 
 different tables. Keep the file with the lightcones made from it. With the same tables, seed, lock and snapshots, the 

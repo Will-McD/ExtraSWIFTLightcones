@@ -6,7 +6,7 @@ Guidelines
 ----------
 
 Contributions are encouraged and always welcome.
-If you would like to contribute please read the `contribution guidelines <https://github.com/Will-McD/ExtraSWIFTLightcones/main/CONTRIBUTING.md>`_. 
+If you would like to contribute please read the `contribution guidelines <https://github.com/Will-McD/ExtraSWIFTLightcones/main/CONTRIBUTING.md>`_
 first and feel free to use the additional developers tools summarised below. 
 
 In short, a contribution must:
@@ -21,8 +21,6 @@ In short, a contribution must:
 Set up and maintenance
 -----------------------
 
-.. Note::
-    The tools listed here are not installed with the package, but found in the ``tools/`` directory of the repository. 
 
 Below is a list of tools (found in the ``tools/`` directory) used for setting up and maintaining the package:
 
@@ -39,7 +37,7 @@ Below is a list of tools (found in the ``tools/`` directory) used for setting up
        :doc:`../user_guide/environment_variables`)
 
    * - ``tools/make_installed_orientation_tables.py``
-     - Python script to generate all default oritentation tables (installed with SWIFTLET) and write them too their 
+     - Python script to generate all default orientation tables (installed with SWIFTLET) and write them to their 
        respective YAML files. This script can be edited to build and write new default tables.
 
    * - ``tools/style_check.sh``

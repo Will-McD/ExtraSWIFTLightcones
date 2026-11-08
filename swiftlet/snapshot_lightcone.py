@@ -1234,7 +1234,7 @@ class SnapshotLightcone:
             level=2,
         )
 
-    def _define_mpi_mode(self, comm, redistibute_particles):
+    def _define_mpi_mode(self, comm, redistribute_particles):
         """
         Enable MPI mode for this output.
 
@@ -1243,19 +1243,19 @@ class SnapshotLightcone:
 
         :param  comm:                   MPI communicator. If None, use serial mode
         :type   comm:                   mpi4py.MPI.Comm
-        :param  redistibute_particles:  If True, redistribute particles evenly across ranks after reading
-        :type   redistibute_particles:  bool
+        :param  redistribute_particles:  If True, redistribute particles evenly across ranks after reading
+        :type   redistribute_particles:  bool
         """
         self.comm = comm
 
         if self.comm is None:
             self.comm_rank = None
             self.comm_size = None
-            self.redistibute_particles = False
+            self.redistribute_particles = False
         else:
             self.comm_rank = comm.Get_rank()
             self.comm_size = comm.Get_size()
-            self.redistibute_particles = redistibute_particles
+            self.redistribute_particles = redistribute_particles
 
     def _snapshot_tile_idx(self, snap_shell_z_range, ang_radius_deg=None):
         """
@@ -2309,7 +2309,7 @@ class SnapshotLightcone:
         particle_types=["PartType0", "PartType1", "PartType5"],
         use_snapshots=None,
         comm=None,
-        redistibute_particles=False,
+        redistribute_particles=False,
     ):
         """
         Read and place every particle of the given type(s) into a lightcone shell.
@@ -2328,12 +2328,12 @@ class SnapshotLightcone:
         :type   use_snapshots:              list or numpy.ndarray
         :param  comm:                       MPI communicator. If None, read in serial
         :type   comm:                       mpi4py.MPI.Comm
-        :param  redistibute_particles:      If True, redistribute the particles evenly across the MPI ranks
-        :type   redistibute_particles:      bool
+        :param  redistribute_particles:      If True, redistribute the particles evenly across the MPI ranks
+        :type   redistribute_particles:      bool
         """
         self._validate_ang_radius_deg(ang_radius_deg)
 
-        self._define_mpi_mode(comm, redistibute_particles)
+        self._define_mpi_mode(comm, redistribute_particles)
 
         if property_names is None:
             raise TypeError('place_snapshot_particles_in_shell needs property_names, e.g. ["Coordinates"]')
@@ -2351,7 +2351,7 @@ class SnapshotLightcone:
                     shell_z=lightcone_redshift_range,
                     property_names=property_names,
                     particle_type=ptype,
-                    redistribute=redistibute_particles,
+                    redistribute=redistribute_particles,
                     use_snapshots=use_snapshots,
                 )
 
@@ -2364,7 +2364,7 @@ class SnapshotLightcone:
                 shell_z=lightcone_redshift_range,
                 property_names=property_names,
                 particle_type=ptype,
-                redistribute=redistibute_particles,
+                redistribute=redistribute_particles,
                 use_snapshots=use_snapshots,
             )
 
@@ -3035,7 +3035,7 @@ class SnapshotLightcone:
             "InputHalos/HaloCatalogueIndex": halo_index,
             "InputHalos/SOAPIndex": soap_index,
         }
-        if self.comm is not None and self.redistibute_particles:
+        if self.comm is not None and self.redistribute_particles:
             ntot = self.comm.allreduce(len(snap_nr))
             ndesired = np.full(self.comm_size, ntot // self.comm_size, dtype=np.int64)
             ndesired[: ntot % self.comm_size] += 1

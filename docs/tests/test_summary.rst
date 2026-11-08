@@ -3,8 +3,8 @@ Tests
 
 
 SWIFTLET's tests are in the `tests <https://github.com/Will-McD/ExtraSWIFTLightcones/tree/main/tests>`_ directory of
-the repository. These test do not need simulation data: they write small fake snapshots and SOAP catalogues (by placing 
-a particles in a lattice, with a halo at every lattice point) and check SWIFTLET against what the lightcone must hold.
+the repository. These tests do not need simulation data: they write small fake snapshots and SOAP catalogues (by placing 
+particles in a lattice, with a halo at every lattice point) and check SWIFTLET against what the lightcone must hold.
 
 
 Running the tests
@@ -26,14 +26,6 @@ Useful pytest options include:
 * ``-x`` to stop at the first failure
 * ``--durations=10`` to show the slowest tests
 * ``-p no:warnings`` to hide the deprecation warnings from unyt and healpy
-
-
-The MPI tests (``test_mpi_matches_serial`` and ``test_mpi_haloes_match_serial``) run ``tests/mpi_place_particles.py``
-and ``tests/mpi_place_haloes.py`` under ``mpiexec`` on 2 and 3 ranks, and are skipped if mpi4py or ``mpiexec`` is not
-available. 
-The tests use at most 8 threads wherever :envvar:`SWIFTLET_MAX_THREADS` would be used. This can be changed 
-in ``tests/conftest.py``.
-
 
 
 

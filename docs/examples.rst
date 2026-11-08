@@ -2,13 +2,12 @@ Examples
 ========
 
 The `examples <https://github.com/Will-McD/ExtraSWIFTLightcones/tree/main/examples>`_ directory of the repository holds
-worked examples, most with a job script (``.sh``) to run them on COSMA (see :doc:`../user_guide/parallel_and_hpc`).
+worked examples, most with a job script (``.sh``) to run them on COSMA (see :doc:`user_guide/parallel_and_hpc`).
 Their extra requirements are installed with ``pip install -e ".[examples]"``. Run them from the top directory of the
-repository; on another machine, change the paths of the simulations (see :doc:`../user_guide/environment_variables`).
+repository; on another machine, change the paths of the simulations (see :doc:`user_guide/environment_variables`).
 
 
 Below are lists of examples for both the existing FLAMINGO lightcones and generating new snapshot lightcones. 
-
 
 
 FLAMINGO's lightcones
@@ -69,12 +68,12 @@ Lightcones from snapshots
        COLIBRE L400_m7 and FLAMINGO L1_m9, with MPI
 
    * - ``snapshot_number_density_comparison.py`` / ``.sh``
-     - compares the number density of the dark matter particles of snapshot lightcones with the snapshots expected 
-       number density 
+     - compares the number density of dark matter particles in the snapshot lightcones with the expected 
+       number density from the inital snapshots
 
    * - ``snapshot_close_repeat_check.py`` / ``.sh``
      - checks a lightcone for close repeats of the same SWIFT cells before building it, for every orientation lock and 
-       several seeds. Generates a summary plot of the occurrence on on-sky positions of these repeated cells 
+       several seeds. Generates a summary plot of the occurrence on-sky positions of these repeated cells 
        (see :doc:`../user_guide/repeated_objects`)
 
 

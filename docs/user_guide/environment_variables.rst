@@ -1,10 +1,9 @@
-Environment Variables
+Environment variables
 =====================
 
 SWIFTLET reads a few environment variables. They set how many threads it uses and where it finds the simulations and its 
 data files. This page lists each one and how to change it.
 
-SWIFTLET utilises the following environmental variables:
 
 .. envvar:: SWIFTLET_MAX_THREADS
 
@@ -69,7 +68,7 @@ Maximum number of threads
 * numba's parallel functions, which re-orient the box tiles (and swiftsimio's parallel projections);
 * healpy's spherical harmonic transforms (``map2alm``, ``rotate_alm``, ``alm2map``), used to rotate HEALPix maps.
 
-The possible values of :envvar:`SWIFTLET_MAX_THREADS`. are shown in the table below, 
+The possible values of :envvar:`SWIFTLET_MAX_THREADS` are shown in the table below.
 
 .. list-table::
    :header-rows: 1
@@ -81,10 +80,10 @@ The possible values of :envvar:`SWIFTLET_MAX_THREADS`. are shown in the table be
    * - Not set
      - 30
 
-   * - A whole number, e.g. `16`
+   * - A whole number, e.g. 16
      - That number
 
-   * - 'all'
+   * - ``all``
      - Every core the process is allowed
 
 Whatever the value, a process never uses more threads than the cores it is allowed, e.g. the cores given to a job, or 
@@ -110,7 +109,7 @@ The value is read each time threaded code runs, so changing it while running tak
 
 *   **One process with several cores:** match the cores given to the job,
     e.g. ``export SWIFTLET_MAX_THREADS=${SLURM_CPUS_PER_TASK}``.
-*   **With MPI:** use `1` (or the cores per rank), so the ranks on a node don't compete for its cores.
+*   **With MPI:** use 1 (or the cores per rank), so the ranks on a node don't compete for its cores.
 
 healpy's transforms are limited with ``threadpoolctl``, if it is installed. Without it, set ``OMP_NUM_THREADS`` instead.
 
@@ -130,15 +129,15 @@ data is read.
 
 .. code-block:: bash
 
-    export SWIFTLET_MAX_SNAPSHOT_SPACING=0.26     # for one shell or job script
+    export SWIFTLET_MAX_SNAPSHOT_SPACING=0.22     # for one shell or job script
 
 .. code-block:: python
 
     import os
-    os.environ["SWIFTLET_MAX_SNAPSHOT_SPACING"] = "0.26"
+    os.environ["SWIFTLET_MAX_SNAPSHOT_SPACING"] = "0.22"
 
     from swiftlet.snapshot_redshifts import max_snapshot_spacing
-    max_snapshot_spacing()                         # the limit used: 0.26
+    max_snapshot_spacing()                         # the limit used: 0.22
 
 The output redshifts of FLAMINGO and COLIBRE are themselves spaced more widely at high redshift, so the limit also sets
 how far out a lightcone can be built from them:
@@ -196,9 +195,7 @@ For simulations copied elsewhere, keeping the ``<box_res>/<sim_name>`` layout:
     export SWIFTLET_COLIBRE_DIR=/data/colibre
 
 The variable is read when the ``Simulation`` is made (by ``Simulation.from_label``, or by a lightcone class given a 
-label and name). Set it before, then a new suite reads the variable named by its ``base_dir_env`` 
-(see :mod:`swiftlet.simulation_suites`).
-
+label and name; see :mod:`swiftlet.simulation_suites`).
 Within a simulation's directory, the snapshots are at the suite's ``snapshot_format``. For FLAMINGO this 
 is ``snapshots/flamingo_XXXX/flamingo_XXXX.N.hdf5``.
 
@@ -232,28 +229,35 @@ directory or an absolute path:
 that reads the catalogues also takes the format string directly, so any other path can be passed there.
 
 
+.. _install-flamingo-redshifts:
+
 FLAMINGO shell redshift files
 -----------------------------
 
-The environment variables that set the paths to the redshift output tables: :envvar:`L1_REDSHIFTS_FILENAME` and 
-:envvar:`L2P8_REDSHIFTS_FILENAME`
-
+The environment variables that set the paths to the files containing the redshift bounds of `each shell in FLAMINGO's lightcones <https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html>`_ 
+: :envvar:`L1_REDSHIFTS_FILENAME` and :envvar:`L2P8_REDSHIFTS_FILENAME`.
 These give the redshift bounds of each shell of the FLAMINGO lightcones, for the 1 Gpc (L1) and 2.8 Gpc (L2p8) 
-boxes. ``swiftlet-configure`` downloads them into ``<environment>/share/swiftlet/redshifts`` and sets both variables in 
-the activate script. Each file is looked for in this order:
+boxes. ``swiftlet-configure`` downloads them into ``<environment>/share/swiftlet/redshifts`` and sets both variables to 
+the environment's activate script (``bin/activate`` for a venv, ``etc/conda/activate.d`` for conda). Each file is looked 
+for in this order:
 
 #. The variable, if set;
 #. ``<environment>/share/swiftlet/redshifts/``;
 #. ``~/.cache/swiftlet/redshifts/``, used when the environment can't be written to;
 #. The repository's ``data/redshifts/`` (an editable install).
 
-If none has it, it is downloaded. To use your own copies, set the variables to their paths. 
+
+If ``swiftlet-configure`` is not run, the files are downloaded the first time they are needed instead. 
+To use your own copies, set the variables to their paths. 
+
+
+.. _healpix-weights:
 
 HEALPix pixel weights
 ---------------------
 
 Rotating HEALPix maps is faster and more precise with healpy's pixel weights. 
-Use the prebuilt script `venv_scripts/healpix_pixel_weights.sh <../venv_scripts/make_cosma_env.sh>` to 
+Use the prebuilt script `venv_scripts/healpix_pixel_weights.sh <../venv_scripts/make_cosma_env.sh>`_ to 
 download and add :envvar:`HEALPY_PIXEL_WEIGHTS` to the environment's activate script. The weights are looked for in this order, in a 
 directory holding a ``full_weights/`` folder:
 

@@ -13,9 +13,8 @@ Threads
 -------
 
 Re-orienting the box tiles (numba), the projections of :class:`BeamProjection <swiftlet.lightcone_projections.BeamProjection>` 
-and the rotation of HEALPix maps (healpy) use threads, at most :envvar:`SWIFTLET_MAX_THREADS` of them, and never more
-than the cores the process is allowed (see :doc:`environment_variables`). For a job of one process with several cores, 
-match the cores given to the job:
+and the rotation of HEALPix maps (healpy) use threads. The maximum threads used is set by :envvar:`SWIFTLET_MAX_THREADS` 
+(see :doc:`environment_variables`). For a job of one process with several cores, match the cores given to the job:
 
 .. code-block:: bash
 
@@ -41,7 +40,7 @@ place particles or haloes take an MPI communicator:
 
    * - :meth:`SnapshotLightcone.place_snapshot_particles_in_shell`
      - every rank only reads and places particles from the (snapshots, tiles, files) that it is allocated. Each rank 
-       returns the particles it placed; with ``redistibute_particles=True`` they are shared evenly between the ranks 
+       returns the particles it placed; with ``redistribute_halos=True`` they are shared evenly between the ranks 
        before being returned. 
 
    * - :meth:`SnapshotLightcone.place_halos_in_shell`
@@ -72,8 +71,8 @@ rank finds the same pieces).
 
 .. caution::
 
-    With MPI, adjust the number of threads (or cores) used per rank, so the ranks on a node don't compete for its cores 
-    and run Python through mpi4py, so an error on one rank stops them all:
+    With MPI, adjust the number of threads (or cores) used per rank, so the ranks on a node don't compete for its cores. 
+    Run Python through mpi4py, so an error on one rank stops them all:
 
     .. code-block:: bash
 

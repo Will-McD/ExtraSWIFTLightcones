@@ -58,9 +58,9 @@ detail.
       :term:`orientation` changes (see :doc:`user_guide/repeated_objects`).
 
    exact periodic replica
-      A copy of the snapshot box that is not re-oriented, so the same structures repeat every box length in every
-      direction. Within a :term:`layer` of ``"cube"`` or ``"sphere"``, the tiles are exact periodic replicas of each
-      other (see :doc:`user_guide/repeated_objects`).
+      A copy of the snapshot box that is not re-oriented (``orientation_table="no_reorientation"``), so the same 
+      structures repeat every box length in every direction. Within a :term:`layer` of ``"cube"`` or ``"sphere"``, the 
+      tiles are exact periodic replicas of each other (see :doc:`user_guide/repeated_objects`).
 
    ExpansionFactor
       The expansion factor or **scale factor**, :math:`a = 1/(1+z)`, at a particle's or halo's comoving distance from 
@@ -122,7 +122,7 @@ detail.
    orientation
       How a :term:`tile` is rearranged from the initial snapshot box. The cells of the snapshot box are periodically 
       shifted (:term:`cell shift`) and reflected along each axis, then quarter turns are made about each axis 
-      (given by one row of the :term:`orientation table`.), producing a new arrangement or orientation of the initial 
+      (given by one row of the :term:`orientation table`), producing a new arrangement or orientation of the initial 
       snapshot box, which is then placed as a tile in the lightcone.
       
    orientation lock
@@ -136,9 +136,12 @@ detail.
 
    orientation table
       The three tables (``QuarterTurns``, ``Reflections`` and ``CellShifts``) whose rows are the :term:`orientations
-      <orientation>` the tiles take, stored as YAML files (See :term:`default tables`)
+      <orientation>` the tiles take, stored as YAML files (see :term:`default tables`)
 
    default tables
+      See :term:`installed tables`
+
+   installed tables
       The :term:`orientation tables <orientation table>` installed with the package: ``default_v2``,
       ``no_reorientation``, ``cube_quarter_spacing`` and ``sphere_quarter_spacing`` (see
       :doc:`user_guide/orientation_tables`). ``default_v2`` is the default option of 
@@ -159,7 +162,7 @@ detail.
       ``lightcone_redshift_range``. Within it, each snapshot fills its own :term:`snapshot redshift range`.
 
    snapshot redshift range
-      The redshifts a snapshot fills in a lightcone, given by the difference in redshift between the midpoints of 
+      The redshifts a snapshot fills in a lightcone, given by the range in redshift between the midpoints of 
       neighbouring snapshots' redshifts. The minimum redshift filled by the final snapshot is set by the snapshots own 
       output redshift (:math:`z=0`) and the inverse is true for the first snapshot. A missing snapshot's range is filled
       by its neighbours, with a warning as long as the snapshots filling a shell are less than 0.1 

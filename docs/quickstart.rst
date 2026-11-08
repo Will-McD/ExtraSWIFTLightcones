@@ -10,8 +10,8 @@ Building a lightcone from snapshots takes three steps:
 #.  :ref:`define-lightcone`: choose the simulation, the lightcone's geometry and its internal structure (how the copies
     of the snapshot box are oriented).
 #.  Gather the simulation data needed: the lightcone is first built at snapshots cell level, from which we find the 
-    exact files and cells to read without ever touching the particle (of halo) data. 
-#.  Read and Place: place the particles or haloes of those cells into the lightcone, following the blueprint laid out 
+    exact files and cells to read without ever touching the particle (or halo) data. 
+#.  Read and place: place the particles or haloes of those cells into the lightcone, following the blueprint laid out 
     by the previous gather step.
 
 
@@ -51,51 +51,33 @@ snapshot box (see :doc:`user_guide/orientation`).
         beam_vector=(0,0,1),         # unit vector giving the beams pointing on the sky
     )
 
-
-.. note::
-
-    A beam is an exact copy of the same cone within an all-sky lightcone (with the same table, ``orientation_lock`` and
-    ``orientation_seed``), whatever its direction as every copy of the snapshot box takes the same
-    orientation in both (see :ref:`beams-are-part-of-the-all-sky-lightcone`).
-
 The lightcone can now be populated with haloes and particles. Both follow the same workflow, an initial gather step that 
 finds the files needed by building the lightcone at the cell level before then placing the particles (or haloes) of the 
 gathered files into the lightcone.
 
 .. tip::
-    Before building a lightcone in full it is often a good idea to visualise the lightcone to check for any periodic 
-    replicas of the same objects that appear close together along a given line of sight 
-    (see :doc:`user_guide/repeated_objects`)
+    Before building a lightcone in full it is often a good idea to check for any periodic replicas of the same objects 
+    that appear close together along a given line of sight (see :doc:`user_guide/repeated_objects`).
 
 
 .. _build-halo-lightcone:
 
-Halo Lightcone
+Halo lightcone
 --------------
+
 Here we build a halo lightcone with ``snap_beam``, and write it to a HDF5 file with the same structure as the
 `LightconeIO <https://lightconeio.readthedocs.io/en/latest/halo_lightcones.html>`_ halo lightcones.
 
 The halo lightcone is built with
 :meth:`place_halos_in_shell <swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell>`, which includes both 
-the gather step and, read and place step. It takes the paths of the SOAP catalogues as a format string with a
-``{snap_nr}`` field: the simulation's ``soap_format``, from its suite (``SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5``
-in the simulation's directory for FLAMINGO and COLIBRE), or its own if it was given one (see
-:ref:`soap-halo-catalogues`).
-
-..
-    can be build in either one or two distinct steps using :meth:`gather_halo_catalogues <swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell>` to gather files and 
-    then :meth:`place_halos_in_shell <swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell>` to read and place
-    haloes into the lightcone. Or alternatively using only :meth:`place_halos_in_shell <swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell>`, 
-    where the gather step is skipped within :meth:`place_halos_in_shell <swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell>`
-    if :meth:`gather_halo_catalogues <swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell>` has already been 
-    called with the exact same parameters. 
+the gather step and, read and place step.
 
 .. code-block:: python
     
-    # Read catalogues and place haloes into the lightcone using the blueprint given by snap_beam.gather_halo_catalogues
+    # Read catalogues and place haloes into the lightcone 
     halos = snap_beam.place_halos_in_shell(
         sim.soap_format,                            # formatted path to the SOAP halo catalogues
-        lightcone_redshift_range=(0.001, 0.3),      # redshift range of the lightcone
+        lightcone_redshift_range=(0.05, 0.3),       # redshift range of the lightcone
         ang_radius_deg=2.5,                         # angular radius in degrees
         soap_chunk_size=2**22,                      # rows of a catalogue read at a time
     )
@@ -107,19 +89,12 @@ in the simulation's directory for FLAMINGO and COLIBRE), or its own if it was gi
     halos.metadata                          # the settings that made the lightcone
 
 
-The output halo lightcone contains only the properties needed to place the halo in the lightcone 
-(``"Lightcone/HaloCentre"``, ``"ExpansionFactor"``) and to map each halo to its properties stored in the SOAP halo 
-catalogues (``"InputHalos/SOAPIndex"``, ``"InputHalos/SOAPIndex"``). The mapping between SOAP catalogues and created 
-halo lightcones is done with :func:`read_soap_selected_rows <swiftlet.soap_reader.read_soap_selected_rows>`. 
-
 The halo lightcone holds only the properties needed to place each halo in the lightcone (``"Lightcone/HaloCentre"``,
 ``"Lightcone/ExpansionFactor"``) and to match it back with the SOAP catalogues (``"Lightcone/SnapshotNumber"`` and 
-``"InputHalos/SOAPIndex"``). Any other property can be read from the SOAP catalogues with :func:`read_soap_selected_rows <swiftlet.soap_reader.read_soap_selected_rows>`.
+``"InputHalos/SOAPIndex"``). Any other property can be read from the SOAP catalogues with 
+:func:`read_soap_selected_rows <swiftlet.soap_reader.read_soap_selected_rows>`.
 
-For demonstration purposes we will now write a .hdf5 file for the halo lightcone using only the haloes from the highest 
-redshift snapshot, in this saved catalogue we will also include, from SOAP, if the halo is a central:
-
-As an example we can write a HDF5 file storing only the haloes in the lightcone above that are from the highest redshift 
+As an example we can write a HDF5 file storing only the haloes in the lightcone that are from the highest redshift 
 snapshot read in. Additionally we will also include if each halo is a central, as read from SOAP:
 
 .. code-block:: python
@@ -139,7 +114,7 @@ snapshot read in. Additionally we will also include if each halo is a central, a
     rows, where = np.unique(soap_index[keep], return_inverse=True)  
     
     # read properties for each halo from the corresponding soap catalogue
-    soap_filename = soap_format.format(snap_nr=snap)
+    soap_filename = sim.soap_file(snap)
     is_central = read_soap_selected_rows(soap_filename, ["InputHalos/IsCentral"], rows)["InputHalos/IsCentral"][where]
 
     halo_filename = f"./lightcone_halos_{snap:04d}.hdf5" # the file to write
@@ -172,7 +147,7 @@ spatially query the lightcone.
 
 .. _build-part-lightcone:
 
-Particle Lightcone
+Particle lightcone
 ------------------
 
 The same beam is populated with particles in the same way.
@@ -201,69 +176,10 @@ Here the masses and temperatures of the gas particles (``PartType0``) are placed
 
 
 .. Note::
-    **``SmoothingLengths`` are always returned** for any particle that has them.
+    ``SmoothingLengths`` **are always returned** for any particle that has them.
 
 
 To place a large lightcone one snapshot file at a time, and therefore limit the peak memory used, see
 :ref:`placing-files-one-at-a-time`.
-
-
-Visualise the lightcone
-^^^^^^^^^^^^^^^^^^^^^^^
-
-A slice through a particle lightcone can be quickly projected using :class:`BeamProjection <swiftlet.lightcone_projections.BeamProjection>`.
-Following a similar workflow to building the lightcones, we first define a slice of the lightcone, add particles to the 
-slice before then projecting. 
-
-A slice through a particle lightcone can be projected with
-:class:`BeamProjection <swiftlet.lightcone_projections.BeamProjection>`. As when building lightcones, we define a
-slice, add particles to it, and then project it (see :doc:`user_guide/projections`).
-
-.. code-block:: python
-    
-    from swiftlet import BeamProjection
-    from swiftlet import SnapshotCosmology
-
-    # cosmology object from simulation
-    cosmo = SnapshotCosmology.from_simulation(sim)
-
-    # define the slice through the particle lightcone
-    lc_slice = BeamProjection(
-        vector=(0, 0, 1),                           # direction of the beam
-        angular_diameter=4,                         # [deg] beam's diameter (2 x its radius)
-        redshift_range=(0.001, 0.3),                # redshift range to project
-        slice_thickness=10,                         # [Mpc] thickness of the slice across the line of sight
-        cosmology=cosmo,                            # the simulation's cosmology
-        store_snapshot_filename=sim.snapshot_format_whole.format(snap_nr=sim.z0_snapshot), # snapshot, for the metadata
-    )
-
-    # the properties of the particles to add to the slice
-    properties_for_slice = [
-            "Coordinates", 
-            "Masses", 
-            "SmoothingLengths", 
-            "ExpansionFactors", 
-            "Temperatures"
-        ]
-    
-    # place the gas particles of the beam in the slice
-    lc_slice.place_particles_in_slice(gas, properties_for_slice)
-    
-    # the projected surface density, with every mass smoothed
-    gas_surface_density = lc_slice.project_properties(["Masses"], ptype="Gas", assign_units=["Msun"])[0]
-    
-    # the projected mass-weighted temperature
-    gas_temperature = lc_slice.project_properties(["Temperatures"], ptype="Gas", weight="Masses")[0]
-
-    # plot the projection for both surface density and mass weighted temperatures
-    fig, ax, wedge_images = lc_slice.split_beam_plot(
-        numb_wedges=2,
-        projection_data=[[gas_temperature.to_value("K"), None],[gas_surface_density.to_value("Msun * Mpc**-2"), None]], 
-        colour_maps=["viridis", "magma"],                   # individually set each wedges colour map
-        norms=["log", "log"],                               # or "linear", or any matplotlib Normalize, "log" by default
-        overlay_grid=(False, False, False),                 # grid lines at the redshift, distance and angle ticks
-        filename="beam.png",                                # save image to this file
-    )
-
 
 
