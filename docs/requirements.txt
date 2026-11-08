@@ -3,3 +3,5 @@ sphinx-rtd-theme
 #sphinx-book-theme
 sphinx-design
 numpy
+
+sphinxcontrib-mermaid

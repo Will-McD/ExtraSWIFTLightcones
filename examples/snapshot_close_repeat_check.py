@@ -12,8 +12,8 @@ The results are presented in a summary plot.
 Such checks are rather useful to check if custom oritentaion tables or certain configurations of a lightcone will result
 in the same objects reapearing too many times in the same line of sight and introduce some bias for any analysis with
 the lightcones.
-Specifically here we are checking if pairs of the same cell of a snapshot, in adjacent tiles, are touching or within
-1 degree of one another along a line-of-sight.
+Specifically here we are checking if pairs of the same cell of a snapshot, in adjacent tiles, are in contact or within
+1 degree of each another along a line-of-sight.
 
 """
 
@@ -62,7 +62,6 @@ def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, o
     Return the SnapshotLightcone object.
 
     It is a SnapshotBeam if beam_vector is given, or a SnapshotAllSky if beam_vector is None.
-
 
     :param  simulation:         the simulation
     :type   simulation:         Simulation
@@ -131,7 +130,7 @@ def check_cases(
                 )
             reports[lock, seed] = report
             print(
-                f"orientation_lock={str(lock):6s} seed={seed}: {report.nr_touching:5d} touching, "
+                f"orientation_lock={str(lock):6s} seed={seed}: {report.nr_touching:5d} clashing, "
                 f"{report.nr_line_of_sight:6d} line of sight pairs, closest copies "
                 f"{report.closest_separation:8.1f} Mpc ({report.nr_cells_repeated} of {report.nr_cell_copies} cell "
                 f"copies repeated) -> {filename}",
@@ -143,7 +142,7 @@ def check_cases(
 def plot_reports(reports, seeds, title, filename):
     """
     Plot the close repeats for every lock and seed.
-    The number of touching and line of sight pairs, where on the sky the line of sight pairs
+    The number of clashing and line of sight pairs, where on the sky the line of sight pairs
     are (first seed), and the closest distance between copies of each repeated cell (first seed).
 
     :param  reports:    the reports, see check_cases
@@ -160,7 +159,7 @@ def plot_reports(reports, seeds, title, filename):
 
     # show number of pairs for every lock and seed as column graph
     for col, (attribute, label) in enumerate(
-        (("nr_touching", "touching pairs"), ("nr_line_of_sight", "line of sight pairs (< 1 [deg])"))
+        (("nr_touching", "clashing pairs"), ("nr_line_of_sight", "line of sight pairs (< 1 [deg])"))
     ):
         ax = fig.add_subplot(grid[0, col])
         width = 0.8 / len(LOCKS)
@@ -194,7 +193,7 @@ def plot_reports(reports, seeds, title, filename):
     ax.set_xlabel("closest distance between copies of a cell [Mpc]")
     ax.set_ylabel(f"number of repeated cells (seed {first})")
 
-    # overlay the line of sight and touching pairs on the sky
+    # overlay the line of sight and clashing pairs on the sky
     for col, lock in enumerate(LOCKS):
         ax = fig.add_subplot(grid[1, col], projection="mollweide")
         pairs = reports[lock, first].pairs
@@ -225,7 +224,7 @@ def plot_reports(reports, seeds, title, filename):
         ax.set_title(
             (
                 f"orientation_lock = {lock}, seed {first}: {report.nr_line_of_sight} line"
-                "of sight, {report.nr_touching} touching"
+                "of sight, {report.nr_touching} clashing"
             ),
             fontsize=9,
         )
@@ -243,10 +242,9 @@ def plot_reports(reports, seeds, title, filename):
         )
 
     # overlay legend on 1st projection
-    # if col==0:
     handles = [
         Line2D([], [], ls="", marker="o", color="darkgray", markersize=4, label="line of sight pair"),
-        Line2D([], [], ls="", marker="x", color="k", markersize=6, label="touching pair"),
+        Line2D([], [], ls="", marker="x", color="k", markersize=6, label="clashing pair"),
     ]
     fig.legend(handles=handles, loc="lower center", ncol=2, frameon=False, fontsize=9)
 
@@ -308,7 +306,7 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
     print(
         (
             f"fewest close repeats: orientation_lock={best[0]}, orientation_seed={best[1]} ({reports[best].nr_touching}"
-            f" touching, {reports[best].nr_line_of_sight} line of sight pairs)"
+            f" clashing, {reports[best].nr_line_of_sight} line of sight pairs)"
         )
     )
 

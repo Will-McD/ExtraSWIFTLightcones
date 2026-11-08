@@ -28,17 +28,6 @@ from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.example_plot_settings import plot_settings
 
 
-###################################
-# set colours used in the plot
-COL_TILE_USED = "#86c5c0"  # shaded colour of tiles in lightcone
-COL_TILE_UNUSED = "white"  # shaded colour of tiles not in the lightcone
-COL_CELL_EDGE = "#6f9995"  # colour of the cell edges
-COL_HATCH = "#0f4744"  # colour of the hatching of cells in the lightcone
-COL_TILE_EDGE = "k"  # coluor of the tile edges (the lattice overlaid)
-COL_CROSS = "#8B008B"  # cross section outlines colour
-###################################
-
-
 def diagram_beam(beam_vector):
     """
     A SnapshotBeam with only the attributes its tile and cell selection need (the beam direction and tile frame),
@@ -126,6 +115,14 @@ def draw_tiles(ax, tiles, h_range, v_range, n_cells, project_axis):
     :type   project_axis:   int
     """
 
+    # set colours for outlines of cells and tiles
+    tile_outline_colour = "k"
+    cell_outline_colour = "#6f9995"
+
+    # set shaded cell and tile colours
+    used_tile_colour = "#86c5c0"
+    used_cell_colour = "slategrey"  # "#0f4744"  # hatched filling
+
     cell = 1.0 / n_cells
 
     for h in h_range:
@@ -137,7 +134,7 @@ def draw_tiles(ax, tiles, h_range, v_range, n_cells, project_axis):
                     (x0, y0),
                     1,
                     1,
-                    facecolor=COL_TILE_USED if kept is not None else COL_TILE_UNUSED,
+                    facecolor=used_tile_colour if kept is not None else "none",
                     edgecolor="none",
                     zorder=1,
                 )
@@ -146,9 +143,10 @@ def draw_tiles(ax, tiles, h_range, v_range, n_cells, project_axis):
                 continue
 
             # cell grid of the used tile
+
             for i in range(1, n_cells):
-                ax.plot([x0 + i * cell] * 2, [y0, y0 + 1], color=COL_CELL_EDGE, lw=0.5, zorder=2)
-                ax.plot([x0, x0 + 1], [y0 + i * cell] * 2, color=COL_CELL_EDGE, lw=0.5, zorder=2)
+                ax.plot([x0 + i * cell] * 2, [y0, y0 + 1], color=cell_outline_colour, lw=0.5, zorder=2)
+                ax.plot([x0, x0 + 1], [y0 + i * cell] * 2, color=cell_outline_colour, lw=0.5, zorder=2)
 
             # a cell is hatched if any cell in its column (along the projected axis) is kept
             column = kept.any(axis=project_axis)
@@ -161,17 +159,18 @@ def draw_tiles(ax, tiles, h_range, v_range, n_cells, project_axis):
                                 cell,
                                 cell,
                                 facecolor="none",
-                                edgecolor=COL_HATCH,
+                                edgecolor=used_cell_colour,
                                 hatch="///",
                                 lw=0.0,
                                 zorder=3,
                             )
                         )
     # tile edges
+
     for h in range(h_range.start, h_range.stop + 1):
-        ax.axvline(h - 0.5, color=COL_TILE_EDGE, lw=1.2, zorder=4)
+        ax.axvline(h - 0.5, color=tile_outline_colour, lw=1.2, zorder=4)
     for v in range(v_range.start, v_range.stop + 1):
-        ax.axhline(v - 0.5, color=COL_TILE_EDGE, lw=1.2, zorder=4)
+        ax.axhline(v - 0.5, color=tile_outline_colour, lw=1.2, zorder=4)
     ax.set_xlim(h_range.start - 0.5, h_range.stop - 0.5)
     ax.set_ylim(v_range.start - 0.5, v_range.stop - 0.5)
     ax.set_aspect("equal")
@@ -185,7 +184,7 @@ def plot_beam_cell_selection(
     n_along=3,
     x_cross=2,
     n_transverse=2,
-    figsize=(10, 5.6),
+    figsize=(7.0, 3.21),
     filename="./snapshot_beam_cell_selection.png",
 ):
     """
@@ -213,6 +212,11 @@ def plot_beam_cell_selection(
         :param  filename:       path to write the plot to
         :type   filename:       str
     """
+
+    # cross section outlines colour
+    cross_section_outline_colour = "#8B008B"
+
+    # get approx cosmology to draw the correct distances of the cross-section
     cosmo = FlatLambdaCDM(H0=68.1, Om0=0.306)
     beam = diagram_beam((1, 0, 0))
     selected = select_tiles_and_cells(beam, L, n_cells, r_max_L * L, half_angle_deg, cosmo)
@@ -220,7 +224,9 @@ def plot_beam_cell_selection(
     x_max = n_along
     transverse = range(-n_transverse, n_transverse + 1)
 
-    fig, (ax_side, ax_cross) = plt.subplots(1, 2, figsize=figsize, layout="constrained")
+    fig, (ax_side, ax_cross) = plt.subplots(
+        1, 2, figsize=figsize, layout="constrained", width_ratios=[x_max + 1, len(transverse)]
+    )
 
     # side view: tiles (mx, 0, mz), columns along y collapsed
     side = {(mx, mz): selected.get((mx, 0, mz)) for mx in range(0, x_max + 1) for mz in transverse}
@@ -229,18 +235,8 @@ def plot_beam_cell_selection(
     for sign in (1, -1):
         ax_side.plot(edge * np.cos(half_angle), sign * edge * np.sin(half_angle), color="k", lw=1.6, zorder=5)
     ax_side.plot([0, r_max_L], [0, 0], color="k", lw=1.0, ls="--", zorder=5)
-    ax_side.axvline(x_cross, color=COL_CROSS, lw=2.0, ls=":", zorder=6)
-    ax_side.text(
-        x_cross,
-        transverse.stop - 0.55,
-        "cross-section",
-        color=COL_CROSS,
-        ha="center",
-        va="top",
-        fontsize=10,
-        bbox=dict(facecolor="white", edgecolor="none", pad=1.5),
-        zorder=7,
-    )
+    ax_side.axvline(x_cross, color=cross_section_outline_colour, lw=2.0, ls="-.", zorder=6)
+
     ax_side.plot(0, 0, "o", ms=7, mfc="white", mec="k", mew=1.4, zorder=8)
     ax_side.set_xlabel(r"$x$ [$L$]")
     ax_side.set_ylabel(r"$z$ [$L$]")
@@ -251,20 +247,12 @@ def plot_beam_cell_selection(
     ax_cross.add_patch(Circle((0, 0), x_cross * np.tan(half_angle), facecolor="none", edgecolor="k", lw=1.6, zorder=5))
     ax_cross.plot(0, 0, "+", ms=10, color="k", mew=1.4, zorder=5)
     for spine in ax_cross.spines.values():
-        spine.set_edgecolor(COL_CROSS)
+        spine.set_edgecolor(cross_section_outline_colour)
         spine.set_linestyle((0, (3, 2)))
         spine.set_linewidth(2.0)
         spine.set_zorder(6)
     ax_cross.set_xlabel(r"$y$ [$L$]")
     ax_cross.set_ylabel(r"$z$ [$L$]")
-
-    handles = [
-        Patch(facecolor=COL_TILE_USED, edgecolor=COL_CELL_EDGE, label="tile used"),
-        Patch(facecolor=COL_TILE_UNUSED, edgecolor=COL_TILE_EDGE, label="tile not used"),
-        Patch(facecolor="none", edgecolor=COL_HATCH, hatch="///", label="cell in the beam"),
-        Line2D([], [], color="k", lw=1.6, label="edge of the beam"),
-    ]
-    fig.legend(handles=handles, loc="outside lower center", ncol=2, frameon=False)
 
     plt.savefig(filename, dpi=300, bbox_inches="tight")
     plt.close()
@@ -277,7 +265,9 @@ if __name__ == "__main__":
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     filename = output_dir + "/snapshot_beam_cell_selection.png"
+
     plot_beam_cell_selection(
         L=1000.0, n_cells=4, half_angle_deg=30.0, r_max_L=4.2, n_along=3, x_cross=2, filename=filename
     )
+
     print(f"Beam cell selection diagram saved as: {filename}")

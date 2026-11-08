@@ -2,19 +2,30 @@
 """
 Make the orientation tables installed with SWIFTLET, as YAML files in ``swiftlet/data/orientation_tables``.
 
-``default_v1.yaml``
-    The first default table, originally hard-coded in SWIFTLET before default_v2 and copied here. The shifts are now
-    in eighths of the box (0, +-1, +-2 and 4; -16 cells, half the box). Note that this table is not clash-free, but it
-    is kept for tests and examples of cells touching their own replica.
 ``default_v2.yaml``
-    The default table for SnapshotLightcone. No two rows make a SWIFT cell touch its own replica across the edge of
+    The default table for SnapshotLightcone. No two rows make a SWIFT cell clash with its own replica across the edge of
     neighbouring tiles, for any orientation_lock and orientation_seed
     (see docs/orientation_tables.md and docs/repeated_objects.md). The cell shifts of default_v2 are in eighths of the
     box (0, +-1/8, +-1/4, +-3/8 and 1/2), and the rows are chosen from every distinct orientation
     (48 turns and reflections, times 8^3 shifts = 24576), resulting in 5184 clash-free combinations, 108 for each of
     the 48 turns and reflections, with the shifts along each axis close to even.
+``no_reorientation.yaml``
+    One row that leaves the box unchanged: no quarter turns, reflections of +1 and no cell shifts. Every tile of a
+    lightcone made with it is an exact periodic replica of the snapshot box, e.g. to compare with a re-oriented
+    lightcone, or to check where each particle comes from.
+``cube_quarter_spacing.yaml``
+    For orientation_lock="cube". Every two rows keep the copies of each cell in neighbouring tiles (across a face, an
+    edge or a corner) at least a quarter of the box apart, so with "cube" no cell is closer than L/4 to its own copy in
+    the next layer, for any orientation_seed (it holds with no lock too, but not with "sphere"). Its 31 rows are copied
+    here as CUBE_QUARTER_SPACING_ROWS.
+``sphere_quarter_spacing.yaml``
+    For orientation_lock="sphere". With "sphere" two layers meet inside the tiles crossing a layer sphere, so the copies
+    of a cell from two rows can be in the same tile as well as in neighbouring ones. Every two rows keep them at least a
+    quarter of the box apart in both, measured across the periodic box (the same tile and its 26 neighbours). So no cell
+    centre is closer than L/4 to its own copy in the next layer, for any orientation_seed. Its 44 rows are copied here
+    as SPHERE_QUARTER_SPACING_ROWS.
 
-Both default tables are checked against their unique fingerprints.
+Every table is checked against its unique fingerprint.
 """
 
 import argparse
@@ -24,99 +35,130 @@ import numpy as np
 from swiftlet import snapshot_orientation as so
 
 # the fingerprints of the installed tables, see snapshot_orientation.orientation_tables_fingerprint
-FINGERPRINTS = {"default_v1": "dd43da3e96d8add4", "default_v2": "7006e905808e256f"}
+FINGERPRINTS = {
+    "default_v2": "7006e905808e256f",
+    "no_reorientation": "a849af1c8e441133",
+    "cube_quarter_spacing": "1162d17084cffd9a",
+    "sphere_quarter_spacing": "9b3bb6051251e66a",
+}
 
-# the rows of default_v1: quarter turns, reflections and cell shifts (in eighths of the box) along x, y and z
-DEFAULT_V1_ROWS = (
+# the one row of no_reorientation: no quarter turns, no reflections (+1) and no cell shifts along x, y and z
+NO_REORIENTATION_ROWS = ((0, 0, 0, 1, 1, 1, 0, 0, 0),)
+
+
+# cube_quarter_spacing: quarter turns, reflections and cell shifts along x, y and z
+# any two rows keep the copies of a cell in neighbouring tiles at least L/4 apart
+CUBE_QUARTER_SPACING_ROWS = (
     (0, 0, 0, 1, 1, 1, 0, 0, 0),
-    (0, 1, -1, -1, 1, -1, 1, 0, 4),
-    (-1, -1, -2, -1, 1, -1, 2, -2, 2),
-    (1, 0, -1, 1, 1, 1, 1, 0, 1),
-    (-1, 0, 1, -1, 1, -1, -2, 2, -2),
-    (1, -2, 0, -1, 1, -1, 4, -2, 4),
-    (-1, 2, 1, -1, 1, 1, 1, 1, 4),
-    (1, 1, 2, 1, 1, 1, -1, 0, -1),
-    (-2, 2, 1, -1, 1, -1, 2, -1, -1),
-    (2, 2, -2, -1, 1, 1, 0, -2, 0),
-    (-2, 1, -2, 1, 1, -1, -2, 2, 1),
-    (0, -2, -1, -1, 1, 1, 4, -2, -2),
-    (-2, -2, 2, 1, 1, 1, 4, 4, 1),
-    (-2, 0, -1, 1, 1, -1, 0, 0, -1),
-    (1, 1, 2, -1, -1, -1, 4, 4, 4),
-    (-1, 2, 2, -1, -1, 1, 0, 1, -2),
-    (1, 0, 1, -1, -1, 1, 1, 4, -1),
-    (1, 0, 2, -1, 1, 1, 2, 0, 1),
-    (-1, 2, 2, -1, 1, 1, 4, -2, 4),
-    (1, 0, -2, 1, 1, 1, 4, -2, 0),
-    (1, -1, 2, 1, -1, -1, 4, 4, -1),
-    (0, 1, -1, 1, 1, 1, -2, 2, 0),
-    (1, 1, 0, 1, 1, -1, 0, 2, 4),
-    (-1, -1, 2, 1, -1, 1, 4, 0, 2),
-    (1, -2, -2, 1, -1, -1, -2, 4, 0),
-    (0, -2, -2, 1, -1, 1, 4, 4, 2),
-    (1, 0, -2, 1, -1, -1, 1, 4, 4),
-    (0, 2, 0, 1, 1, 1, 0, 0, 0),
-    (1, 2, -2, -1, -1, 1, -2, 1, 0),
-    (-1, 1, 0, -1, 1, -1, 4, 2, 4),
-    (-2, -2, -1, 1, 1, 1, -1, 4, -1),
-    (0, 0, 1, -1, 1, 1, 1, 4, -1),
-    (-2, -1, -2, -1, -1, -1, 4, 4, 2),
-    (2, -2, 2, 1, 1, -1, 4, 4, 4),
-    (0, 1, -2, 1, 1, 1, 4, -2, 1),
-    (2, -1, -1, -1, -1, 1, -2, -1, 4),
-    (-2, -1, -2, -1, -1, 1, -2, 0, 1),
-    (-2, 1, 2, 1, -1, -1, 0, 4, 4),
-    (0, -2, 2, 1, -1, -1, -1, 1, 1),
-    (-1, -2, -1, 1, 1, -1, 1, 1, 1),
-    (0, -2, -2, -1, -1, -1, 0, 2, 0),
-    (0, 0, 0, -1, 1, 1, 2, 0, 4),
-    (2, 0, -2, 1, -1, -1, -1, 4, -1),
-    (-2, -2, 1, 1, 1, -1, 4, -1, 1),
-    (-2, 1, -2, 1, -1, -1, -2, 1, 0),
-    (1, -1, 2, -1, -1, 1, 0, -1, 1),
-    (-2, 1, -1, -1, -1, 1, 0, 4, 1),
-    (-2, -1, 1, -1, 1, 1, 2, 4, 4),
-    (-2, -2, 0, -1, 1, -1, 1, -1, 4),
-    (-1, 2, 2, 1, -1, 1, 4, 2, 0),
-    (0, -2, 2, -1, -1, 1, 0, 0, -1),
-    (-1, -2, -2, 1, 1, -1, 4, -1, 4),
-    (0, 0, 0, -1, -1, -1, 2, 4, -2),
-    (2, -2, 0, -1, -1, 1, -1, -1, 1),
-    (2, 2, -1, -1, -1, -1, 1, -2, -2),
-    (2, 2, 2, 1, -1, 1, 0, 0, -1),
-    (2, -2, 2, -1, -1, -1, 0, 4, 0),
-    (2, 1, 2, -1, 1, -1, 1, 1, -2),
-    (2, -1, 1, -1, -1, 1, 4, 0, 4),
-    (0, 2, -1, 1, 1, -1, -2, 4, 4),
-    (-1, 1, 1, -1, 1, -1, 1, -1, 4),
-    (2, 0, 0, -1, 1, 1, 0, -1, -2),
-    (1, 2, 0, -1, 1, 1, -1, 1, 2),
-    (-2, 1, 1, 1, -1, 1, 2, -2, 4),
-    (-2, -1, 1, -1, 1, -1, 0, 0, 4),
-    (-2, 0, -1, -1, 1, 1, 2, 1, -1),
-    (-1, 1, -1, 1, -1, -1, -1, 1, -1),
-    (-2, -2, -1, -1, 1, -1, 4, -2, -1),
-    (-2, 2, 2, 1, 1, 1, 0, 2, 4),
-    (0, 0, 0, -1, -1, 1, 4, 1, 0),
-    (1, 2, 1, -1, 1, -1, 2, 0, 2),
-    (2, 0, 2, 1, -1, -1, 0, 2, 0),
-    (-1, -2, 0, -1, -1, -1, 1, -2, 0),
-    (2, -1, -1, -1, -1, 1, -1, 4, -1),
-    (0, -2, -2, 1, 1, 1, 4, -1, 2),
-    (-2, -2, 0, 1, 1, -1, 1, 2, 4),
-    (-1, -1, -2, 1, 1, -1, 1, 1, -1),
-    (-2, -2, 0, -1, -1, -1, -2, 0, 4),
-    (-1, 0, 0, 1, -1, 1, -1, 4, 2),
+    (0, 0, 1, -1, 1, 1, 4, 4, -2),
+    (0, 0, 0, -1, 1, 1, -2, 0, 0),
+    (0, 0, 1, 1, -1, 1, -1, 0, 2),
+    (0, 0, 1, -1, -1, 1, -2, -3, -2),
+    (0, 0, 1, 1, 1, 1, -1, 4, 2),
+    (0, 0, 0, 1, -1, 1, 0, 2, 0),
+    (0, 0, 0, -1, 1, 1, -1, 1, 4),
+    (0, 0, 0, -1, -1, 1, 3, -3, 4),
+    (0, 0, 0, -1, -1, 1, 2, 0, 4),
+    (0, 0, 0, -1, 1, 1, -1, -2, 4),
+    (0, 0, 0, -1, -1, 1, 3, 4, 0),
+    (0, 0, 1, -1, -1, 1, 1, -3, -2),
+    (0, 0, 1, -1, -1, 1, 3, 0, 2),
+    (0, 0, 0, 1, -1, 1, 2, 3, 4),
+    (0, 0, 1, 1, -1, 1, -3, 2, 2),
+    (0, 0, 0, 1, -1, 1, 4, -2, 0),
+    (0, 0, 1, -1, -1, 1, -1, 2, -2),
+    (0, 0, 1, -1, -1, 1, 0, -1, -2),
+    (0, 0, 1, -1, 1, 1, 3, 4, 2),
+    (0, 0, 0, -1, -1, 1, -2, 4, 0),
+    (0, 0, 1, -1, -1, 1, 2, 1, -2),
+    (0, 0, 1, -1, 1, 1, 1, -2, 2),
+    (0, 0, 0, 1, -1, 1, 0, -2, 0),
+    (0, 0, 0, 1, -1, 1, 2, 2, 0),
+    (0, 0, 1, 1, 1, 1, 1, 2, 2),
+    (0, 0, 1, -1, 1, 1, 4, 0, -2),
+    (0, 0, 0, 1, -1, 1, 4, 2, 0),
+    (0, 0, 0, 1, 1, 1, -2, 3, 4),
+    (0, 0, 0, -1, -1, 1, -2, 2, 0),
+    (0, 0, 0, -1, -1, 1, 1, -3, 4),
+    (0, 0, 0, 1, -1, 1, 4, 3, 4),
+    (0, 0, 1, -1, -1, 1, -2, -1, -2),
+    (0, 0, 0, -1, -1, 1, 4, 1, 4),
+    (0, 0, 1, -1, -1, 1, 4, -2, -2),
+    (0, 0, 1, -1, -1, 1, 2, 3, -2),
+    (0, 0, 1, 1, -1, 1, -3, 0, 2),
+    (0, 0, 1, 1, -1, 1, -1, 2, 2),
+    (0, 0, 0, -1, -1, 1, 2, -2, 0),
+    (0, 0, 0, -1, -1, 1, 4, -1, 4),
+    (0, 0, 1, -1, -1, 1, 4, 2, -2),
+    (0, 0, 1, 1, 1, 1, 1, 4, 2),
+    (0, 0, 0, -1, -1, 1, -2, -2, 0),
+    (0, 0, 1, -1, -1, 1, 2, -1, -2),
+    (0, 0, 1, 1, 1, 1, -1, -2, 2),
+    (0, 0, 1, -1, 1, 1, 3, -2, 2),
+    (0, 0, 0, 1, -1, 1, 0, 4, 0),
+    (0, 0, 1, 1, 1, 1, -3, 4, 2),
+    (0, 0, 1, 1, 1, 1, -3, -2, 2),
+)
+# sphere_quarter_spacing: quarter turns, reflections and cell shifts along x, y and z
+# any two rows keep the copies of a cell at least L/4 apart, in the same or neighbouring tiles
+SPHERE_QUARTER_SPACING_ROWS = (
+    (0, 0, 0, 1, 1, 1, 0, 0, 0),
+    (1, 0, 0, 1, 1, 1, 4, 3, 1),
+    (1, 0, 0, 1, 1, 1, 4, -2, 2),
+    (1, 0, 0, 1, -1, 1, 1, -2, 2),
+    (1, 0, 0, 1, -1, -1, 2, 4, 0),
+    (0, 0, 0, 1, -1, -1, -2, 2, -2),
+    (1, 0, 0, 1, -1, 1, 2, -2, -3),
+    (0, 0, 0, 1, 1, -1, -2, -3, 0),
+    (1, 0, 0, 1, 1, 1, 4, -2, 4),
+    (1, 0, 0, 1, 1, 1, 4, 4, -3),
+    (1, 0, 0, 1, -1, -1, 2, 0, -3),
+    (1, 0, 0, 1, 1, 1, 4, -3, 0),
+    (1, 0, 0, 1, -1, -1, 2, 0, -1),
+    (0, 0, 0, 1, -1, -1, -2, -1, 3),
+    (0, 0, 0, 1, -1, -1, -2, 4, 4),
+    (1, 0, 0, 1, -1, -1, 2, 4, -2),
+    (0, 0, 0, 1, -1, -1, -2, -1, -3),
+    (1, 0, 0, 1, 1, 1, 4, 2, -3),
+    (1, 0, 0, 1, -1, 1, 0, 0, -3),
+    (1, 0, 0, 1, -1, 1, 1, 2, -1),
+    (1, 0, 0, 1, 1, 1, 4, 2, 3),
+    (0, 0, 0, 1, 1, -1, -2, -1, 1),
+    (1, 0, 0, 1, -1, 1, 2, 2, 4),
+    (1, 0, 0, 1, -1, -1, 2, 0, 1),
+    (0, 0, 0, 1, -1, -1, -2, 1, 3),
+    (1, 0, 0, 1, 1, -1, 4, 0, 0),
+    (1, 0, 0, 1, 1, -1, 4, 0, -2),
+    (1, 0, 0, 1, 1, -1, 4, 0, 2),
+    (0, 0, 0, 1, 1, 1, 0, -3, -3),
+    (0, 0, 0, 1, 1, 1, 0, 3, 4),
+    (0, 0, 0, 1, 1, 1, 0, 1, 2),
+    (0, 0, 0, 1, 1, -1, -2, 3, 1),
+    (1, 0, 0, 1, -1, -1, 2, 4, 3),
+    (0, 0, 0, 1, 1, -1, -2, 1, 0),
+    (1, 0, 0, 1, -1, 1, 2, -2, 0),
+    (1, 0, 0, 1, 1, 1, 4, 3, -1),
+    (0, 0, 0, 1, 1, 1, 0, -2, -1),
+    (1, 0, 0, 1, -1, 1, 2, 2, 1),
+    (0, 0, 0, 1, -1, -1, -2, -3, -2),
+    (1, 0, 0, 1, -1, 1, 0, 4, 1),
+    (1, 0, 0, 1, 1, 1, 4, 4, 3),
+    (1, 0, 0, 1, 1, 1, 4, -2, -2),
+    (1, 0, 0, 1, 1, -1, 4, 0, 4),
+    (1, 0, 0, 1, -1, -1, 2, 0, 3),
 )
 
 
-def default_v1_tables():
+def tables_from_rows(rows):
     """
-    The first default tables, from DEFAULT_V1_ROWS.
+    Orientation tables from rows of quarter turns, reflections and cell shifts along x, y and z.
 
     Returns the tables as a dict, see snapshot_orientation.check_orientation_tables.
+
+    :param  rows:   the rows, each of 9 whole numbers
+    :type   rows:   tuple
     """
-    rows = np.array(DEFAULT_V1_ROWS)
+    rows = np.array(rows)
     tables = {name: rows[:, 3 * i : 3 * i + 3] for i, name in enumerate(so.ORIENTATION_TABLE_NAMES)}
     return so.check_orientation_tables(tables)
 
@@ -148,15 +190,9 @@ def write_tables(output_dir, name, tables, attributes):
     """
     fingerprint = so.orientation_tables_fingerprint(tables)
     if fingerprint != FINGERPRINTS[name]:
-        if name == "default_v1":
-            raise SystemExit(f"default_v1 has fingerprint {fingerprint}, not {FINGERPRINTS[name]}: not written")
-
-        print(
-            (
-                f"warning: {name} has fingerprint {fingerprint}, not that of the installed "
-                f"{name}, {FINGERPRINTS[name]}: these are new tables"
-            )
-        )
+        if name in ("no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing"):
+            raise SystemExit(f"{name} has fingerprint {fingerprint}, not {FINGERPRINTS[name]}: not written")
+        print(f"warning: {name} has fingerprint {fingerprint}. Doesn't match the installed table, {FINGERPRINTS[name]}")
 
     path = Path(output_dir) / f"{name}.yaml"
     so.write_orientation_tables(path, tables=tables, attributes={"name": name, **attributes})
@@ -175,8 +211,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tables",
         nargs="+",
-        default=["default_v1", "default_v2"],
-        choices=["default_v1", "default_v2"],
+        default=["default_v2", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing"],
+        choices=["default_v2", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing"],
         help="which tables to make",
     )
     parser.add_argument("--seed", type=int, default=21, help="seed of generate_clash_free_tables for default_v2")
@@ -197,18 +233,51 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if "default_v1" in args.tables:
+    if "no_reorientation" in args.tables:
         write_tables(
             args.output_dir,
-            "default_v1",
-            default_v1_tables(),
+            "no_reorientation",
+            tables_from_rows(NO_REORIENTATION_ROWS),
+            {
+                "version": 1,
+                "made_by": "tools/make_installed_orientation_tables.py: one row that leaves the box unchanged",
+                "valid_nr_cells_axis": "any",
+            },
+        )
+
+    if "cube_quarter_spacing" in args.tables:
+        write_tables(
+            args.output_dir,
+            "cube_quarter_spacing",
+            tables_from_rows(CUBE_QUARTER_SPACING_ROWS),
+            {
+                "version": 2,
+                "made_by": (
+                    "tools/make_installed_orientation_tables.py: quarter turns, reflections and shifts, every two rows "
+                    "keeping the copies of a cell in neighbouring tiles at least L/4 apart"
+                ),
+                "for_orientation_lock": "cube",
+                "min_copy_separation": "0.25 L, between the centres of the copies of a cell in neighbouring tiles",
+                "valid_nr_cells_axis": "multiples of 8 (checked for 16, 32 and 64)",
+            },
+        )
+
+    if "sphere_quarter_spacing" in args.tables:
+        write_tables(
+            args.output_dir,
+            "sphere_quarter_spacing",
+            tables_from_rows(SPHERE_QUARTER_SPACING_ROWS),
             {
                 "version": 1,
                 "made_by": (
-                    "tools/make_installed_orientation_tables.py, from the hard-coded default"
-                    "tables of SWIFTLET before default_v2"
+                    "tools/make_installed_orientation_tables.py: quarter turns, reflections and shifts, every two rows "
+                    "keeping the copies of a cell at least L/4 apart, in the same tile or a neighbouring one"
                 ),
-                "valid_nr_cells_axis": "any; the shifts are in cells, chosen for 32 cells per axis",
+                "for_orientation_lock": "sphere (also cube and none)",
+                "min_copy_separation": (
+                    "0.25 L, between the centres of the copies of a cell in the same tile or neighbouring tiles"
+                ),
+                "valid_nr_cells_axis": "multiples of 8 (checked for 16, 32 and 64)",
             },
         )
 

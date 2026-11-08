@@ -264,7 +264,43 @@ def draw_lock_panel(ax, orientation_lock, L, r_max, extent, beam_vector=None, ha
     ax.set_aspect("equal")
 
 
-def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20.0, figsize=(11, 11), filename="./orientation_locks.png"):
+def plot_all_sky_orientation_locks(L=1.0, r_max=3.2, figsize=(7, 3.21), filename="./orientation_locks_all_sky.png"):
+    """
+    Plot the orientations of the box tiles of a full sky lightcone, one panel for each orientation lock, in one row.
+
+    :param  L:          box sidelength
+    :type   L:          float
+    :param  r_max:      maximum distance from the observer, in units of L
+    :type   r_max:      float
+    :param  figsize:    size of the figure
+    :type   figsize:    tuple
+    :param  filename:   path to write the plot to
+    :type   filename:   str
+    """
+    locks = [None, "cube", "sphere"]
+    lock_titles = {
+        None: "orientation_lock=None",
+        "cube": 'orientation_lock="cube"',
+        "sphere": 'orientation_lock="sphere"',
+    }
+    extent = (-r_max * 1.05 * L, r_max * 1.05 * L, -r_max * 1.05 * L, r_max * 1.05 * L)
+
+    fig, axs = plt.subplots(1, len(locks), figsize=figsize, layout="constrained", sharey=True)
+    fig.get_layout_engine().set(wspace=0.04)  # a small gap between the panels
+    for j, (ax, lock) in enumerate(zip(axs, locks)):
+        draw_lock_panel(ax, lock, L, r_max * L, extent)
+        ax.set_title(lock_titles[lock], fontsize=11, fontweight="bold")
+        ax.set_xlabel(r"$x$ [$L$]")
+        if j == 0:
+            ax.set_ylabel(r"$z$ [$L$]")
+        else:
+            ax.tick_params(labelleft=False)  # shared with the panel to its left
+
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20.0, figsize=(7, 7), filename="./orientation_locks.png"):
     """
     Plot the orientations of the box tiles for each orientation lock (rows), for a full sky lightcone, a beam
     along (0, 0, 1) and a beam along (1, 0, 1) (columns).
@@ -289,7 +325,6 @@ def plot_orientation_locks(L=1.0, r_max=3.2, half_angle_deg=20.0, figsize=(11, 1
     }
 
     # the z range shared by the beam panels: from just below the observer to the far end of the beams
-
     beam_z_range = (-0.3 * L, r_max * 1.05 * L)
     lightcones = [
         ("SnapshotAllSky", None, (-r_max * 1.05 * L, r_max * 1.05 * L, -r_max * 1.05 * L, r_max * 1.05 * L)),
@@ -340,7 +375,12 @@ if __name__ == "__main__":
     output_dir = "example_outputs/diagrams"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+    # all locks for all-sky, beam on-axis and beam off-axis
     plot_orientation_locks(
         L=1.0, r_max=3.2, half_angle_deg=20.0, filename=output_dir + "/snapshot_orientation_locks.png"
     )
     print(f"Orientation lock diagram saved as: {output_dir}/snapshot_orientation_locks.png")
+
+    # all locks for all-sky only
+    plot_all_sky_orientation_locks(L=1.0, r_max=3.2, filename=output_dir + "/snapshot_orientation_locks_all_sky.png")
+    print(f"All-sky orientation lock diagram saved as: {output_dir}/snapshot_orientation_locks_all_sky.png")

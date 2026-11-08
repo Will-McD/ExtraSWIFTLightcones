@@ -1,4 +1,4 @@
-# SWIFTLET output redshifts of the snapshots, see docs/simulation_suites.md
+# SWIFTLET output redshifts of the snapshots, see docs/user_guide/new_simulations_and_suites.rst
 description: Output redshifts of the snapshots of FLAMINGO L1000N3600 and L2800N5040, with an extra output at z = 12.26
 suite: flamingo
 number_of_snapshots: 79

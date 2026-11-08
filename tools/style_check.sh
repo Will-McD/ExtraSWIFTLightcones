@@ -16,8 +16,7 @@ set -u
 
 cd "$(git rev-parse --show-toplevel)" || exit 1
 mkdir -p logs
-#log="logs/style_check_$(date +%Y%m%d_%H%M%S).log"
-log="logs/style_check.log"
+log="logs/style_check_$(date +%Y%m%d_%H%M%S).log"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 

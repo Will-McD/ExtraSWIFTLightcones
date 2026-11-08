@@ -1,4 +1,4 @@
-# SWIFTLET orientation tables, see docs/orientation_tables.md
+# SWIFTLET orientation tables, see docs/user_guide/orientation_tables.rst
 name: default_v2
 version: 2
 made_by: tools/make_installed_orientation_tables.py, snapshot_orientation.generate_clash_free_tables

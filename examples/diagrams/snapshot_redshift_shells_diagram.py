@@ -1,7 +1,6 @@
 #!/bin/env python
 """
-Example script to show the redshift range of a lightcone that is populated by a snapshot, for both all-sky lightcone
-(:class:`swiftlet.SnapshotAllSky`) and a beam (:class:`swiftlet.SnapshotBeam`).
+Example script to show the redshift range of a lightcone that is populated by a snapshot, for both all-sky lightcone.
 
 For a slice through the x-z plane of a lightcone (using the FLAMINGO L1_m9 simulation), overlay the redshift range of
 each snapshot on the lightcones regular lattice of tiles (the tiles sidelength is the same as snapshot boxes).
@@ -66,8 +65,8 @@ def in_lightcone(s, z, r_max, beam_vector=None, half_angle_deg=None):
 
 def beam_in_slice(beam_vector):
     """
-    Returns the direction of a beam in the slice, as a unit vector in (x, z).
-    The beam must lie in the plane defined for y = 0.
+    Returns the direction of a beam in the slice, as a unit vector in (x, z), the beam must lie in the plane defined for
+    y = 0.
 
     :param  beam_vector:    direction of the beam
     :type   beam_vector:    array-like, shape (3,)
@@ -322,7 +321,7 @@ def plot_snapshot_shells(
         ax.set_xlim(extent[0], extent[1])
         ax.set_ylim(extent[2], extent[3])
         ax.set_aspect("equal")
-        ax.set_title(name, fontsize=11, fontweight="bold")
+        # ax.set_title(name, fontsize=11, fontweight="bold")
         ax.set_xlabel(r"$x$ [$L$]")
         ax.set_ylabel(r"$z$ [$L$]")
 
@@ -332,7 +331,7 @@ def plot_snapshot_shells(
             plt.cm.ScalarMappable(norm=norm, cmap=cmap),
             ax=ax,
             location="right",
-            shrink=0.7,
+            shrink=0.65,
             alpha=1.0,
             spacing="proportional",
             drawedges=True,
@@ -341,7 +340,7 @@ def plot_snapshot_shells(
         cbar.dividers.set_linewidth(0.5)
         cbar.set_ticks(redshifts, labels=[f"{snap_nr} ($z$={z:g})" for snap_nr, z in zip(snapshot_numbers, redshifts)])
 
-        cbar.set_label(f"snapshot number (midplane redshift)")
+        cbar.set_label(f"snapshot number (output redshift)", fontsize=11)
 
         plt.savefig(filename_format.format(lc_name=lightcone_names[counter]), dpi=300, bbox_inches="tight")
 
