@@ -144,7 +144,7 @@ def write_snapshot(snap_dir, snap_nr, ids, pos):
             # add velocities [km/s]
             velocities = dm.create_dataset("Velocities", data=pos[in_file] - centres[cell[in_file]])
             set_unit_attrs(velocities, 1, 0)
-            velocities.attrs["U_t exponent"] = [-1.]
+            velocities.attrs["U_t exponent"] = [-1.0]
 
 
 def write_soap_catalogue(filename, snap_nr, halo_index, halo_centre):
@@ -724,13 +724,13 @@ def test_reorientation_of_points_on_cell_faces(use_numba, monkeypatch):
 
 # functions to test the consistency of the particles placed over many box tiles, snapshots and shells
 
-def particle_rows(particles, velocities=False):
 
+def particle_rows(particles, velocities=False):
     """
-    Rows of (snapshot, particle ID, position [Mpc]) of placed particles, 
+    Rows of (snapshot, particle ID, position [Mpc]) of placed particles,
     sorted so two sets can be compared.
 
-    If velocities is True, include velocities [km/s] in the same order. 
+    If velocities is True, include velocities [km/s] in the same order.
 
     """
     snap_nr = particles["SnapshotNumber"].value.astype(int)
@@ -1079,22 +1079,27 @@ def test_beam_is_part_of_all_sky(fake_runs, beam_vector, orientation_lock):
     assert_same_particles(tuple(a[in_cone] for a in all_sky), beam)
 
 
-# test velocities are correctly updated. 
+# test velocities are correctly updated.
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg", [(None, None), ((1, 2, 3), 20.)], ids=["all_sky", "beam_off_axis"])
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg", [(None, None), ((1, 2, 3), 20.0)], ids=["all_sky", "beam_off_axis"]
+)
 def test_velocities_reoriented_with_the_coordinates(fake_runs, beam_vector, ang_radius_deg, orientation_lock):
     """
-    Test that velocities are turned and reflected the same as the coordinates, but without the shift or the tile's offset.
-    In the lattice each particle's velocity [km/s] is the vector [Mpc] from its cell's centre to it, and cells move whole, so
-    after placement it must still be the vector from the centre of the particle's cell in the lightcone to the
-    particle, in every tile of a shell crossing many tiles. 
+    Test that velocities are turned and reflected the same as the coordinates, but without the shift or the tile's
+    offset. In the lattice each particle's velocity [km/s] is the vector [Mpc] from its cell's centre to it, and cells
+    move whole, so after placement it must still be the vector from the centre of the particle's cell in the lightcone
+    to the particle, in every tile of a shell crossing many tiles.
     Check the velocities change but nothing else, and without them none are returned.
     """
     redshift_range = (0.05, 0.3)
     lightcone = new_lightcone(LATTICE_SIM, beam_vector, orientation_lock, orientation_seed=3)
     particles = lightcone.place_snapshot_particles_in_shell(
-        redshift_range, property_names=["ParticleIDs", "Coordinates", "Velocities"], particle_types=PTYPE,
-        **shell_args(lightcone, ang_radius_deg))[PTYPE]
+        redshift_range,
+        property_names=["ParticleIDs", "Coordinates", "Velocities"],
+        particle_types=PTYPE,
+        **shell_args(lightcone, ang_radius_deg),
+    )[PTYPE]
     coords = particles["Coordinates"].to_value("Mpc")
     velocities = particles["Velocities"].to_value("km/s")
     assert len(coords) > 10000
@@ -1109,14 +1114,16 @@ def test_velocities_reoriented_with_the_coordinates(fake_runs, beam_vector, ang_
     ids = particles["ParticleIDs"].value.astype(int)
     snapshot_velocities = lattice[ids] - (np.floor(lattice[ids] / CELL_SIZE) + 0.5) * CELL_SIZE
     assert not np.allclose(velocities, snapshot_velocities, atol=1e-6)
-    np.testing.assert_allclose(np.linalg.norm(velocities, axis=1), np.linalg.norm(snapshot_velocities, axis=1),
-                               atol=1e-6)
+    np.testing.assert_allclose(
+        np.linalg.norm(velocities, axis=1), np.linalg.norm(snapshot_velocities, axis=1), atol=1e-6
+    )
 
     # the same particles without the velocities, and none returned
     without = new_lightcone(LATTICE_SIM, beam_vector, orientation_lock, orientation_seed=3)
     placed = place_particles(without, redshift_range, ang_radius_deg)
     assert "Velocities" not in placed or placed["Velocities"] is None
     assert_same_particles(particle_rows(placed), particle_rows(particles))
+
 
 # the lattice without re-orientation, check that every tile is the same as the snapshot box
 
@@ -1311,15 +1318,25 @@ def test_mpi_matches_serial(
 
     assert sum(len(rank["ids"]) > 0 for rank in ranks) > 1, "the particles were not split between the ranks"
 
-    snap_nr, ids, coords, velocities = (np.concatenate([rank[name] for rank in ranks]) for name in ("snap_nr", "ids", "coords", "velocities"))
+    snap_nr, ids, coords, velocities = (
+        np.concatenate([rank[name] for rank in ranks]) for name in ("snap_nr", "ids", "coords", "velocities")
+    )
     order = np.lexsort((coords[:, 2], coords[:, 1], coords[:, 0], ids, snap_nr))
     parallel = snap_nr[order], ids[order], coords[order]
 
     lightcone = new_lightcone(sim_name, beam_vector, orientation_lock)
 
-    serial = particle_rows(lightcone.place_snapshot_particles_in_shell(redshift_range, property_names=["ParticleIDs", "Coordinates", "Velocities"], particle_types=PTYPE, **shell_args(lightcone, ang_radius_deg))[PTYPE], velocities=True)
+    serial = particle_rows(
+        lightcone.place_snapshot_particles_in_shell(
+            redshift_range,
+            property_names=["ParticleIDs", "Coordinates", "Velocities"],
+            particle_types=PTYPE,
+            **shell_args(lightcone, ang_radius_deg),
+        )[PTYPE],
+        velocities=True,
+    )
     assert_same_particles(parallel, serial[:3])
-    
+
     np.testing.assert_allclose(velocities[order], serial[3], atol=1e-6)
 
 
