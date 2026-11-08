@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.12-blue)](https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/.github/workflows/build_and_test.yml)
 [![License](https://img.shields.io/github/license/Will-McD/ExtraSWIFTLightcones)](./PublicLicense)
 
-SWIFTLET builds custom lightcones from the snapshots and SOAP halo catalogues of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) simulations (FLAMINGO and COLIBRE), serially or with MPI, and provides tools to project, plot and analyse them and FLAMINGO's own lightcones. It builds on [LightconeIO](https://lightconeio.readthedocs.io/en/latest/) and [SWIFTsimIO](https://swiftsimio.readthedocs.io/en/latest/).
+SWIFTLET builds custom lightcones from the snapshots and SOAP halo catalogues of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) simulations (FLAMINGO and COLIBRE). It works in tandem with [LightconeIO](https://lightconeio.readthedocs.io/en/latest/).
 
 **📖 Documentation: <https://extraswiftlightcones.readthedocs.io>**
 
@@ -61,9 +61,9 @@ The [quick start](https://extraswiftlightcones.readthedocs.io/en/latest/quicksta
 
 | | |
 |---|---|
-| [Quick start](https://extraswiftlightcones.readthedocs.io/en/latest/quickstart.html) | build a beam of particles and haloes, and project it |
-| [User guide](https://extraswiftlightcones.readthedocs.io/en/latest/user_guide/index.html) | how lightcones are built, tile orientations and locks, repeated structures, simulations and suites, MPI and HPC, projections |
-| [Examples](https://extraswiftlightcones.readthedocs.io/en/latest/examples.html) | the scripts in [`examples/`](./examples), most with a COSMA job script |
+| [Quick start](https://extraswiftlightcones.readthedocs.io/en/latest/quickstart.html) | build a beam of particles and haloes, and then project it |
+| [User guide](https://extraswiftlightcones.readthedocs.io/en/latest/user_guide/index.html) | how lightcones are built, tile orientations and locks, repeated structures, simulations and suites, projections |
+| [Examples](https://extraswiftlightcones.readthedocs.io/en/latest/examples.html) | the scripts in [`examples/`](./examples) |
 | [API reference](https://extraswiftlightcones.readthedocs.io/en/latest/api/index.html) | every public class and function |
 | [Tests](https://extraswiftlightcones.readthedocs.io/en/latest/tests/index.html) | what the test suite checks, and the developer tools |
 | [Glossary](https://extraswiftlightcones.readthedocs.io/en/latest/glossary.html) | the terms used in the docs: tiles, layers, cells, shells, close repeats and more |
@@ -95,7 +95,7 @@ See [Tests](https://extraswiftlightcones.readthedocs.io/en/latest/tests/test_sum
 
 </summary>
 
-Contributions are welcome as pull requests; please read [CONTRIBUTING.md](./CONTRIBUTING.md) first. The documentation is in [`docs/`](./docs) and is built by Read the Docs from this repository.
+Contributions are welcome as pull requests; please read [CONTRIBUTING.md](./CONTRIBUTING.md). The documentation is in [`docs/`](./docs) and is built by Read the Docs from this repository.
 
 </details>
 
