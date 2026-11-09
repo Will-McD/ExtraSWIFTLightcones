@@ -1264,3 +1264,165 @@ class BeamPlot:
                 )
                 lx, ly = offset_point_from_tick(ax, x0, y0, nx, ny, font_offset + 1 * tick_len)
                 ax.text(lx, ly, tick_str_format.format(tick_val=theta_tick_val), rotation=a, **label_style)
+
+
+# functions to plot beams on a map of the sky, to use with repeat checks
+
+
+def sky_coordinates(positions):
+    """
+    The longitude and latitude of positions as seen from the observer, for a Mollweide map of the sky.
+
+    Returns the longitude and latitude [rad], each of shape (N,).
+
+    :param  positions:  positions relative to the observer, shape (N, 3)
+    :type   positions:  numpy.ndarray
+    """
+    positions = np.atleast_2d(np.asarray(positions, dtype=float))
+    r = np.linalg.norm(positions, axis=1)
+    longitude = np.arctan2(positions[:, 1], positions[:, 0])
+    latitude = np.arcsin(np.clip(positions[:, 2] / np.where(r > 0.0, r, 1.0), -1.0, 1.0))
+    return longitude, latitude
+
+
+def beam_sky_outline(beam_vector, ang_radius_deg, n_points=721):
+    """
+    The edge of a beam on the sky: the directions at its angular radius from its axis.
+
+    The longitude is unwrapped, so it changes smoothly along the edge and can pass beyond -pi or pi where the edge
+    crosses the edge of a map (copies shifted by 2 pi).
+
+    Returns the longitude and latitude [rad] of n_points along the edge, the first and last the same.
+
+    :param  beam_vector:    direction of the beam's axis, from the observer
+    :type   beam_vector:    array-like, shape (3,)
+    :param  ang_radius_deg: angular radius [deg] of the beam, between 0 and 180
+    :type   ang_radius_deg: float
+    :param  n_points:       number of points along the edge
+    :type   n_points:       int
+    """
+    # remove out of bounds points
+    if not 0.0 < ang_radius_deg < 180.0:
+        raise ValueError(f"ang_radius_deg must be between 0 and 180, not {ang_radius_deg}")
+
+    axis = np.asarray(beam_vector, dtype=float)
+    axis = axis / np.linalg.norm(axis)
+
+    # two directions across the beam, perpendicular to its axis and to each other
+    helper = np.array([0.0, 0.0, 1.0]) if abs(axis[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+
+    # axis 1
+    across_1 = np.cross(axis, helper)
+    across_1 /= np.linalg.norm(across_1)
+
+    # axis 1
+    across_2 = np.cross(axis, across_1)
+
+    # get angles
+    angle = np.deg2rad(ang_radius_deg)
+    phi = np.linspace(0.0, 2.0 * np.pi, n_points)
+
+    # bin for plotting
+    edge = np.cos(angle) * axis + np.sin(angle) * (
+        np.cos(phi)[:, None] * across_1[None, :] + np.sin(phi)[:, None] * across_2[None, :]
+    )
+    # convert to lat and lon
+    longitude, latitude = sky_coordinates(edge)
+
+    return np.unwrap(longitude), latitude
+
+
+def plot_beam_on_sky(
+    ax,
+    beam_vector,
+    ang_radius_deg,
+    colour="dodgerblue",
+    alpha=0.2,
+    edge_width=1.5,
+    fill=True,
+    label=None,
+    n_points=721,
+    zorder=1,
+):
+    """
+    Draw the footprint of a beam on a Mollweide map of the sky.
+
+    A beam crossing the edge of the map (longitude pi) is drawn on both sides, and a beam holding a pole is filled up to
+    the pole. The axes must use the "mollweide" projection.
+
+    Returns the list of the patches and lines drawn.
+
+    :param  ax:             axes with the "mollweide" projection
+    :type   ax:             matplotlib.axes.Axes
+    :param  beam_vector:    direction of the beam's axis, from the observer (e.g. SnapshotBeam's beam_vector)
+    :type   beam_vector:    array-like, shape (3,)
+    :param  ang_radius_deg: angular radius [deg] of the beam
+    :type   ang_radius_deg: float
+    :param  colour:         colour of the beam
+    :type   colour:         str
+    :param  alpha:          opacity of the filled area
+    :type   alpha:          float
+    :param  edge_width:     line width of the edge, 0 for none
+    :type   edge_width:     float
+    :param  fill:           If True, fill the area of the beam
+    :type   fill:           bool
+    :param  label:          legend label of the beam
+    :type   label:          str
+    :param  n_points:       number of points along the edge
+    :type   n_points:       int
+    :param  zorder:         drawing order
+    :type   zorder:         float
+    """
+    # get outline in on-sky coords
+    longitude, latitude = beam_sky_outline(beam_vector, ang_radius_deg, n_points=n_points)
+
+    # convert beam vector to axis coords
+    axis = np.asarray(beam_vector, dtype=float)
+    axis = axis / np.linalg.norm(axis)
+
+    # get beam area
+    area = np.column_stack([longitude, latitude])
+
+    # need a beam on a pole to only go around it once, so its unwrapped edge spans 2 pi in longitude
+    holds_north = np.arccos(np.clip(axis[2], -1.0, 1.0)) < np.deg2rad(ang_radius_deg)  # circle the north pole
+    holds_south = np.arccos(np.clip(-axis[2], -1.0, 1.0)) < np.deg2rad(ang_radius_deg)  # circle the south pole
+
+    # flag if a pole
+    if holds_north or holds_south:
+        pole = np.pi / 2 if holds_north else -np.pi / 2
+        area = np.vstack([area, [[longitude[-1], pole], [longitude[0], pole]]])
+
+    # beam is drawn three times, shifted by 2 pi, so the part beyond the edge of the map shows on its other side
+    # and clip everything outside of the map
+
+    drawn = []
+    for i, shift in enumerate((0.0, -2.0 * np.pi, 2.0 * np.pi)):
+        if fill:
+            # add filled in path for beam area
+            patch = Polygon(
+                area + [shift, 0.0],
+                closed=True,
+                facecolor=colour,
+                edgecolor="none",
+                alpha=alpha,
+                zorder=zorder,
+                label=label if i == 0 else None,
+            )
+
+            ax.add_patch(patch)
+            drawn.append(patch)
+
+        # overlay edge of beam onto filled area
+        if edge_width > 0:
+            (line,) = ax.plot(
+                longitude + shift,
+                latitude,
+                color=colour,
+                lw=edge_width,
+                zorder=zorder,
+                label=label if (i == 0 and not fill) else None,
+            )
+
+            drawn.append(line)
+
+    return drawn
