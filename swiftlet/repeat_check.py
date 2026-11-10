@@ -49,7 +49,9 @@ class CloseRepeatReport:
     :ivar nr_line_of_sight:     number of pairs of copies of the same cell within angle_deg of each other on the sky and
                                     closer than max_los_separation along the line of sight
     :vartype nr_line_of_sight:  int
-    :ivar closest_separation:   smallest distance [Mpc] between two copies of the same cell (inf if none is repeated)
+    :ivar closest_separation:   smallest distance [Mpc] between two copies of the same cell (inf if none is repeated).
+                                With find_closest_copy=False, the smallest among the pairs found within the search
+                                radius (inf if none)
     :vartype closest_separation: float
     :ivar cell_size:            side length [Mpc] of a cell
     :vartype cell_size:         float
@@ -60,12 +62,13 @@ class CloseRepeatReport:
     :ivar max_los_separation:   distance [Mpc] along the line of sight used for the line of sight pairs
     :vartype max_los_separation: float
     :ivar pairs:                the pairs reported (clashing, along a line of sight, or closer than max_separation), a
-                                    dict of arrays: "snapshot", "cell", "tile_a", "tile_b", "centre_a", "centre_b"[Mpc],
-                                    "separation" [Mpc], "angle_deg", "los_separation" [Mpc], "clashing" and
-                                    "line_of_sight" (bool)
+                                dict of arrays: "snapshot", "cell", "tile_a", "tile_b", "centre_a", "centre_b"[Mpc],
+                                "separation" [Mpc], "angle_deg", "los_separation" [Mpc], "clashing" and
+                                "line_of_sight" (bool)
     :vartype pairs:             dict
     :ivar cells:                every repeated (snapshot, cell): "snapshot", "cell", "nr_copies" and
-                                    "closest_separation" [Mpc] to its own copies
+                                "closest_separation" [Mpc] to its own copies (with find_closest_copy=False, only
+                                if a copy is within the search radius, otherwise inf)
     :vartype cells:             dict
     """
 
@@ -219,7 +222,9 @@ def find_close_cell_repeats(
     output_file=None,
     warn=True,
     copies_per_block=4_000_000,
-    max_snapshot_difference=0,
+    max_snapshot_difference=1,
+    find_closest_copy=False,
+    verbose=0,
 ):
     """
     Identify where replicas of the same snapshot cells in adjacent tiles that are either clashing or have a small
@@ -241,7 +246,8 @@ def find_close_cell_repeats(
     :type   ang_radius_deg:     float
     :param  ptype:              particle type whose cells are used, e.g. "PartType1"
     :type   ptype:              str
-    :param  angle_deg:          two copies within this angle [deg] on the sky are on the same line of sight
+    :param  angle_deg:          two copies of the same cell within this angle [deg] on the sky are considered to be
+                                in the same line of sight.
     :type   angle_deg:          float
     :param  max_los_separation: copies on the same line of sight closer than this [Mpc] along it are reported. If
                                 None, half the box size
@@ -255,15 +261,40 @@ def find_close_cell_repeats(
     :type   warn:               bool
     :param  copies_per_block:   most cell copies compared at once, to limit the memory needed
     :type   copies_per_block:   int
-    :param  max_snapshot_difference: the most the snapshot numbers of two copies of a cell paired may differ by. 0
-                                        (the default) pairs only copies from the same snapshot (the same structures at
-                                        the same time); e.g. 2 also pairs copies from snapshots up to 2 apart (the same
-                                        region of the box at nearby times, such as a cell of one snapshot touching the
-                                        same cell of the next); None pairs copies from any snapshots
+    :param  max_snapshot_difference: the most the snapshot numbers of two copies of a cell paired may differ by.
+                                     If 0, only use pairs from the same snapshot (i.e. the same structures at
+                                     the same time).
+                                     Default is 1, which includes pairs in the same and adjacent snapshots. If None,
+                                     pair copies of the same cell from any snapshots, this is a very computationally
+                                     expensive task.
     :type   max_snapshot_difference: int or None
+    :param  find_closest_copy:  If True, find the closest copy of every repeated cell, however far apart,
+                                with a nearest neighbour search of every copy (about a third of the time spent on
+                                the pairs). If False, skip that search: each cell's closest separation is the
+                                smallest among the pairs already found within the search radius (the larger of
+                                max_los_separation plus a cell diagonal, and max_separation), and inf for a cell
+                                with no copy that close. The pairs reported are the same either way.
+    :type   find_closest_copy:  bool
+    :param  verbose:            amount printed. 0: nothing, only warnings. 1: a summary of each step. 2: details of
+                                every step
+    :type   verbose:            int
     """
     from scipy.spatial import cKDTree
     from .threads import thread_limit
+
+    def message(m, print_level=2):
+        """
+        Print message (m) if verbose is above or equal to the print level.
+
+        :param  m:              message to be printed
+        :type   m:              str
+        :param  print_level:    verbose level required to be met or passed to print message
+        :type   print_level:    int
+        """
+        if verbose >= print_level:
+            print(m)
+
+    message("setting up the lightcones cell structure", print_level=1)
 
     # find the pieces of the shell, and the cells of each piece that overlap it
     beam_args = {} if ang_radius_deg is None else {"ang_radius_deg": ang_radius_deg}
@@ -305,9 +336,14 @@ def find_close_cell_repeats(
     cell_size = boxsize = None
     workers = thread_limit() or -1
 
+    message("finished set up, starting to find close pairs", print_level=2)
+
     # the copies paired: for each snapshot on its own, or for every snapshot together (labelled -1), keeping pairs of
     # copies from snapshots at most max_snapshot_difference apart
     window = None if max_snapshot_difference is None else int(max_snapshot_difference)  # snapshot window
+
+    message(f"find copies of cells within a window of {window} snapshots across {nr_tiles} tiles", print_level=1)
+
     if window is not None and window < 0:
         raise ValueError(f"max_snapshot_difference must be 0 or more, or None, not {max_snapshot_difference}")
     if window == 0:
@@ -322,31 +358,45 @@ def find_close_cell_repeats(
                 "max_snapshot_difference other than 0 needs every snapshot to have the same cells, not "
                 f"{cells_per_snapshot}"
             )
-    # a block of each snapshot's cells at a time: the cells numbered from first to last - 1, at most copies_per_block
-    # copies (estimated from the cells gather_files found)
+
+    message(
+        f"identified groups of cells per snapshot in lightcone\nnow iterating through blocks of cells...", print_level=2
+    )
+
+    # iterate through snapshots one block of cells at a time: the cells numbered from first to last - 1
+    # Max number of copies per block = copies_per_block copies (estimated from the cells gather_files found)
+
     blocks = []
+
     for snapshot in sorted(groups):
         selected = [
             tile_cells.get((record.snap_nr, record.tile), np.zeros(0, dtype=np.int64)) for record in groups[snapshot]
         ]
         nr_cells = len(lightcone._cell_data_cache[int(groups[snapshot][0].snap_nr)]["cell_centres"])
         copies_of_cell = np.bincount(np.concatenate(selected), minlength=nr_cells) if selected else np.zeros(nr_cells)
+
         edges = np.searchsorted(
             np.cumsum(copies_of_cell), np.arange(copies_per_block, copies_of_cell.sum(), copies_per_block)
         )
+
         bounds = np.unique(np.concatenate([[0], edges, [nr_cells]]))
         blocks += [(snapshot, (int(first), int(last))) for first, last in zip(bounds[:-1], bounds[1:])]
+
+    message("finished sorting groups of cells per snapshot\nfinding pairs ...", print_level=1)
 
     for snapshot, cell_range in blocks:
         snap_nr, cell, tiles, orientation, centres, size, box = _cells_in_shell(
             lightcone, ang_radius_deg, groups[snapshot], tile_cells, cell_range
         )
+
         cell_size, boxsize = (size, box) if size is not None else (cell_size, boxsize)
         nr_cell_copies += len(cell)
         if len(cell) == 0:
             continue
+
         if max_los_separation is None:
             max_los_separation = boxsize
+
         half_diagonal = 0.5 * np.sqrt(3.0) * cell_size
 
         # the copies of each cell, and every pair of copies of a cell (the cells of a block are of one snapshot, or of
@@ -354,6 +404,7 @@ def find_close_cell_repeats(
         cells_here, copy_of, copies = np.unique(cell, return_inverse=True, return_counts=True)
 
         nr_cells_in_shell += len(cells_here)
+
         if window in (0, None):
             pairs_of_cell = copies * (copies - 1) // 2
         else:
@@ -366,6 +417,7 @@ def find_close_cell_repeats(
             ):
                 pairs_of_cell += per_snapshot[:, i] * per_snapshot[:, j]
         nr_cell_pairs += int(np.sum(pairs_of_cell))
+
         repeated = pairs_of_cell > 0
         if not np.any(repeated):
             continue
@@ -388,30 +440,41 @@ def find_close_cell_repeats(
                 nr_cell_pairs -= len(same_place)
                 repeated = pairs_of_cell > 0
 
-        # the closest copy of each copy pair : its nearest neighbour, a copy of the same cell if the cell has more than
-        # one. Across snapshots, the nearest of its 16 nearest copies at another place, from a snapshot in the window
-        k = 2 if window == 0 else min(17, len(cell))
-        distance, nearest = tree.query(np.column_stack([centres, copy_of * spacing]), k=k, workers=workers)
-        valid = (copy_of[nearest[:, 1:]] == copy_of[:, None]) & np.isfinite(distance[:, 1:])
-        if window is not None and window > 0:
-            valid &= np.abs(snap_nr[np.minimum(nearest[:, 1:], len(cell) - 1)] - snap_nr[:, None]) <= window
-        # not a copy at the same place, see above
-        valid &= distance[:, 1:] > 1e-6 * cell_size
-        nearest_valid = np.where(valid, distance[:, 1:], np.inf).min(axis=1)
+        # every pair of copies of a cell within the search radius
+        pairs_here = tree.query_pairs(search_radius, output_type="ndarray")
+        if window not in (0, None) and len(pairs_here):
+            pairs_here = pairs_here[np.abs(snap_nr[pairs_here[:, 0]] - snap_nr[pairs_here[:, 1]]) <= window]
+
+        a, b = pairs_here[:, 0], pairs_here[:, 1]
+        offset = centres[b] - centres[a]
+        separation = np.linalg.norm(offset, axis=1)
 
         closest = np.full(len(cells_here), np.inf)
-        np.minimum.at(closest, copy_of, nearest_valid)
+
+        if find_closest_copy:
+            # the closest copy of each cell. Across snapshots, the nearest of its 16 nearest copies at another place,
+            # from a snapshot in the window
+
+            k = 2 if window == 0 else min(17, len(cell))
+            distance, nearest = tree.query(np.column_stack([centres, copy_of * spacing]), k=k, workers=workers)
+            valid = (copy_of[nearest[:, 1:]] == copy_of[:, None]) & np.isfinite(distance[:, 1:])
+            if window is not None and window > 0:
+                valid &= np.abs(snap_nr[np.minimum(nearest[:, 1:], len(cell) - 1)] - snap_nr[:, None]) <= window
+
+            # not a copy at the same place, see above
+            valid &= distance[:, 1:] > 1e-6 * cell_size
+            np.minimum.at(closest, copy_of, np.where(valid, distance[:, 1:], np.inf).min(axis=1))
+
+        elif len(pairs_here):
+            # the closest of the pairs already found, not counting copies at the same place (see above)
+            apart = separation > 1e-6 * cell_size
+            np.minimum.at(closest, copy_of[a[apart]], separation[apart])
 
         # update rows
         cell_rows["snapshot"].append(np.full(int(np.sum(repeated)), snapshot, dtype=np.int64))
         cell_rows["cell"].append(cells_here[repeated])
         cell_rows["nr_copies"].append(copies[repeated])
         cell_rows["closest_separation"].append(closest[repeated])
-
-        # every pair of copies of a cell within the search radius
-        pairs_here = tree.query_pairs(search_radius, output_type="ndarray")
-        if window not in (0, None) and len(pairs_here):
-            pairs_here = pairs_here[np.abs(snap_nr[pairs_here[:, 0]] - snap_nr[pairs_here[:, 1]]) <= window]
 
         # no need to keep going if no pairs found in snapshot window
         if len(pairs_here) == 0:
@@ -459,12 +522,14 @@ def find_close_cell_repeats(
         rows["los_separation"].append(np.abs(r[b] - r[a]))
         rows["touching"].append(touching[report])
         rows["line_of_sight"].append(line_of_sight[report])
+
     if max_los_separation is None:
         max_los_separation = boxsize if boxsize is not None else 0.0
 
     def joined(arrays, dtype, shape=(0,)):
         return np.concatenate(arrays).astype(dtype) if arrays else np.zeros(shape, dtype=dtype)
 
+    # store all pairs
     pairs = {
         "snapshot": joined(rows["snapshot"], np.int64),
         "snapshot_b": joined(rows["snapshot_b"], np.int64),
@@ -479,12 +544,15 @@ def find_close_cell_repeats(
         "touching": joined(rows["touching"], bool),
         "line_of_sight": joined(rows["line_of_sight"], bool),
     }
+
+    # store cell information for the pairs
     cells = {
         "snapshot": joined(cell_rows["snapshot"], np.int64),
         "cell": joined(cell_rows["cell"], np.int64),
         "nr_copies": joined(cell_rows["nr_copies"], np.int64),
         "closest_separation": joined(cell_rows["closest_separation"], float),
     }
+
     # a touching pair whose cells straddle a snapshot hand-over is kept by each snapshot: count it once, by its cell
     # and its two tiles
     touching = pairs["touching"]

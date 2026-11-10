@@ -12,14 +12,14 @@ or the submodule they come from::
                             SnapshotGapWarning
     snapshot_cosmology      SnapshotCosmology
     simulation_suites       Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
-                            read_output_redshifts
+                            read_output_list, write_output_list
     snapshot_redshifts      redshift_edges, snapshots_in_range
     snapshot_orientation    write_orientation_tables, read_orientation_tables, generate_orientation_tables,
                             check_neighbouring_tiles, default_orientation_tables, generate_clash_free_tables,
                             tables_are_clash_free
     repeat_check            find_close_cell_repeats, CloseRepeatWarning
     lightcone_projections   BeamProjection
-    beam_plotting           BeamPlot
+    beam_plotting           BeamPlot, plot_beam_on_sky, sky_coordinates
     healpix_map_utils       write_rotated_lightcone_chunks, sum_maps
     mask_haloes             write_binary_masks
     flamingo_lightcones     flamingo_shell_redshift_file
@@ -60,7 +60,8 @@ _PUBLIC_NAMES = {
     "COLIBRE": "simulation_suites",
     "suite_for_label": "simulation_suites",
     "output_redshifts": "simulation_suites",
-    "read_output_redshifts": "simulation_suites",
+    "read_output_list": "simulation_suites",
+    "write_output_list": "simulation_suites",
     # orientation tables of the box tiles
     "write_orientation_tables": "snapshot_orientation",
     "read_orientation_tables": "snapshot_orientation",
@@ -75,6 +76,8 @@ _PUBLIC_NAMES = {
     # projecting and plotting beams
     "BeamProjection": "lightcone_projections",
     "BeamPlot": "beam_plotting",
+    "plot_beam_on_sky": "beam_plotting",
+    "sky_coordinates": "beam_plotting",
     # HEALPix maps and halo masks
     "write_rotated_lightcone_chunks": "healpix_map_utils",
     "sum_maps": "healpix_map_utils",

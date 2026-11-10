@@ -30,7 +30,6 @@ from swiftlet.snapshot_lightcone import SnapshotAllSky  # noqa: E402
 from swiftlet.snapshot_orientation import write_orientation_tables  # noqa: E402
 from clashing_orientation_tables import clashing_tables, write_clashing_tables  # noqa: E402
 
-
 ALL_SKY_SHELL = (440.0, 1110.0)  # [Mpc], from snapshots 72 to 75, through 27 tiles
 
 
@@ -80,7 +79,9 @@ def test_nothing_reported_without_reorientation(lattice_run, beam_vector, ang_ra
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", CloseRepeatWarning)
-        report = find_close_cell_repeats(lightcone, shell(cosmo, r_range), ang_radius_deg=ang_radius_deg)
+        report = find_close_cell_repeats(
+            lightcone, shell(cosmo, r_range), ang_radius_deg=ang_radius_deg, max_snapshot_difference=0
+        )
 
     assert report.nr_cell_copies > 0 and report.nr_cells_repeated > 0
 
@@ -100,7 +101,10 @@ def test_cube_lock_reports_nothing_within_a_layer(lattice_run):
     """
     simulation, cosmo, _ = lattice_run
     report = find_close_cell_repeats(
-        lattice.new_lightcone(simulation, None, "cube"), shell(cosmo, (110.0, 1610.0)), warn=False
+        lattice.new_lightcone(simulation, None, "cube"),
+        shell(cosmo, (110.0, 1610.0)),
+        warn=False,
+        max_snapshot_difference=0,
     )
 
     assert report.nr_touching == 0
@@ -152,7 +156,7 @@ def test_particle_close_repeats_are_in_reported_cell_pairs(lattice_run, orientat
     simulation, cosmo, _ = lattice_run
     redshift_range = shell(cosmo, (110.0, 1610.0))
     lightcone = lattice.new_lightcone(simulation, None, orientation_lock)
-    report = find_close_cell_repeats(lightcone, redshift_range, warn=False)
+    report = find_close_cell_repeats(lightcone, redshift_range, warn=False, max_snapshot_difference=0)
     snap_nr, ids, coords = lattice.place_lattice(
         lattice.new_lightcone(simulation, None, orientation_lock), redshift_range, None, "particles", None
     )
@@ -203,7 +207,7 @@ def test_reflected_tiles_make_touching_cells(lattice_run, tmp_path):
     )
 
     lightcone = lattice.new_lightcone(simulation, None, None, orientation_table=str(table))
-    report = find_close_cell_repeats(lightcone, shell(cosmo), warn=False)
+    report = find_close_cell_repeats(lightcone, shell(cosmo), warn=False, max_snapshot_difference=0)
     touching = report.pairs["touching"]
 
     # each touching pair is counted once, though a pair straddling a snapshot hand-over has a row for each snapshot
@@ -244,7 +248,7 @@ def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orie
         orientation_table=write_clashing_tables(tmp_path),
         verbose=0,
     )
-    report = find_close_cell_repeats(lightcone, shell(cosmo, r_range), warn=False)
+    report = find_close_cell_repeats(lightcone, shell(cosmo, r_range), warn=False, max_snapshot_difference=0)
 
     assert report.nr_touching > 0
     touching = report.pairs["touching"]
@@ -377,3 +381,40 @@ def test_warning_and_hdf5_file(lattice_run, tmp_path):
 
         np.testing.assert_allclose(f["cells/closest_separation"][...], report.cells["closest_separation"])
         assert f["lightcone"].attrs["orientation_lock"] == "none"
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube"])
+@pytest.mark.parametrize("max_snapshot_difference", [0, 2])
+def test_closest_copy_from_the_pairs_found(lattice_run, orientation_lock, max_snapshot_difference):
+    """
+    With find_closest_copy=False the nearest neighbour search is skipped: the pairs and counts reported are the same,
+    and each cell's closest separation is the same wherever a copy is within the search radius, and inf otherwise.
+    """
+    simulation, cosmo, _ = lattice_run
+    r_range = shell(cosmo, (110.0, 1610.0))
+
+    def report(find_closest_copy):
+        return find_close_cell_repeats(
+            lattice.new_lightcone(simulation, None, orientation_lock),
+            r_range,
+            warn=False,
+            max_snapshot_difference=max_snapshot_difference,
+            find_closest_copy=find_closest_copy,
+        )
+
+    exact, from_pairs = report(True), report(False)
+    for name in exact.pairs:
+        np.testing.assert_array_equal(exact.pairs[name], from_pairs.pairs[name])
+    for name in ("nr_cells", "nr_cell_copies", "nr_cell_pairs", "nr_cells_repeated", "nr_touching", "nr_line_of_sight"):
+        assert getattr(exact, name) == getattr(from_pairs, name)
+    for name in ("snapshot", "cell", "nr_copies"):
+        np.testing.assert_array_equal(exact.cells[name], from_pairs.cells[name])
+
+    # the search radius: the line of sight separation plus a cell diagonal (max_separation is not given)
+    radius = exact.max_los_separation + np.sqrt(3.0) * exact.cell_size
+    within = exact.cells["closest_separation"] <= radius
+    assert np.any(within)
+    np.testing.assert_allclose(
+        from_pairs.cells["closest_separation"][within], exact.cells["closest_separation"][within]
+    )
+    assert np.all(np.isinf(from_pairs.cells["closest_separation"][~within]))

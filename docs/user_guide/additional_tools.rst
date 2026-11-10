@@ -18,8 +18,6 @@ Reading SOAP halo catalogues
 *   :func:`select_soap_rows <swiftlet.soap_reader.select_soap_rows>`: read only the rows whose value of a property is 
     selected, e.g. haloes above a given mass 
 
-The paths of a simulation's catalogues come from its ``soap_format`` (see :ref:`soap-halo-catalogues`).
-
 
 FLAMINGO lightcones and HEALPix maps
 ------------------------------------

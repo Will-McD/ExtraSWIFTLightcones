@@ -1,9 +1,7 @@
 SWIFTLET: SWIFT Lightcone Extension Tools
 =========================================
 
-SWIFTLET builds custom lightcones from SWIFT simulation outputs (FLAMINGO,
-COLIBRE), from particle data or halo catalogues, serially or with MPI, and
-provides tools to analyse and visualise them.
+SWIFTLET builds custom lightcones from SWIFT simulations outputs.
 
 .. grid:: 1 2 3 3
    :gutter: 3

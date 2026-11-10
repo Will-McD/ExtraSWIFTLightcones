@@ -28,7 +28,7 @@ import matplotlib.patheffects as pe
 import matplotlib as mpl
 import cmasher as cmr  # noqa: F401 register "cmr.*" colour maps used
 from lightcone_io.units import units_from_attributes
-from swiftlet.simulation_suites import output_redshifts
+from swiftlet.simulation_suites import Simulation, output_redshifts
 from swiftlet.snapshot_redshifts import snapshot_redshift_range
 from swiftlet.flamingo_lightcones import flamingo_shell_redshift_file
 from swiftlet.example_plot_settings import plot_settings
@@ -232,7 +232,7 @@ def find_haloes_in_shell(
     shell_redshift_range,
     centre_vector,
     radius,
-    boxsize_resolution,
+    snapshot_redshifts,
     remote_dir=None,
     min_mass=1e13 * unyt.Msun,
     extra_properties=("InputHalos/IsCentral", "BoundSubhalo/TotalMass"),
@@ -265,8 +265,8 @@ def find_haloes_in_shell(
     :type   centre_vector:          array-like, shape (3,)
     :param  radius:                 angular radius to search [radians]
     :type   radius:                 float
-    :param  boxsize_resolution:     FLAMINGO box size and resolution label, e.g. "L1000N1800"
-    :type   boxsize_resolution:     str
+    :param  snapshot_redshifts:     output redshift of each snapshot, in order of snapshot number (see output_redshifts)
+    :type   snapshot_redshifts:     numpy.ndarray
     :param  remote_dir:             remote directory of the files (hdfstream), or None for local files
     :type   remote_dir:             hdfstream.RemoteDirectory
     :param  min_mass:               smallest M200c of the haloes kept
@@ -284,7 +284,7 @@ def find_haloes_in_shell(
     overlapping = []
     for snap_nr in range(0, 1000):
         try:
-            snap_z_min, snap_z_max = snapshot_redshift_range(output_redshifts(boxsize_resolution), snap_nr)
+            snap_z_min, snap_z_max = snapshot_redshift_range(snapshot_redshifts, snap_nr)
         except (IndexError, KeyError, ValueError):
             break  # past the last snapshot
         last_snap_nr = snap_nr
@@ -676,6 +676,9 @@ if __name__ == "__main__":
     # Use lightcone0 of L1_m9 fiducial model
     boxsize_resolution = "L1000N1800"
     sim_name = "HYDRO_FIDUCIAL"
+
+    # the output redshift of each snapshot
+    snapshot_redshifts = output_redshifts(Simulation.from_label(boxsize_resolution, sim_name))
 
     # Find a halo on the sky at low redshift
     lightcone_nr = 0

@@ -41,7 +41,7 @@ def main(args):
 
     if args["beam_vector"] is not None:
         kwargs["ang_radius_deg"] = args["ang_radius_deg"]
-        kwargs["redistibute_particles"] = args["redistribute"]
+        kwargs["redistribute_particles"] = args["redistribute"]
 
     particles = lightcone.place_snapshot_particles_in_shell(
         tuple(args["redshift_range"]),

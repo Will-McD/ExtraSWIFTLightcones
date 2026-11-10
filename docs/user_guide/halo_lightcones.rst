@@ -14,7 +14,7 @@ Placing haloes
 
 :meth:`SnapshotLightcone.place_halos_in_shell` places the haloes of a redshift shell. It takes the paths of the SOAP
 catalogues as a format string with a ``{snap_nr}`` field, usually the simulation's ``soap_format`` (see
-:ref:`soap-halo-catalogues`).
+:ref:`simulation parameter <table-of-values>`).
 
 .. code-block:: python
 
@@ -80,6 +80,7 @@ Each catalogue is read once, and its haloes placed in every tile of its snapshot
 
 The haloes placed are the same whether the catalogues are read whole, in chunks or with MPI.
 
+.. _map-halo-lightcone-to-soap:
 
 Halo properties from SOAP
 -------------------------
@@ -112,6 +113,7 @@ properties. To find the rows of a catalogue selected by a property before buildi
 mass, use :func:`select_soap_rows <swiftlet.soap_reader.select_soap_rows>` (see
 :doc:`additional_tools`).
 
+.. _write-halo-lightcone:
 
 Writing halo lightcone files
 ----------------------------
@@ -126,6 +128,8 @@ lightcones, so it can be read with `LightconeIO <https://lightconeio.readthedocs
     the SOAP catalogue, whose units are copied with it
 *   the lightcone's ``.metadata`` is written too, so the file records how it was made
 
+
+
 .. code-block:: python
 
     from swiftlet.snapshot_lightcone import write_halo_lightcone_file
@@ -135,11 +139,20 @@ lightcones, so it can be read with `LightconeIO <https://lightconeio.readthedocs
         keep = snap_nr == snap
         write_halo_lightcone_file(
             f"lightcone_halos_{snap:04d}.hdf5",                             # one file per snapshot
-            {name: values[keep] for name, values in halos.items()},        # the haloes of this snapshot
+            {name: values[keep] for name, values in halos.items()},         # the haloes of this snapshot
             sim.soap_file(snap),                                            # their SOAP catalogue, for its metadata
             {"SO/200_crit/TotalMass": m200c[keep]},                         # SOAP properties to write with them
             halos.metadata,                                                 # the settings that made the lightcone
         )
+
+
+.. Note::
+    When writing these files it is suggested that you write one file per snapshot, so that when read back with 
+    LightconeIO's ``HaloLightconeFile`` the lightcone haloes can be paired with a SOAP catalogue. However, haloes from 
+    multiple snapshots can be written to the same file and read with ``HaloLightconeFile`` however it cannot pair the 
+    haloes in the file with a SOAP catalogue (one file per snapshot) when read in, instead this can be done manually, 
+    snapshot-by-snapshot after reading the haloes in. 
+
 
 Read a file back with LightconeIO, e.g. only the haloes within an angle of a direction:
 

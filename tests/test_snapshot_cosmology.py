@@ -9,13 +9,15 @@ parameters groups SWIFT writes.
 import numpy as np
 import pytest
 import unyt
+from pathlib import Path
 
 h5py = pytest.importorskip("h5py")
 from astropy.cosmology import w0waCDM
 
 from swiftlet.snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology, find_snapshot_files, neutrino_masses
-from swiftlet.simulation_suites import Simulation
+from swiftlet.simulation_suites import Simulation, read_output_list, write_output_list
 
+OUTPUT_LISTS = Path(__file__).resolve().parent / "data" / "output_lists"
 
 # build mock cosmology params
 MPC_CM = 3.08567758149e24
@@ -116,12 +118,17 @@ def test_find_snapshot_files(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "label, sim_name, suite", [("L1000N1800", "HYDRO_FIDUCIAL", "flamingo"), ("L0200N1504", "Thermal", "colibre")]
+    "label, sim_name, suite, output_list",
+    [("L1000N1800", "HYDRO_FIDUCIAL", "flamingo", "flamingo_L1"), ("L0200N1504", "Thermal", "colibre", "colibre")],
 )
-def test_from_simulation(tmp_path, label, sim_name, suite):
+def test_from_simulation(tmp_path, label, sim_name, suite, output_list):
     sim = Simulation.from_label(label, sim_name, base_dir_format=str(tmp_path) + "/{box_res}/{sim_name}")
+    write_output_list(sim.output_list, read_output_list(OUTPUT_LISTS / f"{output_list}.txt"))
+
     # the redshift 0 snapshot, named as the suite names its snapshots
+
     write_snapshot(tmp_path / sim.snapshot_file(sim.z0_snapshot))
+
     cosmo = SnapshotCosmology.from_simulation(sim)
     assert cosmo.snapshot_filename == sim.snapshot_file(sim.z0_snapshot)
     assert f"{suite}_{sim.z0_snapshot:04d}" in cosmo.snapshot_filename
@@ -129,10 +136,38 @@ def test_from_simulation(tmp_path, label, sim_name, suite):
 
 def test_from_simulation_without_its_z0_snapshot(tmp_path):
     sim = Simulation.from_label("L0200N1504", "Thermal", base_dir_format=str(tmp_path) + "/{box_res}/{sim_name}")
+    write_output_list(sim.output_list, read_output_list(OUTPUT_LISTS / "colibre.txt"))
     write_snapshot(tmp_path / sim.snapshot_file(100))
     write_snapshot(tmp_path / sim.snapshot_file(120))
     # the lowest redshift snapshot there is
     assert SnapshotCosmology.from_simulation(sim).snapshot_filename.endswith("colibre_0120.0.hdf5")
+
+
+def test_from_simulation_with_its_own_snapshot_names(tmp_path):
+    """Without its redshift 0 snapshot, the snapshots are looked for with the simulation's own snapshot format."""
+    sim = Simulation.from_label(
+        "L0025N0376",
+        "MY_RUN",
+        base_dir_format=str(tmp_path) + "/{sim_name}",
+        snapshot_format="outputs/run_{snap_nr:03d}.hdf5",
+        output_list="outputs.txt",
+    )
+    write_output_list(sim.output_list, [3.0, 2.0, 1.0, 0.0])
+
+    with pytest.raises(FileNotFoundError, match="no snapshot of L0025N0376/MY_RUN"):
+        SnapshotCosmology.from_simulation(sim)
+
+    write_snapshot(tmp_path / "MY_RUN" / "outputs" / "run_000.hdf5")
+    write_snapshot(tmp_path / "MY_RUN" / "outputs" / "run_002.hdf5")
+
+    assert SnapshotCosmology.from_simulation(sim).snapshot_filename == sim.snapshot_file(2)
+
+    # a snapshot of several files, read from its virtual file if its file 0 is not there
+    sim = sim.with_paths(snapshot_format="outputs/run_{snap_nr:03d}/run_{snap_nr:03d}.{file_nr}.hdf5")
+
+    write_snapshot(tmp_path / "MY_RUN" / "outputs" / "run_001" / "run_001.hdf5")
+
+    assert SnapshotCosmology.from_simulation(sim).snapshot_filename.endswith("run_001/run_001.hdf5")
 
 
 def test_volumes_and_shells(tmp_path):

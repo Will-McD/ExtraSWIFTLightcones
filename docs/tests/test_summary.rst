@@ -65,7 +65,8 @@ The following table summarises the test files and what they check.
      -  :class:`swiftlet.snapshot_cosmology.SnapshotCosmology` functionality; reads FLAMINGO and COLIBRE snapshots, 
         H0 is transformed to km/s from SWIFT units, all required cosmological parameters are present, the neutrinos 
         masses (checked against swiftsimio), comoving distances, computing lightcone volumes, finding the snapshot 
-        files, and the lightcones can manage different cosmologies. 
+        files (including a simulation's lowest redshift snapshot, whatever its snapshots are named), and the
+        lightcones can manage different cosmologies. 
 
    * -  ``test_snapshot_redshifts.py``
      -  The redshift range each snapshot covers, :func:`swiftlet.snapshot_redshifts.snapshots_in_range` returns every 
@@ -77,8 +78,9 @@ The following table summarises the test files and what they check.
    * -  ``test_simulation_suites.py``
      -  Each simulation's paths and snapshot redshifts come from its suite, FLAMINGO or COLIBRE. Making a 
         :class:`swiftlet.simulation_suites.Simulation` object from its label or path, finding the suite of a label, the 
-        directories (including :envvar:`SWIFTLET_FLAMINGO_DIR` and :envvar:`SWIFTLET_COLIBRE_DIR`), the output redshift 
-        files, and the lightcone classes taking a :class:`swiftlet.simulation_suites.Simulation` or a label and name.
+        directories (including :envvar:`SWIFTLET_FLAMINGO_DIR` and :envvar:`SWIFTLET_COLIBRE_DIR`), reading output lists 
+        and refusing other files, and the lightcone classes taking a :class:`swiftlet.simulation_suites.Simulation` or a 
+        label and name.
 
    * -  ``test_soap_reader.py``
      -  The SOAP readers of :mod:`swiftlet.soap_reader` give the same rows and units whether reading in chunks or 

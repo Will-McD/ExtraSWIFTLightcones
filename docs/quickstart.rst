@@ -7,7 +7,7 @@ simulation from both its snapshots and halo catalogues. We will build a pencil b
 
 Building a lightcone from snapshots takes three steps:
 
-#.  :ref:`define-lightcone`: choose the simulation, the lightcone's geometry and its internal structure (how the copies
+#.  Defining the lightcone: choose the simulation, the lightcone's geometry and its internal structure (how the copies
     of the snapshot box are oriented).
 #.  Gather the simulation data needed: the lightcone is first built at snapshots cell level, from which we find the 
     exact files and cells to read without ever touching the particle (or halo) data. 
@@ -79,7 +79,6 @@ the gather step and, read and place step.
         sim.soap_format,                            # formatted path to the SOAP halo catalogues
         lightcone_redshift_range=(0.05, 0.3),       # redshift range of the lightcone
         ang_radius_deg=2.5,                         # angular radius in degrees
-        soap_chunk_size=2**22,                      # rows of a catalogue read at a time
     )
 
     halos["Lightcone/HaloCentre"]           # lightcone positions, with the observer at the origin
@@ -94,8 +93,12 @@ The halo lightcone holds only the properties needed to place each halo in the li
 ``"InputHalos/SOAPIndex"``). Any other property can be read from the SOAP catalogues with 
 :func:`read_soap_selected_rows <swiftlet.soap_reader.read_soap_selected_rows>`.
 
-As an example we can write a HDF5 file storing only the haloes in the lightcone that are from the highest redshift 
-snapshot read in. Additionally we will also include if each halo is a central, as read from SOAP:
+
+As an example we can sort the haloes in the lightcone by select properties from SOAP and then store the selected haloes 
+as a HDF5 files in the same format as the existing FLAMINGO halo lightcones: one file per snapshot (see 
+:ref:`write-halo-lightcone` for more information on writing halo lightcone files). 
+
+Here we will store one file per snapshot for only the central haloes in the lightcone:
 
 .. code-block:: python
     
@@ -105,36 +108,41 @@ snapshot read in. Additionally we will also include if each halo is a central, a
 
     snap_nr = halos["Lightcone/SnapshotNumber"].value.astype(int)
     soap_index = halos["InputHalos/SOAPIndex"].value.astype(int)
-
-    snap = int(snap_nr.min())  # the highest redshift snapshot
-    keep = snap_nr == snap     # keep haloes in this snapshot
-    snapshot_haloes = {name: values[keep] for name, values in halos.items()} # make dict of haloes kept 
+    numb_haloes = len(soap_index)
     
-    # the rows of the catalogue to read, and where each halo of the lightcone is among them
-    rows, where = np.unique(soap_index[keep], return_inverse=True)  
-    
-    # read properties for each halo from the corresponding soap catalogue
-    soap_filename = sim.soap_file(snap)
-    is_central = read_soap_selected_rows(soap_filename, ["InputHalos/IsCentral"], rows)["InputHalos/IsCentral"][where]
+    # iterate through snapshots haloes are from 
+    for snap in np.unique(snap_nr):
 
-    halo_filename = f"./lightcone_halos_{snap:04d}.hdf5" # the file to write
-    write_halo_lightcone_file(
-        halo_filename,                                            
-        snapshot_haloes,                                          # the haloes from the lightcone
-        soap_filename,                                            # the soap catalogue, for metadata 
-        properties = {"InputHalos/IsCentral": is_central.value},  # SOAP properties not in the halo lightcone
-        metadata = halos.metadata                                 # the settings that made the lightcone
-    )
+        keep = snap_nr == snap     # keep haloes in this snapshot
+        soap_filename = sim.soap_file(snap) # SOAP catalogue for this snapshot 
 
-The file can be read back with `LightconeIO <https://lightconeio.readthedocs.io/en/latest/halo_lightcones.html>`_,
-the same as any existing halo lightcone from FLAMINGO, with all the same functionality including the ability to 
-spatially query the lightcone.
+        # the rows of the catalogue to read, and where each halo of the lightcone is among them
+        rows, where = np.unique(soap_index[keep], return_inverse=True) 
+
+        # "InputHalos/IsCentral" is 1 for central haloes and 0 otherwise 
+        is_central = read_soap_selected_rows(soap_filename, ["InputHalos/IsCentral"], rows)["InputHalos/IsCentral"][where]
+        
+        # write halo lightcone file for snapshot 
+        halo_filename = f"./lightcone_halos_{snap:04d}.hdf5" # the file to write
+        write_halo_lightcone_file(
+            halo_filename,                                            
+            {name: values[keep] for name, values in halos.items()},   # the haloes from the lightcone 
+            soap_filename,                                            # the soap catalogue, for metadata 
+            properties = {"InputHalos/IsCentral": is_central.value},  # SOAP properties not in the halo lightcone
+            metadata = halos.metadata                                 # the settings that made the lightcone
+        )
+
+
+The files can be read back with `LightconeIO <https://lightconeio.readthedocs.io/en/latest/halo_lightcones.html>`_,
+the same as any of FLAMINGO's halo lightcones. 
+
 
 .. code-block:: python
     
     from lightcone_io.halo_reader import HaloLightconeFile
     
     # read the file back with lightcone_io
+    halo_filename = f"./lightcone_halos_{np.unique(snap_nr)[0]:04d}.hdf5"
     halo_file = HaloLightconeFile(halo_filename, soap_filename=soap_filename)
     read_properties=[                   
         "Lightcone/HaloCentre",

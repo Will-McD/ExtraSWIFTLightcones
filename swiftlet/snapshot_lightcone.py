@@ -427,12 +427,13 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
     :param  filename:       path of the HDF5 file to write, e.g. lightcone_haloes_0127.hdf5
     :type   filename:       str
     :param  haloes:         haloes placed by :func:`swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell`,
-                             all of them on this rank
+                            all of them on this rank
     :type   haloes:         dict
     :param  soap_filename:  SOAP catalogue of the haloes' snapshot, for the unit attributes and the Cosmology and
                             Units groups
     :type   soap_filename:  str
-    :param  properties:     {name: values} of SOAP properties of each halo to write, e.g. {"InputHalos/IsCentral": ...}
+    :param  properties:     {name: values} , additional SOAP properties (not returned by place_halos_in_shell) of each
+                            halo to write e.g. {"InputHalos/IsCentral": ...}
     :type   properties:     dict
     :param  metadata:       .metadata of the haloes placed, see
                             :func:`swiftlet.snapshot_lightcone.SnapshotLightcone.lightcone_metadata`
@@ -1070,10 +1071,8 @@ class SnapshotLightcone:
         Returns the snapshot numbers for the redshift range of the lightcone shell, from low to high redshift.
 
         Read ahead and find which snapshots are available (for particles and SOAP catalogues),
-        then identify which snapshots fill the lightcones redshift range.
-
-        If any snapshots are missing, fill the gap in redshft with the neighbouring available snapshots.
-        When filling gaps raise a SnapshotGapWarning.
+        then identify which snapshots fill the lightcones redshift range. If any snapshots are missing, fill the gap in
+        redshft with the neighbouring available snapshots. If snapshots are missing raise a SnapshotGapWarning.
 
         Raise a ValueError if the redshift spacing between the snapshots is greater than
         the MAX_SNAPSHOT_SPACING.
@@ -1726,10 +1725,10 @@ class SnapshotLightcone:
 
         # print out of the snapshot redshift info
         snapshot_to_shell_str = (
-            f"snapshot: {snapshot_number}"
-            + f"\n\tcentre redshift {self.simulation.snapshot_redshift(snapshot_number)}"
-            + f"\n\tredshift range: {snapshot_z_range[0]} - {snapshot_z_range[1]}"
+            f"snapshot: {snapshot_number}\n\tcentre redshift {self.simulation.snapshot_redshift(snapshot_number)}"
+            f"\n\tredshift range: {snapshot_z_range[0]} - {snapshot_z_range[1]}"
         )
+
         self._log(snapshot_to_shell_str, level=2)
         return tuple(
             [
@@ -3077,149 +3076,6 @@ class SnapshotLightcone:
                     halos["InputHalos/HaloCatalogueIndex"], unyt.dimensionless
                 ),
                 "InputHalos/SOAPIndex": unyt.unyt_array(halos["InputHalos/SOAPIndex"], unyt.dimensionless),
-                "Lightcone/ExpansionFactor": unyt.unyt_array(expansion_factor, unyt.dimensionless),
-            },
-            metadata,
-        )  # include metadata
-
-    def __place_halos_in_shell_DO_NOT_USE(
-        self, halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots=None
-    ):
-        """
-        Halo counterpart of place_snapshot_particles_in_shell.
-
-        Place haloes from SOAP catalogues into a lightcone shell using the same methods as used for particles.
-
-        Read a snapshot's entire SOAP halo catalogue in one collective read.
-
-        Track the minimum number of properties (snapshot number, catalogue index)
-        required to look up any other properties in SOAP catalgues later:
-
-          - Lightcone/HaloCentre: the halo's centre, transformed into the
-            lightcone frame exactly like a particle's Coordinates.
-          - Lightcone/SnapshotNumber: the snapshot the halo came from.
-          - InputHalos/HaloCatalogueIndex: the halo's index in that
-            snapshot's own SOAP catalogue.
-          - Lightcone/ExpansionFactor: expansion factors are computed for all
-            at the halo's new lightcone comoving distance.
-
-        Returns a dict of halo properties, one row per halo kept:
-            {
-                Lightcone/HaloCentre,
-                Lightcone/SnapshotNumber,
-                InputHalos/HaloCatalogueIndex,
-                Lightcone/ExpansionFactor
-                }
-
-        :param  halo_format:                format string for SOAP catalogue filenames (using {snap_nr}),
-                                                passed straight to lightcone_io.halo_catalogue.SOAPCatalogue
-        :type   halo_format:                str
-        :param  lightcone_redshift_range:   minimum and maximum redshift of the shell to populate [z_min, z_max]
-        :type   lightcone_redshift_range:   sequence of two floats
-        :param  ang_radius_deg:             angular radius [deg] of the beam, passed through exactly like
-                                                place_snapshot_particles_in_shell (None for an all-sky
-                                                observer, see SnapshotAllSky's thin wrapper)
-        :type   ang_radius_deg:             float
-        :param  use_snapshots:              snapshot numbers to use, as in gather_files, bypassing the usual
-                                                redshift-range lookup
-        :type   use_snapshots:              list or numpy.ndarray
-        """
-        self._validate_ang_radius_deg(ang_radius_deg)
-
-        if use_snapshots is None:
-            snapshots_to_read = self.simulation.snapshots_in_range(lightcone_redshift_range)[::-1]
-        else:
-            snapshots_to_read = np.asarray(use_snapshots)
-
-        empty_result = {
-            "Lightcone/HaloCentre": unyt.unyt_array(np.zeros((0, 3)), unyt.Mpc),
-            "Lightcone/SnapshotNumber": unyt.unyt_array(np.zeros((0,), dtype=int), unyt.dimensionless),
-            "InputHalos/HaloCatalogueIndex": unyt.unyt_array(np.zeros((0,), dtype=int), unyt.dimensionless),
-            "Lightcone/ExpansionFactor": unyt.unyt_array(np.zeros((0,)), unyt.dimensionless),
-        }
-
-        # add metadata to empty result
-        metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
-        empty_result = LightconeOutput(empty_result, metadata)
-
-        if len(snapshots_to_read) == 0:
-            self._log("\nNo snapshots found in range for halo placement\n", level=1)
-
-            return empty_result
-
-        to_read = ["InputHalos/HaloCentre", "InputHalos/HaloCatalogueIndex"]
-        halo_cat = hc.SOAPCatalogue(halo_format, int(np.min(snapshots_to_read)), int(np.max(snapshots_to_read)))
-
-        kept_centre = []
-        kept_snap_nr = []
-        kept_index = []
-
-        for snap_nr in snapshots_to_read:
-            snap_nr = int(snap_nr)
-            snapshot_z_range = self.simulation.snapshot_redshift_range(snap_nr)
-            snap_shell_z_range = (
-                max(snapshot_z_range[0], lightcone_redshift_range[0]),
-                min(snapshot_z_range[1], lightcone_redshift_range[1]),
-            )
-            if snap_shell_z_range[0] >= snap_shell_z_range[1]:
-                # this snapshot's own redshift range doesn't overlap the requested shell
-                continue
-
-            self._log(f"\nReading SOAP halos for snapshot {snap_nr}\n", level=2)
-            nr_kept_before = sum(len(a) for a in kept_snap_nr)
-
-            halo_data = halo_cat.read(snap_nr, to_read)
-            halo_index = halo_data["InputHalos/HaloCatalogueIndex"].value.astype(int)
-            if halo_index.shape[0] == 0:
-                continue
-
-            halo_centre_box = sw_units.drop_a_from_comoving_property(halo_data["InputHalos/HaloCentre"]).to_value("Mpc")
-
-            self.__reset_cell_read_state(snap_nr)
-
-            for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range, ang_radius_deg):
-                lightcone_coords = self.Snapshot2Lightcone(snap_nr, halo_centre_box, tile=tile)[tile]
-
-                keep_idx, __ = self.__select_paticles_in_shell(
-                    lightcone_coords,
-                    zmin=z_sub_min,
-                    zmax=z_sub_max,
-                    ang_radius_deg=ang_radius_deg,
-                    method="exact",
-                    r_tol=0 * unyt.Mpc,
-                )
-                if len(keep_idx) == 0:
-                    continue
-
-                kept_centre.append(lightcone_coords[keep_idx])
-                kept_snap_nr.append(np.full(len(keep_idx), snap_nr, dtype=int))
-                kept_index.append(halo_index[keep_idx])
-
-            self._log(
-                (
-                    f"\tsnap: {snap_nr},\thalos kept from this snapshot:"
-                    f"\t{sum(len(a) for a in kept_snap_nr) - nr_kept_before}"
-                ),
-                level=2,
-            )
-
-        if not kept_centre:
-            return empty_result
-
-        all_centre = np.concatenate(kept_centre, axis=0)
-        all_snap_nr = np.concatenate(kept_snap_nr, axis=0)
-        all_index = np.concatenate(kept_index, axis=0)
-
-        r_comoving = np.linalg.norm(all_centre, axis=1)
-        expansion_factor = self.__comoving_distance_to_scalefactor(r_comoving)
-
-        self._log(f"\nTotal halos placed in lightcone shell: {all_snap_nr.shape[0]}\n", level=1)
-
-        return LightconeOutput(
-            {
-                "Lightcone/HaloCentre": unyt.unyt_array(all_centre, unyt.Mpc),
-                "Lightcone/SnapshotNumber": unyt.unyt_array(all_snap_nr, unyt.dimensionless),
-                "InputHalos/HaloCatalogueIndex": unyt.unyt_array(all_index, unyt.dimensionless),
                 "Lightcone/ExpansionFactor": unyt.unyt_array(expansion_factor, unyt.dimensionless),
             },
             metadata,

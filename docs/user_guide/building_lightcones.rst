@@ -95,8 +95,8 @@ The methods that do both steps at once are:
 
    * - :meth:`SnapshotLightcone.place_halos_in_shell`
      - the haloes of the SOAP catalogues, at the paths of the simulation's ``soap_format`` (see
-       :ref:`soap-halo-catalogues`), with the properties needed to find each halo in its catalogue (see
-       :doc:`halo_lightcones`)
+       :ref:`simulation parameter <table-of-values>`), with the properties needed to find each halo in its catalogue 
+       (see :doc:`halo_lightcones`)
 
 Both methods can work with MPI to share the work between ranks (see :doc:`parallel_and_hpc`).
 

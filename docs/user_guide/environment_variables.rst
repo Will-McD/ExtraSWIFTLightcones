@@ -9,13 +9,11 @@ data files. This page lists each one and how to change it.
 
   Maximum number of threads used by SWIFTLET, 30 by default. 
 
-.. envvar:: SWIFTLET_FLAMINGO_DIR
+.. envvar:: SWIFTLET_MAX_SNAPSHOT_SPACING
 
-  The directory holding the FLAMINGO simulations: ``/cosma8/data/dp004/flamingo/Runs``.
-
-.. envvar:: SWIFTLET_COLIBRE_DIR
-
-  The directory holding the COLIBRE simulations: ``/cosma8/data/dp004/colibre/Runs``.
+  The largest redshift spacing allowed between the snapshots filling a lightcone shell: a gap of this much or more
+  (from missing snapshots, or between the outputs themselves) raises a ``ValueError``. Set to 0.1 by default (see
+  :ref:`max-snapshot-spacing`).
 
 .. envvar:: L1_REDSHIFTS_FILENAME
 
@@ -25,15 +23,19 @@ data files. This page lists each one and how to change it.
 
   The FLAMINGO lightcone shell redshift files for the  2.8 Gpc (L2p8) boxsizes, set by ``swiftlet-configure``. 
 
+.. envvar:: SWIFTLET_FLAMINGO_DIR
+
+  The directory holding the FLAMINGO simulations: ``/cosma8/data/dp004/flamingo/Runs``.
+
+.. envvar:: SWIFTLET_COLIBRE_DIR
+
+  The directory holding the COLIBRE simulations: ``/cosma8/data/dp004/colibre/Runs``.
+
 .. envvar:: HEALPY_PIXEL_WEIGHTS
 
   The directory of the HEALPix pixel weights: ``<environment>/share/healpy-data``
 
-.. envvar:: SWIFTLET_MAX_SNAPSHOT_SPACING
 
-  The largest redshift spacing allowed between the snapshots filling a lightcone shell: a gap of this much or more
-  (from missing snapshots, or between the outputs themselves) raises a ``ValueError``. Set to 0.1 by default (see
-  :ref:`max-snapshot-spacing`).
 
 Setting a variable
 ------------------
@@ -171,68 +173,10 @@ how far out a lightcone can be built from them:
     advised and SWIFTLET warns whenever the limit is raised.
 
 
-Where to look for the simulations
----------------------------------
-
-Each suite looks for its simulations in ``<directory>/<box_res>/<sim_name>``, 
-e.g. ``/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL``. 
-
-The directory of a simulation is chosen in this order:
-
-#.  the base directory (``base_dir_format``), if given, 
-    e.g. ``Simulation.from_label(..., base_dir_format="/my/runs/{box_res}/{sim_name}")``, 
-    or ``simulation_base_dir_format=`` for the lightcone classes
-#.  the suite's environment variable, :envvar:`SWIFTLET_FLAMINGO_DIR` or :envvar:`SWIFTLET_COLIBRE_DIR`, the directory holding the 
-    simulations
-#.  the suite's directory on COSMA.
-
-
-For simulations copied elsewhere, keeping the ``<box_res>/<sim_name>`` layout:
-
-.. code-block:: bash
-
-    export SWIFTLET_FLAMINGO_DIR=/data/flamingo        # finds /data/flamingo/L1000N1800/HYDRO_FIDUCIAL
-    export SWIFTLET_COLIBRE_DIR=/data/colibre
-
-The variable is read when the ``Simulation`` is made (by ``Simulation.from_label``, or by a lightcone class given a 
-label and name; see :mod:`swiftlet.simulation_suites`).
-Within a simulation's directory, the snapshots are at the suite's ``snapshot_format``. For FLAMINGO this 
-is ``snapshots/flamingo_XXXX/flamingo_XXXX.N.hdf5``.
-
-
-.. _soap-halo-catalogues:
-
-SOAP halo catalogues
-^^^^^^^^^^^^^^^^^^^^
-
-Each suite has a ``soap_format``: the path of the
-catalogues relative to a simulation's directory, with a ``{snap_nr}`` field (``SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5``
-for FLAMINGO and COLIBRE). A simulation's catalogues are then in its own directory, so they follow the simulation
-wherever :envvar:`SWIFTLET_FLAMINGO_DIR` or :envvar:`SWIFTLET_COLIBRE_DIR` points:
-
-.. code-block:: python
-
-   sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
-   sim.soap_format         # <simulation directory>/SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5
-   sim.soap_file(77)       # the SOAP catalogue of snapshot 77
-   halos = beam.place_halos_in_shell(sim.soap_format, lightcone_redshift_range=(0.05, 0.15), ang_radius_deg=5.)
-
-
-For catalogues somewhere else, give the simulation its own ``soap_format``, as a path relative to the simulation's
-directory or an absolute path:
-
-.. code-block:: python
-
-   sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL", soap_format="/my/soap/halo_properties_{snap_nr:04d}.hdf5")
-
-:meth:`Simulation.from_path <swiftlet.simulation_suites.Simulation.from_path>` takes ``soap_format`` too. Each method 
-that reads the catalogues also takes the format string directly, so any other path can be passed there.
-
-
 .. _install-flamingo-redshifts:
 
-FLAMINGO shell redshift files
------------------------------
+FLAMINGO redshift shells
+------------------------
 
 The environment variables that set the paths to the files containing the redshift bounds of `each shell in FLAMINGO's lightcones <https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html>`_ 
 : :envvar:`L1_REDSHIFTS_FILENAME` and :envvar:`L2P8_REDSHIFTS_FILENAME`.
@@ -249,6 +193,31 @@ for in this order:
 
 If ``swiftlet-configure`` is not run, the files are downloaded the first time they are needed instead. 
 To use your own copies, set the variables to their paths. 
+
+
+Where to look for the simulations
+---------------------------------
+
+Each suite looks for its simulations in ``<directory>/<box_res>/<sim_name>`` (see :ref:`simulation-paths`).
+
+The directory of a simulation is chosen in this order:
+
+#.  the base directory (``base_dir_format``), if given, 
+    e.g. ``Simulation.from_label(..., base_dir_format="/my/runs/{box_res}/{sim_name}")``, 
+    or ``simulation_base_dir_format=`` for the lightcone classes
+#.  the suite's environment variable, :envvar:`SWIFTLET_FLAMINGO_DIR` or :envvar:`SWIFTLET_COLIBRE_DIR`, the directory
+    holding the simulations
+
+
+For simulations copied elsewhere, keeping the ``<box_res>/<sim_name>`` layout:
+
+.. code-block:: bash
+
+    export SWIFTLET_FLAMINGO_DIR=/data/flamingo        # finds /data/flamingo/L1000N1800/HYDRO_FIDUCIAL
+    export SWIFTLET_COLIBRE_DIR=/data/colibre
+
+The variable is read when the ``Simulation`` is made (by ``Simulation.from_label``, or by a lightcone class given a 
+label and name; see :mod:`swiftlet.simulation_suites`).
 
 
 .. _healpix-weights:

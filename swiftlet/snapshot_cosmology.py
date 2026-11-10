@@ -165,10 +165,17 @@ class SnapshotCosmology:
         :param  simulation: the simulation
         :type   simulation: swiftlet.simulation_suites.Simulation
         """
-        filename = simulation.snapshot_file(simulation.z0_snapshot, 0)
-        if os.path.isfile(filename):
-            return cls(filename)
-        return cls(find_snapshot_files(simulation.snapshot_dir)[-1])
+        for snap_nr in range(simulation.z0_snapshot, -1, -1):
+            for filename in (
+                simulation.snapshot_file(snap_nr, 0),
+                simulation.snapshot_format_whole.format(snap_nr=snap_nr),
+            ):
+                if os.path.isfile(filename):
+                    return cls(filename)
+        raise FileNotFoundError(
+            f"no snapshot of {simulation.box_res}/{simulation.name} found ({simulation.snapshot_file(0, 0)}, ..., "
+            f"{simulation.snapshot_file(simulation.z0_snapshot, 0)})"
+        )
 
     @classmethod
     def from_path(cls, path, pattern=SNAPSHOT_FILE_PATTERN):

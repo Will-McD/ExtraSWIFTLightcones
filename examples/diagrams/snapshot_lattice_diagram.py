@@ -29,7 +29,7 @@ import tempfile
 from pathlib import Path
 import h5py
 import numpy as np
-from swiftlet.simulation_suites import Simulation
+from swiftlet.simulation_suites import FLAMINGO, Simulation, read_output_list, suite_for_label, write_output_list
 from swiftlet.snapshot_cosmology import SnapshotCosmology
 from swiftlet.snapshot_lightcone import SnapshotAllSky, SnapshotBeam
 from swiftlet.snapshot_orientation import write_orientation_tables
@@ -101,6 +101,10 @@ CASES = [(NOT_REORIENTED, None)] + [(REORIENTED, lock) for lock in LOCKS]
 
 # one orientation that leaves the box unchanged: no quarter turns, no reflections and no cell shift
 UNCHANGED_TABLES = {"QuarterTurns": [[0, 0, 0]], "Reflections": [[1, 1, 1]], "CellShifts": [[0, 0, 0]]}
+
+# the output lists the fake simulations are given (as SWIFT writes one in a simulation's directory): the output
+# redshifts of FLAMINGO's 1 Gpc and 2.8 Gpc boxes, and of COLIBRE
+OUTPUT_LISTS = Path(__file__).resolve().parents[2] / "tests" / "data" / "output_lists"
 
 ############################################################################################################
 
@@ -274,6 +278,24 @@ def write_soap_catalogue(filename, redshift, halo_index, halo_centre):
         set_unit_attrs(f.create_dataset("InputHalos/HaloCatalogueIndex", data=halo_index), 0, 0, conversion=1.0)
 
 
+def output_list_of(box_res):
+    """
+    The output list of the real simulations with a box size and resolution label, for a fake simulation.
+
+    Returns the path of the list, in OUTPUT_LISTS.
+
+    :param  box_res:    box size and resolution label, e.g. "L1000N0900" or "L0025N0376"
+    :type   box_res:    str
+    """
+    if suite_for_label(box_res) is FLAMINGO:
+        name = (
+            "flamingo_L1" if box_res.startswith("L1000N0900") or box_res.startswith("L1000N1800") else "flamingo_L2p8"
+        )
+    else:
+        name = "colibre"
+    return OUTPUT_LISTS / f"{name}.txt"
+
+
 def write_lattice_simulation(
     run_dir,
     box_res=BOX_RES,
@@ -312,6 +334,10 @@ def write_lattice_simulation(
     # a fake simulation stored in run_dir
     simulation = Simulation.from_label(box_res, sim_name, base_dir_format=f"{run_dir}/{{box_res}}/{{sim_name}}")
     halo_format = f"{simulation.directory}/SOAP/halo_properties_{{snap_nr:04d}}.hdf5"
+
+    # its output list, in its directory as SWIFT writes it: the output redshifts of the real simulations of its label
+    Path(simulation.directory).mkdir(parents=True, exist_ok=True)
+    write_output_list(simulation.output_list, read_output_list(output_list_of(box_res)))
 
     pos = lattice_positions(boxsize, spacing)
     ids = np.arange(len(pos))

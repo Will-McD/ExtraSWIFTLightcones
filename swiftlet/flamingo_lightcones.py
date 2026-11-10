@@ -84,3 +84,24 @@ def flamingo_box_resolution(path):
             )
         )
     return matches.pop()
+
+
+def flamingo_simulation_directory(path):
+    """
+    Returns the directory of a FLAMINGO simulation from a path to the simulation's data.
+
+    The directory is the path up to its box size and resolution label and the simulation's name, e.g.
+    "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL/hbt_lightcone_halos/lightcone0/..." ->
+    "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL".
+
+    Raises ValueError if the path has no label (or more than one different one), or no directory after it.
+
+    :param  path:   path to the simulation data
+    :type   path:   str
+    """
+    label = flamingo_box_resolution(path)
+    parts = str(path).split("/")
+    position = parts.index(label)
+    if position + 1 >= len(parts) or not parts[position + 1]:
+        raise ValueError(f"no simulation directory after {label!r} in {path!r}")
+    return "/".join(parts[: position + 2])

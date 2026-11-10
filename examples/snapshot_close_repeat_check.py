@@ -57,7 +57,7 @@ def fake_simulation(run_dir):
     return simulation
 
 
-def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, orientation_table=None):
+def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, orientation_table=None, verbose=0):
     """
     Return the SnapshotLightcone object.
 
@@ -79,7 +79,7 @@ def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, o
         orientation_lock=orientation_lock,
         orientation_seed=orientation_seed,
         orientation_table=orientation_table,
-        verbose=0,
+        verbose=verbose,
     )
     if beam_vector is None:
         return SnapshotAllSky(**settings)
@@ -127,6 +127,7 @@ def check_cases(
                     ang_radius_deg=ang_radius_deg,
                     angle_deg=angle_deg,
                     output_file=str(filename),
+                    find_closest_copy=True,
                 )
             reports[lock, seed] = report
             print(

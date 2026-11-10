@@ -29,7 +29,7 @@ The main classes and functions for accessing the snapshots and halo catalogues o
 
    ~simulation_suites.Simulation
    ~simulation_suites.SimulationSuite
-   ~simulation_suites.output_redshifts
+   ~simulation_suites.read_output_list
    ~snapshot_cosmology.SnapshotCosmology
 
 

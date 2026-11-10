@@ -7,13 +7,15 @@ Ensure that the correct files are located, read and can fill spaces of missing s
 
 import numpy as np
 import pytest
+from pathlib import Path
 from swiftlet import snapshot_redshifts as sr
-from swiftlet.simulation_suites import Simulation, read_output_redshifts
+from swiftlet.simulation_suites import Simulation, read_output_list, write_output_list
 
-
-FLAMINGO_L1_REDSHIFTS = read_output_redshifts("flamingo_L1.yaml")
-FLAMINGO_L2P8_REDSHIFTS = read_output_redshifts("flamingo_L2p8.yaml")
-COLIBRE_REDSHIFTS = read_output_redshifts("colibre.yaml")
+# the output lists
+OUTPUT_LISTS = Path(__file__).resolve().parent / "data" / "output_lists"
+FLAMINGO_L1_REDSHIFTS = read_output_list(OUTPUT_LISTS / "flamingo_L1.txt")
+FLAMINGO_L2P8_REDSHIFTS = read_output_list(OUTPUT_LISTS / "flamingo_L2p8.txt")
+COLIBRE_REDSHIFTS = read_output_list(OUTPUT_LISTS / "colibre.txt")
 
 TABLES = {"FLAMINGO L1": FLAMINGO_L1_REDSHIFTS, "FLAMINGO L2p8": FLAMINGO_L2P8_REDSHIFTS, "COLIBRE": COLIBRE_REDSHIFTS}
 
@@ -82,8 +84,10 @@ def test_strict_bounds_leave_out_touching_snapshots(redshifts):
         assert sr.snapshots_in_range(redshifts, (z_min, z_max), range_tol=0.0, strict=True).tolist() == brute_force
 
 
-def test_redshift_buffer():
-    sim = Simulation.from_label("L1000N1800", "X")
+def test_redshift_buffer(tmp_path):
+    sim = Simulation.from_label("L1000N1800", "X", base_dir_format=str(tmp_path / "{box_res}" / "{sim_name}"))
+    Path(sim.directory).mkdir(parents=True)
+    write_output_list(sim.output_list, FLAMINGO_L1_REDSHIFTS)
     # 0.1 < z < 0.2 is snapshots 73 to 75; widened by 0.025 either side it touches 72 and 76 too
     assert sr.snapshots_in_range(FLAMINGO_L1_REDSHIFTS, (0.1, 0.2)).tolist() == [73, 74, 75]
     redshift_buffer = 0.025
@@ -168,10 +172,21 @@ def test_input_checks():
         sr.snapshot_redshift_range(FLAMINGO_L1_REDSHIFTS, 78)
 
 
-def test_simulation_uses_its_tables():
-    assert np.array_equal(Simulation.from_label("L1000N3600", "X").output_redshifts, FLAMINGO_L2P8_REDSHIFTS)
-    assert np.array_equal(Simulation.from_label("L1000N0900", "X").output_redshifts, FLAMINGO_L1_REDSHIFTS)
-    assert np.array_equal(Simulation.from_label("L200m6", "X").output_redshifts, COLIBRE_REDSHIFTS)
+def test_simulation_uses_its_output_list(tmp_path):
+    """Each simulation's output redshifts are read from the output list in its own directory."""
+    import shutil
+
+    for label, output_list, redshifts in (
+        ("L1000N3600", "flamingo_L2p8.txt", FLAMINGO_L2P8_REDSHIFTS),
+        ("L1000N0900", "flamingo_L1.txt", FLAMINGO_L1_REDSHIFTS),
+        ("L200m6", "colibre.txt", COLIBRE_REDSHIFTS),
+    ):
+        sim = Simulation.from_label(label, "X", base_dir_format=str(tmp_path / "{box_res}" / "{sim_name}"))
+
+        Path(sim.directory).mkdir(parents=True)
+        shutil.copy(OUTPUT_LISTS / output_list, sim.output_list)
+
+        assert np.array_equal(sim.output_redshifts, redshifts)
 
 
 @pytest.mark.parametrize("redshifts", TABLES.values(), ids=TABLES.keys())

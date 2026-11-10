@@ -26,12 +26,11 @@ h5py = pytest.importorskip("h5py")
 astropy_cosmology = pytest.importorskip("astropy.cosmology")
 snapshot_lightcone = pytest.importorskip("swiftlet.snapshot_lightcone")
 from swiftlet import snapshot_redshifts
-from swiftlet.simulation_suites import output_redshifts
+from swiftlet.simulation_suites import OUTPUT_LIST_NAME, read_output_list, write_output_list
 
-
-# make fake FLAMINGO snapshot data
+# make fake FLAMINGO snapshot data, with the output redshifts of FLAMINGO's 1 Gpc boxes
 BOX_RES = "L1000N0900"
-OUTPUT_REDSHIFTS = output_redshifts(BOX_RES)
+OUTPUT_REDSHIFTS = read_output_list(Path(__file__).resolve().parent / "data" / "output_lists" / "flamingo_L1.txt")
 SNAPSHOTS = range(69, 78)  # z = 0 to 0.425, out to about 1.65 box lengths from the observer
 BOXSIZE = 1000.0
 NCELLS_AXIS = 8  # ensure multiple of 8
@@ -236,6 +235,11 @@ def write_fake_runs(run_dir):
     # fake halo simulation: one particle at the centre of each halo, with the halo's catalogue index as its ID.
     # As in SOAP the index is only unique within a snapshot: every snapshot's haloes are numbered from 0
     halo_dir = run_dir / BOX_RES / HALO_SIM
+    halo_dir.mkdir(parents=True, exist_ok=True)
+
+    # SWIFTLET reads a simulation's output redshifts from the output_list.txt in its directory
+    write_output_list(halo_dir / OUTPUT_LIST_NAME, OUTPUT_REDSHIFTS)
+
     for snap_nr in SNAPSHOTS:
         pos = halo_positions(np.random.default_rng(snap_nr))
         index = np.arange(NHALOS)
@@ -246,6 +250,10 @@ def write_fake_runs(run_dir):
 
     # lattice simulation: the same lattice in every snapshot
     lattice_dir = run_dir / BOX_RES / LATTICE_SIM
+    lattice_dir.mkdir(parents=True, exist_ok=True)
+
+    write_output_list(lattice_dir / OUTPUT_LIST_NAME, OUTPUT_REDSHIFTS)
+
     pos = lattice_positions()
     for snap_nr in SNAPSHOTS:
         write_snapshot(lattice_dir / "snapshots" / f"flamingo_{snap_nr:04d}", snap_nr, np.arange(len(pos)), pos)

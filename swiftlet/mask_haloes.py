@@ -2,6 +2,7 @@
 
 """Mask selection of haloes for a given radius and mass range."""
 
+import os
 import numpy as np
 import h5py
 import healpy as hp
@@ -10,6 +11,8 @@ from pathlib import Path
 from lightcone_io.units import units_from_attributes
 from .simulation_suites import output_redshifts
 from .flamingo_lightcones import flamingo_box_resolution, flamingo_shell_redshift_file
+from .simulation_suites import OUTPUT_LIST_NAME, output_redshifts
+from .flamingo_lightcones import flamingo_shell_redshift_file, flamingo_simulation_directory
 from .snapshot_redshifts import snapshots_in_range
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
@@ -313,6 +316,7 @@ def distribute_pixels(comm, nside):
     """
     comm_rank = comm.Get_rank()
     comm_size = comm.Get_size()
+
     nr_total_pixels = hp.pixelfunc.nside2npix(nside)
     nr_local_pixels = nr_total_pixels // comm_size
     local_offset = nr_local_pixels * comm_rank
@@ -448,6 +452,7 @@ def write_binary_masks(
     log_mass_bin_width=None,
     scale_radius=None,
     hdf5_dset_kwargs=_UNSET,
+    output_list=None,
 ):
     """
     Write binary halo masks per shell to a .hdf5 file.
@@ -495,14 +500,22 @@ def write_binary_masks(
     :param  log_mass_bin_width: log10 width of the log10 mass bins. If None, then default is 0.5
     :type   log_mass_bin_width: float
     :param  scale_radius:       coefficients to scale the given radius property by when drawing apertures about
-                                    each halo. If None, then assume coefficients of 0.2, 0.5, 1.0, 2.0 and 5.0
+                                each halo. If None, then assume coefficients of 0.2, 0.5, 1.0, 2.0 and 5.0
     :type   scale_radius:       list or numpy.ndarray
     :param  hdf5_dset_kwargs:   keyword arguments passed to h5py create_dataset.
                                     If not given, use gzip compression level 9 with shuffle. If None, no compression
     :type   hdf5_dset_kwargs:   dict
+    :param  output_list:        path of the simulation's output list, for the output redshifts of its snapshots. If
+                                None, the output_list.txt of the simulation directory in halo_cat_format
+    :type   output_list:        str
     """
     if bin_method not in ("discrete", "cumulative", "both"):
         raise ValueError(f"bin_method must be 'discrete', 'cumulative', or 'both', got {bin_method!r}")
+
+    # the output redshift of each snapshot, to find the snapshots of each shell
+    if output_list is None:
+        output_list = os.path.join(flamingo_simulation_directory(halo_cat_format), OUTPUT_LIST_NAME)
+    snapshot_redshifts = output_redshifts(output_list)
 
     if hdf5_dset_kwargs is _UNSET:
         hdf5_dset_kwargs = {
@@ -549,6 +562,7 @@ def write_binary_masks(
         return np.vstack((low, high)).T
 
     # (method_name, log_mass_bins, output_filename_prefix) for every bin
+
     # method this call is asked to build
     method_specs = []
     if bin_method in ("discrete", "both"):
@@ -632,9 +646,7 @@ def write_binary_masks(
                 zmax = redshifts[shell_nr, 1]
 
                 # add a 0.025 redshift buffer to each end to ensure complete overlap of haloes with selected lightcone
-                snapshot_numbers = snapshots_in_range(
-                    output_redshifts(flamingo_box_resolution(halo_cat_format)), (zmin - 0.025, zmax + 0.025)
-                )[::-1]
+                snapshot_numbers = snapshots_in_range(snapshot_redshifts, (zmin - 0.025, zmax + 0.025))[::-1]
 
                 message(
                     (

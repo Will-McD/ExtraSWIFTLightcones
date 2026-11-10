@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.12-blue)](https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/.github/workflows/build_and_test.yml)
 [![License](https://img.shields.io/github/license/Will-McD/ExtraSWIFTLightcones)](./PublicLicense)
 
-SWIFTLET builds custom lightcones from the snapshots and SOAP halo catalogues of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) simulations (FLAMINGO and COLIBRE). It works in tandem with [LightconeIO](https://lightconeio.readthedocs.io/en/latest/).
+SWIFTLET builds custom lightcones from the snapshots and SOAP halo catalogues of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) simulations (FLAMINGO and COLIBRE).
 
 **📖 Documentation: <https://extraswiftlightcones.readthedocs.io>**
 
@@ -51,7 +51,7 @@ particles = beam.place_snapshot_particles_in_shell(
     ang_radius_deg=2.5,
     particle_types=["PartType0"],
 )
-gas = particles["PartType0"]    # Coordinates, ExpansionFactors, SnapshotNumber, Masses, Temperatures, ...
+gas = particles["PartType0"]  # Coordinates, ExpansionFactors, SnapshotNumber, Masses, Temperatures, ...
 ```
 
 The [quick start](https://extraswiftlightcones.readthedocs.io/en/latest/quickstart.html) continues with halo lightcones and projections.
