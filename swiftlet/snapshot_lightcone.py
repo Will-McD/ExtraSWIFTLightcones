@@ -40,6 +40,7 @@ from .soap_reader import soap_catalogue_length, read_soap_rows, read_soap_in_chu
 from .soap_reader import comoving as soap_comoving
 from . import snapshot_redshifts
 import datetime as dt
+import functools
 import warnings
 
 
@@ -552,61 +553,23 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
 # SWIFT Simulation class functions
 
 
-def as_simulation(
-    boxsize_resolution=None,
-    simulation_name=None,
-    simulation_suite_name=None,
-    simulation_base_dir_format=None,
-    simulation_object=None,
-):
+def check_simulation(simulation, lightcone_type="SnapshotLightcone"):
     """
-    Return the Simulation a lightcone is built from.
+    Return the Simulation object, or raise TypeError if it is not one.
 
-    The simulation a lightcone is built from is either:
-
-    - a Simulation, given as simulation_object (or as boxsize_resolution, the first argument of the lightcone classes)
-    - made from boxsize_resolution and simulation_name (see simulation_suites.Simulation.from_label)
-
-    :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800", or a Simulation
-    :type   boxsize_resolution:         str or Simulation
-    :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
-    :type   simulation_name:            str
-    :param  simulation_suite_name:      "flamingo" or "colibre". If None, found from boxsize_resolution
-    :type   simulation_suite_name:      str
-    :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None, the
-                                            suite's directory
-    :type   simulation_base_dir_format: str
-    :param  simulation_object:          the simulation
-    :type   simulation_object:          Simulation
+    :param  simulation:         the simulation
+    :type   simulation:         Simulation
+    :param  lightcone_type:     name of the lightcone class, for the error message
+    :type   lightcone_type:     str
     """
-    # check sim object is expected class
-    if simulation_object is not None:
-        if not isinstance(simulation_object, Simulation):
-            raise TypeError(f"simulation_object must be a swiftlet.Simulation, not {type(simulation_object).__name__}")
-        given = {
-            "simulation_name": simulation_name,
-            "simulation_suite_name": simulation_suite_name,
-            "simulation_base_dir_format": simulation_base_dir_format,
-            "boxsize_resolution": boxsize_resolution,
-        }
-        extra = [name for name, value in given.items() if value is not None]
-        if extra:
-            raise TypeError(
-                (
-                    f"{', '.join(extra)} given with a Simulation, which already sets them. With a Simulation, pass the "
-                    "other arguments (e.g. beam_vector) by keyword"
-                )
-            )
-        return simulation_object
-    # check that correct info is given
-    if boxsize_resolution is None or simulation_name is None:
-        raise TypeError("a lightcone needs a Simulation, or boxsize_resolution and simulation_name")
-    return Simulation.from_label(
-        boxsize_resolution,
-        simulation_name,
-        simulation_suite_name=simulation_suite_name,
-        base_dir_format=simulation_base_dir_format,
-    )
+    if isinstance(simulation, Simulation):
+        return simulation
+    if isinstance(simulation, str):
+        raise TypeError(
+            f"{lightcone_type} takes a Simulation, not the label {simulation!r}: "
+            f"{lightcone_type}(Simulation.from_label({simulation!r}, simulation_name), ...)"
+        )
+    raise TypeError(f"{lightcone_type} takes a swiftlet.Simulation, not {type(simulation).__name__}")
 
 
 ######################################################
@@ -629,11 +592,7 @@ class SnapshotLightcone:
 
     def __init__(
         self,
-        simulation_object=None,
-        simulation_suite_name=None,
-        boxsize_resolution=None,
-        simulation_name=None,
-        simulation_base_dir_format=None,
+        simulation,
         beam_vector=None,
         orientation_seed=0,
         orientation_lock=None,
@@ -641,21 +600,9 @@ class SnapshotLightcone:
         verbose=1,
     ):
         """
-        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
-        :type   simulation_object:          Simulation
-        :param  simulation_suite_name:      "flamingo" or "colibre". If None, found from boxsize_resolution, see
-                                            simulation_suites.suite_for_label
-        :type   simulation_suite_name:      str
-        :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
-                                            (COLIBRE), or a Simulation (see swiftlet.simulation_suites), then pass the
-                                            other arguments by keyword
-        :type   boxsize_resolution:         str or Simulation
-
-        :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
-        :type   simulation_name:            str
-        :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
-                                            the suite's directory (see simulation_suites.SimulationSuite)
-        :type   simulation_base_dir_format: str
+        :param  simulation:                 the Simulation (e.g. Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")),
+                                            which sets where its snapshots, SOAP catalogues and output list are.
+        :type   simulation:                 Simulation
         :param  beam_vector:                direction vector of the line of sight as an array of 3 floats. None for
                                             all-sky
         :type   beam_vector:                numpy.ndarray
@@ -682,12 +629,8 @@ class SnapshotLightcone:
                                             details of every snapshot, box tile and file
         :type   verbose:                    int
         """
-        # simulation values
-
-        # use the simulation class to define + format all needed paths, names and the snapshot-redshift table
-        self.simulation = as_simulation(
-            boxsize_resolution, simulation_name, simulation_suite_name, simulation_base_dir_format, simulation_object
-        )
+        # check simluation passed is a Simulation object
+        self.simulation = check_simulation(simulation, lightcone_type="SnapshotLightcone")
 
         # define all related sim names and paths
         self.box_res = self.simulation.box_res
@@ -3087,11 +3030,7 @@ class SnapshotBeam(SnapshotLightcone):
 
     def __init__(
         self,
-        simulation_object=None,
-        simulation_suite_name=None,
-        boxsize_resolution=None,
-        simulation_name=None,
-        simulation_base_dir_format=None,
+        simulation,
         beam_vector=None,
         orientation_seed=0,
         orientation_lock=None,
@@ -3100,19 +3039,9 @@ class SnapshotBeam(SnapshotLightcone):
     ):
         """
 
-        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
-        :type   simulation_object:          Simulation
-        :param  simulation_suite_name:      "flamingo" or "colibre". If None, found from boxsize_resolution (see
-                                            simulation_suites.suite_for_label)
-        :type   simulation_suite_name:      str
-        :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
-                                            (COLIBRE), or a Simulation (see swiftlet.simulation_suites)
-        :type   boxsize_resolution:         str or Simulation
-        :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
-        :type   simulation_name:            str
-        :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
-                                            the suite's directory (see simulation_suites.SimulationSuite)
-        :type   simulation_base_dir_format: str
+        :param  simulation:                 the Simulation (e.g. Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")),
+                                            which sets where its snapshots, SOAP catalogues and output list are.
+        :type   simulation:                 Simulation
         :param  beam_vector:                direction vector of the line of sight as an array of 3 floats
         :type   beam_vector:                numpy.ndarray
         :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
@@ -3139,17 +3068,13 @@ class SnapshotBeam(SnapshotLightcone):
         :type   verbose:                    int
 
         """
-        # build sim object from provided information
-        simulation_object = as_simulation(
-            boxsize_resolution, simulation_name, simulation_suite_name, simulation_base_dir_format, simulation_object
-        )
-
+        # check beam vector is passed
         if beam_vector is None:
             raise TypeError("SnapshotBeam needs a beam_vector, the direction of the line of sight")
 
         # pass to SnapshotLightcone class
         super().__init__(
-            simulation_object=simulation_object,
+            simulation=check_simulation(simulation, lightcone_type="SnapshotBeam"),
             beam_vector=beam_vector,
             orientation_seed=orientation_seed,
             orientation_lock=orientation_lock,
@@ -3457,11 +3382,7 @@ class SnapshotAllSky(SnapshotLightcone):
 
     def __init__(
         self,
-        simulation_object=None,
-        simulation_suite_name=None,
-        boxsize_resolution=None,
-        simulation_name=None,
-        simulation_base_dir_format=None,
+        simulation,
         orientation_seed=0,
         orientation_lock=None,
         orientation_table=None,
@@ -3469,20 +3390,9 @@ class SnapshotAllSky(SnapshotLightcone):
     ):
         """
 
-        :param  simulation_object:          the simulation, instead of boxsize_resolution and simulation_name
-        :type   simulation_object:          Simulation
-        :param  simulation_suite_name:      "flamingo" or "colibre". If None, found from boxsize_resolution (see
-                                            simulation_suites.suite_for_label)
-        :type   simulation_suite_name:      str
-        :param  boxsize_resolution:         box size and resolution label, e.g. "L1000N1800" (FLAMINGO) or "L0200N1504"
-                                            (COLIBRE), or a Simulation (see swiftlet.simulation_suites), then pass the
-                                            other arguments by keyword
-        :type   boxsize_resolution:         str or Simulation
-        :param  simulation_name:            name of the simulation, e.g. "HYDRO_FIDUCIAL"
-        :type   simulation_name:            str
-        :param  simulation_base_dir_format: directory of the simulation, with {box_res} and {sim_name} fields. If None,
-                                            the suite's directory (see simulation_suites.SimulationSuite)
-        :type   simulation_base_dir_format: str
+        :param  simulation:                 the Simulation (e.g. Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")),
+                                            which sets where its snapshots, SOAP catalogues and output list are.
+        :type   simulation:                 Simulation
         :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
                                             tile
         :type   orientation_seed:           int
@@ -3508,11 +3418,7 @@ class SnapshotAllSky(SnapshotLightcone):
         """
         # pass all info to SnapshotLightcone class.
         super().__init__(
-            simulation_object=simulation_object,
-            simulation_suite_name=simulation_suite_name,
-            boxsize_resolution=boxsize_resolution,
-            simulation_name=simulation_name,
-            simulation_base_dir_format=simulation_base_dir_format,
+            simulation=check_simulation(simulation, lightcone_type="SnapshotAllSky"),
             beam_vector=None,  # not required for all sky, ensure no information is passed for beam vectors
             orientation_seed=orientation_seed,
             orientation_lock=orientation_lock,

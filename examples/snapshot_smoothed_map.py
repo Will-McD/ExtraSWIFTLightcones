@@ -376,7 +376,7 @@ if __name__ == "__main__":
 
     # gather_files and place_file_in_shell read in serial, so each rank has its own serial SnapshotAllSky
     snap_all_sky = SnapshotAllSky(
-        simulation_object=simulation,
+        simulation=simulation,
         orientation_seed=args.orientation_seed,
         orientation_lock=args.orientation_lock,
         verbose=0,

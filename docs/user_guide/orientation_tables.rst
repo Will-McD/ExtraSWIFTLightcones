@@ -180,8 +180,8 @@ To use these tables to build lightcones:
 
 .. code-block:: python
 
-  lightcone = SnapshotAllSky(simulation_object=sim, orientation_lock="cube", orientation_table="cube_quarter_spacing")
-  lightcone = SnapshotAllSky(simulation_object=sim, orientation_lock="sphere", orientation_table="sphere_quarter_spacing")
+  lightcone = SnapshotAllSky(simulation=sim, orientation_lock="cube", orientation_table="cube_quarter_spacing")
+  lightcone = SnapshotAllSky(simulation=sim, orientation_lock="sphere", orientation_table="sphere_quarter_spacing")
 
 .. important::
   Whilst clashes can be removed by the tables copies of the same cell can appear close together along a line of sight 
@@ -391,8 +391,8 @@ table as ``orientation_table``:
 
     from swiftlet import SnapshotAllSky
 
-    lightcone = SnapshotAllSky(simulation_object=Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL"), 
-    orientation_seed=0, orientation_lock="cube", orientation_table="orientation_tables.yaml")
+    lightcone = SnapshotAllSky(simulation=Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL"), orientation_seed=0, 
+                                orientation_lock="cube", orientation_table="orientation_tables.yaml")
 
 
 This works exactly the same way for :class:`swiftlet.snapshot_lightcone.SnapshotBeam`.

@@ -227,7 +227,7 @@ overlapping that tile's part of the lightcone. It then compares pairs of each ce
 
     from swiftlet import SnapshotAllSky, find_close_cell_repeats
 
-    lightcone = SnapshotAllSky(simulation_object=Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL"), 
+    lightcone = SnapshotAllSky(simulation=Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL"), 
                                   orientation_lock="cube", orientation_seed=0)
     report = find_close_cell_repeats(lightcone, (0.05, 0.4), output_file="close_repeats.hdf5")
     print(report.summary())

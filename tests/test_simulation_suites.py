@@ -352,8 +352,8 @@ def test_lightcone_from_a_simulation(cosmology_from, simulations_dir):
     sim = simulations_dir("L0200N1504", "Thermal")
 
     for lightcone in (
-        snapshot_lightcone.SnapshotAllSky(simulation_object=sim, verbose=0),
-        snapshot_lightcone.SnapshotBeam(simulation_object=sim, beam_vector=[0.0, 0.0, 1.0], verbose=0),
+        snapshot_lightcone.SnapshotAllSky(simulation=sim, verbose=0),
+        snapshot_lightcone.SnapshotBeam(simulation=sim, beam_vector=[0.0, 0.0, 1.0], verbose=0),
     ):
         assert lightcone.simulation is sim
         assert (lightcone.box_res, lightcone.sim_name, lightcone.simulation_suite_name) == (
@@ -369,40 +369,40 @@ def test_lightcone_from_a_simulation(cosmology_from, simulations_dir):
     assert all(filename == sim.snapshot_file(127) for filename in cosmology_from)
 
 
-def test_lightcone_from_a_label(cosmology_from, simulations_dir, tmp_path):
-    # the call before Simulation still works, with the same paths as Simulation.from_label
+@pytest.mark.parametrize("lightcone_type", ["SnapshotAllSky", "SnapshotBeam"])
+def test_lightcone_takes_only_a_simulation(cosmology_from, simulations_dir, lightcone_type):
+    """
+    Check that SnapshotLightcone, SnapshotAllSky and SnapshotBeam classes take a Simulation, positionally or as
+    simulation and then fail if given a non Simulation object.
+    """
+    sim = simulations_dir("L1000N1800", "HYDRO_FIDUCIAL")
+    lightcone_class = getattr(snapshot_lightcone, lightcone_type)
+    beam = {"beam_vector": [1.0, 0.0, 0.0]} if lightcone_type == "SnapshotBeam" else {}
 
-    simulations_dir("L1000N1800", "HYDRO_FIDUCIAL")
-    simulations_dir("L0200N1504", "Thermal")
+    assert lightcone_class(sim, verbose=0, **beam).simulation is sim
+    assert lightcone_class(simulation=sim, verbose=0, **beam).simulation is sim
 
-    lightcone = snapshot_lightcone.SnapshotAllSky(
-        boxsize_resolution="L1000N1800", simulation_name="HYDRO_FIDUCIAL", verbose=0
-    )
-    assert lightcone.simulation == Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
-    assert cosmology_from[-1] == lightcone.simulation.snapshot_file(77)
+    with pytest.raises(TypeError, match=rf"{lightcone_type} takes a Simulation, not the label 'L1000N1800'"):
+        lightcone_class("L1000N1800", verbose=0, **beam)
 
-    beam = snapshot_lightcone.SnapshotBeam(
-        boxsize_resolution="L0200N1504",
-        simulation_name="Thermal",
-        beam_vector=[1.0, 0.0, 0.0],
-        verbose=0,
-        simulation_base_dir_format=str(tmp_path) + "/{box_res}/{sim_name}",
-    )
-    assert beam.simulation_dir == str(tmp_path / "L0200N1504" / "Thermal")
-    assert beam.simulation_suite_name == "colibre"
+    with pytest.raises(TypeError, match=rf"got an unexpected keyword argument"):
+        lightcone_class(simulation=sim, simulation_name="HYDRO_FIDUCIAL", verbose=0, **beam)
+
+    with pytest.raises(TypeError, match=rf"{lightcone_type} takes a swiftlet.Simulation, not int"):
+        lightcone_class(3, verbose=0, **beam)
+
+    with pytest.raises(TypeError, match=rf"{lightcone_type} takes a swiftlet.Simulation, not dict"):
+        lightcone_class(simulation={"test_str_input": np.zeros(10)}, verbose=0, **beam)
+
+    with pytest.raises(TypeError, match="missing 1 required positional argument: 'simulation'"):
+        lightcone_class(verbose=0, **beam)
 
 
 def test_lightcone_argument_errors(cosmology_from, simulations_dir):
     sim = simulations_dir("L1000N1800", "HYDRO_FIDUCIAL")
 
-    with pytest.raises(TypeError, match="needs a Simulation, or boxsize_resolution and simulation_name"):
-        snapshot_lightcone.SnapshotAllSky(boxsize_resolution="L1000N1800", verbose=0)
-
     with pytest.raises(TypeError, match="needs a beam_vector"):
-        snapshot_lightcone.SnapshotBeam(simulation_object=sim, verbose=0)
-
-    with pytest.raises(TypeError, match=f"simulation_object must be a swiftlet.Simulation"):
-        snapshot_lightcone.SnapshotAllSky(simulation_object="L1000N1800", verbose=0)
+        snapshot_lightcone.SnapshotBeam(sim, verbose=0)
 
 
 def test_soap_format(tmp_path, monkeypatch):

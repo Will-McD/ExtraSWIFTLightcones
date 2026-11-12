@@ -23,11 +23,11 @@ catalogues as a format string with a ``{snap_nr}`` field, usually the simulation
     sim = Simulation.from_label("L0400N3008", "Thermal")    # COLIBRE L400_m7, Thermal AGN
 
     # all-sky
-    all_sky = SnapshotAllSky(simulation_object=sim, orientation_lock="cube")
+    all_sky = SnapshotAllSky(simulation=sim, orientation_lock="cube")
     halos = all_sky.place_halos_in_shell(sim.soap_format, (0.001, 0.1))
 
     # a beam of 5 degrees radius, reading 2**22 rows of a catalogue at a time
-    beam = SnapshotBeam(simulation_object=sim, beam_vector=(1, 2, 3), orientation_lock="cube")
+    beam = SnapshotBeam(simulation=sim, beam_vector=(1, 2, 3), orientation_lock="cube")
     beam_halos = beam.place_halos_in_shell(sim.soap_format, (0.001, 0.3), ang_radius_deg=5., soap_chunk_size=2**22)
 
 The result is a :class:`LightconeOutput`, one row per halo placed, holding only what is needed to place the haloes in 

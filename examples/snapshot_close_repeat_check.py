@@ -75,7 +75,7 @@ def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, o
     :type   orientation_table:  str
     """
     settings = dict(
-        simulation_object=simulation,
+        simulation=simulation,
         orientation_lock=orientation_lock,
         orientation_seed=orientation_seed,
         orientation_table=orientation_table,

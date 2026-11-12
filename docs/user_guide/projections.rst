@@ -54,7 +54,7 @@ As shown in the example below, to make a projection:
 
     # build the particle lightcone: 
     snap_beam = SnapshotBeam(
-        simulation_object=sim,
+        simulation=sim,
         beam_vector=(0,0,1),         # point the beam along the z-axis
         orientation_seed=0,          # reproduces the same box orientations
         orientation_lock="cube",     # set strict layers of the lightcones tiles

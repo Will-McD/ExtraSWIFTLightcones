@@ -614,7 +614,7 @@ if __name__ == "__main__":
 
         # create a beam for selected halo
         SB = SnapshotBeam(
-            simulation_object=simulation, beam_vector=beam_vector, orientation_seed=0, orientation_lock=None, verbose=1
+            simulation=simulation, beam_vector=beam_vector, orientation_seed=0, orientation_lock=None, verbose=1
         )
 
         beam_particles = {}

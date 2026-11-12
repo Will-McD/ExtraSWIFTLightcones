@@ -126,7 +126,7 @@ def fetch_remote_simulation(
 
     Files already in the cache are not copied again.
 
-    Returns (simulation_base_dir_format, halo_format) of the local copy, for SnapshotBeam and place_halos_in_shell.
+    Returns (base_dir_format, halo_format) of the local copy, for Simulation.from_label and place_halos_in_shell.
 
     :param  box_res:            box size and resolution label, e.g. "L1000N0900"
     :type   box_res:            str
@@ -362,10 +362,8 @@ if __name__ == "__main__":
     print(f"SOAP catalogues: {halo_format}")
 
     snap_beam = SnapshotBeam(
-        boxsize_resolution=args.box_res,
-        simulation_name=args.sim_name,
+        Simulation.from_label(args.box_res, args.sim_name, base_dir_format=base_dir_format),
         beam_vector=beam_vector,
-        simulation_base_dir_format=base_dir_format,
     )
 
     halos = snap_beam.place_halos_in_shell(

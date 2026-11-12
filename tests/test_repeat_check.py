@@ -243,7 +243,7 @@ def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orie
 
     # the first default tables, which make some cells touch (the default tables make none)
     lightcone = SnapshotAllSky(
-        simulation_object=simulation,
+        simulation=simulation,
         orientation_seed=orientation_seed,
         orientation_table=write_clashing_tables(tmp_path),
         verbose=0,

@@ -379,14 +379,14 @@ def new_lightcone(simulation, beam_vector, orientation_lock, orientation_table=N
 
     if beam_vector is None:
         return SnapshotAllSky(
-            simulation_object=simulation,
+            simulation=simulation,
             orientation_lock=orientation_lock,
             orientation_table=orientation_table,
             verbose=0,
         )
 
     return SnapshotBeam(
-        simulation_object=simulation,
+        simulation=simulation,
         beam_vector=beam_vector,
         orientation_lock=orientation_lock,
         orientation_table=orientation_table,

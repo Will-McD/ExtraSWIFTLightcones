@@ -61,7 +61,7 @@ rank finds the same pieces).
 
     comm = MPI.COMM_WORLD
     sim = Simulation.from_label("L0400N3008", "Thermal")
-    lightcone = SnapshotAllSky(simulation_object=sim, orientation_lock="cube", verbose=1 if comm.Get_rank() == 0 else 0)
+    lightcone = SnapshotAllSky(simulation=sim, orientation_lock="cube", verbose=1 if comm.Get_rank() == 0 else 0)
 
     particles = lightcone.place_snapshot_particles_in_shell(
         (0.05, 0.1), ["Masses"], particle_types="PartType1", comm=comm,

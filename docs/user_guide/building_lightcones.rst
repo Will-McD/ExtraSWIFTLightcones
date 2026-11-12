@@ -25,7 +25,7 @@ Defining a lightcone
 A lightcone needs:
 
 *   **the simulation**: a :class:`Simulation <swiftlet.simulation_suites.Simulation>`, passed as
-    ``simulation_object``, or its ``boxsize_resolution`` and ``simulation_name`` given by keyword (see
+    ``simulation``, or its ``boxsize_resolution`` and ``simulation_name`` given by keyword (see
     :doc:`new_simulations_and_suites`)
 *   **its geometry**: :class:`SnapshotAllSky`, a spherical lightcone or :class:`SnapshotBeam`, a cone with a direction,
     (the angular radius is given when the beam is filled)
@@ -40,8 +40,8 @@ A lightcone needs:
 
     sim = Simulation.from_label("L0400N3008", "Thermal")   # COLIBRE L400_m7, Thermal AGN
 
-    all_sky = SnapshotAllSky(simulation_object=sim, orientation_lock="cube", orientation_seed=0)
-    beam = SnapshotBeam(simulation_object=sim, beam_vector=(1, 2, 3), orientation_lock="cube", orientation_seed=0)
+    all_sky = SnapshotAllSky(simulation=sim, orientation_lock="cube", orientation_seed=0)
+    beam = SnapshotBeam(simulation=sim, beam_vector=(1, 2, 3), orientation_lock="cube", orientation_seed=0)
 
 
 With the same tables, lock and seed, ``beam`` is exactly the subvolume of ``all_sky`` inside its cone (see

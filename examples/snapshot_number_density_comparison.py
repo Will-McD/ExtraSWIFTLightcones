@@ -377,7 +377,7 @@ def run_seeds(args):
             time_date_update=True,
         )
         lightcone = SnapshotAllSky(
-            simulation_object=simulation, orientation_seed=seed, orientation_lock=args.orientation_lock, verbose=0
+            simulation=simulation, orientation_seed=seed, orientation_lock=args.orientation_lock, verbose=0
         )
 
         # compute counts in thinner redshift shells when indicated

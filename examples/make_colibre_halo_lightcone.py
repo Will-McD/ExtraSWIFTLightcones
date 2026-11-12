@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     # The haloes placed into lightcone
     snap_all_sky = SnapshotAllSky(
-        simulation_object=simulation,
+        simulation=simulation,
         orientation_seed=args.orientation_seed,
         orientation_lock=args.orientation_lock,
         verbose=1 if comm_rank == 0 else 0,

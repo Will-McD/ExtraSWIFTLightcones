@@ -110,9 +110,7 @@ def beam_projection_lock_comparison(
         print(f"\n{lock_title}")
 
         # build the pencil beam from the snapshots, for the gas particles
-        SB = SnapshotBeam(
-            simulation_object=sim_object, beam_vector=beam_vector, verbose=1, orientation_lock=orientation_lock
-        )
+        SB = SnapshotBeam(simulation=sim_object, beam_vector=beam_vector, verbose=1, orientation_lock=orientation_lock)
 
         # Coordinates (and SmoothingLengths for gas) are always read, and ExpansionFactors are computed
         # from the position of each particle in the beam, so only the masses need to be requested

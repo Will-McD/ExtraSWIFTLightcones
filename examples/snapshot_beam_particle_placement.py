@@ -8,6 +8,7 @@ import matplotlib.layout_engine
 import matplotlib.pyplot as plt
 from pathlib import Path
 from swiftlet.snapshot_cosmology import SnapshotCosmology
+from swiftlet.simulation_suites import Simulation
 from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.example_plot_settings import plot_settings
 
@@ -809,7 +810,7 @@ if __name__ == "__main__":
 
     for beam_vector in beam_vectors:
         print(f"\nbeam direction: {beam_vector}")
-        SB = SnapshotBeam(boxsize_resolution=box_res, simulation_name=sim_name, beam_vector=beam_vector)
+        SB = SnapshotBeam(Simulation.from_label(box_res, sim_name), beam_vector=beam_vector)
 
         # 1) find every snapshot file (and box tile) needed to populate the shell, without reading any particles
         numb_files, files_to_read = SB.gather_files(ptype, redshift_range, ang_radius_deg)

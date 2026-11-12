@@ -47,7 +47,7 @@ snapshot box (see :doc:`user_guide/orientation`).
     sim = Simulation.from_label("L1000N0900", "HYDRO_FIDUCIAL") # FLAMINGO L1_m10 fiducial simulation
     
     snap_beam = SnapshotBeam(
-        simulation_object=sim,       # pass all relevant simluation info too the lightcone as a Simulation
+        simulation=sim,       # pass all relevant simluation info too the lightcone as a Simulation
         beam_vector=(0,0,1),         # unit vector giving the beams pointing on the sky
     )
 

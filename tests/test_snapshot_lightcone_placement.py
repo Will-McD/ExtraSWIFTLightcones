@@ -26,7 +26,7 @@ h5py = pytest.importorskip("h5py")
 astropy_cosmology = pytest.importorskip("astropy.cosmology")
 snapshot_lightcone = pytest.importorskip("swiftlet.snapshot_lightcone")
 from swiftlet import snapshot_redshifts
-from swiftlet.simulation_suites import OUTPUT_LIST_NAME, read_output_list, write_output_list
+from swiftlet.simulation_suites import OUTPUT_LIST_NAME, Simulation, read_output_list, write_output_list
 
 # make fake FLAMINGO snapshot data, with the output redshifts of FLAMINGO's 1 Gpc boxes
 BOX_RES = "L1000N0900"
@@ -321,17 +321,13 @@ def new_lightcone(sim_name, beam_vector, orientation_lock, **kwargs):
     """
     SnapshotBeam along beam_vector, or SnapshotAllSky if beam_vector is None, using a fake simulation.
     """
+    # suite base directory given by SWIFTLET_FLAMINGO_DIR, which points at the fake simulations
+    simulation = Simulation.from_label(BOX_RES, sim_name)
+
     if beam_vector is None:
-        return snapshot_lightcone.SnapshotAllSky(
-            boxsize_resolution=BOX_RES, simulation_name=sim_name, verbose=0, orientation_lock=orientation_lock, **kwargs
-        )
+        return snapshot_lightcone.SnapshotAllSky(simulation, verbose=0, orientation_lock=orientation_lock, **kwargs)
     return snapshot_lightcone.SnapshotBeam(
-        boxsize_resolution=BOX_RES,
-        simulation_name=sim_name,
-        beam_vector=beam_vector,
-        verbose=0,
-        orientation_lock=orientation_lock,
-        **kwargs,
+        simulation, beam_vector=beam_vector, verbose=0, orientation_lock=orientation_lock, **kwargs
     )
 
 

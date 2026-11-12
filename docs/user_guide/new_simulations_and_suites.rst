@@ -276,5 +276,5 @@ be pointed towards it:
  
   sim = Simulation.from_label("L1000N3600", "NEW_SIM", output_list="/settings/redshift_list.txt")
 
-  lightcone = SnapshotAllSky(simulation_object=sim, orientation_lock="cube")
+  lightcone = SnapshotAllSky(simulation=sim, orientation_lock="cube")
  
