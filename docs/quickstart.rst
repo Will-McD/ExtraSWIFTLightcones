@@ -14,41 +14,47 @@ Building a lightcone from snapshots takes three steps:
 #.  Read and place: place the particles or haloes of those cells into the lightcone, following the blueprint laid out 
     by the previous gather step.
 
+For an overview of the main ideas and specific steps involved with building a lightcone see :doc:`methods_overview` and 
+:doc:`building_lightcones`, respectivley. 
 
 .. _define-lightcone:
 
 Defining the lightcone 
 ----------------------
 
-First, define the FLAMINGO L1_m10 simulation as a :class:`Simulation <swiftlet.simulation_suites.Simulation>`, the
-class SWIFTLET uses to find the snapshots, output redshifts and SOAP halo catalogues of the FLAMINGO
-and COLIBRE simulation suites (see :doc:`user_guide/new_simulations_and_suites`). 
-The :class:`Simulation <swiftlet.simulation_suites.Simulation>` is then passed to the lightcone.
-
 A lightcone is built from the snapshots with one of the two subclasses of
 :class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`, which manage the lightcone's geometry:
 :class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>` for the whole sky, and
-:class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` for a pencil beam, used here. A lightcone needs the
-simulation, the direction of the beam on the sky (for a beam), and how to orient the copies of the snapshot box that
-fill it.
+:class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` for a beam (or cone), which we will use in this pages 
+example. Unlike the a :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` requires both the direction and 
+angular radius (``ang_radius_deg`` in degrees) of the beam. The direction of the beam is given by a vector 
+(``beam_vector``), here :math:`\mathbf{v}_{\mathrm{beam}}=(0,0,1)`, to point the beam along the z-axis of the 
+simulations box. 
 
-The direction of the beam is given by a unit vector, here :math:`\mathbf{v}_{\mathrm{beam}}=(0,0,1)`, to point the beam 
-along the z-axis of the simulations box. 
+In addition to the direction and angular radius of the beam , the lightcone also needs to known which simulation it is 
+being built from. In SWIFTLET all the required information on how to find the snapshots, SOAP catalogues and the output 
+redshifts is handled by a :class:`Simulation <swiftlet.simulation_suites.Simulation>` object, which is passed to the 
+:class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`.
 
-For now, we do not worry about the internal structure of the beam: we use the default orientation table (see
+For now, we will not worry about the internal structure of the beam, we will use the default orientation table (see
 :doc:`user_guide/orientation_tables`) and no orientation lock, as the beam is not wider than the side length of a
-snapshot box (see :doc:`user_guide/orientation`).
+snapshot box (see :doc:`user_guide/orientation`). 
 
 .. code-block:: python
 
     from swiftlet import SnapshotBeam
     from swiftlet import Simulation
     
-    sim = Simulation.from_label("L1000N0900", "HYDRO_FIDUCIAL") # FLAMINGO L1_m10 fiducial simulation
+    # path to root directory of the FLAMINGO L1_m10 fiducial simulation
+    base_dir = "path/to/flamingo/data/L1000N1800/HYDRO_FIDUCIAL" 
+
+    # define the Simulation object
+    sim = Simulation.from_path(base_dir)
     
     snap_beam = SnapshotBeam(
         simulation_object=sim,       # pass all relevant simluation info too the lightcone as a Simulation
         beam_vector=(0,0,1),         # unit vector giving the beams pointing on the sky
+        ang_radius_deg=2.5,          # angular radius in degrees
     )
 
 The lightcone can now be populated with haloes and particles. Both follow the same workflow, an initial gather step that 
@@ -78,7 +84,6 @@ the gather step and, read and place step.
     halos = snap_beam.place_halos_in_shell(
         sim.soap_format,                            # formatted path to the SOAP halo catalogues
         lightcone_redshift_range=(0.05, 0.3),       # redshift range of the lightcone
-        ang_radius_deg=2.5,                         # angular radius in degrees
     )
 
     halos["Lightcone/HaloCentre"]           # lightcone positions, with the observer at the origin
@@ -171,7 +176,6 @@ Here the masses and temperatures of the gas particles (``PartType0``) are placed
     # Read and place particles into the lightcone
     shell_particles = snap_beam.place_snapshot_particles_in_shell(
         lightcone_redshift_range=(0.05, 0.3),
-        ang_radius_deg=2.5,
         property_names=["Masses", "Temperatures"],
         particle_types=["PartType0"],
     )

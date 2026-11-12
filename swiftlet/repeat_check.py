@@ -214,7 +214,6 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
 def find_close_cell_repeats(
     lightcone,
     redshift_range,
-    ang_radius_deg=None,
     ptype="PartType1",
     angle_deg=1.0,
     max_los_separation=None,
@@ -242,13 +241,8 @@ def find_close_cell_repeats(
     :type   lightcone:          SnapshotLightcone
     :param  redshift_range:     minimum and maximum redshift of the shell [z_min, z_max]
     :type   redshift_range:     tuple
-    :param  ang_radius_deg:     angular radius [deg] of the beam, for a SnapshotBeam; None for SnapshotAllSky
-    :type   ang_radius_deg:     float
     :param  ptype:              particle type whose cells are used, e.g. "PartType1"
     :type   ptype:              str
-    :param  angle_deg:          two copies of the same cell within this angle [deg] on the sky are considered to be
-                                in the same line of sight.
-    :type   angle_deg:          float
     :param  max_los_separation: copies on the same line of sight closer than this [Mpc] along it are reported. If
                                 None, half the box size
     :type   max_los_separation: float
@@ -295,9 +289,10 @@ def find_close_cell_repeats(
             print(m)
 
     message("setting up the lightcones cell structure", print_level=1)
+    
 
     # find the pieces of the shell, and the cells of each piece that overlap it
-    beam_args = {} if ang_radius_deg is None else {"ang_radius_deg": ang_radius_deg}
+    beam_args = {} 
     lightcone._tile_cells = {}
     # attempt to gather files
     try:
@@ -386,7 +381,7 @@ def find_close_cell_repeats(
 
     for snapshot, cell_range in blocks:
         snap_nr, cell, tiles, orientation, centres, size, box = _cells_in_shell(
-            lightcone, ang_radius_deg, groups[snapshot], tile_cells, cell_range
+            lightcone, lightcone.ang_radius_deg, groups[snapshot], tile_cells, cell_range
         )
 
         cell_size, boxsize = (size, box) if size is not None else (cell_size, boxsize)
@@ -581,7 +576,7 @@ def find_close_cell_repeats(
     )
 
     if output_file is not None:
-        write_close_repeats(output_file, report, lightcone, redshift_range, ang_radius_deg)
+        write_close_repeats(output_file, report, lightcone, redshift_range, lightcone.ang_radius_deg)
 
     if warn and (nr_touching > 0 or nr_line_of_sight > 0):
         warnings.warn(

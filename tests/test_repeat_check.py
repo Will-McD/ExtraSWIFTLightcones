@@ -74,13 +74,18 @@ def test_nothing_reported_without_reorientation(lattice_run, beam_vector, ang_ra
     """
     simulation, cosmo, run_dir = lattice_run
     lightcone = lattice.new_lightcone(
-        simulation, beam_vector, orientation_lock, orientation_table=str(run_dir / "unchanged_orientation_table.yaml")
+        simulation,
+        beam_vector,
+        orientation_lock,
+        orientation_table=str(run_dir / "unchanged_orientation_table.yaml"),
+        ang_radius_deg=ang_radius_deg,
     )
+ 
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", CloseRepeatWarning)
         report = find_close_cell_repeats(
-            lightcone, shell(cosmo, r_range), ang_radius_deg=ang_radius_deg, max_snapshot_difference=0
+            lightcone, shell(cosmo, r_range),  max_snapshot_difference=0
         )
 
     assert report.nr_cell_copies > 0 and report.nr_cells_repeated > 0
@@ -158,7 +163,7 @@ def test_particle_close_repeats_are_in_reported_cell_pairs(lattice_run, orientat
     lightcone = lattice.new_lightcone(simulation, None, orientation_lock)
     report = find_close_cell_repeats(lightcone, redshift_range, warn=False, max_snapshot_difference=0)
     snap_nr, ids, coords = lattice.place_lattice(
-        lattice.new_lightcone(simulation, None, orientation_lock), redshift_range, None, "particles", None
+        lattice.new_lightcone(simulation, None, orientation_lock), redshift_range, "particles", None
     )
     pair_snap, pair_ids, coords_a, coords_b = particle_close_repeats(snap_nr, ids, coords, lattice.BOXSIZE)
     assert len(pair_snap) > 0
@@ -369,7 +374,12 @@ def test_warning_and_hdf5_file(lattice_run, tmp_path):
     lightcone = lattice.new_lightcone(simulation, None, None, orientation_table=write_clashing_tables(tmp_path))
 
     with pytest.warns(CloseRepeatWarning, match="pairs of .* sharing a face"):
-        report = find_close_cell_repeats(lightcone, shell(cosmo, (110.0, 1610.0)), output_file=str(filename))
+        report = find_close_cell_repeats(
+                lightcone, 
+                shell(cosmo, (110.0, 1610.0)), 
+                output_file=str(filename),
+                max_snapshot_difference=0
+            )
 
     assert report.nr_touching > 0
 

@@ -6,14 +6,12 @@ Simulations and Suites
 SWIFTLET knows about a simulation through two classes:
 
 *   :class:`SimulationSuite`: tracks what every simulation in a suite (FLAMINGO, COLIBRE, ...) has 
-    in common. This is its box size and resolution labels, its directory, how its snapshot and SOAP catalogue files are 
-    named, and its output lists.
+    in common using formatted paths, see the :ref:`table <table-of-values>` below. 
 *   :class:`Simulation`: one simulation of a suite, with its label (e.g. ``L1000N1800``), name 
-    (e.g. ``HYDRO_FIDUCIAL``) and directory.
-
+    (e.g. ``HYDRO_FIDUCIAL``) and directory. 
 
 Accessing a simulation's snapshots, SOAP catalgoues, identifying how a simulation is named and computing the redshift 
-ranges of each snapshot, is done through a :class:`Simulation` object, which accesses the information from the 
+ranges of each snapshot is done through a :class:`Simulation` object, which utilises the formatted paths from the 
 :class:`SimulationSuite`. This way each simulations key information is consistent within the same suite. This page 
 explains how to use these classes and track the paths to all the simulation outs required for builiding a lightcone. 
 
@@ -46,29 +44,36 @@ A suite is a :class:`SimulationSuite` with these fields:
      - Directory of a simulation, with ``{box_res}`` and ``{sim_name}`` fields
      - ``"/data/mysuite/{box_res}/{sim_name}"``
 
-   * - ``base_dir_env``
-     - Environment variable that, if set, replaces the directory holding the simulations
-     - ``"SWIFTLET_MYSUITE_DIR"``
-
    * - ``snapshot_format``
      - Snapshot file, relative to the simulation's directory (or an absolute path), with a ``{snap_nr}`` field, and
        ``{file_nr}`` for snapshots of several files
-     - ``"snapshots/snap_{snap_nr:04d}/snap_{snap_nr:04d}.{file_nr}.hdf5"``
+     - ``"snapshots/snap_{snap_nr:04d}/snap_{snap_nr:04d}.{file_nr}.hdf5"`` (default)
 
    * - ``output_list``
-     - The output list of a simulation, relative to its directory (or an absolute path). Optional:
-       ``"output_list.txt"`` (the default)
-     - ``"output_list.txt"``
+     - The output list of a simulation, relative to its directory (or an absolute path).  
+     - ``"output_list.txt"`` (default)
 
    * - ``soap_format``
      - SOAP halo catalogue, relative to the simulation's directory (or an absolute path), with a ``{snap_nr}`` field.
-       Optional: ``"SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"`` (the default)
-     - ``"soap/halo_properties_{snap_nr:04d}.hdf5"``
+     - ``"SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"`` (the default) or ``"soap/halo_properties_{snap_nr:04d}.hdf5"``
+
+
+SWIFTLET includes prebuilt :class:`SimulationSuite` objects for both FLAMINGO and COLIBRE, prebuilt for use on COSMA:
+
+.. code-block:: python
+
+  from swiftlet.simulation_suites import FLAMINGO, COLIBRE
+
+  COLIBRE.name # the name of the suite: colibre
+  FLAMINGO.name # flamingo
+
+  COLIBRE.base_dir_format # formated path to a simulations base (root) directory 
 
 
 .. _new-suite:
 
-A new suite (not COLIBRE or FLAMINGO) can be built and then called through a :class:`Simulation`:
+A new suite (that is not COLIBRE or FLAMINGO) can be built and then called through a :class:`Simulation` using the 
+simulations labels. 
 
 .. code-block:: python
 
@@ -81,11 +86,12 @@ A new suite (not COLIBRE or FLAMINGO) can be built and then called through a :cl
         snapshot_format="snapshots/snap_{snap_nr:04d}/snap_{snap_nr:04d}.{file_nr}.hdf5",
     )
 
+    # Simulation object for the 'L0100N0512_mysuite/Fiducial' simulation in this suite. 
     sim = Simulation.from_label("L0100N0512_mysuite", "Fiducial", simulation_suite_name=MYSUITE)
 
 
-To find the simulations in a new suite using only the labels, without passing it each time, add the suites to the 
-registry:
+To find the simulations in a new suite using only the labels, without having to pass the suite each time 
+(``simulation_suite_name``) you can add the suite to the registry:
 
 .. code-block:: python
 
@@ -94,9 +100,11 @@ registry:
     simulation_suites.SUITES[MYSUITE.name] = MYSUITE
     Simulation.from_label("L0100N0512_mysuite", "Fiducial")            # found from the label
 
+
 The label patterns of the suites must not overlap. A label matching more than one suite, or none, raises a 
-``ValueError`` asking for ``simulation_suite_name``. To make the suite part of SWIFTLET, define it next to 
-``FLAMINGO`` and ``COLIBRE`` in ``swiftlet/simulation_suites.py`` and add it to the existing ``SUITES`` there.
+``ValueError`` asking for ``simulation_suite_name``. Locally, you can more perminantly add a new suite to the existing 
+``SUITES`` in SWIFTLET, by hard coding it next to the ``FLAMINGO`` and ``COLIBRE`` suites in 
+``swiftlet/simulation_suites.py``.
 
 
 .. _simulation-paths:
@@ -104,35 +112,38 @@ The label patterns of the suites must not overlap. A label matching more than on
 Finding Simulations
 -------------------
 
-Each suite looks for its simulations in ``<directory>/<box_res>/<sim_name>``, as given by the ``base_dir_format`` 
-parameter passed to :class:`SimulationSuite` e.g. ``/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL``. From
-this base directory it then looks for the ``snapshots``, ``SOAP catalogues`` and ``output lists`` using the relative 
-paths shown the :ref:`table <table-of-values>` above. 
+Each suite looks for its simulations in ``<directory>/<box_res>/<sim_name>``, which is given by the ``base_dir_format`` 
+parameter passed to a :class:`SimulationSuite` e.g. ``/path/to/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL``. From
+this base directory each :class:`Simulation` then looks for its ``snapshots``, ``SOAP catalogues`` and ``output lists`` 
+using the relative paths shown the :ref:`table <table-of-values>` above. 
 
-If the location of a simulations directory is given by ``base_dir_format`` in a defined :class:`SimulationSuite`,  
-``snapshots/``, ``SOAP-HBT/`` and ``output_list.txt`` are in the simulation's directory 
-(``<directory>/<box_res>/<sim_name>``) and all files follow the same format as given :ref:`above <table-of-values>`  
-then :class:`Simulation <swiftlet.simulation_suites.Simulation>` can be called from only its labels:
+For a simulation from a defined :class:`SimulationSuite` if ``snapshots/``, ``SOAP-HBT/`` and ``output_list.txt`` are in 
+the simulation's base directory (``<directory>/<box_res>/<sim_name>``) and all files follow the same format as given 
+:ref:`above <table-of-values>`  then :class:`Simulation <swiftlet.simulation_suites.Simulation>` can be called from only 
+its labels:
 
 .. code-block:: python
- 
+
   from swiftlet import Simulation
-  
+
   sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
 
-However for a simulation with **the same layout in a different directory** then you can pass
-:class:`Simulation <swiftlet.simulation_suites.Simulation>` a new ``base_dir_format``, or give the simulation's 
-directory to :meth:`Simulation.from_path <swiftlet.simulation_suites.Simulation.from_path>` (it must end in 
-``<box_res>/<sim_name>``, so the label and name can be read from it):
+
+However for a simulation with **the same layout, but in a different directory** you can pass :class:`Simulation` a new 
+``base_dir_format``, or give the simulation's directory to 
+:meth:`Simulation.from_path <swiftlet.simulation_suites.Simulation.from_path>` (it must end in ``<box_res>/<sim_name>``, 
+so the label and name can be read from it):
 
 .. code-block:: python
 
-   sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL", base_dir_format="/data/me/{sim_name}_{box_res}")
-   sim = Simulation.from_path("/data/me/L1000N1800/HYDRO_FIDUCIAL")
+   sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL", base_dir_format="/sim/data/dir/{sim_name}_{box_res}")
+   sim = Simulation.from_path("/sim/data/dir/L1000N1800/HYDRO_FIDUCIAL")
 
-Then if a simulation's **snapshots, SOAP catalogues or output list have other names**, these new paths can be passed to 
-the simulation as ``snapshot_format``, ``soap_format`` and ``output_list``. Each is relative to the simulation's 
-directory, or absolute, so they can be on different disks:
+
+If a simulation's **snapshots, SOAP catalogues or output list have other names** paths with the new names can be passed 
+to the simulation as ``snapshot_format``, ``soap_format`` and ``output_list``. This paths can be relative to the 
+simulation's base directory or an absolute path, so they can be on different disks:
+
 
 .. code-block:: python
 
@@ -147,7 +158,13 @@ directory, or absolute, so they can be on different disks:
    sim.soap_file(5)            # /scratch/me/haloes/soap_005.hdf5
 
 
-:meth:`Simulation.from_path <swiftlet.simulation_suites.Simulation.from_path>` takes the same three parameters, and
+.. important::
+  The formatted paths (``snapshot_format``, ``soap_format`` and ``output_list``) without the fields it needs, or with 
+  any other field (e.g. ``{snapnr}``), raises a ``ValueError`` when the simulation is made. If a path is not given then 
+  the default from the suite is assumed. 
+
+
+Alternatively to use **the same simulation, but a different set of snapshots, SOAP catalogues or output list** and 
 :meth:`Simulation.with_paths <swiftlet.simulation_suites.Simulation.with_paths>` makes a copy of a simulation you 
 already have, with another directory or other paths:
 
@@ -157,11 +174,7 @@ already have, with another directory or other paths:
    local = sim.with_paths(directory="/data/me/hydro", soap_format="SOAP/halo_properties_{snap_nr:04d}.hdf5")
 
 
-The formatted paths (``snapshot_format``, ``soap_format`` and ``output_list``) without the fields it needs, or with any 
-other field (e.g. ``{snapnr}``), raises a ``ValueError`` when the simulation is made. If a path is not given then the 
-default from the suite is assumed. 
-
-If **every simulation of a suite has new paths**, make a copy of the suite with those paths, and pass it as
+If **every simulation in a suite has new paths**, make a copy of the suite with those paths, and pass it as
 ``simulation_suite_name``:
 
 .. code-block:: python

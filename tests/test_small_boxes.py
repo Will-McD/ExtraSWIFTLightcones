@@ -78,8 +78,8 @@ def test_small_box_lattice_placed_once(small_boxes, box, orientation_lock, beam_
 
     placed = {}
     for kind in ["particles", "haloes"]:
-        lightcone = lattice.new_lightcone(simulation, beam_vector, orientation_lock)
-        placed[kind] = lattice.place_lattice(lightcone, redshift_range, ang_radius_deg, kind, halo_format)
+        lightcone = lattice.new_lightcone(simulation, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+        placed[kind] = lattice.place_lattice(lightcone, redshift_range, kind, halo_format)        
         missing, extra = lattice.lattice_check(placed[kind][2], expected, boxsize=boxsize, spacing=spacing)
         assert len(missing) == 0 and len(extra) == 0, (
             f"{label} {kind}: {len(missing)} lattice points missing, {len(extra)} repeated or off the lattice"
