@@ -24,7 +24,6 @@ We repeat this for when we do and do-not re-orient the tiles:
 
 """
 
-import argparse
 import tempfile
 from pathlib import Path
 import h5py
@@ -362,7 +361,7 @@ def write_unchanged_orientation_table(run_dir):
     return str(filename)
 
 
-def new_lightcone(simulation, beam_vector, orientation_lock, orientation_table=None):
+def new_lightcone(simulation, beam_vector, orientation_lock, orientation_table=None, ang_radius_deg=None):
     """
     Return the :class:`SnapshotLightcone` object: it is a :class:`SnapshotBeam` if ``beam_vector`` is given, or a
     :class:`SnapshotAllSky` if ``beam_vector`` is None.
@@ -375,6 +374,8 @@ def new_lightcone(simulation, beam_vector, orientation_lock, orientation_table=N
     :type   orientation_lock:   str
     :param  orientation_table:  file of orientation tables, or None for the default tables
     :type   orientation_table:  str
+    :param  ang_radius_deg:     angular radius [deg] of the beam, set with its direction. None for all-sky
+    :type   ang_radius_deg:     float
     """
 
     if beam_vector is None:
@@ -388,6 +389,7 @@ def new_lightcone(simulation, beam_vector, orientation_lock, orientation_table=N
     return SnapshotBeam(
         simulation=simulation,
         beam_vector=beam_vector,
+        ang_radius_deg=ang_radius_deg,
         orientation_lock=orientation_lock,
         orientation_table=orientation_table,
         verbose=0,
@@ -408,7 +410,7 @@ def redshift_at_distance(cosmo, r):
     return np.interp(r, r_grid, z_grid)
 
 
-def place_lattice(lightcone, redshift_range, ang_radius_deg, kind, halo_format):
+def place_lattice(lightcone, redshift_range, kind, halo_format):
     """
     Place the input lattice in a lightcone shell.
 
@@ -420,29 +422,29 @@ def place_lattice(lightcone, redshift_range, ang_radius_deg, kind, halo_format):
     :type   lightcone:      SnapshotAllSky or SnapshotBeam
     :param  redshift_range: minimum and maximum redshift of the shell
     :type   redshift_range: tuple
-    :param  ang_radius_deg: angular radius [deg] of a beam, None for all-sky
-    :type   ang_radius_deg: float
     :param  kind:           "particles" or "haloes"
     :type   kind:           str
     :param  halo_format:    SOAP catalogue filename format, with a {snap_nr} field
     :type   halo_format:    str
     """
-
-    beam_args = {} if ang_radius_deg is None else {"ang_radius_deg": ang_radius_deg}
     if kind == "particles":
+        # place particles
         particles = lightcone.place_snapshot_particles_in_shell(
-            redshift_range, property_names=["ParticleIDs", "Coordinates"], particle_types=PTYPE, **beam_args
+            redshift_range, property_names=["ParticleIDs", "Coordinates"], particle_types=PTYPE
         )[PTYPE]
         snap_nr, ids, coords = particles["SnapshotNumber"], particles["ParticleIDs"], particles["Coordinates"]
     else:
-        haloes = lightcone.place_halos_in_shell(halo_format, redshift_range, **beam_args)
+        # place haloes
+        haloes = lightcone.place_halos_in_shell(halo_format, redshift_range)
         snap_nr = haloes["Lightcone/SnapshotNumber"]
         ids = haloes["InputHalos/HaloCatalogueIndex"]
         coords = haloes["Lightcone/HaloCentre"]
+
     snap_nr = np.asarray(snap_nr, dtype=int)
     ids = np.asarray(ids, dtype=int)
     coords = np.asarray(coords.to_value("Mpc"), dtype=float).reshape(-1, 3)
     order = np.lexsort((ids, snap_nr))
+
     return snap_nr[order], ids[order], coords[order]
 
 
@@ -575,7 +577,8 @@ def not_reoriented_check(ids, coords, boxsize=BOXSIZE, spacing=LATTICE_SPACING):
 
 def snapshot_handovers(simulation, cosmo, r_range):
     """
-    Comoving distances [Mpc] inside the shell where one snapshot's redshift range ends and the next begins.
+    Comoving distances [Mpc] inside the shell where one snapshot's redshift range ends and the next begins, i.e.
+    hands over to the next snapshot.
 
     :param  simulation: the simulation
     :type   simulation: Simulation
@@ -621,8 +624,10 @@ def place_cases(simulation, cosmo, halo_format, unchanged_table):
             # repeat for particles and haloes
             for kind in ["particles", "haloes"]:
                 print(f"placing the lattice as {kind}: {name}, {orientation}, orientation_lock={lock}", flush=True)
-                lightcone = new_lightcone(simulation, beam_vector, lock, orientation_table=table)
-                placed[name, case, kind] = place_lattice(lightcone, redshift_range, ang_radius_deg, kind, halo_format)
+                lightcone = new_lightcone(
+                    simulation, beam_vector, lock, orientation_table=table, ang_radius_deg=ang_radius_deg
+                )
+                placed[name, case, kind] = place_lattice(lightcone, redshift_range, kind, halo_format)
 
     return placed
 

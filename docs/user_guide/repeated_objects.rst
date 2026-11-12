@@ -223,6 +223,7 @@ overlapping that tile's part of the lightcone. It then compares pairs of each ce
   is widened by each cell's angular size and the distance by a cell diagonal, so every such pair of particles is in a 
   reported pair of cells.
 
+
 .. code-block:: python
 
     from swiftlet import SnapshotAllSky, find_close_cell_repeats

@@ -24,11 +24,11 @@ catalogues as a format string with a ``{snap_nr}`` field, usually the simulation
 
     # all-sky
     all_sky = SnapshotAllSky(simulation=sim, orientation_lock="cube")
-    halos = all_sky.place_halos_in_shell(sim.soap_format, (0.001, 0.1))
+    halos = all_sky.place_halos_in_shell(sim.soap_format, (0.001, 0.1)) # place haloes into all-sky lightcone
 
-    # a beam of 5 degrees radius, reading 2**22 rows of a catalogue at a time
-    beam = SnapshotBeam(simulation=sim, beam_vector=(1, 2, 3), orientation_lock="cube")
-    beam_halos = beam.place_halos_in_shell(sim.soap_format, (0.001, 0.3), ang_radius_deg=5., soap_chunk_size=2**22)
+    # beam with a radius of 5 degrees
+    beam = SnapshotBeam(simulation=sim, beam_vector=(1, 2, 3),  ang_radius_deg=5., orientation_lock="cube")
+    beam_halos = beam.place_halos_in_shell(sim.soap_format, (0.001, 0.3)) # place haloes into the beam lightcone
 
 The result is a :class:`LightconeOutput`, one row per halo placed, holding only what is needed to place the haloes in 
 the lightcones and to map them back to their position in the SOAP catalogue:

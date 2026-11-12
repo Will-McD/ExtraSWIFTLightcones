@@ -214,8 +214,6 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
 def find_close_cell_repeats(
     lightcone,
     redshift_range,
-    ang_radius_deg=None,
-    ptype="PartType1",
     angle_deg=1.0,
     max_los_separation=None,
     max_separation=None,
@@ -224,7 +222,7 @@ def find_close_cell_repeats(
     copies_per_block=4_000_000,
     max_snapshot_difference=1,
     find_closest_copy=False,
-    verbose=0,
+    ptype="PartType1",
 ):
     """
     Identify where replicas of the same snapshot cells in adjacent tiles that are either clashing or have a small
@@ -238,66 +236,47 @@ def find_close_cell_repeats(
 
     Returns the separation between pairs of repeated cells as a CloseRepeatReport.
 
-    :param  lightcone:          the lightcone (SnapshotAllSky or SnapshotBeam), without an MPI communicator
-    :type   lightcone:          SnapshotLightcone
-    :param  redshift_range:     minimum and maximum redshift of the shell [z_min, z_max]
-    :type   redshift_range:     tuple
-    :param  ang_radius_deg:     angular radius [deg] of the beam, for a SnapshotBeam; None for SnapshotAllSky
-    :type   ang_radius_deg:     float
-    :param  ptype:              particle type whose cells are used, e.g. "PartType1"
-    :type   ptype:              str
-    :param  angle_deg:          two copies of the same cell within this angle [deg] on the sky are considered to be
-                                in the same line of sight.
-    :type   angle_deg:          float
-    :param  max_los_separation: copies on the same line of sight closer than this [Mpc] along it are reported. If
-                                None, half the box size
-    :type   max_los_separation: float
-    :param  max_separation:     if given, also report every pair of copies closer than this [Mpc]
-    :type   max_separation:     float
-    :param  output_file:        if given, write the pairs and the closest separation of every repeated cell to this
-                                HDF5 file
-    :type   output_file:        str
-    :param  warn:               if True, warn (CloseRepeatWarning) if touching or line of sight pairs are found
-    :type   warn:               bool
-    :param  copies_per_block:   most cell copies compared at once, to limit the memory needed
-    :type   copies_per_block:   int
-    :param  max_snapshot_difference: the most the snapshot numbers of two copies of a cell paired may differ by.
-                                     If 0, only use pairs from the same snapshot (i.e. the same structures at
-                                     the same time).
-                                     Default is 1, which includes pairs in the same and adjacent snapshots. If None,
-                                     pair copies of the same cell from any snapshots, this is a very computationally
-                                     expensive task.
-    :type   max_snapshot_difference: int or None
-    :param  find_closest_copy:  If True, find the closest copy of every repeated cell, however far apart,
-                                with a nearest neighbour search of every copy (about a third of the time spent on
-                                the pairs). If False, skip that search: each cell's closest separation is the
-                                smallest among the pairs already found within the search radius (the larger of
-                                max_los_separation plus a cell diagonal, and max_separation), and inf for a cell
-                                with no copy that close. The pairs reported are the same either way.
-    :type   find_closest_copy:  bool
-    :param  verbose:            amount printed. 0: nothing, only warnings. 1: a summary of each step. 2: details of
-                                every step
-    :type   verbose:            int
+    :param  lightcone:                  the lightcone (SnapshotAllSky or SnapshotBeam), without an MPI communicator
+    :type   lightcone:                  SnapshotLightcone
+    :param  redshift_range:             minimum and maximum redshift of the shell [z_min, z_max]
+    :type   redshift_range:             tuple
+    :param  angle_deg:                  two copies of the same cell within this angle [deg] on the sky are considered to
+                                        be in the same line of sight.
+    :type   angle_deg:                  float
+    :param  max_los_separation:         copies on the same line of sight closer than this [Mpc] along it are reported.
+                                        If None, half the box size
+    :type   max_los_separation:         float
+    :param  max_separation:             if given, also report every pair of copies closer than this [Mpc]
+    :type   max_separation:             float
+    :param  output_file:                if given, write the pairs and the closest separation of every repeated cell to
+                                        this HDF5 file
+    :type   output_file:                str
+    :param  warn:                       if True, warn (CloseRepeatWarning) if touching or line of sight pairs are found
+    :type   warn:                       bool
+    :param  copies_per_block:           most cell copies compared at once, to limit the memory needed
+    :type   copies_per_block:           int
+    :param  max_snapshot_difference:    the most the snapshot numbers of two copies of a cell paired may differ by.
+                                        If 0, only use pairs from the same snapshot (i.e. the same structures at
+                                        the same time).
+                                        Default is 1, which includes pairs in the same and adjacent snapshots. If None,
+                                        pair copies of the same cell from any snapshots, this is a very computationally
+                                        expensive task.
+    :type   max_snapshot_difference:    int or None
+    :param  find_closest_copy:          If True, find the closest copy of every repeated cell, however far apart,
+                                        with a nearest neighbour search of every copy (about a third of the time spent
+                                        on the pairs). If False, skip that search: each cell's closest separation is the
+                                        smallest among the pairs already found within the search radius (the larger of
+                                        max_los_separation plus a cell diagonal, and max_separation), and inf for a cell
+                                        with no copy that close. The pairs reported are the same either way.
+    :type   find_closest_copy:          bool
+    :param  ptype:                      particle type whose cells are used, e.g. "PartType1"
+    :type   ptype:                      str
     """
     from scipy.spatial import cKDTree
     from .threads import thread_limit
 
-    def message(m, print_level=2):
-        """
-        Print message (m) if verbose is above or equal to the print level.
-
-        :param  m:              message to be printed
-        :type   m:              str
-        :param  print_level:    verbose level required to be met or passed to print message
-        :type   print_level:    int
-        """
-        if verbose >= print_level:
-            print(m)
-
-    message("setting up the lightcones cell structure", print_level=1)
-
     # find the pieces of the shell, and the cells of each piece that overlap it
-    beam_args = {} if ang_radius_deg is None else {"ang_radius_deg": ang_radius_deg}
+    beam_args = {}
     lightcone._tile_cells = {}
     # attempt to gather files
     try:
@@ -336,13 +315,9 @@ def find_close_cell_repeats(
     cell_size = boxsize = None
     workers = thread_limit() or -1
 
-    message("finished set up, starting to find close pairs", print_level=2)
-
     # the copies paired: for each snapshot on its own, or for every snapshot together (labelled -1), keeping pairs of
     # copies from snapshots at most max_snapshot_difference apart
     window = None if max_snapshot_difference is None else int(max_snapshot_difference)  # snapshot window
-
-    message(f"find copies of cells within a window of {window} snapshots across {nr_tiles} tiles", print_level=1)
 
     if window is not None and window < 0:
         raise ValueError(f"max_snapshot_difference must be 0 or more, or None, not {max_snapshot_difference}")
@@ -358,10 +333,6 @@ def find_close_cell_repeats(
                 "max_snapshot_difference other than 0 needs every snapshot to have the same cells, not "
                 f"{cells_per_snapshot}"
             )
-
-    message(
-        f"identified groups of cells per snapshot in lightcone\nnow iterating through blocks of cells...", print_level=2
-    )
 
     # iterate through snapshots one block of cells at a time: the cells numbered from first to last - 1
     # Max number of copies per block = copies_per_block copies (estimated from the cells gather_files found)
@@ -382,11 +353,9 @@ def find_close_cell_repeats(
         bounds = np.unique(np.concatenate([[0], edges, [nr_cells]]))
         blocks += [(snapshot, (int(first), int(last))) for first, last in zip(bounds[:-1], bounds[1:])]
 
-    message("finished sorting groups of cells per snapshot\nfinding pairs ...", print_level=1)
-
     for snapshot, cell_range in blocks:
         snap_nr, cell, tiles, orientation, centres, size, box = _cells_in_shell(
-            lightcone, ang_radius_deg, groups[snapshot], tile_cells, cell_range
+            lightcone, lightcone.ang_radius_deg, groups[snapshot], tile_cells, cell_range
         )
 
         cell_size, boxsize = (size, box) if size is not None else (cell_size, boxsize)
@@ -581,7 +550,7 @@ def find_close_cell_repeats(
     )
 
     if output_file is not None:
-        write_close_repeats(output_file, report, lightcone, redshift_range, ang_radius_deg)
+        write_close_repeats(output_file, report, lightcone, redshift_range, lightcone.ang_radius_deg)
 
     if warn and (nr_touching > 0 or nr_line_of_sight > 0):
         warnings.warn(
@@ -660,6 +629,4 @@ def write_close_repeats(filename, report, lightcone, redshift_range, ang_radius_
 
         f.attrs["max_snapshot_difference"] = max_diff_attr
 
-        write_lightcone_metadata(
-            f.create_group("lightcone"), lightcone.lightcone_metadata(redshift_range, ang_radius_deg)
-        )
+        write_lightcone_metadata(f.create_group("lightcone"), lightcone.lightcone_metadata(redshift_range))

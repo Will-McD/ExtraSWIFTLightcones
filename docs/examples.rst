@@ -76,6 +76,11 @@ Lightcones from snapshots
        several seeds. Generates a summary plot of the occurrence on-sky positions of these repeated cells 
        (see :doc:`../user_guide/repeated_objects`)
 
+   * - ``snapshot_close_repeat_map.py`` / ``.sh``
+     - checks and plots the close line-of-sight repeats of the same SWIFT cells, for every orientation lock for each 
+       installed orientation table with a set orientation seed. Show each pair on a Mollweide and then overlays 
+       the footprint of a planned beam lightcone beam (see :doc:`../user_guide/repeated_objects`). 
+
 
 .. seealso::
   The ``examples/diagrams`` directory holds scripts that draw diagrams of how a lightcone is built: the lattice of 

@@ -24,6 +24,7 @@ import test_snapshot_lightcone_placement as placement  # noqa: E402
 def main(args):
     """
     Place the haloes on every rank and save them.
+
     :param  args:   arguments, see the module docstring
     :type   args:   dict
     """
@@ -32,14 +33,15 @@ def main(args):
     run_dir = Path(args["run_dir"])
     placement.patch_snapshot_lightcone(patch, run_dir)
 
-    lightcone = placement.new_lightcone(placement.HALO_SIM, args["beam_vector"], args["orientation_lock"])
+    lightcone = placement.new_lightcone(
+        placement.HALO_SIM, args["beam_vector"], args["orientation_lock"], ang_radius_deg=args["ang_radius_deg"]
+    )
     halos = lightcone.place_halos_in_shell(
         placement.soap_format(run_dir),
         tuple(args["redshift_range"]),
         soap_chunk_size=args["soap_chunk_size"],
         comm=comm,
         redistribute_halos=args["redistribute"],
-        **placement.shell_args(lightcone, args["ang_radius_deg"]),
     )
 
     np.savez(

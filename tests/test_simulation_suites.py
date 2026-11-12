@@ -353,7 +353,7 @@ def test_lightcone_from_a_simulation(cosmology_from, simulations_dir):
 
     for lightcone in (
         snapshot_lightcone.SnapshotAllSky(simulation=sim, verbose=0),
-        snapshot_lightcone.SnapshotBeam(simulation=sim, beam_vector=[0.0, 0.0, 1.0], verbose=0),
+        snapshot_lightcone.SnapshotBeam(simulation=sim, beam_vector=[0.0, 0.0, 1.0], ang_radius_deg=5.0, verbose=0),
     ):
         assert lightcone.simulation is sim
         assert (lightcone.box_res, lightcone.sim_name, lightcone.simulation_suite_name) == (
@@ -377,7 +377,10 @@ def test_lightcone_takes_only_a_simulation(cosmology_from, simulations_dir, ligh
     """
     sim = simulations_dir("L1000N1800", "HYDRO_FIDUCIAL")
     lightcone_class = getattr(snapshot_lightcone, lightcone_type)
-    beam = {"beam_vector": [1.0, 0.0, 0.0]} if lightcone_type == "SnapshotBeam" else {}
+    if lightcone_type == "SnapshotBeam":
+        beam = {"beam_vector": [1.0, 0.0, 0.0], "ang_radius_deg": 10.0}
+    else:
+        beam = {}
 
     assert lightcone_class(sim, verbose=0, **beam).simulation is sim
     assert lightcone_class(simulation=sim, verbose=0, **beam).simulation is sim

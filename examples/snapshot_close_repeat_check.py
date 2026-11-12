@@ -1,20 +1,17 @@
 #!/bin/env python
 #
 """
-An example script to show how the :mod:`swiftlet.close_repeat` can be used to identify where the same structures can be
-closely replicated along the same line of sight.
+An example script to show how :mod:`swiftlet.close_repeat` can be used to identify where the same structures can appear
+to be closely replicated along the same line of sight.
 
-Here we check a lightcone for close repeats of the same snapshot cells before adding particles of haloes to it.
-We repeat will repeat this check for each orientation lock and a sample of orientation seeds to change the order seeds,
-that the table is read.
+Here we check a lightcone for close repeats of the same snapshot cells (based on the posiiton of the cells centres in
+the lightcone) before adding particles of haloes to it. We repeat will repeat this check for each orientation lock and
+a sample of orientation seeds to change the order that the tables are read.
 The results are presented in a summary plot.
 
-Such checks are rather useful to check if custom oritentaion tables or certain configurations of a lightcone will result
-in the same objects reapearing too many times in the same line of sight and introduce some bias for any analysis with
-the lightcones.
-Specifically here we are checking if pairs of the same cell of a snapshot, in adjacent tiles, are in contact or within
-1 degree of each another along a line-of-sight.
-
+These checks are rather useful for testing if custom oritentaion tables or certain configurations of a lightcone
+will result in the same objects reapearing too many times in the same line of sight and introduce aditional bias for any
+analysis with the lightcones.
 """
 
 import argparse
@@ -57,7 +54,15 @@ def fake_simulation(run_dir):
     return simulation
 
 
-def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, orientation_table=None, verbose=0):
+def new_lightcone(
+    simulation,
+    beam_vector,
+    orientation_lock,
+    orientation_seed,
+    orientation_table=None,
+    verbose=0,
+    ang_radius_deg=None,
+):
     """
     Return the SnapshotLightcone object.
 
@@ -73,7 +78,10 @@ def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, o
     :type   orientation_seed:   int
     :param  orientation_table:  file of orientation tables, or None for the default tables
     :type   orientation_table:  str
+    :param  ang_radius_deg:     angular radius [deg] of the beam, None for all-sky
+    :type   ang_radius_deg:     float
     """
+    # build lightcone settings, excluding beam vector and angular radius
     settings = dict(
         simulation=simulation,
         orientation_lock=orientation_lock,
@@ -83,15 +91,15 @@ def new_lightcone(simulation, beam_vector, orientation_lock, orientation_seed, o
     )
     if beam_vector is None:
         return SnapshotAllSky(**settings)
-    return SnapshotBeam(beam_vector=beam_vector, **settings)
+    return SnapshotBeam(beam_vector=beam_vector, ang_radius_deg=ang_radius_deg, **settings)
 
 
 def check_cases(
     simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_deg, output_dir, orientation_table=None
 ):
     """
-    Check the lightcone for close repeats with every orientation lock and seed, print a line for each combination
-    and write each report to an HDF5 file.
+    Check the lightcones (each case) for close repeats with every orientation lock and seed, print a line for each
+    combination and write each report to an HDF5 file.
 
     Returns {(lock, seed): CloseRepeatReport}.
 
@@ -115,7 +123,9 @@ def check_cases(
     reports = {}
     for lock in LOCKS:
         for seed in seeds:
-            lightcone = new_lightcone(simulation, beam_vector, lock, seed, orientation_table)
+            lightcone = new_lightcone(
+                simulation, beam_vector, lock, seed, orientation_table, ang_radius_deg=ang_radius_deg
+            )
             filename = output_dir / f"close_repeats.lock_{lock}.seed_{seed}.hdf5"
 
             # print the report
@@ -124,7 +134,6 @@ def check_cases(
                 report = find_close_cell_repeats(
                     lightcone,
                     redshift_range,
-                    ang_radius_deg=ang_radius_deg,
                     angle_deg=angle_deg,
                     output_file=str(filename),
                     find_closest_copy=True,
@@ -143,6 +152,7 @@ def check_cases(
 def plot_reports(reports, seeds, title, filename):
     """
     Plot the close repeats for every lock and seed.
+
     The number of clashing and line of sight pairs, where on the sky the line of sight pairs
     are (first seed), and the closest distance between copies of each repeated cell (first seed).
 
@@ -224,7 +234,7 @@ def plot_reports(reports, seeds, title, filename):
 
         ax.set_title(
             (
-                f"orientation_lock = {lock}, seed {first}: {report.nr_line_of_sight} line"
+                f"orientation_lock = {lock}, seed {first}: {report.nr_line_of_sight} line "
                 "of sight, {report.nr_touching} clashing"
             ),
             fontsize=9,
@@ -234,7 +244,7 @@ def plot_reports(reports, seeds, title, filename):
         ax.text(
             0.5,
             -0.06,
-            f"tiles: {report.nr_tiles:,}, total pairs checked: {report.nr_cell_pairs:,}",
+            f"tiles in lightcone: {report.nr_tiles:,},\ntotal pairs checked: {report.nr_cell_pairs:,}",
             transform=ax.transAxes,
             ha="center",
             va="top",
@@ -332,7 +342,6 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser(description=arg_descript_str)
-
     parser.add_argument("--box_res", default="L1000N1800", help="box size and resolution label")
     parser.add_argument("--sim_name", default="HYDRO_FIDUCIAL", help="name of the simulation")
     parser.add_argument(
@@ -340,14 +349,12 @@ if __name__ == "__main__":
         action="store_true",
         help="use the fake lattice simulation of examples/snapshot_lattice.py instead (runs anywhere)",
     )
-
     parser.add_argument("--zmin", type=float, default=0.02, help="minimum redshift of the shell")
     parser.add_argument("--zmax", type=float, default=0.4, help="maximum redshift of the shell")
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2], help="orientation seeds to check")
     parser.add_argument(
         "--orientation_table", default="none", help="path/to/orientation/table/file.yaml , if none use default"
     )
-
     parser.add_argument(
         "--beam_vector", type=float, nargs=3, default=None, help="direction of a beam (default all-sky)"
     )
@@ -361,7 +368,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="./example_outputs/close_repeat_check", help="output directory")
     args = parser.parse_args()
 
-    plot_settings()
+    plot_settings()  # import matplotlib settings
 
     if (args.beam_vector is None) != (args.ang_radius_deg is None):
         parser.error("give both --beam_vector and --ang_radius_deg for a beam, or neither for all-sky")
@@ -370,6 +377,7 @@ if __name__ == "__main__":
     beam_vector = None if args.beam_vector is None else tuple(args.beam_vector)
 
     if args.fake:
+        # generate fake FLAMINGO snapshots and SOAP catalogues, each made a regular lattice.
         with tempfile.TemporaryDirectory() as run_dir:
             run(
                 fake_simulation(run_dir),
@@ -382,6 +390,7 @@ if __name__ == "__main__":
                 args.orientation_table,
             )
     else:
+        # use real SWIFT snapshots and SOAP catalogues
         run(
             Simulation.from_label(args.box_res, args.sim_name),
             redshift_range,

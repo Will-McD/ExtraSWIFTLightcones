@@ -5,17 +5,32 @@ Building lightcones
 
 
 A lightcone is built from the snapshots of a simulation with :class:`SnapshotAllSky` (the whole sky) or
-:class:`SnapshotBeam` (a pencil beam). Both are filled with copies of the snapshot box, re-oriented and placed on a
-lattice around the observer (see :doc:`orientation`). 
-This page covers the choices that need to be made in this process, first at a surface level and then in a more detailed 
-:ref:`step-by-step walkthrough <lightcone-step-by-step>`. 
+:class:`SnapshotBeam` (a beam or cone).  Both :class:`SnapshotAllSky` and :class:`SnapshotBeam` are subclasses 
+of :class:`SnapshotLightcone`, with each subclass only containing 
+information about its own geometry or the shape of the lightcone it will build. The actual methods or pipeline of
+building a lightcone is held by :class:`SnapshotLightcone` and is therefore shared by both subclasses. 
+:class:`SnapshotLightcone` builds lightcones by filling it with copies of the simulations snapshot box, that are 
+re-oriented and placed on a lattice around the observer (see :doc:`methods_overview`). 
+
+In practice SWIFTLET builds lightcones from snapshots in three steps:
+
+#.  Defining the lightcone: choose the simulation, the lightcone's geometry and its internal structure (how the copies
+    of the snapshot box are oriented).
+#.  Gathering the simulation data: the lightcone is first built at snapshots cell level, from which we find the 
+    exact files and cells to read without ever touching the particle (or halo) data. 
+#.  Reading and placing particles and haloes: place the particles or haloes of those cells into the lightcone, following 
+    the blueprint laid out by the previous gather step.
+
+
+This page covers the choices that need to be made in this process, first at a surface level overview and then in a more 
+detailed :ref:`step-by-step <lightcone-step-by-step>` walkthrough. 
 
 
 .. important::
    **Lightcones should be built in thin redshift shells.**
    The comoving volume of a lightcone quickly grows larger than that of a snapshot. For example, with the COLIBRE
-   ``L400_m7`` simulations, an all-sky lightcone for redshifts :math:`z=0 - 0.2` (a comoving radius of :math:`\approx 838`
-   Mpc) holds the comoving volume, and the disk space, of :math:`\approx 39` snapshots.
+   ``L400_m7`` simulations, an all-sky lightcone for redshifts :math:`z=0 - 0.2` (a comoving radius of 
+   :math:`\approx 838` Mpc) holds the comoving volume, and the disk space, of :math:`\approx 39` snapshots.
 
 
 
@@ -24,11 +39,11 @@ Defining a lightcone
 
 A lightcone needs:
 
-*   **the simulation**: a :class:`Simulation <swiftlet.simulation_suites.Simulation>`, passed as
-    ``simulation``, or its ``boxsize_resolution`` and ``simulation_name`` given by keyword (see
-    :doc:`new_simulations_and_suites`)
-*   **its geometry**: :class:`SnapshotAllSky`, a spherical lightcone or :class:`SnapshotBeam`, a cone with a direction,
-    (the angular radius is given when the beam is filled)
+*   **the simulation**: a :class:`Simulation <swiftlet.simulation_suites.Simulation>`, passed as 
+    ``simulation`` (see :doc:`new_simulations_and_suites`)
+*   **its geometry**: handled by the :class:`SnapshotLightcone` subclasses, :class:`SnapshotAllSky` for a spherical 
+    lightcone or :class:`SnapshotBeam`, a cone with a direction (``beam_vector``) and angular radius 
+    (``ang_radius_deg``).
 *   **the orientation of its tiles**: the ``orientation_table`` (the default table if not given), the
     ``orientation_lock`` (``None``, ``"cube"`` or ``"sphere"``) and the ``orientation_seed`` (see :doc:`orientation`
     and :doc:`orientation_tables`).
@@ -41,16 +56,20 @@ A lightcone needs:
     sim = Simulation.from_label("L0400N3008", "Thermal")   # COLIBRE L400_m7, Thermal AGN
 
     all_sky = SnapshotAllSky(simulation=sim, orientation_lock="cube", orientation_seed=0)
-    beam = SnapshotBeam(simulation=sim, beam_vector=(1, 2, 3), orientation_lock="cube", orientation_seed=0)
+    beam = SnapshotBeam(
+        simulation=sim, 
+        beam_vector=(1, 2, 3), ang_radius_deg=2.0, 
+        orientation_lock="cube", orientation_seed=0
+        )
 
 
 With the same tables, lock and seed, ``beam`` is exactly the subvolume of ``all_sky`` inside its cone (see
 :ref:`beams-are-part-of-the-all-sky-lightcone`).
 
 .. tip::
-   Before building a large lightcone it is a good idea to check how close periodic replicas will be within the lightcone.
-   This can be done using the cell structure along with :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` 
-   (see :doc:`repeated_objects`).
+   Before building a large lightcone it is a good idea to check how close periodic replicas will be within the 
+   lightcone. This can be done using the cell structure along with 
+   :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` (see :doc:`repeated_objects`).
 
 
 Populating a lightcone
@@ -120,9 +139,9 @@ and discarded:
 
 .. code-block:: python
 
-    nr_pieces, pieces = beam.gather_files("PartType1", (0.1, 0.2), ang_radius_deg=2.)
+    nr_pieces, pieces = beam.gather_files("PartType1", (0.1, 0.2))
     for piece in range(nr_pieces):
-        particles = beam.place_file_in_shell(piece, "PartType1", ["Masses"], ang_radius_deg=2.)
+        particles = beam.place_file_in_shell(piece, "PartType1", ["Masses"])
         if len(particles):
             ...  # add particles["Coordinates"] and particles["Masses"] to a map
 
@@ -158,8 +177,8 @@ Building lightcones: Step by step
 What happens when a lightcone is set up and filled with particles or haloes, step by step.
 
 
-Placing particles
-^^^^^^^^^^^^^^^^^
+Particles
+^^^^^^^^^
  
 .. dropdown:: Flowchart: placing particles into a lightcone
    :icon: workflow
@@ -216,8 +235,8 @@ place one at a time.
 The result is a :class:`LightconeOutput` ``{particle type: data}``, with the lightcone's ``.metadata``.
 
 
-Placing haloes
-^^^^^^^^^^^^^^
+Haloes
+^^^^^^
 
 .. dropdown:: Flowchart: placing haloes into a lightcone
    :icon: workflow

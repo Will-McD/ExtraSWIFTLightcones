@@ -36,11 +36,12 @@ def main(args):
     patch = pytest.MonkeyPatch()
     placement.patch_snapshot_lightcone(patch, Path(args["run_dir"]))
 
-    lightcone = placement.new_lightcone(args["sim_name"], args["beam_vector"], args["orientation_lock"])
+    lightcone = placement.new_lightcone(
+        args["sim_name"], args["beam_vector"], args["orientation_lock"], ang_radius_deg=args["ang_radius_deg"]
+    )
     kwargs = {"comm": comm}
 
     if args["beam_vector"] is not None:
-        kwargs["ang_radius_deg"] = args["ang_radius_deg"]
         kwargs["redistribute_particles"] = args["redistribute"]
 
     particles = lightcone.place_snapshot_particles_in_shell(

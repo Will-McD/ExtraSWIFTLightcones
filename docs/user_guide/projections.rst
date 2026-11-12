@@ -56,13 +56,13 @@ As shown in the example below, to make a projection:
     snap_beam = SnapshotBeam(
         simulation=sim,
         beam_vector=(0,0,1),         # point the beam along the z-axis
+        ang_radius_deg=8,            # angular radius in degrees
         orientation_seed=0,          # reproduces the same box orientations
         orientation_lock="cube",     # set strict layers of the lightcones tiles
     )
 
     shell_particles = snap_beam.place_snapshot_particles_in_shell(
         lightcone_redshift_range=(0.001, 0.11),     # redshift range of the lightcone
-        ang_radius_deg=8,                           # angular radius in degrees
         property_names=["Masses", "Temperatures"],
         particle_types=["PartType0", "PartType1"],
     )

@@ -594,6 +594,7 @@ class SnapshotLightcone:
         self,
         simulation,
         beam_vector=None,
+        ang_radius_deg=None,
         orientation_seed=0,
         orientation_lock=None,
         orientation_table=None,
@@ -604,8 +605,10 @@ class SnapshotLightcone:
                                             which sets where its snapshots, SOAP catalogues and output list are.
         :type   simulation:                 Simulation
         :param  beam_vector:                direction vector of the line of sight as an array of 3 floats. None for
-                                            all-sky
+                                            all-sky lightcone
         :type   beam_vector:                numpy.ndarray
+        :param  ang_radius_deg:             angular radius [deg] of the beam. None for all-sky lightcone.
+        :type   ang_radius_deg:             float
         :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
                                             tile
         :type   orientation_seed:           int
@@ -653,6 +656,13 @@ class SnapshotLightcone:
         else:
             self.beam_vec = self.__define_beam_vector(beam_vector)
 
+        # the angular radius of the beam (around the beams vector)
+        if ang_radius_deg is None:
+            self.ang_radius_deg = None
+        else:
+            self.ang_radius_deg = float(ang_radius_deg)
+            self._validate_ang_radius_deg(self.ang_radius_deg)
+
         # define the orientation seed: order of reading the table of orientation boxes
         self.orientation_seed = int(orientation_seed)
         if orientation_lock not in ORIENTATION_LOCK_OPTIONS:
@@ -674,7 +684,7 @@ class SnapshotLightcone:
             self.orientation_table = os.path.abspath(str(orientation_table))
             self._orientation_tables = box_structure.read_orientation_tables(self.orientation_table)
 
-        # define tables finger print so it can be recovered as needed.
+        # read the tables finger print so it can be recovered as needed.
         self.orientation_table_fingerprint = box_structure.orientation_tables_fingerprint(self._orientation_tables)
 
         # if a dict, gather_files records in it the cells of each (snapshot, tile) piece that overlap the shell, as
@@ -697,7 +707,7 @@ class SnapshotLightcone:
         # define grid to interpolate redshift from comoving distance
         self.__redshift_from_comoving_distance([0.0005, 5.0], n_grid=5000, method="precise")
 
-    def lightcone_metadata(self, redshift_range=None, ang_radius_deg=None):
+    def lightcone_metadata(self, redshift_range=None):
         """
         Returns the lightcone metadata, a dict with the names LIGHTCONE_METADATA_NAMES.
 
@@ -707,15 +717,13 @@ class SnapshotLightcone:
             - orientation_lock
             - orientation table (file and fingerprint of its contents) that set the orientation of every box tile,
             - the simulation,
-            - the beam
+            - the beam (vector and angular radius)
             - the redshift range.
 
         Given the same settings and snapshots, the same exact lightcone can be made again.
 
         :param  redshift_range: minimum and maximum redshift of the shell placed
         :type   redshift_range: sequence of two floats
-        :param  ang_radius_deg: angular radius [deg] of the beam, None for all-sky
-        :type   ang_radius_deg: float
         """
         from . import __version__ as package_version
 
@@ -729,7 +737,7 @@ class SnapshotLightcone:
             "orientation_table": self.orientation_table,
             "orientation_table_fingerprint": self.orientation_table_fingerprint,
             "beam_vector": None if self.beam_vec is None else [float(x) for x in np.ravel(self.beam_vec)],
-            "ang_radius_deg": None if ang_radius_deg is None else float(ang_radius_deg),
+            "ang_radius_deg": None if self.ang_radius_deg is None else float(self.ang_radius_deg),
             "redshift_range": None if redshift_range is None else [float(z) for z in redshift_range],
             "version": package_version,
         }
@@ -1013,9 +1021,11 @@ class SnapshotLightcone:
         """
         Returns the snapshot numbers for the redshift range of the lightcone shell, from low to high redshift.
 
-        Read ahead and find which snapshots are available (for particles and SOAP catalogues),
-        then identify which snapshots fill the lightcones redshift range. If any snapshots are missing, fill the gap in
-        redshft with the neighbouring available snapshots. If snapshots are missing raise a SnapshotGapWarning.
+        Read ahead and find which snapshots (and SOAP catalogues) are available, then identify which snapshots fill the
+        lightcones redshift range. If any snapshots are missing, fill the gap in redshft with the neighbouring available
+        snapshots.
+
+        If snapshots are missing raise a SnapshotGapWarning.
 
         Raise a ValueError if the redshift spacing between the snapshots is greater than
         the MAX_SNAPSHOT_SPACING.
@@ -1199,7 +1209,7 @@ class SnapshotLightcone:
             self.comm_size = comm.Get_size()
             self.redistribute_particles = redistribute_particles
 
-    def _snapshot_tile_idx(self, snap_shell_z_range, ang_radius_deg=None):
+    def _snapshot_tile_idx(self, snap_shell_z_range):
         """
         Find every tile a snapshot's assigned redshift range touches and the snapshot's full (unsplit) redshift range.
 
@@ -1207,15 +1217,12 @@ class SnapshotLightcone:
 
         :param  snap_shell_z_range: redshift range of the shell populated by the snapshot [z_min, z_max]
         :type   snap_shell_z_range: tuple
-        :param  ang_radius_deg:     angular radius [deg] of the beam, passed to _tiles_intersecting_shell.
-                                        Unused by SnapshotAllSky
-        :type   ang_radius_deg:     float
         """
         r_min, r_max = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
 
         boxsize = self.__snap_cell_data["snap_boxsize"].to_value("Mpc")[0]
 
-        tiles = self._tiles_intersecting_shell(r_min, r_max, boxsize, ang_radius_deg)
+        tiles = self._tiles_intersecting_shell(r_min, r_max, boxsize)
         if self.orientation_lock == "sphere":
             return self._split_tiles_into_spherical_layers(tiles, snap_shell_z_range, boxsize)
 
@@ -1491,7 +1498,7 @@ class SnapshotLightcone:
             self.__comoving_distance_to_scalefactor(r_comoving) * unyt.dimensionless
         )
 
-    def _gather_files_for_ptype(self, current_ptype, shell_z, ang_radius_deg, use_snapshots=None):
+    def _gather_files_for_ptype(self, current_ptype, shell_z, use_snapshots=None):
         """
         Identify every (snapshot, tile, file) needed to populate a lightcone for a single particle type.
 
@@ -1505,8 +1512,6 @@ class SnapshotLightcone:
         :type   current_ptype:  str
         :param  shell_z:        minimum and maximum redshift of the shell [z_min, z_max]
         :type   shell_z:        sequence of two floats
-        :param  ang_radius_deg: angular radius [deg] of the beam
-        :type   ang_radius_deg: float
         :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
         :type   use_snapshots:  list or numpy.ndarray
         """
@@ -1524,9 +1529,8 @@ class SnapshotLightcone:
             self.__check_snapshots_exist(self.snapshots_to_read)
             self.__warn_use_snapshots_gaps(shell_z)
 
-        self.__remove_snapshots_outside_shell(
-            shell_z
-        )  # sanity check to catch edge cases and rounding errors that slip through
+        # sanity check to catch edge cases and rounding errors that slip through
+        self.__remove_snapshots_outside_shell(shell_z)
 
         # iterate through snapshot cell data to identify:
         # cells, filenames, offsets, lengths and particles per file to read.
@@ -1540,7 +1544,9 @@ class SnapshotLightcone:
             # record each of this snapshot's tile pieces into self.last_snapshot_read & snap_file_offset_lengths
             # (a single snapshot can need more than one piece)
             self.__gather_cells_and_tiles(
-                snapshot_number=snap_nr, shell_z=shell_z, current_ptype=current_ptype, ang_radius_deg=ang_radius_deg
+                snapshot_number=snap_nr,
+                shell_z=shell_z,
+                current_ptype=current_ptype,
             )
 
         self._file_order_index = {
@@ -1585,7 +1591,7 @@ class SnapshotLightcone:
         return self.snap_file_offset_lengths
 
     def __populate_lightcone_with_ptype(
-        self, particle_type, property_names, shell_z, ang_radius_deg, redistribute=False, use_snapshots=None
+        self, particle_type, property_names, shell_z, redistribute=False, use_snapshots=None
     ):
         """
         Read and place all particles of one type into the lightcone shell.
@@ -1598,14 +1604,12 @@ class SnapshotLightcone:
         :type   property_names: list
         :param  shell_z:        minimum and maximum redshift of the shell [z_min, z_max]
         :type   shell_z:        sequence of two floats
-        :param  ang_radius_deg: angular radius [deg] of the beam
-        :type   ang_radius_deg: float
         :param  redistribute:   If True, redistribute particles evenly across MPI ranks
         :type   redistribute:   bool
         :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
         :type   use_snapshots:  list or numpy.ndarray
         """
-        self._gather_files_for_ptype(particle_type, shell_z, ang_radius_deg, use_snapshots)
+        self._gather_files_for_ptype(particle_type, shell_z, use_snapshots)
 
         # check for no particles existing in identified cells
         if np.sum(self.npart_per_file) == 0:
@@ -1635,7 +1639,7 @@ class SnapshotLightcone:
 
             # read particles from files and place into ligthcone beam
             self.__read_and_place_particles(
-                self.snap_file_offset_lengths, particle_type, property_names, ang_radius_deg
+                self.snap_file_offset_lengths, particle_type, property_names
             )  # , total_ptype_to_read)
 
             self._attach_expansion_factors()
@@ -1644,7 +1648,7 @@ class SnapshotLightcone:
             # use parallel reading of particle data
             if self.comm is None:
                 raise ValueError("must supply an MPI communicator (comm) to read in parallel")
-            self.__parallel_read_and_place_particles(particle_type, property_names, ang_radius_deg)
+            self.__parallel_read_and_place_particles(particle_type, property_names)
             if redistribute:
                 # evenly distribute particles across all ranks
                 self.__redistribute_particles_evenly(property_names)
@@ -1680,7 +1684,7 @@ class SnapshotLightcone:
             ]
         )
 
-    def __gather_cells_and_tiles(self, snapshot_number, shell_z, current_ptype, ang_radius_deg):
+    def __gather_cells_and_tiles(self, snapshot_number, shell_z, current_ptype):
         """
         Find the cells and files of a snapshot, for every tile, that fall within the lightcone shell.
 
@@ -1692,8 +1696,6 @@ class SnapshotLightcone:
         :type   shell_z:            sequence of two floats
         :param  current_ptype:      particle type, e.g. "PartType1"
         :type   current_ptype:      str
-        :param  ang_radius_deg:     angular radius [deg] of the beam
-        :type   ang_radius_deg:     float
         """
         # sanity check snapshot specific values
         if self.__snap_cell_data is not None:
@@ -1713,9 +1715,9 @@ class SnapshotLightcone:
         ptypes_in_current_snap = self.__files_with_ptype(snapshot_number, self.__snap_cell_data["nr_files"])
 
         # iterate through tiles pieces and add transverse tiles when the beam's diameter exceeds one box sidelength.
-        for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range, ang_radius_deg):
+        for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range):
             # read in the instructions for how to reconstruct the snapshot box
-            beam_idx = self.__cells_in_tile(snapshot_number, tile, z_sub_min, z_sub_max, ang_radius_deg)
+            beam_idx = self.__cells_in_tile(snapshot_number, tile, z_sub_min, z_sub_max)
 
             if self._tile_cells is not None:
                 self._tile_cells[(snapshot_number, tile)] = np.asarray(beam_idx, dtype=np.int32)
@@ -1749,7 +1751,7 @@ class SnapshotLightcone:
             # Ensures that __read_and_place_particles uses the same correct (wider) radial bound.
             self.__last_snapshot_read(snapshot_number, tile, (z_sub_min, z_sub_max))
 
-    def __cells_in_tile(self, snapshot_number, tile, z_sub_min, z_sub_max, ang_radius_deg):
+    def __cells_in_tile(self, snapshot_number, tile, z_sub_min, z_sub_max):
         """
         Identify the snapshot cells within a tile.
 
@@ -1768,8 +1770,6 @@ class SnapshotLightcone:
         :type   z_sub_min:          float
         :param  z_sub_max:          maximum redshift of the tile's part of the shell
         :type   z_sub_max:          float
-        :param  ang_radius_deg:     angular radius [deg] of the beam
-        :type   ang_radius_deg:     float
         """
         # read in the instructions for how to reconstruct the snapshot box
         snapshot_rotation_angles, snapshot_rotation_reflections, snapshot_periodic_shifts = (
@@ -1803,7 +1803,6 @@ class SnapshotLightcone:
 
         beam_idx, __ = self._in_shell(
             coords=repositioned_cell_centres,
-            ang_radius_deg=ang_radius_deg,
             z_min=z_sub_min,
             z_max=z_sub_max,
             buffer_length=self.__snap_cell_data["cell_size"][0].to_value("Mpc"),
@@ -1818,7 +1817,7 @@ class SnapshotLightcone:
 
         return beam_idx
 
-    def __read_and_place_particles(self, files_to_read, current_ptype, property_names, ang_radius_deg):
+    def __read_and_place_particles(self, files_to_read, current_ptype, property_names):
         """
         Read the given FileReadSpec entries and reorient each file's coordinates into the beam.
 
@@ -1828,8 +1827,6 @@ class SnapshotLightcone:
         :type   current_ptype:  str
         :param  property_names: particle properties to read
         :type   property_names: list
-        :param  ang_radius_deg: angular radius [deg] of the beam
-        :type   ang_radius_deg: float
         """
         snap_z_range = {(record.snap_nr, record.tile): record.z_updated for record in self.last_snapshot_read}
         kept_parts = {prop: [] for prop in property_names}
@@ -1895,7 +1892,6 @@ class SnapshotLightcone:
                 file_particle_data["Coordinates"].to_value("Mpc"),
                 zmin=zmin,
                 zmax=zmax,
-                ang_radius_deg=ang_radius_deg,
                 method="exact",
                 r_tol=0 * unyt.Mpc,
             )
@@ -1942,7 +1938,7 @@ class SnapshotLightcone:
         if len(kept_parts["SnapshotNumber"]) > 0:
             self.particle_data["SnapshotNumber"] = unyt.uconcatenate(kept_parts["SnapshotNumber"])
 
-    def __parallel_read_and_place_particles(self, current_ptype, property_names, ang_radius_deg):
+    def __parallel_read_and_place_particles(self, current_ptype, property_names):
         """
         Parallel counterpart to the serial method.
 
@@ -1956,8 +1952,6 @@ class SnapshotLightcone:
         :type   current_ptype:  str
         :param  property_names: particle properties to read
         :type   property_names: list
-        :param  ang_radius_deg: angular radius [deg] of the beam
-        :type   ang_radius_deg: float
         """
         # distribute the files to read across ranks,
         # one file per rank for when there are at least as many files as ranks
@@ -1980,7 +1974,7 @@ class SnapshotLightcone:
             f"\treading {len(my_files)}/{nr_files} files, {total_ptype_to_read} particles", level=1, every_rank=True
         )
 
-        self.__read_and_place_particles(my_files, current_ptype, property_names, ang_radius_deg)
+        self.__read_and_place_particles(my_files, current_ptype, property_names)
 
         all_kept_per_file_updates = self.comm.allgather(self._local_kept_per_file_updates)
         for updates in all_kept_per_file_updates:
@@ -2114,7 +2108,7 @@ class SnapshotLightcone:
 
         return file_particle_data
 
-    def __select_paticles_in_shell(self, coords, zmin, zmax, ang_radius_deg, method="exact", r_tol=2 * unyt.Mpc):
+    def __select_paticles_in_shell(self, coords, zmin, zmax, method="exact", r_tol=2 * unyt.Mpc):
         """
         Select the particles inside the lightcone shell.
 
@@ -2126,8 +2120,6 @@ class SnapshotLightcone:
         :type   zmin:           float
         :param  zmax:           maximum redshift of the shell
         :type   zmax:           float
-        :param  ang_radius_deg: angular radius [deg] of the beam
-        :type   ang_radius_deg: float
         :param  method:         'exact', no buffer. 'approx', extend the shell by r_tol. 'all', keep every particle
         :type   method:         str
         :param  r_tol:          buffer distance used with the 'approx' method (units of Mpc or equivalent)
@@ -2148,7 +2140,6 @@ class SnapshotLightcone:
 
         return self._in_shell(
             coords,
-            ang_radius_deg=ang_radius_deg,
             z_min=zmin,
             z_max=zmax,
             buffer_length=buffer_length,
@@ -2185,7 +2176,7 @@ class SnapshotLightcone:
 
         self._log(f"Redistributed {ntot} particles evenly across {self.comm_size} ranks", level=1)
 
-    def gather_files(self, current_ptype, shell_z, ang_radius_deg=None, use_snapshots=None):
+    def gather_files(self, current_ptype, shell_z, use_snapshots=None):
         """
         Determine the snapshot files containing the particles needed to populate the lightcone.
 
@@ -2200,22 +2191,17 @@ class SnapshotLightcone:
         :type   current_ptype:  str
         :param  shell_z:        minimum and maximum redshift of the lightcone shell [z_min, z_max]
         :type   shell_z:        sequence of two floats
-        :param  ang_radius_deg: angular radius [deg] of the beam.
-                                    Needed by SnapshotBeam, ignored if None.
-        :type   ang_radius_deg: float
         :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
         :type   use_snapshots:  list or numpy.ndarray
         """
         if self.comm is not None:
             raise ValueError("gather_files only supports serial (non-MPI) use")
 
-        self._validate_ang_radius_deg(ang_radius_deg)
-
-        files = self._gather_files_for_ptype(current_ptype, shell_z, ang_radius_deg, use_snapshots)
+        files = self._gather_files_for_ptype(current_ptype, shell_z, use_snapshots)
         self._gathered_shell_z = shell_z  # recorded with the particles placed, see lightcone_metadata
         return len(files), files
 
-    def place_file_in_shell(self, file_number, current_ptype, property_names, ang_radius_deg=None):
+    def place_file_in_shell(self, file_number, current_ptype, property_names):
         """
         Read and place a single file, selected by index, into the beam.
 
@@ -2231,12 +2217,7 @@ class SnapshotLightcone:
         :type   current_ptype:  str
         :param  property_names: particle properties to read, e.g. ["ParticleIDs", "Coordinates"]
         :type   property_names: list
-        :param  ang_radius_deg: angular radius [deg] of the beam (must match the value passed to gather_files)
-                                    Needed by SnapshotBeam, ignored if None.
-        :type   ang_radius_deg: float
         """
-        self._validate_ang_radius_deg(ang_radius_deg)
-
         if self.comm is not None:
             raise ValueError("place_file_in_shell only supports serial (non-MPI) use")
         if self.snap_file_offset_lengths is None:
@@ -2254,10 +2235,10 @@ class SnapshotLightcone:
         file_data = self.snap_file_offset_lengths[file_number]
 
         self.particle_data = {name: None for name in property_names}
-        self.__read_and_place_particles([file_data], current_ptype, property_names, ang_radius_deg)
+        self.__read_and_place_particles([file_data], current_ptype, property_names)
 
         # record metadata
-        metadata = self.lightcone_metadata(getattr(self, "_gathered_shell_z", None), ang_radius_deg)
+        metadata = self.lightcone_metadata(getattr(self, "_gathered_shell_z", None))
 
         if self.particle_data["Coordinates"] is None:
             self._log(f"\nNo particles kept from file {file_number}\n", level=2)
@@ -2271,7 +2252,6 @@ class SnapshotLightcone:
         self,
         lightcone_redshift_range,
         property_names,
-        ang_radius_deg=None,
         particle_types=["PartType0", "PartType1", "PartType5"],
         use_snapshots=None,
         comm=None,
@@ -2286,8 +2266,6 @@ class SnapshotLightcone:
         :type   lightcone_redshift_range:   sequence of two floats
         :param  property_names:             particle properties to read, e.g. ["ParticleIDs", "Coordinates"]
         :type   property_names:             list
-        :param  ang_radius_deg:             angular radius [deg] of the beam. Needed by SnapshotBeam, ignored if None
-        :type   ang_radius_deg:             float
         :param  particle_types:             particle type(s) to place, e.g. "PartType1"
         :type   particle_types:             str or list
         :param  use_snapshots:              snapshot numbers to use instead of the ones selected from the redshift range
@@ -2297,8 +2275,6 @@ class SnapshotLightcone:
         :param  redistribute_particles:      If True, redistribute the particles evenly across the MPI ranks
         :type   redistribute_particles:      bool
         """
-        self._validate_ang_radius_deg(ang_radius_deg)
-
         self._define_mpi_mode(comm, redistribute_particles)
 
         if property_names is None:
@@ -2313,7 +2289,6 @@ class SnapshotLightcone:
             for ptype in particle_types:
                 self._log(seperator_str() + f"\nPlacing {ptype} in lightcone", level=1)
                 combined_dset[ptype] = self.__populate_lightcone_with_ptype(
-                    ang_radius_deg=ang_radius_deg,
                     shell_z=lightcone_redshift_range,
                     property_names=property_names,
                     particle_type=ptype,
@@ -2326,7 +2301,6 @@ class SnapshotLightcone:
             ptype = particle_types
             self._log(seperator_str() + f"\nPlacing {ptype} in lightcone", level=1)
             combined_dset[ptype] = self.__populate_lightcone_with_ptype(
-                ang_radius_deg=ang_radius_deg,
                 shell_z=lightcone_redshift_range,
                 property_names=property_names,
                 particle_type=ptype,
@@ -2335,10 +2309,12 @@ class SnapshotLightcone:
             )
 
         # record the settings that made the lightcone as metadata
-        metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
+        metadata = self.lightcone_metadata(lightcone_redshift_range)
+
+        # Return the lightcone and its metadata
         return LightconeOutput(
             {ptype: LightconeOutput(data, metadata) for ptype, data in combined_dset.items()}, metadata
-        )  # Return the lightcone and its metadata
+        )
 
     def inverse_transform_snapshot_coordinates(
         self,
@@ -2648,9 +2624,7 @@ class SnapshotLightcone:
         )
         return oriented + self.get_snapshot_reposition_coords(tile, cell_data["snap_boxsize"].to_value("Mpc"))
 
-    def gather_halo_catalogues(
-        self, halo_format, shell_z, ang_radius_deg=None, use_snapshots=None, snapshot_number=None
-    ):
+    def gather_halo_catalogues(self, halo_format, shell_z, use_snapshots=None, snapshot_number=None):
         """
         Halo counterpart of gather_files.
 
@@ -2670,17 +2644,12 @@ class SnapshotLightcone:
         :type   halo_format:        str
         :param  shell_z:            minimum and maximum redshift of the lightcone shell [z_min, z_max]
         :type   shell_z:            sequence of two floats
-        :param  ang_radius_deg:     angular radius [deg] of the beam, ignored if None.
-                                        Needed by SnapshotBeam and None for SnapshotAllSky.
-        :type   ang_radius_deg:     float
         :param  use_snapshots:      snapshot numbers to use instead of the ones auto-selected from shell_z
         :type   use_snapshots:      list or numpy.ndarray
         :param  snapshot_number:    the snapshot to read the box and cell metadata from. If None, the lowest redshift
                                         snapshot used
         :type   snapshot_number:    int
         """
-        self._validate_ang_radius_deg(ang_radius_deg)
-
         # new empty state
         self.__clear_shell_read_state()
         self.__clear_halo_read_state()
@@ -2700,7 +2669,7 @@ class SnapshotLightcone:
             self.__warn_use_snapshots_gaps(shell_z)
 
         self._gathered_halo_settings = self.__halo_settings(
-            halo_format, shell_z, ang_radius_deg, use_snapshots, snapshot_number
+            halo_format, shell_z, self.ang_radius_deg, use_snapshots, snapshot_number
         )
 
         if len(self.snapshots_to_read) == 0:
@@ -2737,7 +2706,7 @@ class SnapshotLightcone:
 
             filename = halo_format.format(snap_nr=snap_nr)
             # iterate through pieces of the tile
-            for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range, ang_radius_deg):
+            for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range):
                 self.last_snapshot_read.append(SnapshotReadRecord(snap_nr, tile, (z_sub_min, z_sub_max)))
                 self.halo_catalogues_to_read.append(HaloCatalogueSpec(snap_nr, tile, filename, (z_sub_min, z_sub_max)))
 
@@ -2793,7 +2762,7 @@ class SnapshotLightcone:
                 pieces.append(HaloReadPiece(snap_nr, start, min(start + step, nr_rows)))
         return pieces
 
-    def __read_and_place_halos(self, pieces, ang_radius_deg):
+    def __read_and_place_halos(self, pieces):
         """
         Read the pieces of the SOAP catalogues and place their haloes in the lightcone.
 
@@ -2811,8 +2780,6 @@ class SnapshotLightcone:
 
         :param  pieces:         pieces of the catalogues to read
         :type   pieces:         list of HaloReadPiece
-        :param  ang_radius_deg: angular radius [deg] of the beam
-        :type   ang_radius_deg: float
         """
         if not pieces:
             return np.zeros((0, 3)), np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros(0, dtype=int), 0
@@ -2846,7 +2813,6 @@ class SnapshotLightcone:
                     lightcone_coords,
                     zmin=spec.z_range[0],
                     zmax=spec.z_range[1],
-                    ang_radius_deg=ang_radius_deg,
                     method="exact",
                     r_tol=0 * unyt.Mpc,
                 )
@@ -2891,7 +2857,6 @@ class SnapshotLightcone:
         self,
         halo_format,
         lightcone_redshift_range,
-        ang_radius_deg=None,
         use_snapshots=None,
         soap_chunk_size=None,
         comm=None,
@@ -2931,9 +2896,6 @@ class SnapshotLightcone:
         :type   halo_format:                str
         :param  lightcone_redshift_range:   minimum and maximum redshift of the shell to populate [z_min, z_max]
         :type   lightcone_redshift_range:   sequence of two floats
-        :param  ang_radius_deg:             angular radius [deg] of the beam, ignored if None.
-                                                Needed by SnapshotBeam and None for SnapshotAllSky.
-        :type   ang_radius_deg:             float
         :param  use_snapshots:              snapshot numbers to use, as in gather_files, bypassing the usual
                                                 redshift-range lookup
         :type   use_snapshots:              list or numpy.ndarray
@@ -2948,25 +2910,22 @@ class SnapshotLightcone:
                                                 see gather_halo_catalogues
         :type   snapshot_number:              int
         """
-        self._validate_ang_radius_deg(ang_radius_deg)
-
         if comm is None and MPI.COMM_WORLD.Get_size() > 1:
             comm = MPI.COMM_WORLD
         self._define_mpi_mode(comm, redistribute_halos)
 
         settings = self.__halo_settings(
-            halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots, snapshot_number
+            halo_format, lightcone_redshift_range, self.ang_radius_deg, use_snapshots, snapshot_number
         )
         if self.halo_catalogues_to_read is None or self._gathered_halo_settings != settings:
             self.gather_halo_catalogues(
                 halo_format,
                 lightcone_redshift_range,
-                ang_radius_deg,
                 use_snapshots=use_snapshots,
                 snapshot_number=snapshot_number,
             )
 
-        metadata = self.lightcone_metadata(lightcone_redshift_range, ang_radius_deg)
+        metadata = self.lightcone_metadata(lightcone_redshift_range)
 
         if self.comm is None:
             pieces = self.__halo_read_pieces(soap_chunk_size)
@@ -2983,7 +2942,7 @@ class SnapshotLightcone:
             )
             self._log(update_str, level=1, every_rank=True)
 
-        centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(my_pieces, ang_radius_deg)
+        centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(my_pieces)
 
         nr_kept = len(snap_nr)
         if self.comm is not None:
@@ -3021,8 +2980,8 @@ class SnapshotLightcone:
                 "InputHalos/SOAPIndex": unyt.unyt_array(halos["InputHalos/SOAPIndex"], unyt.dimensionless),
                 "Lightcone/ExpansionFactor": unyt.unyt_array(expansion_factor, unyt.dimensionless),
             },
-            metadata,
-        )  # include metadata
+            metadata,  # include metadata in output
+        )
 
 
 class SnapshotBeam(SnapshotLightcone):
@@ -3032,6 +2991,7 @@ class SnapshotBeam(SnapshotLightcone):
         self,
         simulation,
         beam_vector=None,
+        ang_radius_deg=None,
         orientation_seed=0,
         orientation_lock=None,
         orientation_table=None,
@@ -3044,6 +3004,8 @@ class SnapshotBeam(SnapshotLightcone):
         :type   simulation:                 Simulation
         :param  beam_vector:                direction vector of the line of sight as an array of 3 floats
         :type   beam_vector:                numpy.ndarray
+        :param  ang_radius_deg:             angular radius [deg] of the beam.
+        :type   ang_radius_deg:             float
         :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
                                             tile
         :type   orientation_seed:           int
@@ -3071,11 +3033,15 @@ class SnapshotBeam(SnapshotLightcone):
         # check beam vector is passed
         if beam_vector is None:
             raise TypeError("SnapshotBeam needs a beam_vector, the direction of the line of sight")
+        # raise error if no angular radius
+        if ang_radius_deg is None:
+            raise ValueError("SnapshotBeam needs an angular radius (ang_radius_deg)")
 
         # pass to SnapshotLightcone class
         super().__init__(
             simulation=check_simulation(simulation, lightcone_type="SnapshotBeam"),
             beam_vector=beam_vector,
+            ang_radius_deg=ang_radius_deg,
             orientation_seed=orientation_seed,
             orientation_lock=orientation_lock,
             orientation_table=orientation_table,
@@ -3111,7 +3077,6 @@ class SnapshotBeam(SnapshotLightcone):
 
     def _validate_ang_radius_deg(self, ang_radius_deg):
         """
-
         Raise a TypeError if no angular radius is given and raise a ValueError if it exceeds MAX_BEAM_ANG_RADIUS_DEG.
 
         :param  ang_radius_deg: angular radius [deg] of the beam
@@ -3142,7 +3107,7 @@ class SnapshotBeam(SnapshotLightcone):
         e2 = np.cross(beam_vector, e1)
         return e1, e2
 
-    def _tiles_intersecting_shell(self, r_min, r_max, boxsize, ang_radius_deg=None):
+    def _tiles_intersecting_shell(self, r_min, r_max, boxsize):
         """
         Find every tile that the beam crosses between two comoving distances.
 
@@ -3161,10 +3126,8 @@ class SnapshotBeam(SnapshotLightcone):
         :type   r_max:          float
         :param  boxsize:        snapshot box side length [Mpc] (box assumed cubic)
         :type   boxsize:        float
-        :param  ang_radius_deg: angular radius [deg] of the beam
-        :type   ang_radius_deg: float
         """
-        half_angle = np.deg2rad(ang_radius_deg)
+        half_angle = np.deg2rad(self.ang_radius_deg)
         half_L = 0.5 * boxsize
 
         along_min = r_min * np.cos(half_angle)
@@ -3212,7 +3175,6 @@ class SnapshotBeam(SnapshotLightcone):
         coords,
         z_min,
         z_max,
-        ang_radius_deg,
         buffer_length=0.0,
         buffer_shape="cube",
         return_bool=False,
@@ -3230,8 +3192,6 @@ class SnapshotBeam(SnapshotLightcone):
         :type   z_min:          float
         :param  z_max:          maximum redshift of the lightcone slice
         :type   z_max:          float
-        :param  ang_radius_deg: angular radius [deg] of the cone
-        :type   ang_radius_deg: float
         :param  buffer_length:  size [Mpc] of the buffer added to the boundaries of the shell
         :type   buffer_length:  float
         :param  buffer_shape:   'cube', buffer_length is a cube sidelength. 'sphere', buffer_length is a sphere radius
@@ -3254,7 +3214,7 @@ class SnapshotBeam(SnapshotLightcone):
             raise ValueError("coords must be a vector with shape (N, 3)")
 
         axis = self.beam_vec
-        half_angle = np.deg2rad(ang_radius_deg)
+        half_angle = np.deg2rad(self.ang_radius_deg)
         shell_inner = unyt.unyt_array.from_astropy(cosmo.comoving_distance(z_min)).to_value("Mpc")
         shell_outer = unyt.unyt_array.from_astropy(cosmo.comoving_distance(z_max)).to_value("Mpc")
 
@@ -3304,14 +3264,12 @@ class SnapshotBeam(SnapshotLightcone):
         else:
             return np.flatnonzero(m), np.flatnonzero(np.invert(m))
 
-    def _diameter_at_redshift(self, z, ang_radius_deg, cosmo=None, use_comoving_dist=False):
+    def _diameter_at_redshift(self, z, cosmo=None, use_comoving_dist=False):
         """
-        Returns the diameter [Mpc] of a cone of angular radius ang_radius_deg at a given redshift.
+        Returns the diameter [Mpc] of the beam's cone at a given redshift.
 
         :param  z:                  redshift, or comoving distance [Mpc] if use_comoving_dist is True
         :type   z:                  float
-        :param  ang_radius_deg:     angular radius [deg] of the cone
-        :type   ang_radius_deg:     float
         :param  cosmo:              cosmology. If given, replaces the stored cosmology
         :type   cosmo:              astropy.cosmology, SnapshotCosmology (swiftlet class object), or str
         :param  use_comoving_dist:  If True, then z is passed as a comoving distance from the observer
@@ -3321,27 +3279,25 @@ class SnapshotBeam(SnapshotLightcone):
         if cosmo is not None:
             self.cosmo = as_astropy_cosmology(cosmo)
 
-        half_angle = np.deg2rad(ang_radius_deg)
+        half_angle = np.deg2rad(self.ang_radius_deg)
         if use_comoving_dist:
             h = z
         else:
             h = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(z)).to_value("Mpc")
         return h * np.tan(half_angle) * 2
 
-    def beam_diameter(self, z, ang_radius_deg, cosmo=None, use_comoving_dist=False):
+    def beam_diameter(self, z, cosmo=None, use_comoving_dist=False):
         """
-        Returns diameter [Mpc] of the beam's cone (angular radius ang_radius_deg) at a given redshift.
+        Returns diameter [Mpc] of the beam's cone at a given redshift.
 
         :param  z:                  redshift, or comoving distance [Mpc] if use_comoving_dist is True
         :type   z:                  float
-        :param  ang_radius_deg:     angular radius [deg] of the beam
-        :type   ang_radius_deg:     float
         :param  cosmo:              cosmology. If given, replaces the stored cosmology
         :type   cosmo:              astropy.cosmology.w0waCDM
         :param  use_comoving_dist:  If True, then z is passed as a comoving distance from the observer
         :type   use_comoving_dist:  bool
         """
-        return self._diameter_at_redshift(z, ang_radius_deg, cosmo=cosmo, use_comoving_dist=use_comoving_dist)
+        return self._diameter_at_redshift(z, cosmo=cosmo, use_comoving_dist=use_comoving_dist)
 
     def _lattice_tile(self, tile):
         """
@@ -3420,6 +3376,7 @@ class SnapshotAllSky(SnapshotLightcone):
         super().__init__(
             simulation=check_simulation(simulation, lightcone_type="SnapshotAllSky"),
             beam_vector=None,  # not required for all sky, ensure no information is passed for beam vectors
+            ang_radius_deg=None,  # not required for all sky, ensure no information is passed for angular radius
             orientation_seed=orientation_seed,
             orientation_lock=orientation_lock,
             orientation_table=orientation_table,
@@ -3437,7 +3394,7 @@ class SnapshotAllSky(SnapshotLightcone):
         if ang_radius_deg is not None:
             raise TypeError("SnapshotAllSky doesn't need an angular radius")
 
-    def _tiles_intersecting_shell(self, r_min, r_max, boxsize, ang_radius_deg=None):
+    def _tiles_intersecting_shell(self, r_min, r_max, boxsize):
         """
         Find every tile that the lightcone crosses between two comoving distances.
 
@@ -3454,8 +3411,6 @@ class SnapshotAllSky(SnapshotLightcone):
         :type   r_max:          float
         :param  boxsize:        snapshot box side length [Mpc] (box assumed cubic)
         :type   boxsize:        float
-        :param  ang_radius_deg: unused, accepted for signature compatibility with SnapshotBeam
-        :type   ang_radius_deg: float
         """
         half_L = 0.5 * boxsize
         n_max = int(np.ceil(r_max / boxsize + 0.5)) + 1
@@ -3493,7 +3448,6 @@ class SnapshotAllSky(SnapshotLightcone):
         coords,
         z_min,
         z_max,
-        ang_radius_deg=None,
         buffer_length=0.0,
         buffer_shape="cube",
         return_bool=False,
@@ -3511,8 +3465,6 @@ class SnapshotAllSky(SnapshotLightcone):
         :type   z_min:          float
         :param  z_max:          maximum redshift of the lightcone shell
         :type   z_max:          float
-        :param  ang_radius_deg: unused, accepted for signature compatibility with the inherited pipeline
-        :type   ang_radius_deg: float
         :param  buffer_length:  size [Mpc] of the buffer added to the boundaries of the shell
         :type   buffer_length:  float
         :param  buffer_shape:   'cube', buffer_length is a cube sidelength. 'sphere', buffer_length is a sphere radius
@@ -3556,14 +3508,12 @@ class SnapshotAllSky(SnapshotLightcone):
         else:
             return np.flatnonzero(m), np.flatnonzero(np.invert(m))
 
-    def _diameter_at_redshift(self, z, ang_radius_deg=None, cosmo=None, use_comoving_dist=False):
+    def _diameter_at_redshift(self, z, cosmo=None, use_comoving_dist=False):
         """
         Returns the diameter [Mpc] of the past lightcone at a given redshift.
 
         :param  z:                  redshift, or comoving distance [Mpc] if use_comoving_dist is True
         :type   z:                  float
-        :param  ang_radius_deg:     unused, accepted for signature compatibility with SnapshotBeam
-        :type   ang_radius_deg:     float
         :param  cosmo:              cosmology. If given, replaces the stored cosmology.
         :type   cosmo:              astropy.cosmology.w0waCDM, SnapshotCosmology object or str
         :param  use_comoving_dist:  If True, then redshift is passed as a comoving distance from the observer
@@ -3591,7 +3541,7 @@ class SnapshotAllSky(SnapshotLightcone):
         :param  use_comoving_dist:  If True, then z is passed as a comoving distance from the observer
         :type   use_comoving_dist:  bool
         """
-        return self._diameter_at_redshift(z, cosmo=cosmo, use_comoving_dist=use_comoving_dist, ang_radius_deg=None)
+        return self._diameter_at_redshift(z, cosmo=cosmo, use_comoving_dist=use_comoving_dist)
 
     def get_snapshot_reposition_coords(self, tile, snapshot_sidelengths):
         """
