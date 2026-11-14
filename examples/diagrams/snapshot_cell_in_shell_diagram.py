@@ -11,7 +11,7 @@ The diagram joins the snapshot shells and beam cell selection diagrams, in two p
    cells and the same cell at its place in the box.
 
 The cell is moved back from the lightcone into the box by undoing its tile's orientation: the row of the default
-orientation tables (default_v2) the tile takes from its lattice position and the orientation_seed, as a lightcone
+orientation tables (default) the tile takes from its lattice position and the orientation_seed, as a lightcone
 picks it (no orientation_lock), with swiftlet.snapshot_orientation.rotate_coords_cartesian. The particles of that cell
 of that snapshot are the ones placed in the lightcone at the cell's place there.
 

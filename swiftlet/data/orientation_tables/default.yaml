@@ -1,5 +1,5 @@
 # SWIFTLET orientation tables, see docs/user_guide/orientation_tables.rst
-name: default_v2
+name: default
 version: 2
 made_by: tools/make_installed_orientation_tables.py, snapshot_orientation.generate_clash_free_tables
 generator_seed: 21

@@ -1908,7 +1908,7 @@ def test_outputs_carry_the_lightcone_settings(
         "simulation_name": HALO_SIM,
         "orientation_seed": 7,
         "orientation_lock": "none" if orientation_lock is None else orientation_lock,
-        "orientation_table": str(Path(kwargs["orientation_table"]).resolve()) if use_table else "default_v2",
+        "orientation_table": str(Path(kwargs["orientation_table"]).resolve()) if use_table else "default",
         "orientation_table_fingerprint": orientation.orientation_tables_fingerprint(
             orientation.read_orientation_tables(kwargs["orientation_table"])
             if use_table

@@ -142,9 +142,9 @@ detail.
       See :term:`installed tables`
 
    installed tables
-      The :term:`orientation tables <orientation table>` installed with the package: ``default_v2``,
+      The :term:`orientation tables <orientation table>` installed with the package: ``default``,
       ``no_reorientation``, ``cube_quarter_spacing`` and ``sphere_quarter_spacing`` (see
-      :doc:`user_guide/orientation_tables`). ``default_v2`` is the default option of 
+      :doc:`user_guide/orientation_tables`). ``default`` is the default option of 
       :class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`. 
 
    piece

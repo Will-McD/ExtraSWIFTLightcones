@@ -2,10 +2,10 @@
 """
 Make the orientation tables installed with SWIFTLET, as YAML files in ``swiftlet/data/orientation_tables``.
 
-``default_v2.yaml``
+``default.yaml``
     The default table for SnapshotLightcone. No two rows make a SWIFT cell clash with its own replica across the edge of
     neighbouring tiles, for any orientation_lock and orientation_seed
-    (see docs/orientation_tables.md and docs/repeated_objects.md). The cell shifts of default_v2 are in eighths of the
+    (see docs/orientation_tables.md and docs/repeated_objects.md). The cell shifts of default are in eighths of the
     box (0, +-1/8, +-1/4, +-3/8 and 1/2), and the rows are chosen from every distinct orientation
     (48 turns and reflections, times 8^3 shifts = 24576), resulting in 5184 clash-free combinations, 108 for each of
     the 48 turns and reflections, with the shifts along each axis close to even.
@@ -36,7 +36,7 @@ from swiftlet import snapshot_orientation as so
 
 # the fingerprints of the installed tables, see snapshot_orientation.orientation_tables_fingerprint
 FINGERPRINTS = {
-    "default_v2": "7006e905808e256f",
+    "default": "7006e905808e256f",
     "no_reorientation": "a849af1c8e441133",
     "cube_quarter_spacing": "1162d17084cffd9a",
     "sphere_quarter_spacing": "9b3bb6051251e66a",
@@ -211,11 +211,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tables",
         nargs="+",
-        default=["default_v2", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing"],
-        choices=["default_v2", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing"],
+        default=["default", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing"],
+        choices=["default", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing"],
         help="which tables to make",
     )
-    parser.add_argument("--seed", type=int, default=21, help="seed of generate_clash_free_tables for default_v2")
+    parser.add_argument("--seed", type=int, default=21, help="seed of generate_clash_free_tables for default")
     parser.add_argument(
         "--search_seeds",
         type=int,
@@ -229,7 +229,7 @@ if __name__ == "__main__":
         type=int,
         nargs="*",
         default=[16, 32],
-        help="numbers of cells per axis to check default_v2 is clash-free for (64 takes minutes)",
+        help="numbers of cells per axis to check default is clash-free for (64 takes minutes)",
     )
     args = parser.parse_args()
 
@@ -281,22 +281,22 @@ if __name__ == "__main__":
             },
         )
 
-    if "default_v2" in args.tables:
+    if "default" in args.tables:
         seed = args.seed
         if args.search_seeds is not None:
             seed, _ = most_even_seed(range(*args.search_seeds))
             print(f"most even: seed {seed}")
         start = time.time()
         tables = so.generate_clash_free_tables(seed=seed)
-        print(f"default_v2: {len(tables['QuarterTurns'])} rows in {time.time() - start:.0f} s", flush=True)
+        print(f"default: {len(tables['QuarterTurns'])} rows in {time.time() - start:.0f} s", flush=True)
         for nr_cells_axis in args.check:
             clashes = so.tables_are_clash_free(tables, nr_cells_axis)
             print(f"{nr_cells_axis} cells per axis: {clashes} clashing pairs of rows", flush=True)
             if clashes:
-                raise SystemExit("default_v2 is not clash-free, not written")
+                raise SystemExit("default is not clash-free, not written")
         write_tables(
             args.output_dir,
-            "default_v2",
+            "default",
             tables,
             {
                 "version": 2,

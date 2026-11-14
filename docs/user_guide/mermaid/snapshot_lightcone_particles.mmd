@@ -1,14 +1,17 @@
 %%{init: {"htmlLabels": false, "themeVariables": {"fontFamily": "arial, helvetica, sans-serif", "fontSize": "14px"}, "flowchart": {"htmlLabels": false, "wrappingWidth": 400, "padding": 30, "nodeSpacing": 40, "rankSpacing": 45}}}%%
 flowchart TD
-    A("place_snapshot_particles_in_shell(<br/>z_range, property_names,<br/>ang_radius_deg, particle_types,<br/>use_snapshots, comm)") --> C
-    A2("gather_files(ptype, z_range,<br/>ang_radius_deg)<br/>serial only") --> E0
-    C["validate ang_radius_deg:<br/>SnapshotBeam needs one,<br/>SnapshotAllSky none.<br/>Serial if comm is None"] --> D
+    L0("SnapshotBeam(simulation,<br/>beam_vector, ang_radius_deg)<br/>or SnapshotAllSky(simulation)") --> L1
+    L1["the beam's direction and<br/>angular radius are set together:<br/>ang_radius_deg checked here<br/>(TypeError if missing,<br/>ValueError above the maximum)"] --> A
+    L1 --> A2
+    A("place_snapshot_particles_in_shell(<br/>z_range, property_names,<br/>particle_types, use_snapshots,<br/>comm, redistribute_particles)") --> C
+    A2("gather_files(ptype, z_range,<br/>use_snapshots)<br/>serial only") --> E0
+    C["property_names needed<br/>(TypeError if None).<br/>Serial if comm is None,<br/>otherwise MPI on comm's ranks"] --> D
 
     D{{"for each<br/>particle type"}} --> E0
 
     subgraph SNAPS ["Choose the snapshots"]
-        E0{"use_<br/>snapshots?"} -- no --> E1["snapshots_for_shell:<br/>which snapshots are on disk<br/>(file 0, looked for once)"]
-        E1 --> E2{"gap of 0.1<br/>or more?"}
+        E0{"use_<br/>snapshots?"} -- no --> E1["snapshots_for_shell:<br/>output redshifts from the<br/>simulation's output_list.txt,<br/>and which snapshots are on disk<br/>(file 0, looked for once)"]
+        E1 --> E2{"gap above the<br/>max spacing?<br/>(0.1, or SWIFTLET_MAX_<br/>SNAPSHOT_SPACING)"}
         E2 -- "yes: snapshots too<br/>far apart" --> EX["ValueError,<br/>before anything is read"]
         E2 -- no --> E3{"any<br/>missing?"}
         E3 -- yes --> E4["SnapshotGapWarning:<br/>the available snapshots<br/>fill the gaps, each nearest<br/>in redshift to its own"] --> E6
@@ -22,7 +25,7 @@ flowchart TD
     subgraph GATHER ["Stage 1, gather"]
         F{{"for each<br/>snapshot"}} --> G
         G["clip its redshift range<br/>to the shell, load its cell<br/>metadata and which files<br/>hold the particle type"] --> H
-        H["find the box tiles<br/>(nx, ny, nz) the shell<br/>or beam crosses"] --> H2
+        H["find the box tiles<br/>(nx, ny, nz) the shell, or<br/>the beam of the lightcone's<br/>ang_radius_deg, crosses"] --> H2
         H2{"sphere<br/>lock?"} -- yes --> H3["split the tiles<br/>into spherical layers,<br/>each with its own<br/>redshift range"] --> I
         H2 -- no --> I
         I{{"for each<br/>tile"}} --> J
@@ -34,7 +37,7 @@ flowchart TD
 
     M --> N{"any<br/>particles?"}
     N -- no --> Z0["empty dict for<br/>this particle type"]
-    N -- "yes, from<br/>gather_files" --> FB["return the FileReadSpecs,<br/>then place_file_in_shell(i)<br/>places one at a time"]
+    N -- "yes, from<br/>gather_files" --> FB["return the FileReadSpecs,<br/>then place_file_in_shell(i,<br/>ptype, property_names)<br/>places one at a time"]
     N -- "yes, whole<br/>shell" --> O{"comm<br/>given?"}
 
     subgraph READ ["Stage 2, read and place"]
@@ -52,17 +55,17 @@ flowchart TD
     T --> U["concatenate the kept particles<br/>(MPI: empty arrays on<br/>ranks without files)"]
     U --> V["attach ExpansionFactors<br/>from comoving distance"]
     V --> W{"rebalance<br/>ranks?"}
-    W -- "yes: redistribute_<br/>particles" --> W2["repartition the particles<br/>evenly between the ranks"] --> X
+    W -- "yes: redistribute_<br/>particles (MPI)" --> W2["repartition the particles<br/>evenly between the ranks"] --> X
     W -- no --> X
     Z0 --> X
     X["particle data<br/>for this type"] --> D
 
-    D -- "all types<br/>done" --> Y["lightcone_metadata(<br/>z_range, ang_radius_deg)"]
+    D -- "all types<br/>done" --> Y["lightcone_metadata(z_range):<br/>the settings that made it,<br/>with the lightcone's<br/>beam_vector and ang_radius_deg"]
     Y --> Z("return<br/>LightconeOutput<br/>{ptype: data}<br/>with its .metadata")
 
     classDef loop fill:#F1EFE8,stroke:#333;
     classDef out fill:#d6eeee,stroke:darkcyan;
     classDef err fill:#f6dcdc,stroke:#a33;
     class D,F,I,Q loop;
-    class A,A2,Z,FB out;
+    class A,A2,Z,FB,L0 out;
     class EX err;

@@ -10,8 +10,8 @@ a sample of orientation seeds to change the order that the tables are read.
 The results are presented in a summary plot.
 
 These checks are rather useful for testing if custom oritentaion tables or certain configurations of a lightcone
-will result in the same objects reapearing too many times in the same line of sight and introduce aditional bias for any
-analysis with the lightcones.
+will result in the same objects reapearing too many times in the same line of sight and introduce additional bias for
+any analysis with the lightcones.
 """
 
 import argparse

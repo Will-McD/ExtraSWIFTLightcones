@@ -14,8 +14,8 @@ Building a lightcone from snapshots takes three steps:
 #.  Read and place: place the particles or haloes of those cells into the lightcone, following the blueprint laid out 
     by the previous gather step.
 
-For an overview of the main ideas and specific steps involved with building a lightcone see :doc:`methods_overview` and 
-:doc:`building_lightcones`, respectively. 
+For an overview of the main ideas and specific steps involved with building a lightcone see 
+:doc:`user_guide/methods_overview` and :doc:`user_guide/building_lightcones`, respectively. 
 
 .. _define-lightcone:
 

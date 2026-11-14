@@ -227,7 +227,7 @@ def run(
     :type   output_dir:                 str
     :param  overlay_beam_vector:        direction of the planned lightcone beam
     :type   overlay_beam_vector:        tuple
-    :param  overlay_ang_radius_deg:     angular radius [deg] of the planned lightcone beam being overlayed
+    :param  overlay_ang_radius_deg:     angular radius [deg] of the planned lightcone beam being overlaid
     :type   overlay_ang_radius_deg:     float
     :param  orientation_table:          file of orientation tables, or None for the default tables
     :type   orientation_table:          str
@@ -276,7 +276,7 @@ def run(
 
     filename = output_dir / f"close_repeats_sky{window}.seed_{orientation_seed}.png"
 
-    max_seperation = 500 * unyt.Mpc  # only show pairs who's seperation is less than this
+    max_seperation = 500 * unyt.Mpc  # only show pairs who's separation is less than this
 
     if (overlay_beam_vector is not None) and (overlay_ang_radius_deg is not None):
         planned_beam = {
@@ -305,7 +305,7 @@ if __name__ == "__main__":
         "--max_snapshot_difference",
         type=int,
         default=0,
-        help="pair copies of the same cell from snapshots up to this far apart (0: the same snapshot " "only), e.g. 2",
+        help="pair copies of the same cell from snapshots up to this far apart (0: the same snapshot only), e.g. 2",
     )
     parser.add_argument(
         "--planned_beam_vector", type=float, nargs=3, default=None, help="direction of the planned beam"

@@ -32,7 +32,7 @@ def orientation_keys(tables):
 
 # The fingerprints of the installed tables.
 # To keep reproducibility these should not change.
-DEFAULT_V2_FINGERPRINT = "7006e905808e256f"
+DEFAULT_FINGERPRINT = "7006e905808e256f"
 CUBE_QUARTER_SPACING_FINGERPRINT = "1162d17084cffd9a"
 SPHERE_QUARTER_SPACING_FINGERPRINT = "9b3bb6051251e66a"
 
@@ -40,21 +40,21 @@ SPHERE_QUARTER_SPACING_FINGERPRINT = "9b3bb6051251e66a"
 def test_installed_tables():
     """
     Test that the default tables are installed and accessible:
-        - default_v2:   a no-clash table to used to build lightcones
+        - default:   a no-clash table to used to build lightcones
         - no_reorientation: one row that leaves every tile unchanged, the same as UNCHANGED_TABLES
     """
 
-    assert so.DEFAULT_ORIENTATION_TABLE == "default_v2"
+    assert so.DEFAULT_ORIENTATION_TABLE == "default"
 
     assert so.INSTALLED_ORIENTATION_TABLES == (
-        "default_v2",
+        "default",
         "no_reorientation",
         "cube_quarter_spacing",
         "sphere_quarter_spacing",
     )
     v2 = so.default_orientation_tables()
 
-    assert so.orientation_tables_fingerprint(v2) == DEFAULT_V2_FINGERPRINT
+    assert so.orientation_tables_fingerprint(v2) == DEFAULT_FINGERPRINT
     assert len(v2["QuarterTurns"]) == 5184
 
     for name in ("QuarterTurns", "CellShifts"):
@@ -63,7 +63,7 @@ def test_installed_tables():
     np.testing.assert_array_equal(v2["Reflections"][0], [1, 1, 1])
 
     keys = orientation_keys(v2)
-    assert len(set(keys)) == len(keys), "orientations repeated in default_v2"
+    assert len(set(keys)) == len(keys), "orientations repeated in default"
 
     turns_and_reflections = [key[:9] for key in keys]
     assert len(set(turns_and_reflections)) == 48
@@ -72,8 +72,8 @@ def test_installed_tables():
 
     # read by name, as a lightcone does
     for name, fingerprint in (
-        ("default_v2", DEFAULT_V2_FINGERPRINT),
-        ("default", DEFAULT_V2_FINGERPRINT),
+        ("default", DEFAULT_FINGERPRINT),
+        ("default", DEFAULT_FINGERPRINT),
         ("no_reorientation", so.orientation_tables_fingerprint(so.check_orientation_tables(UNCHANGED_TABLES))),
         ("cube_quarter_spacing", CUBE_QUARTER_SPACING_FINGERPRINT),
         ("sphere_quarter_spacing", SPHERE_QUARTER_SPACING_FINGERPRINT),
@@ -91,7 +91,7 @@ def test_installed_tables():
     yaml = pytest.importorskip("yaml")
     quarter = so.default_orientation_tables("cube_quarter_spacing")
     name_table_to_test = (
-        ("default_v2", v2),
+        ("default", v2),
         ("no_reorientation", unchanged),
         ("cube_quarter_spacing", quarter),
         ("sphere_quarter_spacing", so.default_orientation_tables("sphere_quarter_spacing")),
@@ -108,7 +108,7 @@ def test_installed_tables():
 
     # each call gives its own copy, so changing it doesn't change the installed tables
     v2["CellShifts"][0] = 1
-    assert so.orientation_tables_fingerprint(so.default_orientation_tables()) == DEFAULT_V2_FINGERPRINT
+    assert so.orientation_tables_fingerprint(so.default_orientation_tables()) == DEFAULT_FINGERPRINT
 
 
 def test_installed_tables_are_those_of_the_tool():
@@ -136,7 +136,7 @@ def test_installed_tables_are_those_of_the_tool():
     assert so.orientation_tables_fingerprint(sphere) == SPHERE_QUARTER_SPACING_FINGERPRINT
 
     assert tool.FINGERPRINTS == {
-        "default_v2": DEFAULT_V2_FINGERPRINT,
+        "default": DEFAULT_FINGERPRINT,
         "no_reorientation": unchanged,
         "cube_quarter_spacing": CUBE_QUARTER_SPACING_FINGERPRINT,
         "sphere_quarter_spacing": SPHERE_QUARTER_SPACING_FINGERPRINT,
@@ -144,9 +144,9 @@ def test_installed_tables_are_those_of_the_tool():
 
 
 @pytest.mark.parametrize("nr_cells_axis", [16, 32])
-def test_default_v2_is_clash_free(nr_cells_axis):
+def test_default_is_clash_free(nr_cells_axis):
     """
-    No two rows of default_v2 make a cell touch its own copy across the face between neighbouring tiles (64 cells per
+    No two rows of default make a cell touch its own copy across the face between neighbouring tiles (64 cells per
     axis is checked by tools/make_default_orientation_tables.py --check 64, as it takes minutes).
     """
     assert so.tables_are_clash_free(so.default_orientation_tables(), nr_cells_axis) == 0
@@ -156,13 +156,13 @@ def test_default_v2_is_clash_free(nr_cells_axis):
     assert so.tables_are_clash_free(clashing, nr_cells_axis) > 0
 
 
-def test_generator_makes_the_installed_default_v2():
+def test_generator_makes_the_installed_default():
     """
     generate_clash_free_tables, as tools/make_default_orientation_tables.py calls it, makes exactly the installed
-    default_v2 tables.
+    default tables.
     """
     tables = so.generate_clash_free_tables(seed=21)
-    assert so.orientation_tables_fingerprint(tables) == DEFAULT_V2_FINGERPRINT
+    assert so.orientation_tables_fingerprint(tables) == DEFAULT_FINGERPRINT
 
 
 def test_cell_shifts_in_cells():
@@ -538,7 +538,7 @@ def test_cube_quarter_spacing_keeps_copies_a_quarter_of_the_box_apart():
     closest = min(min_copy_separation(tables, a, b, 16) for a in range(n_rows) for b in range(a + 1, n_rows))
     assert closest >= 0.25 - 1e-9, closest
 
-    # a table that does not keep them apart is caught: default_v2's first rows bring copies within a cell or two
+    # a table that does not keep them apart is caught. The default's first rows bring copies within a cell or two
     v2 = so.default_orientation_tables()
     assert min(min_copy_separation(v2, 0, b, 16) for b in range(1, 20)) < 0.25
 

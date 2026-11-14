@@ -1,14 +1,16 @@
 %%{init: {"htmlLabels": false, "themeVariables": {"fontFamily": "arial, helvetica, sans-serif", "fontSize": "14px"}, "flowchart": {"htmlLabels": false, "wrappingWidth": 400, "padding": 30, "nodeSpacing": 40, "rankSpacing": 45}}}%%
 flowchart TD
-    A("place_halos_in_shell(<br/>halo_format, z_range,<br/>ang_radius_deg, use_snapshots,<br/>soap_chunk_size, comm,<br/>redistribute_halos)") --> B
-    A2("gather_halo_catalogues(<br/>halo_format, z_range,<br/>ang_radius_deg)<br/>dry run: no haloes read") --> G0
-    B["validate ang_radius_deg,<br/>comm = COMM_WORLD if None<br/>and more than one rank"] --> C
+    L0("SnapshotBeam(simulation,<br/>beam_vector, ang_radius_deg)<br/>or SnapshotAllSky(simulation)<br/>radius checked when made") --> A
+    L0 --> A2
+    A("place_halos_in_shell(<br/>halo_format, z_range,<br/>use_snapshots, soap_chunk_size,<br/>comm, redistribute_halos,<br/>snapshot_number)") --> B
+    A2("gather_halo_catalogues(<br/>halo_format, z_range,<br/>use_snapshots, snapshot_number)<br/>dry run: no haloes read") --> G0
+    B["halo_format, e.g.<br/>simulation.soap_format;<br/>comm = COMM_WORLD if None<br/>and more than one rank"] --> C
     C{"already<br/>gathered?"} -- no --> G0
-    C -- "yes, same<br/>settings" --> P
+    C -- "yes, same settings<br/>(and the lightcone's<br/>ang_radius_deg)" --> P
 
     subgraph GATHER ["Gather"]
-        G0["choose the snapshots<br/>as for particles, from the<br/>SOAP catalogues on disk<br/>(gaps filled with a warning,<br/>ValueError if 0.1 apart)"] --> G1
-        G1["box and cell metadata<br/>from one snapshot only<br/>(highest redshift one used<br/>with its file 0 on disk)"] --> G2
+        G0["choose the snapshots<br/>as for particles, from the<br/>output_list.txt redshifts and<br/>the SOAP catalogues on disk<br/>(gaps filled with a warning,<br/>ValueError above the<br/>max spacing)"] --> G1
+        G1["box and cell metadata<br/>from one snapshot only:<br/>snapshot_number, or one<br/>of the shell's snapshots<br/>with its file 0 on disk"] --> G2
         G2{{"for each<br/>snapshot"}} --> G3
         G3["clip its redshift range<br/>to the shell, find the tiles<br/>(and spherical layers)<br/>the shell or beam crosses"] --> G4
         G4["record a HaloCatalogueSpec<br/>(snapshot, tile, catalogue,<br/>z range) per tile, and the<br/>catalogue's number of haloes"]
@@ -32,7 +34,7 @@ flowchart TD
     end
 
     U --> V{"rebalance<br/>ranks?"}
-    V -- "yes: redistribute_<br/>halos" --> V2["repartition the haloes<br/>evenly between the ranks"] --> W
+    V -- "yes: redistribute_<br/>halos (MPI)" --> V2["repartition the haloes<br/>evenly between the ranks"] --> W
     V -- no --> W
     W["attach ExpansionFactor<br/>from comoving distance"] --> Z
     Z("return LightconeOutput:<br/>Lightcone/HaloCentre,<br/>Lightcone/ExpansionFactor,<br/>Lightcone/SnapshotNumber,<br/>InputHalos/HaloCatalogueIndex,<br/>InputHalos/SOAPIndex<br/>with its .metadata")
@@ -40,4 +42,4 @@ flowchart TD
     classDef loop fill:#F1EFE8,stroke:#333;
     classDef out fill:#d6eeee,stroke:darkcyan;
     class G2,Q,S loop;
-    class A,A2,Z,GY out;
+    class A,A2,Z,GY,L0 out;

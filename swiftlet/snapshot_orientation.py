@@ -5,7 +5,7 @@ line of sight.
 
 Each tile is a copy of the snapshot box, turned by quarter turns, reflected and shifted periodically by a whole number
 of cells. Each tile takes these from one row of the orientation tables.
-The tables are installed with SWIFTLET (``default_v2`` by default, which has no clashing rows), or can be written to and
+The tables are installed with SWIFTLET (``default`` by default, which has no clashing rows), or can be written to and
 read from a file of your own.
 """
 
@@ -323,7 +323,7 @@ CELL_SHIFT_UNIT = "eighths"
 EIGHTH_SHIFT_VALUES = (0, 1, -1, 2, -2, 3, -3, 4)
 
 # the orientation tables installed with SWIFTLET, by name, as YAML files in swiftlet/data/orientation_tables
-#   default_v2: 5184 rows with no two rows making a cell clash with its own copy in neighbouring tiles, shifts
+#   default: 5184 rows with no two rows making a cell clash with its own copy in neighbouring tiles, shifts
 #                   in eighths of the box
 #   no_reorientation: 1 row, the unchanged box (no turns, no reflections, no shift): every tile is an exact periodic
 #                   replica of the snapshot box
@@ -333,8 +333,8 @@ EIGHTH_SHIFT_VALUES = (0, 1, -1, 2, -2, 3, -3, 4)
 #                   cell at least a quarter of the box apart in the same tile or neighbouring ones; made for the
 #                   sphere orientation lock
 
-INSTALLED_ORIENTATION_TABLES = ("default_v2", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing")
-DEFAULT_ORIENTATION_TABLE = "default_v2"
+INSTALLED_ORIENTATION_TABLES = ("default", "no_reorientation", "cube_quarter_spacing", "sphere_quarter_spacing")
+DEFAULT_ORIENTATION_TABLE = "default"
 
 ###################################################################
 # FUNCTIONS FOR GENERATING, READING AND CHECKING ORIENTATION TABLES

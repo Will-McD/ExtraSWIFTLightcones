@@ -78,7 +78,7 @@ cell coloured and numbered by its place in the snapshot box so its two copies ca
       
          **No clash:** tile B is tile A turned a quarter about :math:`z` and shifted by a quarter of the box along
          :math:`x`. No cell meets its own copy across the shared face; the closest two copies of a cell (cell 11) are half a
-         box length apart. The default orientation table (``default_v2``) is made of rows that never clash across a tile
+         box length apart. The default orientation table (``default``) is made of rows that never clash across a tile
          face like this (see :doc:`orientation_tables`).
 
 
@@ -271,7 +271,7 @@ FLAMINGO L1_m9 simulation:
 The :ref:`figure <fig-pairs-on-sky>` below shows the projection of all pairs of cells identified by 
 :func:`check_neighbouring_tiles <swiftlet.snapshot_orientation.check_neighbouring_tiles>` for an all-sky lightcone that 
 spans redshifts :math:`z=0 - 1` of the fiducial L1_m9 FLAMINGO simulation, generated with each ``orientation_lock`` 
-(``"None"``, ``"cube"`` and ``"sphere"``) and orientation table (``default_v2``, ``cube_quarter_spacing`` and 
+(``"None"``, ``"cube"`` and ``"sphere"``) and orientation table (``default``, ``cube_quarter_spacing`` and 
 ``sphere_quarter_spacing``) for the same seed, ``orientation_seed=7``.  
 Each point on the Mollweide projections corresponds to a pair of the same cells that are within 1° of each other on the 
 sky, where the colour indicates both the orientation lock and minimum distance between the cell pairs. 
@@ -287,7 +287,7 @@ sky, where the colour indicates both the orientation lock and minimum distance b
       .. figure:: images/default_skymap.png
          :width: 100%
 
-         The projection of line-of-sight pairs for ``orientation_table="default_v2"``. As described in 
+         The projection of line-of-sight pairs for ``orientation_table="default"``. As described in 
          :doc:`orientation_tables`, with this set of orientations there are no clashes between pairs for when 
          ``orientation_lock="cube"`` (blues) and ``"none"`` (greens). 
 

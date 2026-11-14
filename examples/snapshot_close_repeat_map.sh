@@ -38,7 +38,7 @@ max_snapshot_difference=1 #allowed max snapshot difference between cell copies
 
 orientation_seed=3 #orientation seed to check for each table
 
-tables=("default_v2" "cube_quarter_spacing" "sphere_quarter_spacing") # check each of these installed tables
+tables=("default" "cube_quarter_spacing" "sphere_quarter_spacing") # check each of these installed tables
 
 planned_beam_vector=(1.0 1.0 1.0) # direction of the planned beam to overlay onto the map
 

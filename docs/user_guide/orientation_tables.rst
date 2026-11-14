@@ -82,7 +82,7 @@ in any text editor and are named:
      -  Shifts
      -  Summary
 
-   * -  ``default_v2``
+   * -  ``default``
      -  5184
      -  eighths of the box
      -  **the default.** No cell clashes with its own copy across the face between two tiles, for any seed for when 
@@ -121,32 +121,32 @@ been made with:
 .. code-block:: bash
 
     python tools/make_installed_orientation_tables.py                     # make every installed table
-    python tools/make_installed_orientation_tables.py --check 16 32 64    # check default_v2 at 64 cells per axis (minutes)
+    python tools/make_installed_orientation_tables.py --check 16 32 64    # check default at 64 cells per axis (minutes)
 
 
-Without an ``orientation_table`` the lightcones use ``default_v2`` otherwise a lightcone can take any installed tables 
+Without an ``orientation_table`` the lightcones use ``default`` otherwise a lightcone can take any installed tables 
 by name:
 
 .. code-block:: python
 
     from swiftlet.snapshot_orientation import default_orientation_tables
 
-    default_table = default_orientation_tables()                      # default_v2 table
+    default_table = default_orientation_tables()                      # default table
     unchanged_table = default_orientation_tables("no_reorientation")  # A one row table that leaves the box unchanged
 
 
 The default tables should be selected based on the intended use of the lightcones and they should be used with the 
 ``orientation_locks`` that are designed to work with. 
 
-**default_v2 is clash-free between tiles, but not for orientation_lock="sphere".** With no lock (``"none"``) and with
+**default is clash-free between tiles, but not for orientation_lock="sphere".** With no lock (``"none"``) and with
 ``"cube"``, the orientation only changes on the faces between tiles, so no cell clashes with its own copy, for any 
 seed. With ``"sphere"``, the orientation changes on the spherical layers (:math:`r = (n + \frac{1}{2})L`) which pass
 through the tiles. A tile crossing a sphere takes layer :math:`n`'s orientation inside it and layer :math:`n+1`'s
 outside it, so the two orientations meet inside the tile, across a curved surface, where a cell there can be in contact 
-with its own copy, and **default_v2 cannot rule this out** (``sphere_quarter_spacing`` does, see 
+with its own copy, and **default cannot rule this out** (``sphere_quarter_spacing`` does, see 
 :ref:`tables keeping copies apart <tables-keeping-copies-apart>`). Check ``"sphere"`` lightcones with
 :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` before building them using 
-``default_v2`` (see :ref:`checking-a-lightcone-for-close-repeats-before-building-it`), and choose a seed that allows you 
+``default`` (see :ref:`checking-a-lightcone-for-close-repeats-before-building-it`), and choose a seed that allows you 
 to avoid clashes. 
 
 
@@ -155,7 +155,7 @@ to avoid clashes.
 Tables built for cubic and spherical layers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``default_v2`` table rules out copies of the same cells being in contact but copies can still be one or two cells 
+The ``default`` table rules out copies of the same cells being in contact but copies can still be one or two cells 
 apart between neighbouring tiles or layers. The ``cube_quarter_spacing`` **tables are made for** 
 ``orientation_lock="cube"``, where the orientation of the tiles only changes between the cubic layers 
 (see :ref:`orientation lock diagram <fig-layers-example>`). Any two rows read from these tables keep **the centres** of 
@@ -311,13 +311,13 @@ Orientation tables are written as YAML files (ending in ``.yaml`` or ``.yml``), 
 :func:`write_orientation_tables` and :func:`read_orientation_tables` respectively. Each file must have the column names 
 and one row from the tables per line: the quarter turns, reflections and cell shifts, each along x, y and z. 
 
-For example, the start of ``default_v2.yaml``:
+For example, the start of ``default.yaml``:
 
 .. code-block:: yaml
 
     # SWIFTLET orientation tables, see docs/user_guide/orientation_tables.rst
 
-    name: default_v2
+    name: default
     description: 'orientation tables of the box tiles of a snapshot lightcone: use row (tile hash % number of rows)'
     cell_shift_unit: eighths
     number_of_rows: 5184
@@ -332,7 +332,7 @@ For example, the start of ``default_v2.yaml``:
     ...
 
 Given the tables are stored as a plain YAML file any YAML reader works, e.g. ``yaml.safe_load(open(path))["rows"]``. 
-SWIFTLET reads rows written one per line, as above, without the YAML parser, so ``default_v2`` is read in a few 
+SWIFTLET reads rows written one per line, as above, without the YAML parser, so ``default`` is read in a few 
 hundredths of a second. Any other layout is read with PyYAML. 
 
 You can write new tables in the preferred format with :func:`write_orientation_tables(..., attributes={...}) <write_orientation_tables>` 
@@ -343,7 +343,7 @@ and then read it in with :func:`read_orientation_tables`:
     from swiftlet import read_orientation_tables
 
     tables = read_orientation_tables("orientation_tables.yaml")
-    tables = read_orientation_tables("default_v2")              # installed tables, by name
+    tables = read_orientation_tables("default")              # installed tables, by name
 
 .. note::
   If a file holds a ``fingerprint``, reading it checks the rows still have that fingerprint, so a table changed by hand 
