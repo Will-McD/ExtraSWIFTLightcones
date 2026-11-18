@@ -53,42 +53,37 @@ except ImportError:
 
 
 # define simple printout functions
-def seperator_str(n=35, line_seperator="~"):
+def separator_str(n=35, line_separator="~"):
     """
     Make fancy line separation.
 
     Returns a newline followed by the separator line.
     :param  n:              number of characters in the line
     :type   n:              int
-    :param  line_seperator: character used to draw the line
-    :type   line_seperator: str
+    :param  line_separator: character used to draw the line
+    :type   line_separator: str
     """
-    sep_str = line_seperator * n
+    sep_str = line_separator * n
     return "\n" + sep_str
 
 
-def message(rank, m, time_date_update=False):
+def message(rank, m, show_time_date=False):
     """
-    Print a new message if on the prime (zero) rank, or if not using MPI.
+    Print a new message if serial or on the zero'th rank.
 
     :param  rank:               MPI rank. If None, always print
     :type   rank:               int
     :param  m:                  message to print
     :type   m:                  str
-    :param  time_date_update:   If True, prefix the message with the current time
-    :type   time_date_update:   bool
+    :param  show_time_date:   If True, prefix the message with the current time
+    :type   show_time_date:   bool
     """
-    current_time = dt.datetime.now()
-    time_str = current_time.strftime("%H:%M:%S")
-    if rank is None:
-        if time_date_update:
-            m = "[@{print_time}]\t".format(print_time=time_str) + m
+    if show_time_date:
+        current_time = dt.datetime.now()
+        m = f"[{current_time.strftime("%H:%M:%S")}]\t" + m
+
+    if rank is None or rank == 0:
         print(m)
-    else:
-        if rank == 0:
-            if time_date_update:
-                m = "[@{print_time}]\t".format(print_time=time_str) + m
-            print(m)
 
 
 def rank_message(rank, m):
@@ -102,7 +97,8 @@ def rank_message(rank, m):
     """
     current_time = dt.datetime.now()
     time_str = current_time.strftime("%H:%M:%S")
-    print("\t[Rank {rank_nr:03d}] [@{print_time}]\t".format(rank_nr=rank, print_time=time_str) + m)
+    # +\n, end="" stops multiple ranks printing ontop of the same line
+    print(f"\t[Rank {rank:03d}, @{time_str}]\t" + m + "\n", end="")
 
 
 def print_coord_ranges(x, indent=0, rank=None):
@@ -116,14 +112,18 @@ def print_coord_ranges(x, indent=0, rank=None):
     :param  rank:   MPI rank, only rank 0 prints. If None, always print
     :type   rank:   int
     """
-    coords_str = ""
-    if indent > 0:
-        indent = "\t" * indent
-    else:
-        indent = ""
-    for i in range(3):
-        coords_str += indent + f"{i}, {np.min(x[:, i]):.3f} -> {np.max(x[:, i]):.3f}"
-
+    indent = "\t" * max(int(indent), 0)
+    units = None
+    if isinstance(x, unyt.unyt_array):
+        try:
+            x = x.to_value("Mpc")
+        except unyt.exceptions.UnitConversionError:
+            x, units = x.value, str(x.units)
+    if units is None:
+        units = "Mpc"
+    x = np.asarray(x)
+    ranges = ", ".join(f"{axis}: {np.min(x[:, i]):.2f} - {np.max(x[:, i]):.2f}" for i, axis in enumerate("xyz"))
+    coords_str = f"{indent}" + f"{ranges} [{units}]"
     message(rank, coords_str)
 
 
@@ -340,8 +340,7 @@ class SnapshotGapWarning(UserWarning):
 ######################################################
 # Metadata class and related functions
 
-# the settings recorded with every lightcone output .metadata
-# essentially what is needed to perfectly reproduce the same lightcone
+# the settings recorded with every lightcone output .metadata, what is needed to exactly reproduce the same lightcone
 LIGHTCONE_METADATA_NAMES = (
     "lightcone_type",
     "boxsize_resolution",
@@ -421,9 +420,8 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
     """
     Write the halo lightcone data to a .hdf5 file.
 
-    Write each of the properties of the lightcones haloes as datasets in a .hdf5,
-    formatted like the lightcone_io (FLAMINGO) halo lightcones, so it is readable by
-    lightcone_io.halo_reader.HaloLightconeFile
+    Write each of the properties of the lightcones haloes as datasets in a .hdf5, formatted like the lightcone_io
+    (FLAMINGO) halo lightcones, so it is readable by lightcone_io.halo_reader.HaloLightconeFile().
 
     :param  filename:       path of the HDF5 file to write, e.g. lightcone_haloes_0127.hdf5
     :type   filename:       str
@@ -444,8 +442,10 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
     :param  order:          HEALPix pixel ordering of the index, "nest" or "ring"
     :type   order:          str
     """
+    # remove units and convert to regular numpy arrays.
     centre = haloes["Lightcone/HaloCentre"].to_value("Mpc")
     expansion_factor = haloes["Lightcone/ExpansionFactor"].value
+    # find pixels that each halo is found in low nside map
     pixel = (
         hp.vec2pix(nside, centre[:, 0], centre[:, 1], centre[:, 2], nest=(order == "nest"))
         if len(centre)
@@ -455,6 +455,7 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
     num_per_pixel = np.bincount(pixel, minlength=hp.nside2npix(nside)).astype(np.int64)
     first_in_pixel = (np.cumsum(num_per_pixel) - num_per_pixel).astype(np.int64)
 
+    # add unit conversion info as found in LightconeIO
     dimensionless = {
         "Conversion factor to CGS (not including cosmological corrections)": [1.0],
         "Conversion factor to physical CGS (including cosmological corrections)": [1.0],
@@ -517,7 +518,7 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
             soap_unit_attributes(soap, "InputHalos/HaloCatalogueIndex"),
             "Index of the halo in the input halo catalogue",
         )
-
+        # store attrs names
         if properties is None:
             lightcone = outfile["Lightcone"]
             lightcone.attrs["property_names"] = [
@@ -546,6 +547,7 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
                 *properties,
             ]
 
+        # write the meta data
         write_lightcone_metadata(lightcone, metadata)
 
 
@@ -706,6 +708,34 @@ class SnapshotLightcone:
 
         # define grid to interpolate redshift from comoving distance
         self.__redshift_from_comoving_distance([0.0005, 5.0], n_grid=5000, method="precise")
+
+        # once, from MPI rank 0, as every rank makes its own lightcone
+        if MPI.COMM_WORLD.Get_rank() == 0:
+            self._log(self.__summary(), level=1)
+
+    def __summary(self):
+        """Returns a one line str describing the lightcone: its simulation, geometry and box tile orientations."""
+        # geometry info
+        if self.beam_vec is None:
+            geometry = "all-sky"
+        else:
+            vector = ", ".join(f"{x:.4f}" for x in np.ravel(self.beam_vec))
+            geometry = f"beam along ({vector}), {self.ang_radius_deg:g} deg radius"
+
+        # table info
+        table = (
+            self.orientation_table
+            if self.orientation_table in box_structure.INSTALLED_ORIENTATION_TABLES
+            else os.path.basename(self.orientation_table)
+        )
+
+        # suite / sim info
+        suite = self.simulation_suite_name.upper()
+
+        return (
+            f"{type(self).__name__}: {suite} {self.box_res}/{self.sim_name}, geometry: {geometry}, "
+            f"orientation table: {table}, lock: {self.orientation_lock or 'none'}, seed: {self.orientation_seed}"
+        )
 
     def lightcone_metadata(self, redshift_range=None):
         """
@@ -1045,13 +1075,18 @@ class SnapshotLightcone:
             )
         except ValueError as error:
             raise ValueError(f"{label}, {data_type}: {error}") from None
-        # if missing / filling gaps then give warnings
+
+        # if missing / filling gaps then give warning
         if coverage.missing and MPI.COMM_WORLD.Get_rank() == 0:
+            # shapshots filling the gaps
             filled = "; ".join(
                 f"snapshot {n} by {' and '.join(str(m) for m in by)}" for n, by in coverage.filled_by.items()
             )
-            warning_str = f"{label}: the {data_type} of snapshots {coverage.missing} are missing."
-            warning_str += f"Filling the gaps with neighbouring snapshots: {filled}"
+            # warning message: explain gaps + what snapshots fill gaps.
+            warning_str = (
+                f"{label}: the {data_type} of snapshots {coverage.missing} are missing. Filling the gaps with"
+                f" neighbouring snapshots: {filled}"
+            )
             warnings.warn(warning_str, SnapshotGapWarning, stacklevel=3)
 
         self._snapshot_z_ranges = coverage.ranges
@@ -1079,8 +1114,8 @@ class SnapshotLightcone:
             what = "snapshot files" if halo_format is None else "SOAP catalogues"
             raise FileNotFoundError(
                 (
-                    f"{self.simulation.box_res}/{self.simulation.name}:"
-                    f"the {what} of snapshots {missing} are missing (e.g. {example})"
+                    f"{self.simulation.box_res}/{self.simulation.name}: the {what} of snapshots {missing} are missing"
+                    f" (e.g. {example})"
                 )
             )
 
@@ -1104,8 +1139,8 @@ class SnapshotLightcone:
             label = f"{self.simulation.box_res}/{self.simulation.name}"
             warnings.warn(
                 (
-                    f"{label}: the snapshots given with leave gaps in {shell_z[0]} < z < {shell_z[1]}, "
-                    f"which are not filled: {', '.join(unfilled)}"
+                    f"{label}: the snapshots given by use_snapshots leaves gaps for redshifts "
+                    f"{shell_z[0]} < z < {shell_z[1]}, which are not filled: {', '.join(unfilled)}"
                 ),
                 SnapshotGapWarning,
                 stacklevel=4,
@@ -1127,7 +1162,7 @@ class SnapshotLightcone:
                 m[ii] = 0
         self.snapshots_to_read = self.snapshots_to_read[m]
 
-    def _log(self, m, level=1, every_rank=False, time_date_update=False):
+    def _log(self, m, level=1, every_rank=False, show_time_date=False):
         """
         Print a message if self.verbose is at least the given level.
 
@@ -1139,29 +1174,30 @@ class SnapshotLightcone:
         :type   level:              int
         :param  every_rank:         If True, print the message from every MPI rank, prefixed with its rank
         :type   every_rank:         bool
-        :param  time_date_update:   If True, prefix the message with the current time
-        :type   time_date_update:   bool
+        :param  show_time_date:     If True, prefix the message with the current time
+        :type   show_time_date:     bool
         """
-        # if self.verbose >= level:
         if self.verbose < level:
             return
         if every_rank:
             rank_message(self.comm_rank, m)
         else:
-            message(self.comm_rank, m, time_date_update=time_date_update)
+            message(self.comm_rank, m, show_time_date=show_time_date)
 
-    def _log_coord_ranges(self, title, coords):
+    def _log_coord_ranges(self, title, coords, indent=2):
         """
         Print the minimum and maximum of the coordinates along each axis, if self.verbose == 2.
 
-        :param  title:  line printed before the ranges
+        :param  title:  line printed before the coordinate ranges
         :type   title:  str
         :param  coords: coordinates, shape (N, 3)
         :type   coords: numpy.ndarray or unyt.array.unyt_array
+        :param  indent: number of tabs to indent each line by
+        :type   indent: int
         """
         if self.verbose >= 2:
-            message(self.comm_rank, title)
-            print_coord_ranges(coords, indent=2, rank=self.comm_rank)
+            message(self.comm_rank, f"\t{title}:")
+            print_coord_ranges(coords, indent=indent, rank=self.comm_rank)
 
     def __log_snapshot_shell(self, snapshot_number, snap_shell_z_range, target):
         """
@@ -1178,11 +1214,12 @@ class SnapshotLightcone:
             return
 
         # give read out of max beam diameter for snapshots redshift range in shell
-        r_beam = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
+        r_shell = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(snap_shell_z_range)).to_value("Mpc")
         self._log(
-            f"add {target} from snapshot {snapshot_number} to lightcone shell"
-            + f"\n\tredshift:\t{snap_shell_z_range[0]:.5f} - {snap_shell_z_range[1]:.5f}"
-            + f"\n\tradii:\t{r_beam[0]:.5f} - {r_beam[1]:.5f} [Mpc]",
+            (
+                f"\tadd {target} to lightcone at {snap_shell_z_range[0]:.4f} < z < {snap_shell_z_range[1]:.4f} ("
+                f"{r_shell[0]:.4f} - {r_shell[1]:.4f} [Mpc])"
+            ),
             level=2,
         )
 
@@ -1479,10 +1516,12 @@ class SnapshotLightcone:
         Stored as the ExpansionFactors lightcone property.
         """
         npart_in_beam = self.particle_data["Coordinates"].shape[0]
-        self._log(f"Total particles in beam:\t{npart_in_beam}", level=2)
 
         if npart_in_beam > 0:
-            self._log_coord_ranges("\ncoordinates range of particles in beam", self.particle_data["Coordinates"][:])
+            self._log_coord_ranges(
+                f"coordinates range of the {npart_in_beam} particles in the lightcone",
+                self.particle_data["Coordinates"][:],
+            )
 
         # compute distance from observer
         r_comoving = unyt.unyt_array(np.zeros(npart_in_beam), units=self.particle_data["Coordinates"].units)
@@ -1519,7 +1558,7 @@ class SnapshotLightcone:
         self.__clear_shell_read_state()
 
         if use_snapshots is None:
-            # find every snapshot whose redshift range overlaps the shell, from high to low redshift.
+            # Find every snapshot whose redshift range overlaps the shell, from high to low redshift.
             # A snapshot just outside the shell will be clipped to a range of negative width
 
             self.snapshots_to_read = self.snapshots_for_shell(shell_z, range_tol=1e-5)
@@ -1532,8 +1571,7 @@ class SnapshotLightcone:
         # sanity check to catch edge cases and rounding errors that slip through
         self.__remove_snapshots_outside_shell(shell_z)
 
-        # iterate through snapshot cell data to identify:
-        # cells, filenames, offsets, lengths and particles per file to read.
+        # iterate through snaps cell data to identify: cells, filenames, offsets, lengths and particles per file to read
         self.snap_file_offset_lengths = []
         self.npart_per_file = []
 
@@ -1541,8 +1579,8 @@ class SnapshotLightcone:
             # clear active snapshot state
             self.__clear_snapshot_read_state()
 
-            # record each of this snapshot's tile pieces into self.last_snapshot_read & snap_file_offset_lengths
-            # (a single snapshot can need more than one piece)
+            # record each of this snapshot's tile pieces into self.last_snapshot_read & snap_file_offset_lengths,
+            # a single snapshot can need more than one piece
             self.__gather_cells_and_tiles(
                 snapshot_number=snap_nr,
                 shell_z=shell_z,
@@ -1563,17 +1601,17 @@ class SnapshotLightcone:
 
         # check for no particles existing in identified cells
         if np.sum(self.npart_per_file) == 0:
-            self._log(f"\nNo {current_ptype} particles found in selected cells\n", level=1)
+            self._log(f"\n{current_ptype}: no particles in the selected cells\n", level=1)
             return self.snap_file_offset_lengths
 
-        # wipe data as needed
+        # del data as needed
         self.__clear_snapshot_read_state()
 
         snapshots_used = sorted({int(file_data.snap_nr) for file_data in self.snap_file_offset_lengths})
         self._log(
             (
-                f"{current_ptype}: {len(self.snap_file_offset_lengths)} files to read from "
-                f"snapshots {snapshots_used}, {int(np.sum(self.npart_per_file))} particles in the selected cells"
+                f"\n{current_ptype}: {len(self.snap_file_offset_lengths)} files to read for "
+                f"snapshots {snapshots_used} and {int(np.sum(self.npart_per_file))} particles expected in cells"
             ),
             level=1,
         )
@@ -1583,8 +1621,9 @@ class SnapshotLightcone:
             file_data = self.snap_file_offset_lengths[i]
             j = self.__last_snapshot_index(file_data.snap_nr, file_data.tile)
             update_cell_str = (
-                f"\tsnap: {file_data.snap_nr:<2},\ttile: {str(file_data.tile):<10},\tfile: {file_data.file_nr:<2},"
-                f"\tnumb_part: {self.npart_per_file[j][file_data.file_nr]} [{np.sum(file_data.lengths)}]"
+                f"\tsnap: {file_data.snap_nr:<2},\ttile: {str(file_data.tile):<10},\tfile: {file_data.file_nr:<3},"
+                f"\tnumb particles in cells: {self.npart_per_file[j][file_data.file_nr]:<6},"
+                f"\tnumb particles from snapshot: {np.sum(file_data.lengths)}"
             )
             self._log(update_cell_str, level=2)
 
@@ -1672,8 +1711,8 @@ class SnapshotLightcone:
 
         # print out of the snapshot redshift info
         snapshot_to_shell_str = (
-            f"snapshot: {snapshot_number}\n\tcentre redshift {self.simulation.snapshot_redshift(snapshot_number)}"
-            f"\n\tredshift range: {snapshot_z_range[0]} - {snapshot_z_range[1]}"
+            f"\nsnapshot: {snapshot_number},\tz={self.simulation.snapshot_redshift(snapshot_number)} can fill redshifts"
+            f" {snapshot_z_range[0]:.4f} < z < {snapshot_z_range[1]:.4f}"
         )
 
         self._log(snapshot_to_shell_str, level=2)
@@ -1776,12 +1815,10 @@ class SnapshotLightcone:
             self._snapshot_reorientation(tile)
         )
         orientation_str = (
-            f"Reorienting snapshot {snapshot_number} (tile {tile}, z={z_sub_min:.5f}-{z_sub_max:.5f}"
-            + (f", orientation layer {self._orientation_layer(tile)}" if self.orientation_lock else "")
-            + "):"
-            f"\n\tRotation:\t{snapshot_rotation_angles} [deg]"
-            + f"\n\tReflection:\t{snapshot_rotation_reflections}"
-            + f"\n\tPeriodic Shift:\t{snapshot_periodic_shifts}"
+            f"\ttile {tile}, layer {self._orientation_layer(tile)}\n\t\trotation: "
+            f"{np.asarray(snapshot_rotation_angles).tolist()} [deg], reflection: "
+            f"{np.asarray(snapshot_rotation_reflections).tolist()}, periodic shift: "
+            f"{np.asarray(snapshot_periodic_shifts).tolist()}"
         )
         self._log(orientation_str, level=2)
 
@@ -1809,11 +1846,12 @@ class SnapshotLightcone:
             buffer_shape="cube",
             return_bool=False,
         )
+        # give printout of number of cells in the lightcone for the tile
+        self._log(f"\t\t{np.shape(beam_idx)[0]} cells in the lightcone", level=2)
 
-        self._log(f"\nnumber of cells in beam: {np.shape(beam_idx)[0]}", level=2)
-
+        # give range of cell centres on each axis
         if len(beam_idx) > 0:
-            self._log_coord_ranges("coordinates range of cell centres in beam", repositioned_cell_centres[beam_idx, :])
+            self._log_coord_ranges("\tcell centres in the lightcone", repositioned_cell_centres[beam_idx, :], indent=3)
 
         return beam_idx
 
@@ -1885,7 +1923,13 @@ class SnapshotLightcone:
                 file_particle_data["Velocities"] = unyt.unyt_array(
                     self._transform_snapshot_vectors(velocities.value, tile), velocities.units
                 )
-            self._log_coord_ranges("\ncoordinates range of particles read", file_particle_data["Coordinates"])
+
+            # give update of coords of particles read in
+            self._log_coord_ranges(
+                f"snap: {snap_nr},\ttile:{tile},\tfile:{file_nr}\n\t\tcoordinates of the particles read from file",
+                file_particle_data["Coordinates"],
+                indent=3,
+            )
 
             zmin, zmax = snap_z_range[(snap_nr, tile)]
             local_beam_idx, __ = self.__select_paticles_in_shell(
@@ -1900,7 +1944,7 @@ class SnapshotLightcone:
             npart_kept_total += len(local_beam_idx)
 
             if len(files_to_read) > 1:  # otherwise the same as the total below
-                self._log(f"Particles read:\t{npart_infile}\tkept in beam:\t{len(local_beam_idx)}", level=2)
+                self._log(f"\t\t{npart_infile} particles read, {len(local_beam_idx)} kept in the lightcone", level=2)
 
             file_idx = self._file_order_index[(snap_nr, tile, file_nr)]
             self.npart_kept_per_file[file_idx] = len(local_beam_idx)
@@ -1923,13 +1967,13 @@ class SnapshotLightcone:
         if npart_read_global > 0:
             self._log(
                 (
-                    f"\nParticles read:\t{npart_read_global}\tkept in beam:"
-                    f"\t{npart_kept_global} [{npart_kept_global / npart_read_global * 100:.3f}%]"
+                    f"\n{current_ptype}: {npart_read_global} particles read, {npart_kept_global} kept in the lightcone "
+                    f"({npart_kept_global / npart_read_global * 100:.3f}%)"
                 ),
                 level=1,
             )
         else:
-            self._log("\nNo particles found in selected cells", level=1)
+            self._log("no particles found in selected cells", level=1)
 
         for prop in property_names:
             if len(kept_parts[prop]) > 0:
@@ -1971,7 +2015,9 @@ class SnapshotLightcone:
             total_ptype_to_read += self.npart_per_file[jj][file_data.file_nr]
 
         self._log(
-            f"\treading {len(my_files)}/{nr_files} files, {total_ptype_to_read} particles", level=1, every_rank=True
+            f"{current_ptype}: reading {len(my_files)} / {nr_files} files, {total_ptype_to_read} particles expected",
+            level=1,
+            every_rank=True,
         )
 
         self.__read_and_place_particles(my_files, current_ptype, property_names)
@@ -2174,7 +2220,7 @@ class SnapshotLightcone:
             new_values = psort.repartition(arr.to_value(units), ndesired, comm=self.comm)
             self.particle_data[prop] = unyt.unyt_array(new_values, units, registry=self.unit_registry)
 
-        self._log(f"Redistributed {ntot} particles evenly across {self.comm_size} ranks", level=1)
+        self._log(f"redistributed {ntot} particles evenly across {self.comm_size} ranks", level=1)
 
     def gather_files(self, current_ptype, shell_z, use_snapshots=None):
         """
@@ -2281,13 +2327,17 @@ class SnapshotLightcone:
             raise TypeError('place_snapshot_particles_in_shell needs property_names, e.g. ["Coordinates"]')
 
         if self.comm is not None:
-            self._log(f"\nReading snapshot files in parallel on {self.comm_size} MPI ranks\n", level=1)
+            self._log(f"\nreading snapshot files in parallel on {self.comm_size} MPI ranks\n", level=1)
 
         combined_dset = {}
         if np.ndim(particle_types) > 0:
-            # iterate through particle types
+            # iterate through particle types, with a line between the messages of each when there is more than one
             for ptype in particle_types:
-                self._log(seperator_str() + f"\nPlacing {ptype} in lightcone", level=1)
+                if len(particle_types) > 1:
+                    self._log(separator_str(), level=1)
+                self._log(
+                    f"{ptype}: placing in {lightcone_redshift_range[0]} < z < {lightcone_redshift_range[1]}", level=1
+                )
                 combined_dset[ptype] = self.__populate_lightcone_with_ptype(
                     shell_z=lightcone_redshift_range,
                     property_names=property_names,
@@ -2299,7 +2349,12 @@ class SnapshotLightcone:
         elif np.ndim(particle_types) == 0:
             # return for singular particle type
             ptype = particle_types
-            self._log(seperator_str() + f"\nPlacing {ptype} in lightcone", level=1)
+
+            self._log(
+                f"{ptype}: placing in {lightcone_redshift_range[0]:.4f} < z < {lightcone_redshift_range[1]:.4f}",
+                level=1,
+            )
+
             combined_dset[ptype] = self.__populate_lightcone_with_ptype(
                 shell_z=lightcone_redshift_range,
                 property_names=property_names,
@@ -2556,8 +2611,8 @@ class SnapshotLightcone:
             if n_unmatched > 0:
                 warnings.warn(
                     (
-                        f"Lightcone2Snapshot: {n_unmatched} point(s) not within any snapshots comoving distance "
-                        "range in the lasy shell read state"
+                        f"Lightcone2Snapshot: {n_unmatched} point(s) not within any snapshot's comoving distance range "
+                        "in the lasy shell read state"
                     )
                 )
 
@@ -2673,7 +2728,7 @@ class SnapshotLightcone:
         )
 
         if len(self.snapshots_to_read) == 0:
-            self._log("\nNo snapshots found in range for halo placement\n", level=1)
+            self._log("Haloes: no snapshots in the shell", level=1)
             return self.halo_catalogues_to_read
 
         # the box and cell grid, from one snapshot only
@@ -2720,8 +2775,8 @@ class SnapshotLightcone:
         snapshots_used = sorted(self.halo_catalogue_lengths)
         self._log(
             (
-                f"haloes: {len(self.halo_catalogues_to_read)} catalogue tiles to read from snapshots {snapshots_used}, "
-                f"box from snapshot {self.halo_cell_snapshot}"
+                f"\nHaloes: {len(self.halo_catalogues_to_read)} SOAP catalogue tiles to read for snapshots "
+                f"{snapshots_used}"
             ),
             level=1,
         )
@@ -2729,7 +2784,7 @@ class SnapshotLightcone:
             self._log(
                 (
                     f"\tsnap: {spec.snap_nr:<2},\ttile: {str(spec.tile):<10}, "
-                    f"\tz: {spec.z_range[0]:.5f} - {spec.z_range[1]:.5f}"
+                    f"\tredshift: {spec.z_range[0]:.4f} - {spec.z_range[1]:.4f}"
                 ),
                 level=2,
             )
@@ -2937,7 +2992,7 @@ class SnapshotLightcone:
             first = (np.cumsum(pieces_on_rank) - pieces_on_rank)[self.comm_rank]
             my_pieces = pieces[first : first + pieces_on_rank[self.comm_rank]]
             update_str = (
-                f"\treading {len(my_pieces)}/{len(pieces)} pieces of the SOAP catalogues, "
+                f"Haloes: reading {len(my_pieces)}/{len(pieces)} SOAP catalogue pieces, "
                 f"{sum(piece.stop - piece.start for piece in my_pieces)} haloes"
             )
             self._log(update_str, level=1, every_rank=True)
@@ -2950,9 +3005,10 @@ class SnapshotLightcone:
             nr_kept = self.comm.allreduce(nr_kept)
         if nr_read > 0:
             self._log(
-                f"\nHaloes read:\t{nr_read}\tkept in lightcone:\t{nr_kept} [{nr_kept / nr_read * 100:.3f}%]", level=1
+                f"Haloes: {nr_read} read, {nr_kept} kept in the lightcone ({nr_kept / nr_read * 100:.3f}%)", level=1
             )
-        self._log(f"\nTotal halos placed in lightcone shell: {nr_kept}\n", level=1)
+        else:
+            self._log("Haloes: 0 read", level=1)
 
         halos = {
             "Lightcone/HaloCentre": centres,
@@ -2965,7 +3021,7 @@ class SnapshotLightcone:
             ndesired = np.full(self.comm_size, ntot // self.comm_size, dtype=np.int64)
             ndesired[: ntot % self.comm_size] += 1
             halos = {name: psort.repartition(values, ndesired, comm=self.comm) for name, values in halos.items()}
-            self._log(f"Redistributed {ntot} haloes evenly across {self.comm_size} ranks", level=1)
+            self._log(f"redistributed {ntot} haloes evenly across {self.comm_size} ranks", level=1)
 
         r_comoving = np.linalg.norm(halos["Lightcone/HaloCentre"], axis=1)
         expansion_factor = self.__comoving_distance_to_scalefactor(r_comoving) if len(r_comoving) > 0 else np.zeros(0)
@@ -3028,14 +3084,13 @@ class SnapshotBeam(SnapshotLightcone):
         :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call. 2:
                                             details of every snapshot, box tile and file
         :type   verbose:                    int
-
         """
         # check beam vector is passed
         if beam_vector is None:
             raise TypeError("SnapshotBeam needs a beam_vector, the direction of the line of sight")
         # raise error if no angular radius
         if ang_radius_deg is None:
-            raise ValueError("SnapshotBeam needs an angular radius (ang_radius_deg)")
+            raise TypeError("SnapshotBeam needs an angular radius (ang_radius_deg)")
 
         # pass to SnapshotLightcone class
         super().__init__(

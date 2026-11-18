@@ -503,7 +503,7 @@ def test_angular_radius_checked(fake_runs):
 
     redshift_range = (0.05, 0.07)
 
-    with pytest.raises(ValueError, match="SnapshotBeam needs an angular radius"):
+    with pytest.raises(TypeError, match="SnapshotBeam needs an angular radius"):
         new_lightcone(sim_name=HALO_SIM, beam_vector=(0, 0, 1), orientation_lock=None)
 
     # test that the radius is set and checked at the same time as the beam vector
