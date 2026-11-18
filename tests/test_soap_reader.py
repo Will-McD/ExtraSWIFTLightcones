@@ -87,18 +87,24 @@ def test_readers_give_the_same_rows(catalogue):
     """
     filename, _ = catalogue
     names = ["InputHalos/HaloCentre", "SO/200_crit/SORadius"]
+
     whole = soap_reader.read_soap_rows(filename, names)
     assert soap_reader.soap_catalogue_length(filename) == NHALOS == len(whole[names[0]])
+
     chunks = list(soap_reader.read_soap_in_chunks(filename, names, 777))
     rows = np.sort(np.random.default_rng(2).choice(NHALOS, 300, replace=False))
+
     selected = soap_reader.read_soap_selected_rows(filename, names, rows, batch_size=64)
     part = soap_reader.read_soap_rows(filename, names, 100, 250)
+
     for name in names:
-        joined = unyt.uconcatenate([chunk[name] for _, chunk in chunks])
+        joined = np.concatenate([chunk[name] for _, chunk in chunks])
         assert joined.units == whole[name].units == selected[name].units
+
         np.testing.assert_array_equal(joined.value, whole[name].value)
         np.testing.assert_array_equal(selected[name].value, whole[name].value[rows])
         np.testing.assert_array_equal(part[name].value, whole[name].value[100:250])
+
     with pytest.raises(ValueError, match="sorted and unique"):
         soap_reader.read_soap_selected_rows(filename, names, rows[::-1])
 

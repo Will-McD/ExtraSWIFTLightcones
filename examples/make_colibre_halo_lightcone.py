@@ -43,7 +43,7 @@ def gather_snapshot_haloes(halos, properties, snap_nr):
     if comm_rank != 0:
         return None, None
 
-    halos_out = {name: unyt.uconcatenate([rank[name] for rank in all_halos]) for name in local_halos}
+    halos_out = {name: np.concatenate([rank[name] for rank in all_halos]) for name in local_halos}
 
     if properties is not None:
         properties_out = {name: np.concatenate([rank[name] for rank in all_properties]) for name in local_properties}
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     )
 
     # collect all haloes and place them into the lightcone
-    halos = snap_all_sky.place_halos_in_shell(soap_format, redshift_range, ang_radius_deg=None, comm=comm)
+    halos = snap_all_sky.place_halos_in_shell(soap_format, redshift_range, comm=comm)
 
     # write the haloes of the selected snapshot to a in a lightcone_io halo lightcone file
     local_snapshots = halos["Lightcone/SnapshotNumber"].value.astype(int)

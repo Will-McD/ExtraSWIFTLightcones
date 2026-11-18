@@ -810,20 +810,22 @@ if __name__ == "__main__":
 
     for beam_vector in beam_vectors:
         print(f"\nbeam direction: {beam_vector}")
-        SB = SnapshotBeam(Simulation.from_label(box_res, sim_name), beam_vector=beam_vector)
+        snap_beam = SnapshotBeam(
+            Simulation.from_label(box_res, sim_name), beam_vector=beam_vector, ang_radius_deg=ang_radius_deg
+        )
 
-        # 1) find every snapshot file (and box tile) needed to populate the shell, without reading any particles
-        numb_files, files_to_read = SB.gather_files(ptype, redshift_range, ang_radius_deg)
+        # find every snapshot file (and box tile) needed to populate the shell, without reading any particles
+        numb_files, files_to_read = snap_beam.gather_files(ptype, redshift_range)
         print(f"\n{numb_files} snapshot files to read for {ptype}")
 
-        # 2) read the files a chunk at a time, keeping the coordinates of the particles placed in the beam
+        # read the files a chunk at a time, keeping the coordinates of the particles placed in the beam
         beam_coords = []
         for chunk_nr, first_file in enumerate(range(0, numb_files, files_per_chunk)):
             chunk_files = range(first_file, min(first_file + files_per_chunk, numb_files))
 
             chunk_coords = []
             for file_number in chunk_files:
-                particle_data = SB.place_file_in_shell(file_number, ptype, property_names, ang_radius_deg)
+                particle_data = snap_beam.place_file_in_shell(file_number, ptype, property_names)
                 if not particle_data:  # no particles from this file fall in the beam
                     continue
                 # keep only particles that were read
@@ -843,7 +845,7 @@ if __name__ == "__main__":
 
         beam_coords = np.concatenate(beam_coords) if len(beam_coords) > 0 else np.zeros((0, 3))
 
-        # 3) plot the particles against the geometry of the beam, in the beam's frame
+        # plot the particles against the geometry of the beam, in the beam's frame
         plot_particles_in_beam(
             beam_coords,
             shell_number,

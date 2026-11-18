@@ -10,6 +10,7 @@ Tests of the orientation tables of the snapshot tiles:
 
 """
 
+import itertools
 import numpy as np
 import pytest
 
@@ -574,3 +575,28 @@ def test_sphere_quarter_spacing_keeps_copies_a_quarter_of_the_box_apart():
         min(min_copy_separation(cube, a, b, 16, same_tile=True) for a in range(n_cube) for b in range(a + 1, n_cube))
         < 0.25
     )
+
+
+def test_numpy_and_numba_rotations_identical(monkeypatch):
+    """
+    Below numba_min_points the rotations use NumPy, written as the numba kernels are: the two give identical results,
+    bit for bit, for every quarter turn, reflection and shift, including points on the faces, edges and corners.
+    """
+    pytest.importorskip("numba")
+    rng = np.random.default_rng(0)
+    corners = np.array(list(itertools.product(np.arange(0.0, 1001.0, 125.0), repeat=3)))
+    coords = np.concatenate([rng.uniform(0, 1000, (2000, 3)), corners])
+
+    for angles in itertools.product((0, 90, 180, 270), repeat=3):
+        for reflections in ((1, 1, 1), (-1, 1, -1)):
+            for shift in (None, (500.0, 125.0, 0.0)):
+                kwargs = dict(reflections=reflections, order="xyz", degrees=True)
+
+                if shift is not None:
+                    kwargs.update(periodic_shift=shift, sidelengths=1000.0)
+
+                with_numba = so.rotate_coords_cartesian(coords, angles, numba_min_points=0, **kwargs)
+
+                with_numpy = so.rotate_coords_cartesian(coords, angles, numba_min_points=len(coords) + 1, **kwargs)
+
+                np.testing.assert_array_equal(with_numpy, with_numba, err_msg=f"{angles}, {reflections}, {shift}")

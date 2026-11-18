@@ -16,7 +16,7 @@ dependencies = [
     "swiftsimio",
     "numpy",
     "scipy",
-    "unyt>=3.0",
+    "unyt>=3.2",
     "h5py",
     "healpy",
     "astropy",

@@ -24,6 +24,49 @@ except ImportError:
 # FUNCTIONS FOR RE-ORIENTATION OF CELLS, PARTICLES AND HALOES
 
 
+def _rotate_numpy(coords, R, out):
+    """
+    Rotate coordinates by the rotation matrix, writing into out, as _apply_rotation_numba does.
+
+    :param  coords: coordinates, shape (N, 3)
+    :type   coords: numpy.ndarray
+    :param  R:      rotation matrix, shape (3, 3)
+    :type   R:      numpy.ndarray
+    :param  out:    array for the result, shape (N, 3)
+    :type   out:    numpy.ndarray
+    """
+    x, y, z = coords[:, 0].copy(), coords[:, 1].copy(), coords[:, 2].copy()  # copies, as out may be coords
+    for k in range(3):
+        out[:, k] = R[k, 0] * x + R[k, 1] * y + R[k, 2] * z
+    return out
+
+
+def _rotate_periodic_numpy(coords, R, shift, L, out):
+    """
+    Periodically shift coordinates, then rotate them about the box centre, as _apply_rotation_periodic_numba does.
+
+    :param  coords: coordinates, shape (N, 3)
+    :type   coords: numpy.ndarray
+    :param  R:      rotation matrix, shape (3, 3)
+    :type   R:      numpy.ndarray
+    :param  shift:  periodic shift along each axis
+    :type   shift:  numpy.ndarray
+    :param  L:      side lengths of the box
+    :type   L:      numpy.ndarray
+    :param  out:    array for the result, shape (N, 3)
+    :type   out:    numpy.ndarray
+    """
+    centre = L / 2.0
+    x = np.mod(coords[:, 0] + shift[0], L[0]) - centre[0]
+    y = np.mod(coords[:, 1] + shift[1], L[1]) - centre[1]
+    z = np.mod(coords[:, 2] + shift[2], L[2]) - centre[2]
+    for k in range(3):
+        r = R[k, 0] * x + R[k, 1] * y + R[k, 2] * z + centre[k]
+        # only wrap the points outside [0, L], so a point on a face stays there
+        out[:, k] = np.where((r < 0.0) | (r > L[k]), np.mod(r, L[k]), r)
+    return out
+
+
 def _build_rotation_matrix(rot_angles, order="xyz", degrees=False):
     """
     Returns the rotation matrix as a (3, 3) numpy.ndarray.
@@ -196,33 +239,37 @@ def rotate_coords_cartesian(
     out=None,
     inplace=False,
     invert=False,
+    numba_min_points=50000,
 ):
     """
     Returns the Cartesian coordinates rotated about the x, y, z axes.
 
-    Uses a numba-compiled, parallelized loop when numba is available and falls back to NumPy matmul otherwise.
+    Uses a numba-compiled, parallelized loop when numba is available or above min number of particles (numba_min_points)
+    and falls back to NumPy otherwise.
 
 
-    :param  coords:         coordinates, shape (N, 3)
-    :type   coords:         numpy.ndarray
-    :param  rot_angles:     (angle_x, angle_y, angle_z), radians unless degrees=True
-    :type   rot_angles:     array-like, shape (3,)
-    :param  reflections:    per-axis reflection signs (+1/-1). Pass None for no reflection
-    :type   reflections:    array-like, shape (3,)
-    :param  periodic_shift: shift along x, y, z. Must be given with sidelengths
-    :type   periodic_shift: array-like of int, shape (3,)
-    :param  sidelengths:    side length of the snapshot box (scalar for cubic, or (3,))
-    :type   sidelengths:    float or array-like, shape (3,)
-    :param  order:          rotation composition order, a permutation of "x", "y", "z"
-    :type   order:          str
-    :param  degrees:        If True, then angles are given in degrees
-    :type   degrees:        bool
-    :param  out:            preallocated output buffer, shape (N, 3) (avoids reallocation on repeated calls)
-    :type   out:            numpy.ndarray
-    :param  inplace:        If True, overwrite coords in place instead of allocating new memory
-    :type   inplace:        bool
-    :param  invert:         If True, apply the inverse of the rotation and periodic shift. Requires periodic_shift
-    :type   invert:         bool
+    :param  coords:             coordinates, shape (N, 3)
+    :type   coords:             numpy.ndarray
+    :param  rot_angles:         (angle_x, angle_y, angle_z), radians unless degrees=True
+    :type   rot_angles:         array-like, shape (3,)
+    :param  reflections:        per-axis reflection signs (+1/-1). Pass None for no reflection
+    :type   reflections:        array-like, shape (3,)
+    :param  periodic_shift:     shift along x, y, z. Must be given with sidelengths
+    :type   periodic_shift:     array-like of int, shape (3,)
+    :param  sidelengths:        side length of the snapshot box (scalar for cubic, or (3,))
+    :type   sidelengths:        float or array-like, shape (3,)
+    :param  order:              rotation composition order, a permutation of "x", "y", "z"
+    :type   order:              str
+    :param  degrees:            If True, then angles are given in degrees
+    :type   degrees:            bool
+    :param  out:                preallocated output buffer, shape (N, 3) (avoids reallocation on repeated calls)
+    :type   out:                numpy.ndarray
+    :param  inplace:            If True, overwrite coords in place instead of allocating new memory
+    :type   inplace:            bool
+    :param  invert:             If True, apply the inverse of the rotation and periodic shift. Requires periodic_shift
+    :type   invert:             bool
+    :param  numba_min_points:   below this many particles the numba kernels are slower than NumPy.
+    :type   numba_min_points:   int
     """
     coords = np.asarray(coords, dtype=np.float64)
     if coords.ndim != 2 or coords.shape[1] != 3:
@@ -255,6 +302,9 @@ def rotate_coords_cartesian(
     if _HAVE_NUMBA:
         limit_numba_threads()  # set max threads for numba functions to SWIFTLET_MAX_THREADS
 
+    # the numba kernels only pay for starting their threads with enough points
+    use_numba = _HAVE_NUMBA and len(coords) >= numba_min_points
+
     if periodic_shift is not None:
         # include shift across periodic bounds
         periodic_shift = np.asarray(periodic_shift, dtype=np.float64)
@@ -268,7 +318,7 @@ def rotate_coords_cartesian(
             raise ValueError("L must be a scalar or have shape (3,)")
 
         if invert:
-            if _HAVE_NUMBA:
+            if use_numba:
                 _apply_rotation_periodic_numba_inverse(coords, R, periodic_shift, sidelengths, target)
             else:
                 # inverse of the branch below: v = R.T @ (coords - centre),
@@ -279,30 +329,23 @@ def rotate_coords_cartesian(
                 target -= periodic_shift
                 np.mod(target, sidelengths, out=target)
         else:
-            if _HAVE_NUMBA:
+            if use_numba:
                 # use optimised rotation with periodic shifts
                 _apply_rotation_periodic_numba(coords, R, periodic_shift, sidelengths, target)
             else:
-                # regular rotation with periodic shifts
-                centre = sidelengths / 2.0
-                centred = np.mod(coords + periodic_shift, sidelengths) - centre
-                np.matmul(centred, R.T, out=target)
-                target += centre
-
-                # wrap only the points outside [0, L].
-                outside = (target < 0.0) | (target > sidelengths)
-                target[outside] = np.mod(target, sidelengths)[outside]
+                # the same, with NumPy
+                _rotate_periodic_numpy(coords, R, periodic_shift, sidelengths, target)
 
     else:
         if invert:
             raise NotImplementedError("rotate_coords_cartesian: invert=True is not supported without periodic_shift")
         # perform rotations without shift across periodic boundaries
-        if _HAVE_NUMBA:
+        if use_numba:
             # optimised rotation
             _apply_rotation_numba(coords, R, target)
         else:
-            # regular rotation
-            np.matmul(coords, R.T, out=target)
+            # rotation with NumPy
+            _rotate_numpy(coords, R, target)
 
     return target
 

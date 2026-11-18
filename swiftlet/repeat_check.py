@@ -169,7 +169,7 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
             ]
         if len(candidates) == 0:
             continue
-        coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres[candidates], tile=record.tile)[record.tile]
+        coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres[candidates], tile=record.tile)
 
         # get lightcone coords from last run
         r = np.linalg.norm(coords, axis=1)
