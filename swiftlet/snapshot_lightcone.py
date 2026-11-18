@@ -601,6 +601,8 @@ class SnapshotLightcone:
         orientation_lock=None,
         orientation_table=None,
         verbose=1,
+        redshift_interp_method="fast",
+        redshift_interp_grid_size=4000,
     ):
         """
         :param  simulation:                 the Simulation (e.g. Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")),
@@ -633,6 +635,16 @@ class SnapshotLightcone:
         :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call. 2:
                                             details of every snapshot, box tile and file
         :type   verbose:                    int
+        :param  redshift_interp_method:     how the grid for redshift interpolation from comoving distance is spaced:
+
+                                            - 'fast': a uniform grid in redshift. Fewer calculations now, but a very
+                                              small % loss in precision when interpolating.
+                                            - 'precise': a uniform grid in comoving distance. More transforms now, but
+                                              less loss of precision when interpolating.
+        :type   redshift_interp_method:     str
+        :param  redshift_interp_grid_size:  number of points in the grid used to interpolate redshifts from comoving
+                                            distances
+        :type   redshift_interp_grid_size:  int
         """
         # check simluation passed is a Simulation object
         self.simulation = check_simulation(simulation, lightcone_type="SnapshotLightcone")
@@ -707,7 +719,7 @@ class SnapshotLightcone:
         self._define_mpi_mode(None, False)
 
         # define grid to interpolate redshift from comoving distance
-        self.__redshift_from_comoving_distance([0.0005, 5.0], n_grid=5000, method="precise")
+        self.__redshift_from_comoving_distance([0.0005, 5.0], n_grid=3000, method=redshift_interp_method)
 
         # once, from MPI rank 0, as every rank makes its own lightcone
         if MPI.COMM_WORLD.Get_rank() == 0:
@@ -3052,6 +3064,8 @@ class SnapshotBeam(SnapshotLightcone):
         orientation_lock=None,
         orientation_table=None,
         verbose=1,
+        redshift_interp_method="fast",
+        redshift_interp_grid_size=4000,
     ):
         """
 
@@ -3084,6 +3098,16 @@ class SnapshotBeam(SnapshotLightcone):
         :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call. 2:
                                             details of every snapshot, box tile and file
         :type   verbose:                    int
+        :param  redshift_interp_method:     how the grid for redshift interpolation from comoving distance is spaced:
+
+                                            - 'fast': a uniform grid in redshift. Fewer calculations now, but a very
+                                              small % loss in precision when interpolating.
+                                            - 'precise': a uniform grid in comoving distance. More transforms now, but
+                                              less loss of precision when interpolating.
+        :type   redshift_interp_method:     str
+        :param  redshift_interp_grid_size:  number of points in the grid used to interpolate redshifts from comoving
+                                            distances
+        :type   redshift_interp_grid_size:  int
         """
         # check beam vector is passed
         if beam_vector is None:
@@ -3101,6 +3125,8 @@ class SnapshotBeam(SnapshotLightcone):
             orientation_lock=orientation_lock,
             orientation_table=orientation_table,
             verbose=verbose,
+            redshift_interp_method=redshift_interp_method,
+            redshift_interp_grid_size=redshift_interp_grid_size,
         )
 
         # set up orthonormal basis perpendicular to beam_vec, used to place tiles transverse to the line of sight once
@@ -3398,6 +3424,8 @@ class SnapshotAllSky(SnapshotLightcone):
         orientation_lock=None,
         orientation_table=None,
         verbose=1,
+        redshift_interp_method="fast",
+        redshift_interp_grid_size=4000,
     ):
         """
 
@@ -3426,6 +3454,16 @@ class SnapshotAllSky(SnapshotLightcone):
         :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call. 2:
                                             details of every snapshot, box tile and file
         :type   verbose:                    int
+        :param  redshift_interp_method:     how the grid for redshift interpolation from comoving distance is spaced:
+
+                                            - 'fast': a uniform grid in redshift. Fewer calculations now, but a very
+                                              small % loss in precision when interpolating.
+                                            - 'precise': a uniform grid in comoving distance. More transforms now, but
+                                              less loss of precision when interpolating.
+        :type   redshift_interp_method:     str
+        :param  redshift_interp_grid_size:  number of points in the grid used to interpolate redshifts from comoving
+                                            distances
+        :type   redshift_interp_grid_size:  int
         """
         # pass all info to SnapshotLightcone class.
         super().__init__(
@@ -3436,6 +3474,8 @@ class SnapshotAllSky(SnapshotLightcone):
             orientation_lock=orientation_lock,
             orientation_table=orientation_table,
             verbose=verbose,
+            redshift_interp_method=redshift_interp_method,
+            redshift_interp_grid_size=redshift_interp_grid_size,
         )
 
     def _validate_ang_radius_deg(self, ang_radius_deg):
