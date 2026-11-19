@@ -71,8 +71,7 @@ the same cell in that snapshot are read as shown in the :ref:`figure <fig-cell-i
    :figwidth: 100%
    :width: 100%
    :align: left
-   :alt: A slice of the lattice of tiles and cells containing a lightcone beam, next to the snapshot box with the same 
-   cell highlighted.
+   :alt: A slice of the lattice of tiles and cells containing a lightcone beam, next to the snapshot box with the same cell highlighted.
 
    Left: A slice (along the y-axis, showing the xz plane) of the lattice of tiles (black lines, side length of 
    :math:`L`) and cells (thin grey lines) that contain a lightcone beam with the snapshot redshift shells are overlaid. 
