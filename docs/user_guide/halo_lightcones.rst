@@ -4,10 +4,11 @@ Halo lightcones
 .. currentmodule:: swiftlet.snapshot_lightcone
 
 A halo lightcone is built from a simulation's SOAP catalogues, exactly as a particle lightcone is
-built from the snapshots. Each halo from the catalogue is moved into every tile its snapshot fills, as a particle at its 
-centre would be, and kept if it lies in the shell (and the beam). This page covers placing the haloes, finding their 
-SOAP properties, writing them to files that LightconeIO can read, and placing them with MPI.
-
+built from the snapshots. Every halo within a catalogue is treated as a particle with its position in the snapshot given 
+by the SOAP defined ``HaloCentre`` and is then placed into the lightcone the same way as any dark matter particle 
+in :mod:`swiftlet` (see :doc:`building_lightcones`). 
+This page covers how haloes are placed in the lightcone, matched with their SOAP properties and writing halo lightcone 
+files that LightconeIO can read. 
 
 Placing haloes
 --------------
@@ -73,8 +74,9 @@ Each catalogue is read once, and its haloes placed in every tile of its snapshot
     read whole (in serial) or in one piece per MPI rank.
 *   The gather step, :meth:`SnapshotLightcone.gather_halo_catalogues`, finds the catalogues and tiles to read without
     reading any halo, from the cell metadata of one snapshot only (the box and cell grid are the same in every
-    snapshot). :meth:`place_halos_in_shell <SnapshotLightcone.place_halos_in_shell>` runs it, and reuses it if it has
-    already been run with the same arguments.
+    snapshot) and keeps what it found in a :class:`HaloShellRead`. 
+    :meth:`place_halos_in_shell <SnapshotLightcone.place_halos_in_shell>` runs it, and reuses it if it has
+    already been run with the same arguments (even if particles were placed in between).
 *   A SOAP catalogue missing on disk is filled by the catalogues of the neighbouring snapshots, with a
     :class:`SnapshotGapWarning`, the same as for missing snapshots.
 
@@ -146,12 +148,11 @@ lightcones, so it can be read with `LightconeIO <https://lightconeio.readthedocs
         )
 
 
-.. Note::
-    When writing these files it is suggested that you write one file per snapshot, so that when read back with 
-    LightconeIO's ``HaloLightconeFile`` the lightcone haloes can be paired with a SOAP catalogue. However, haloes from 
-    multiple snapshots can be written to the same file and read with ``HaloLightconeFile`` however it cannot pair the 
-    haloes in the file with a SOAP catalogue (one file per snapshot) when read in, instead this can be done manually, 
-    snapshot-by-snapshot after reading the haloes in. 
+.. Note:: 
+    Write one file per snapshot, so that LightconeIO's ``HaloLightconeFile`` can pair the haloes of a file with their
+    SOAP catalogue (one file per snapshot). A file can hold the haloes of several snapshots, but ``HaloLightconeFile`` 
+    then can't pair them with a catalogue, you will have to perform this step yourself, snapshot by snapshot, with 
+    ``Lightcone/SnapshotNumber``.
 
 
 Read a file back with LightconeIO, e.g. only the haloes within an angle of a direction:

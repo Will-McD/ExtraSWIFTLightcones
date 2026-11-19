@@ -149,7 +149,7 @@ simulation's base directory or an absolute path, so they can be on different dis
 
    sim = Simulation.from_label(
        "L0025N0376", "MY_RUN",
-       base_dir_format="/sims/{sim_name}",
+       base_dir_format="/home/my/data/{sim_name}",
        snapshot_format="snaps/run_{snap_nr:03d}.{file_nr}.hdf5",   # {snap_nr}, {file_nr} for snapshots of several files
        soap_format="/haloes/need//soap_{snap_nr:03d}.hdf5",    # {snap_nr}
        output_list="/home/my/lists/outputs.txt",
@@ -159,8 +159,8 @@ simulation's base directory or an absolute path, so they can be on different dis
 
 
 .. important::
-  The formatted paths (``snapshot_format``, ``soap_format`` and ``output_list``) without the fields it needs, or with 
-  any other field (e.g. ``{snapnr}``), raises a ``ValueError`` when the simulation is made. If a path is not given then 
+  A path format (``snapshot_format`` or ``soap_format``) without the fields it needs, or with any other field (e.g.
+  ``{snapnr}``), raises a ``ValueError`` when the simulation is made. If a path is not given then 
   the default from the suite is assumed. 
 
 

@@ -25,7 +25,7 @@ Useful pytest options include:
 * ``-v`` to list every test case
 * ``-x`` to stop at the first failure
 * ``--durations=10`` to show the slowest tests
-* ``-p no:warnings`` to hide the deprecation warnings from unyt and healpy
+* ``-p no:warnings`` to hide the warnings, e.g. healpy's deprecation warnings
 
 
 
@@ -54,8 +54,8 @@ The following table summarises the test files and what they check.
         doesn't load the modules that need MPI.
 
    * -  ``test_orientation_tables.py``
-     -  The default orientation tables are consistent; generated tables have every distinct orientation; the writing, 
-        reading and checking of files holding the tables.
+     -  The installed orientation tables are consistent; generated tables have every distinct orientation; the writing,
+        reading and checking of files holding the tables; and the NumPy and numba rotations give identical results.
 
    * -  ``test_snapshot_lightcone_placement.py``
      -  Where :class:`swiftlet.snapshot_lightcone.SnapshotBeam` and :class:`swiftlet.snapshot_lightcone.SnapshotAllSky` 
@@ -79,8 +79,9 @@ The following table summarises the test files and what they check.
      -  Each simulation's paths and snapshot redshifts come from its suite, FLAMINGO or COLIBRE. Making a 
         :class:`swiftlet.simulation_suites.Simulation` object from its label or path, finding the suite of a label, the 
         directories (including :envvar:`SWIFTLET_FLAMINGO_DIR` and :envvar:`SWIFTLET_COLIBRE_DIR`), reading output lists 
-        and refusing other files, and the lightcone classes taking a :class:`swiftlet.simulation_suites.Simulation` or a 
-        label and name.
+        and refusing other files. The lightcone classes take a :class:`swiftlet.simulation_suites.Simulation` 
+        and refuse a label, with an error showing how to make a 
+        :class:`Simulation <swiftlet.simulation_suites.Simulation>`.
 
    * -  ``test_soap_reader.py``
      -  The SOAP readers of :mod:`swiftlet.soap_reader` give the same rows and units whether reading in chunks or 
@@ -100,7 +101,7 @@ The following table summarises the test files and what they check.
 Snapshot lightcone placement tests
 ----------------------------------
 
-The lightcone placement tests are particularly extensive and can take a while (around 30 minutes) to complete.
+The lightcone placement tests are particularly extensive and take around 10 minutes to complete.
 
 The following describes the various tests within `test_snapshot_lightcone_placement.py`:
 
@@ -124,8 +125,7 @@ The following describes the various tests within `test_snapshot_lightcone_placem
 *   Haloes placed from SOAP catalogues end up exactly where particles at the same positions in the snapshots are placed,
     including haloes on cell faces.
 *   The haloes placed are the same, in the same order, whether the SOAP catalogues are read whole or in chunks, and with
-    MPI (on 1, 2 and 3 ranks, also with ``redistribute_halos```) the 
-    same as in serial.
+    MPI (on 1, 2 and 3 ranks, also with ``redistribute_halos``) the same as in serial.
 *   The halo dry run (:meth:`swiftlet.snapshot_lightcone.SnapshotLightcone.gather_halo_catalogues`) reads no haloes and 
     the cell metadata of one snapshot only, and :meth:`swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell` 
     reuses it, reading only the catalogues it found. With no snapshot in the shell, no halo is placed.
@@ -147,9 +147,15 @@ The following describes the various tests within `test_snapshot_lightcone_placem
     ``"cube"`` or ``"sphere"`` lock, and the same ``orientation_seed`` gives the same orientations.
 *   A lightcone made with the default tables written to a file is the same as one made with the hard-coded default 
     table.
-*   The ``.metadata`` of the constructed lightcone (``orientation_seed``, ``orientation_lock``, orientation table, beam 
+*   The ``.metadata`` of the constructed lightcone (``orientation_seed``, ``orientation_lock``, orientation table, beam
     and redshift range) is correctly written to and read back from ``.hdf5`` file dataset attributes.
-
+*   Each call makes its own record of what its gather step found (``last_shell``), which a later call doesn't change;
+    the cell metadata kept is only that of the current call; a serial call after an MPI one runs in serial.
+*   Particles and haloes choose the same snapshots for the same shell, with and without ``use_snapshots``.
+*   A particle type missing from some snapshots adds none from them, and one in none of the snapshots raises a
+    ``ValueError`` naming the types there are.
+*   ``Snapshot2Lightcone`` needs the tile, and moves every particle of a snapshot to where the lightcone places it.
+*   The ``"fast"`` and ``"precise"`` redshift interpolations (``redshift_interp_method``) place the same particles.
 
 MPI tests
 ---------
