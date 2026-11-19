@@ -46,7 +46,7 @@ sim = Simulation.from_label("L1000N0900", "HYDRO_FIDUCIAL")
 beam = SnapshotBeam(
     simulation=sim,
     beam_vector=(0, 0, 1),
-    ang_radius_deg=2.5,
+    ang_radius_deg=2.5
 )
 
 particles = beam.place_snapshot_particles_in_shell(
