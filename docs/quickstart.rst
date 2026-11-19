@@ -1,69 +1,72 @@
 Quick start
 ===========
 
-This page walks through the steps, after installation, to build a pencil beam through the fiducial ``L1_m10`` FLAMINGO 
-simulation from both its snapshots and halo catalogues. We will build a pencil beam with an angular radius of
-:math:`\theta=2.5^{\circ}` that extends out to redshift :math:`z=0.3`.
+This page walks through the steps, following installation, to build a pencil beam lightcone from both the snapshots and 
+halo catalogues of the fiducial `L1_m10 FLAMINGO simulation <https://dataweb.cosma.dur.ac.uk:8443/flamingo/simulations/hydro.html#fiducial-models>`_.
+We will build a pencil beam with an angular radius of :math:`\theta=2.5^{\circ}` that extends out to redshift 
+:math:`z=0.3`.
 
-Building a lightcone from snapshots takes three steps:
+:mod:`swiftlet` builds lightcones from snapshots in three steps:
 
-#.  Defining the lightcone: choose the simulation, the lightcone's geometry and its internal structure (how the copies
-    of the snapshot box are oriented).
-#.  Gather the simulation data needed: the lightcone is first built at snapshots cell level, from which we find the 
-    exact files and cells to read without ever touching the particle (or halo) data. 
-#.  Read and place: place the particles or haloes of those cells into the lightcone, following the blueprint laid out 
-    by the previous gather step.
+#.  **Define the lightcone**: choose the simulation, the lightcone's geometry and its internal structure (how the 
+    copies of the snapshot box are :term:`oriented <orientation>`).
+#.  **Gather**: build the lightcone at the level of the snapshots' :term:`cells <cell>`, to find exactly which files and 
+    cells to read, without reading any particle (or halo) data.
+#.  **Read and place**: read the particles or haloes of those cells and place them in the lightcone, as the 
+    :term:`gather step` planned.
 
-For an overview of the main ideas and specific steps involved with building a lightcone see 
+For an overview of the main ideas and specific steps for building a lightcone with :mod:`swiftlet` see 
 :doc:`user_guide/methods_overview` and :doc:`user_guide/building_lightcones`, respectively. 
 
-.. _define-lightcone:
 
 Defining the lightcone 
 ----------------------
 
 A lightcone is built from the snapshots with one of the two subclasses of
-:class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`, which manage the lightcone's geometry:
-:class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>` for the whole sky, and
-:class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` for a beam (or cone), which we will use in this pages 
-example. Unlike the a :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` requires both the direction and 
-angular radius (``ang_radius_deg`` in degrees) of the beam. The direction of the beam is given by a vector 
-(``beam_vector``), here :math:`\mathbf{v}_{\mathrm{beam}}=(0,0,1)`, to point the beam along the z-axis of the 
+:class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`, which differ only in their geometry:
+:class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>` for the :term:`whole sky <all-sky lightcone>` 
+(celestial sphere), and :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` for a :term:`beam` (or cone), 
+which we will use in this pages. Unlike the a :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` requires 
+both the direction and angular radius (``ang_radius_deg`` in degrees) of the beam. The direction of the beam is given by 
+a vector (``beam_vector``), here :math:`\mathbf{v}_{\mathrm{beam}}=(0,0,1)`, to point the beam along the z-axis of the 
 simulations box. 
 
-In addition to the direction and angular radius of the beam , the lightcone also needs to known which simulation it is 
-being built from. In SWIFTLET all the required information on how to find the snapshots, SOAP catalogues and the output 
-redshifts is handled by a :class:`Simulation <swiftlet.simulation_suites.Simulation>` object, which is passed to the 
-:class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`.
+In addition to the direction and angular radius of the beam , the lightcone also needs to know which simulation it is 
+being built from. All the information on where to find the snapshots, :term:`SOAP catalogues <SOAP catalogue>` 
+and the output redshifts is handled by a :class:`Simulation <swiftlet.simulation_suites.Simulation>` object. 
 
-For now, we will not worry about the internal structure of the beam, we will use the default orientation table (see
-:doc:`user_guide/orientation_tables`) and no orientation lock, as the beam is not wider than the side length of a
-snapshot box (see :doc:`user_guide/orientation`). 
+For now, we will not worry about the internal structure of the beam, we will use the default :term:`orientation table` 
+(see:doc:`user_guide/orientation_tables`) and no :term:`orientation lock`, as the beam is not wider than the side length 
+of a snapshot box (see :doc:`user_guide/orientation`). 
+
+For further reading on defining a lightcone see :ref:`Defining a lightcone <define-lightcone>`.
 
 .. code-block:: python
 
     from swiftlet import SnapshotBeam
     from swiftlet import Simulation
     
-    # path to root directory of the FLAMINGO L1_m10 fiducial simulation
+    # path to root (base) directory of the FLAMINGO L1_m10 fiducial simulation
     base_dir = "path/to/flamingo/data/L1000N1800/HYDRO_FIDUCIAL" 
 
-    # define the Simulation object
+    # define the Simulation object by where its snapshots, SOAP catalogues and output list are
     sim = Simulation.from_path(base_dir)
     
     snap_beam = SnapshotBeam(
-        simulation=sim,       # pass all relevant simluation info too the lightcone as a Simulation
-        beam_vector=(0,0,1),         # unit vector giving the beams pointing on the sky
-        ang_radius_deg=2.5,          # angular radius in degrees
+        simulation=sim,       # the Simulation to build the lightcone from
+        beam_vector=(0,0,1),  # unit vector giving the beams pointing on the sky
+        ang_radius_deg=2.5,   # angular radius in degrees
     )
 
-The lightcone can now be populated with haloes and particles. Both follow the same workflow, an initial gather step that 
-finds the files needed by building the lightcone at the cell level before then placing the particles (or haloes) of the 
-gathered files into the lightcone.
+
+With the lightcone defined it can now be populated with haloes and particles. The same general pipeline is used for 
+both particles and haloes: a :term:`gather step` that finds the files needed and then a :term:`read and place step` to 
+position the particles or haloes in the lightcone.
 
 .. tip::
-    Before building a lightcone in full it is often a good idea to check for any periodic replicas of the same objects 
-    that appear close together along a given line of sight (see :doc:`user_guide/repeated_objects`).
+    Before populating a lightcone with haloes or partiles it is often a good idea to check for any periodic replicas 
+    of the same objects that appear :term:`close together <close repeat>` along a given line of sight 
+    (see :doc:`user_guide/repeated_objects`).
 
 
 .. _build-halo-lightcone:
@@ -71,12 +74,13 @@ gathered files into the lightcone.
 Halo lightcone
 --------------
 
-Here we build a halo lightcone with ``snap_beam``, and write it to a HDF5 file with the same structure as the
+Here we build a halo lightcone using the lightcone we just defined (``snap_beam``), and then write it to a set of 
+:term:`HDF5 files <halo lightcone file>` with the same structure as the 
 `LightconeIO <https://lightconeio.readthedocs.io/en/latest/halo_lightcones.html>`_ halo lightcones.
 
 The halo lightcone is built with
 :meth:`place_halos_in_shell <swiftlet.snapshot_lightcone.SnapshotLightcone.place_halos_in_shell>`, which includes both 
-the gather step and, read and place step.
+the :term:`gather step` and, :term:`read and place step`.
 
 .. code-block:: python
     
@@ -95,15 +99,12 @@ the gather step and, read and place step.
 
 The halo lightcone holds only the properties needed to place each halo in the lightcone (``"Lightcone/HaloCentre"``,
 ``"Lightcone/ExpansionFactor"``) and to match it back with the SOAP catalogues (``"Lightcone/SnapshotNumber"`` and 
-``"InputHalos/SOAPIndex"``). Any other property can be read from the SOAP catalogues with 
-:func:`read_soap_selected_rows <swiftlet.soap_reader.read_soap_selected_rows>`.
+``"InputHalos/SOAPIndex"``). Any other property can be read from the SOAP catalogues in post, 
+see :ref:`map-halo-lightcone-to-soap`.
 
-
-As an example we can sort the haloes in the lightcone by select properties from SOAP and then store the selected haloes 
-as a HDF5 files in the same format as the existing FLAMINGO halo lightcones: one file per snapshot (see 
-:ref:`write-halo-lightcone` for more information on writing halo lightcone files). 
-
-Here we will store one file per snapshot for only the central haloes in the lightcone:
+As an example we will select only central haloes in the lightcone, as indicated by the SOAP catalogues, and then store 
+the selected haloes in HDF5 files with the same format as the existing FLAMINGO halo lightcones: one file per snapshot 
+(for more information see :ref:`write-halo-lightcone`). 
 
 .. code-block:: python
     
@@ -163,13 +164,11 @@ the same as any of FLAMINGO's halo lightcones.
 Particle lightcone
 ------------------
 
-The same beam is populated with particles in the same way.
-
-Again starting from ``snap_beam``,
+Starting from ``snap_beam``, we can populate the beam with particles using 
 :meth:`place_snapshot_particles_in_shell <swiftlet.snapshot_lightcone.SnapshotLightcone.place_snapshot_particles_in_shell>`
 runs both the gather step and the read and place step.
 
-Here the masses and temperatures of the gas particles (``PartType0``) are placed in the lightcone:
+Here we will place gas particles (``PartType0``), along with their masses and temperatures into the lightcone:
 
 .. code-block:: python
 
@@ -190,8 +189,8 @@ Here the masses and temperatures of the gas particles (``PartType0``) are placed
 .. Note::
     ``SmoothingLengths`` **are always returned** for any particle that has them.
 
-
-To place a large lightcone one snapshot file at a time, and therefore limit the peak memory used, see
+Building a particle lightcone can be very computationally expensive, it is suggested that you build particle lightcones 
+in thin redshift shells or by one snapshot file at a time to limit the peak memory used, see
 :ref:`placing-files-one-at-a-time`.
 
 

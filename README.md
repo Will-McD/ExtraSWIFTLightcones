@@ -43,12 +43,11 @@ A pencil beam of gas particles, 2.5° in radius, out to redshift 0.3, from FLAMI
 from swiftlet import Simulation, SnapshotBeam
 
 sim = Simulation.from_label("L1000N0900", "HYDRO_FIDUCIAL")
-beam = SnapshotBeam(simulation=sim, beam_vector=(0, 0, 1))
+beam = SnapshotBeam(simulation=sim, beam_vector=(0, 0, 1), ang_radius_deg=2.5,)
 
 particles = beam.place_snapshot_particles_in_shell(
     lightcone_redshift_range=(0.05, 0.3),
     property_names=["Masses", "Temperatures"],
-    ang_radius_deg=2.5,
     particle_types=["PartType0"],
 )
 gas = particles["PartType0"]  # Coordinates, ExpansionFactors, SnapshotNumber, Masses, Temperatures, ...
@@ -95,7 +94,8 @@ See [Tests](https://extraswiftlightcones.readthedocs.io/en/latest/tests/test_sum
 
 </summary>
 
-Contributions are welcome as pull requests; please read [CONTRIBUTING.md](./CONTRIBUTING.md). The documentation is in [`docs/`](./docs) and is built by Read the Docs from this repository.
+Contributions are welcome as pull requests; please read [CONTRIBUTING.md](./CONTRIBUTING.md) first. The documentation is 
+in [`docs/`](./docs) and is built by Read the Docs from this repository.
 
 </details>
 
@@ -106,7 +106,11 @@ Contributions are welcome as pull requests; please read [CONTRIBUTING.md](./CONT
 
 </summary>
 
-We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing (and formatting) the documentation (the docstrings, the pages in `docs/` and this `README.md`), the test suite (`tests/`), the general set-up scripts (`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`), the diagram examples (`examples/diagrams/`) and the placement examples (`examples/snapshot_beam_halo_placement.py`, `examples/snapshot_beam_particle_placement.py` and `examples/snapshot_number_density_comparison.py`).
+We acknowledge the assistance of AI (Claude Code, Anthropic 2026) in writing (and formatting) the documentation (the 
+docstrings, the pages in `docs/` and this `README.md`), the test suite (`tests/`), the general set-up scripts 
+(`swiftlet/threads.py`, `swiftlet/config.py` and `swiftlet/__init__.py`), the diagram examples (`examples/diagrams/`) 
+and the placement examples (`examples/snapshot_beam_halo_placement.py`, `examples/snapshot_beam_particle_placement.py` 
+and `examples/snapshot_number_density_comparison.py`).
 All use of AI was supervised and any contribution to this module was first vetted by humans.
 
 </details>

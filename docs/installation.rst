@@ -66,17 +66,17 @@ libraries:
 MPI support
 -----------
 
-MPI is not required to build new lightcones from snapshots with the :class:`swiftlet.snapshot_lightcone.SnapshotLightcone` 
-subclasses. It is needed for the faster parallel methods of :class:`swiftlet.snapshot_lightcone.SnapshotLightcone`, for 
-the :class:`swiftlet.lightcone_projections.BeamProjection` class, and for generating binary masks of haloes
-(:mod:`swiftlet.mask_haloes`).
+MPI is not required to build lightcones from snapshots, however it is needed for the faster parallel methods of the 
+:class:`swiftlet.snapshot_lightcone.SnapshotLightcone` class used to build lightcones, visualising the lightcone with 
+the :class:`BeamProjection <swiftlet.lightcone_projections.BeamProjection>` class and for generating binary masks of 
+haloes on the sky (:mod:`swiftlet.mask_haloes`).
 
 MPI support requires mpi4py and an MPI-enabled build of h5py. The mpi4py package installed from PyPI needs an MPI 
 library at run time; if your system has none, install one into the environment with ``pip install mpich`` 
 (or ``pip install openmpi``). ``swiftlet-configure`` does not need MPI.
 
-On COSMA, the environment built by ``make_cosma_env.sh`` (see :ref:`use-with-cosma`) is already configured to use 
-COSMA's mpi4py and h5py.
+On COSMA, the environment built by ``make_cosma_env.sh`` is already configured to use COSMA's mpi4py and h5py 
+(see :ref:`use-with-cosma`).
 
 .. seealso::
 
@@ -89,10 +89,9 @@ COSMA's mpi4py and h5py.
 Number of threads
 -----------------
 
-The threaded parts of SWIFTLET, numba's parallel functions (used to re-orient snapshots and in 
-:class:`swiftlet.lightcone_projections.BeamProjection`) and healpy's ``map2alm``, ``rotate_alm`` and ``alm2map``, use at
-most :envvar:`SWIFTLET_MAX_THREADS` threads (see :doc:`user_guide/environment_variables`). ``swiftlet-configure`` adds 
-:envvar:`SWIFTLET_MAX_THREADS` to the environment's activate script, to change it:
+The threaded parts of SWIFTLET, numba's parallel functions and healpy's ``map2alm``, ``rotate_alm`` and ``alm2map``, use 
+at most :envvar:`SWIFTLET_MAX_THREADS` threads (see :doc:`user_guide/environment_variables`). 
+``swiftlet-configure`` adds :envvar:`SWIFTLET_MAX_THREADS` to the environment's activate script, to change it:
 
 .. code-block:: bash
 
@@ -106,9 +105,9 @@ To set the limit when building a new environment, for example to 16 instead of 3
 
    SWIFTLET_MAX_THREADS=16 bash ExtraSWIFTLightcones/venv_scripts/make_venv.sh /path/to/environment
 
-To have no fixed maximum, so that each job (or MPI rank) uses all the cores it is allowed, use ``all`` instead of a 
-number, e.g. ``swiftlet-configure --max_threads all``. This suits jobs where the scheduler sets the number of cores, 
-e.g. ``--cpus-per-task`` in Slurm.
+To have no fixed maximum number of threads, meaning each job (or MPI rank) uses all the cores it has access to, use 
+``all`` instead of an integer, e.g. ``swiftlet-configure --max_threads all``. This suits jobs where the scheduler sets 
+the number of cores, e.g. ``--cpus-per-task`` in Slurm.
 
 .. _additional-data:
 
@@ -121,9 +120,10 @@ Lightcone shell redshift files
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The redshift bounds of `each shell in FLAMINGO's lightcones <https://dataweb.cosma.dur.ac.uk:8443/flamingo/lightcones/index.html>`_
-are stored in two files, that can be installed with SWIFTLET. They are needed to map between FLAMINGO's HEALPix maps, 
+are stored in two .txt files, that can be installed with SWIFTLET. They are needed to map between FLAMINGO's HEALPix maps, 
 which are built in concentric redshift shells, and the corresponding halo lightcones, which are built per snapshot, and 
 to find which HEALPix maps lie within a given redshift range.
+
 
 See :ref:`install-flamingo-redshifts` for further information on installing the redshift shells. 
 
@@ -133,10 +133,11 @@ See :ref:`install-flamingo-redshifts` for further information on installing the 
    shell redshift files.
 
 
-HEALPIx weights
+HEALPix weights
 ^^^^^^^^^^^^^^^
 
-To speed up the rotation of HEALPix maps, download the HEALPix pixel weights and add their paths to your environment:
+To improve the precision and speed up the rotation of HEALPix maps, download the HEALPix pixel weights and add their 
+paths to your environment:
 
 .. code-block:: bash
 

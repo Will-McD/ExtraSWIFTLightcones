@@ -17,7 +17,8 @@ documentation in :mod:`swiftlet.snapshot_lightcone`.
    ~snapshot_lightcone.SnapshotBeam
    ~snapshot_lightcone.SnapshotAllSky
    ~snapshot_lightcone.LightconeOutput
-
+   ~snapshot_lightcone.ShellRead
+   ~snapshot_lightcone.HaloShellRead
 
 Simulations 
 -----------
@@ -36,8 +37,8 @@ The main classes and functions for accessing the snapshots and halo catalogues o
 Internal structure of a lightcone
 ---------------------------------
 
-The main classes and functions related the orientation tables, which determine the internal structure of the lightcone, 
-check for repeated structures and clashing (in contact) along a given line of sight. 
+The main functions for the orientation tables, which set the internal structure of the lightcone, and for checking a
+lightcone for repeated structures (clashes, and close repeats along a line of sight).
 
 .. autosummary::
    :nosignatures:
