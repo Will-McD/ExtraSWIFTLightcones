@@ -6,9 +6,7 @@ worked examples, most with a job script (``.sh``) to run them on COSMA (see :doc
 Their extra requirements are installed with ``pip install -e ".[examples]"``. Run them from the top directory of the
 repository; on another machine, change the paths of the simulations (see :doc:`user_guide/environment_variables`).
 
-
-Below are lists of examples for both the existing FLAMINGO lightcones and generating new snapshot lightcones. 
-
+The examples below use FLAMINGO's own lightcones, or build new lightcones from snapshots.
 
 FLAMINGO's lightcones
 ---------------------
@@ -73,12 +71,12 @@ Lightcones from snapshots
 
    * - ``snapshot_close_repeat_check.py`` / ``.sh``
      - checks a lightcone for close repeats of the same SWIFT cells before building it, for every orientation lock and 
-       several seeds. Generates a summary plot of the occurrence on-sky positions of these repeated cells 
+       several seeds, which is presented in a summary plot.
        (see :doc:`../user_guide/repeated_objects`)
 
    * - ``snapshot_close_repeat_map.py`` / ``.sh``
      - checks and plots the close line-of-sight repeats of the same SWIFT cells, for every orientation lock for each 
-       installed orientation table with a set orientation seed. Show each pair on a Mollweide and then overlays 
+       installed orientation table with a set orientation seed. Shows each pair on a Mollweide and then overlays 
        the footprint of a planned beam lightcone beam (see :doc:`../user_guide/repeated_objects`). 
 
 

@@ -38,7 +38,7 @@ templates_path = ["_templates"]
 # functions and classes left out of the API docs, by their full name
 autosummary_context = {
     "hidden": [
-        "swiftlet.snapshot_lightcone.seperator_str",
+        "swiftlet.snapshot_lightcone.separator_str",
         "swiftlet.snapshot_lightcone.message",
         "swiftlet.snapshot_lightcone.rank_message",
         "swiftlet.snapshot_lightcone.print_coord_ranges",
@@ -109,10 +109,6 @@ def setup(app):
     app.connect("autodoc-process-docstring", _drop_named_tuple_new)
     app.connect("autodoc-skip-member", _skip_fields)
 
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://numpy.org/doc/stable", None),
-}
 
 # ---- Read the Docs theme ----
 html_theme = "sphinx_rtd_theme"
@@ -134,7 +130,7 @@ mermaid_height = "auto"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
-# ---- add to docs/conf.py: links for the nitpicky (-n) build --------------------------------------------------------
+# ---- links for the nitpicky (-n) build --------------------------------------------------------
 # with -n, every :func:/:class: and every name in a :type: line must link to its documentation. intersphinx links the
 # names of other packages to their docs
 intersphinx_mapping = {

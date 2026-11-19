@@ -613,21 +613,25 @@ if __name__ == "__main__":
         print(beam_str)
 
         # create a beam for selected halo
-        SB = SnapshotBeam(
-            simulation=simulation, beam_vector=beam_vector, orientation_seed=0, orientation_lock=None, verbose=1
+        snap_beam = SnapshotBeam(
+            simulation=simulation,
+            beam_vector=beam_vector,
+            ang_radius_deg=np.degrees(1.2 * zoom_angle),  # increase angular size to allow smoothing of the particles
+            orientation_seed=0,
+            orientation_lock=None,
+            verbose=1,
         )
 
         beam_particles = {}
         for ptype, property_names in PROPERTIES.items():
-            beam_particles[ptype] = SB.place_snapshot_particles_in_shell(
+            beam_particles[ptype] = snap_beam.place_snapshot_particles_in_shell(
                 lightcone_redshift_range=beam_redshift_range,
-                ang_radius_deg=np.degrees(1.2 * zoom_angle),  # increase angular size to allow smoothing of particles
                 property_names=property_names,
                 particle_types=[ptype],
             )[ptype]
 
         # check the halo is where it is expected in the SnapshotBeam,  i.e., in tile (0, 0, 0) and not re-oriented
-        beam_centre = SB.Snapshot2Lightcone(snap_nr, halo["SOAPCentre"][None, :], tile=(0, 0, 0))[(0, 0, 0)][0]
+        beam_centre = snap_beam.Snapshot2Lightcone(snap_nr, halo["SOAPCentre"][None, :], tile=(0, 0, 0))[0]
         if not np.allclose(beam_centre, offset, atol=1e-4):
             raise RuntimeError(f"halo placed at {beam_centre} in the SnapshotBeam, expected {offset}")
 

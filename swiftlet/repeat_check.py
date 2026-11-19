@@ -113,7 +113,7 @@ def _tile_label(tile):
     return tile + [-1] * (4 - len(tile))
 
 
-def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_range=None):
+def _cells_in_shell(lightcone, ang_radius_deg, records, cell_data, tile_cells=None, cell_range=None):
     """
     Find overlapping cells int the lightcone shell.
 
@@ -135,8 +135,10 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
     :type   lightcone:      SnapshotLightcone
     :param  ang_radius_deg: angular radius [deg] of the beam, None for all-sky
     :type   ang_radius_deg: float
-    :param  records:        the pieces recorded by lightcone.last_snapshot_read
+    :param  records:        the pieces recorded by lightcone.last_shell.pieces
     :type   records:        list
+    :param  cell_data:      the cell metadata of the shell's snapshots, {snapshot: cell metadata}
+    :type   cell_data:      dict
     :param  tile_cells:     the cells of each piece, {(snapshot, tile): cell indices, sorted}, or None for every cell
     :type   tile_cells:     dict
     :param  cell_range:     if given, only the cells numbered from cell_range[0] to cell_range[1] - 1
@@ -150,10 +152,12 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
 
     # for record in lightcone.last_snapshot_read:
     for record in records:
-        cell_data = lightcone._cell_data_cache[record.snap_nr]
-        box_centres = cell_data["cell_centres"].to_value("Mpc")
-        cell_size = float(np.max(cell_data["cell_size"].to_value("Mpc")))
-        boxsize = float(np.max(cell_data["snap_boxsize"].to_value("Mpc")))
+        # get grid info from cell metadata
+        snapshot_cells = cell_data[int(record.snap_nr)]
+        box_centres = snapshot_cells["cell_centres"].to_value("Mpc")
+        cell_size = float(np.max(snapshot_cells["cell_size"].to_value("Mpc")))
+        boxsize = float(np.max(snapshot_cells["snap_boxsize"].to_value("Mpc")))
+
         half_diagonal = 0.5 * np.sqrt(3.0) * cell_size
 
         # the cells gather_files found,
@@ -169,7 +173,7 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, tile_cells=None, cell_ra
             ]
         if len(candidates) == 0:
             continue
-        coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres[candidates], tile=record.tile)[record.tile]
+        coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres[candidates], tile=record.tile)
 
         # get lightcone coords from last run
         r = np.linalg.norm(coords, axis=1)
@@ -275,18 +279,13 @@ def find_close_cell_repeats(
     from scipy.spatial import cKDTree
     from .threads import thread_limit
 
-    # find the pieces of the shell, and the cells of each piece that overlap it
-    beam_args = {}
-    lightcone._tile_cells = {}
-    # attempt to gather files
-    try:
-        lightcone.gather_files(ptype, redshift_range, **beam_args)
-        tile_cells = lightcone._tile_cells
-    finally:
-        lightcone._tile_cells = None
+    # find the pieces of the shell, the cells of each piece that overlap it, and the cell metadata of its snapshots
+    lightcone.gather_files(ptype, redshift_range)
+    shell = lightcone.last_shell
+    tile_cells, cell_data = shell.tile_cells, shell.cell_data
 
     records_of_snapshot = {}
-    for record in lightcone.last_snapshot_read or []:
+    for record in shell.pieces:
         records_of_snapshot.setdefault(int(record.snap_nr), []).append(record)
 
     row_property_names = (
@@ -325,9 +324,7 @@ def find_close_cell_repeats(
         groups = records_of_snapshot
     else:
         groups = {-1: [record for snapshot in sorted(records_of_snapshot) for record in records_of_snapshot[snapshot]]}
-        cells_per_snapshot = {
-            len(lightcone._cell_data_cache[snapshot]["cell_centres"]) for snapshot in records_of_snapshot
-        }
+        cells_per_snapshot = {len(cell_data[snapshot]["cell_centres"]) for snapshot in records_of_snapshot}
         if len(cells_per_snapshot) > 1:
             raise ValueError(
                 "max_snapshot_difference other than 0 needs every snapshot to have the same cells, not "
@@ -343,7 +340,7 @@ def find_close_cell_repeats(
         selected = [
             tile_cells.get((record.snap_nr, record.tile), np.zeros(0, dtype=np.int64)) for record in groups[snapshot]
         ]
-        nr_cells = len(lightcone._cell_data_cache[int(groups[snapshot][0].snap_nr)]["cell_centres"])
+        nr_cells = len(cell_data[int(groups[snapshot][0].snap_nr)]["cell_centres"])
         copies_of_cell = np.bincount(np.concatenate(selected), minlength=nr_cells) if selected else np.zeros(nr_cells)
 
         edges = np.searchsorted(
@@ -355,7 +352,7 @@ def find_close_cell_repeats(
 
     for snapshot, cell_range in blocks:
         snap_nr, cell, tiles, orientation, centres, size, box = _cells_in_shell(
-            lightcone, lightcone.ang_radius_deg, groups[snapshot], tile_cells, cell_range
+            lightcone, lightcone.ang_radius_deg, groups[snapshot], cell_data, tile_cells, cell_range
         )
 
         cell_size, boxsize = (size, box) if size is not None else (cell_size, boxsize)

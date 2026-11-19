@@ -110,16 +110,22 @@ def beam_projection_lock_comparison(
         print(f"\n{lock_title}")
 
         # build the pencil beam from the snapshots, for the gas particles
-        SB = SnapshotBeam(simulation=sim_object, beam_vector=beam_vector, verbose=1, orientation_lock=orientation_lock)
+        snap_beam = SnapshotBeam(
+            simulation=sim_object,
+            beam_vector=beam_vector,
+            ang_radius_deg=ang_radius_deg,
+            verbose=1,
+            orientation_lock=orientation_lock,
+        )
 
         # Coordinates (and SmoothingLengths for gas) are always read, and ExpansionFactors are computed
         # from the position of each particle in the beam, so only the masses need to be requested
-        beam_particles = SB.place_snapshot_particles_in_shell(
+        beam_particles = snap_beam.place_snapshot_particles_in_shell(
             lightcone_redshift_range=redshift_range,
-            ang_radius_deg=ang_radius_deg,
             property_names=["Masses"],
             particle_types=["PartType0"],
         )
+
         gas_particle_data = beam_properties(beam_particles["PartType0"], gas_property_names, "PartType0")
         del beam_particles
         print(f"\n{len(gas_particle_data['Masses'])} gas particles in the beam\n")
@@ -130,7 +136,7 @@ def beam_projection_lock_comparison(
             angular_diameter=2 * ang_radius_deg,
             redshift_range=redshift_range,
             slice_thickness=slice_thickness,
-            cosmology=SB.cosmo,
+            cosmology=snap_beam.cosmo,
             store_snapshot_filename=re.sub(r"\.0\.hdf5$", ".hdf5", snapshot_filename),
         )
 

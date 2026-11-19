@@ -6,7 +6,7 @@ Guidelines
 ----------
 
 Contributions are encouraged and always welcome.
-If you would like to contribute please read the `contribution guidelines <https://github.com/Will-McD/ExtraSWIFTLightcones/main/CONTRIBUTING.md>`_
+If you would like to contribute please read the `contribution guidelines <https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/CONTRIBUTING.md>`_
 first and feel free to use the additional developers tools summarised below. 
 
 In short, a contribution must:

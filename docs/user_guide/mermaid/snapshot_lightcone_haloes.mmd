@@ -4,19 +4,23 @@ flowchart TD
     L0 --> A2
     A("place_halos_in_shell(<br/>halo_format, z_range,<br/>use_snapshots, soap_chunk_size,<br/>comm, redistribute_halos,<br/>snapshot_number)") --> B
     A2("gather_halo_catalogues(<br/>halo_format, z_range,<br/>use_snapshots, snapshot_number)<br/>dry run: no haloes read") --> G0
-    B["halo_format, e.g.<br/>simulation.soap_format;<br/>comm = COMM_WORLD if None<br/>and more than one rank"] --> C
-    C{"already<br/>gathered?"} -- no --> G0
-    C -- "yes, same settings<br/>(and the lightcone's<br/>ang_radius_deg)" --> P
-
-    subgraph GATHER ["Gather"]
-        G0["choose the snapshots<br/>as for particles, from the<br/>output_list.txt redshifts and<br/>the SOAP catalogues on disk<br/>(gaps filled with a warning,<br/>ValueError above the<br/>max spacing)"] --> G1
-        G1["box and cell metadata<br/>from one snapshot only:<br/>snapshot_number, or one<br/>of the shell's snapshots<br/>with its file 0 on disk"] --> G2
+    B["halo_format, e.g.<br/>simulation.soap_format;<br/>comm = COMM_WORLD if None<br/>and more than one rank.<br/>comm is passed to the read<br/>step, not kept, and only its<br/>rank 0 prints (_mpi_call)"] --> C
+    C{"the last HaloShellRead<br/>has the same settings?"} -- no --> G0
+    C -- "yes: kept, even if<br/>particles were placed since<br/>(settings include the<br/>lightcone's ang_radius_deg)" --> P
+ 
+    subgraph GATHER ["Gather: makes a HaloShellRead"]
+        G0["choose the snapshots with<br/>_shell_snapshots, as for particles<br/>(same tolerance, safety net and<br/>order), from the output_list.txt<br/>redshifts and the SOAP catalogues<br/>on disk (gaps filled with a warning,<br/>ValueError above the max spacing)"] --> G0b{"any<br/>snapshots?"}
+        G0b -- no --> GN["Haloes: no snapshots<br/>in the shell (an empty<br/>HaloShellRead is kept)"]
+        G0b -- yes --> G1
+        G1["box and cell metadata<br/>from one snapshot only:<br/>snapshot_number, or one<br/>of the shell's snapshots<br/>with its file 0 on disk;<br/>kept in the HaloShellRead"] --> G2
         G2{{"for each<br/>snapshot"}} --> G3
-        G3["clip its redshift range<br/>to the shell, find the tiles<br/>(and spherical layers)<br/>the shell or beam crosses"] --> G4
-        G4["record a HaloCatalogueSpec<br/>(snapshot, tile, catalogue,<br/>z range) per tile, and the<br/>catalogue's number of haloes"]
+        G3["clip its redshift range<br/>to the shell (skipped if it<br/>only touches it), find the tiles<br/>(and spherical layers)<br/>the shell or beam crosses"] --> G4
+        G4["record the piece and a<br/>HaloCatalogueSpec (snapshot,<br/>tile, catalogue, z range)<br/>per tile, and the catalogue's<br/>number of haloes"]
     end
 
-    G4 --> GX{"dry run<br/>only?"}
+    G4 --> G5["kept as last_shell, and<br/>for place_halos_in_shell<br/>to reuse"]
+    G5 --> GX{"dry run<br/>only?"}
+    GN --> GX    
     GX -- "yes: gather_halo_<br/>catalogues" --> GY("return the<br/>HaloCatalogueSpecs")
     GX -- no --> P
 
@@ -29,7 +33,7 @@ flowchart TD
         Q{{"for each<br/>piece"}} --> R
         R["read HaloCentre and<br/>HaloCatalogueIndex<br/>of its rows, once"] --> S
         S{{"for each tile of<br/>its snapshot"}} --> T
-        T["apply the tile transform<br/>to the halo centres,<br/>as for particles"] --> U
+        T["apply the tile transform<br/>to the halo centres, with the<br/>HaloShellRead's cell<br/>metadata, as for particles"] --> U
         U["keep the haloes exactly<br/>inside the tile's part of<br/>the shell, record the snapshot,<br/>HaloCatalogueIndex and<br/>SOAPIndex (the row)"]
     end
 
@@ -41,5 +45,7 @@ flowchart TD
 
     classDef loop fill:#F1EFE8,stroke:#333;
     classDef out fill:#d6eeee,stroke:darkcyan;
+    classDef record fill:#e8e4f4,stroke:#5b4a99;
     class G2,Q,S loop;
     class A,A2,Z,GY,L0 out;
+    class G5,GN record;

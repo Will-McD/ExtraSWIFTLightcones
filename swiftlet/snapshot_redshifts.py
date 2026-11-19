@@ -284,7 +284,7 @@ def snapshot_coverage(redshifts, redshift_range, available=None, max_spacing=Non
         )
         raise ValueError(
             f"the redshift spacing between snapshots is too large to fill {z_min} < z < {z_max}: {gaps} as {cause}"
-            f"(the limit {max_spacing:g}, can be set by {MAX_SNAPSHOT_SPACING_ENV})"
+            f"(the limit {max_spacing:g}, is set by {MAX_SNAPSHOT_SPACING_ENV})"
         )
     # fill in gaps and return the SnapshotCoverage named tuple
     filled_by = {}

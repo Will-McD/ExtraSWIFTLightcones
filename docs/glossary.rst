@@ -9,8 +9,8 @@ detail.
 
    all-sky lightcone
       A lightcone covering the whole sky around the observer, built with
-      :class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>`. Because of its volume, it is built in thin
-      redshift :term:`shells <shell>` (see :doc:`user_guide/building_lightcones`).
+      :class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>`. Because of its volume, it should be built in 
+      thin redshift :term:`shells <shell>` (see :doc:`user_guide/building_lightcones`).
 
    beam
       Also referred to as a **lightcone beam** or a **beam lightcone**: A cone within the all-sky lightcone around a 
@@ -76,12 +76,10 @@ detail.
 
    gather step
       The first step of populating a lightcone from the snapshots (particles and haloes). This step includes finding the 
-      snapshots that correspond to the lightcones redshift :term:`shell`, the :term:`tiles <tile>` each snapshot is 
-      placed in, and the :term:`cells <cell>` and files (the :term:`pieces <piece>`) to read. All of this is carried out
-      using only the snapshots' cell metadata so no particle data is read. 
-      See :meth:`gather_files <swiftlet.snapshot_lightcone.SnapshotLightcone.gather_files>`,
-      :meth:`gather_halo_catalogues <swiftlet.snapshot_lightcone.SnapshotLightcone.gather_halo_catalogues>` and
-      :doc:`user_guide/building_lightcones`.
+      snapshots that fill the redshift range of the lightcone, the :term:`pieces <piece>` of the lightcone (the 
+      :term:`tiles <tile>` each snapshot covers), and the :term:`cells <cell>` and :term:`files to read <file to read>`
+      (see :doc:`user_guide/building_lightcones`). It uses only the snapshots' cell metadata, so no particle data is 
+      read, and records what it found in :term:`last_shell`.
 
    halo lightcone file
       An HDF5 file of the haloes of one snapshot of a lightcone, laid out like FLAMINGO's halo lightcones and readable
@@ -126,17 +124,17 @@ detail.
       snapshot box, which is then placed as a tile in the lightcone.
       
    orientation lock
-      Or **lock**, ``orientation_lock``: which :term:`tiles <tile>` share an :term:`orientation`.  ``'none'``: every 
-      tile has its own :term:`orientation`; ``"cube"`` and ``"sphere"``: every tile of a :term:`layer` shares one 
-      (see :doc:`user_guide/orientation`).
+      Or **lock**, ``orientation_lock``: which :term:`tiles <tile>` share an :term:`orientation`.  ``None`` (or
+      ``"none"``) every tile has its own :term:`orientation`; ``"cube"`` and ``"sphere"``: every tile of a :term:`layer` 
+      shares the same :term:`orientation` (see :doc:`user_guide/orientation`).
 
    orientation seed
       ``orientation_seed``: changes which row of the :term:`orientation table` each tile (or :term:`layer`) takes. The
       same seed, lock, tables and snapshots give the same lightcone.
 
    orientation table
-      The three tables (``QuarterTurns``, ``Reflections`` and ``CellShifts``) whose rows are the :term:`orientations
-      <orientation>` the tiles take, stored as YAML files (see :term:`default tables`)
+      The three tables (``QuarterTurns``, ``Reflections`` and ``CellShifts``) whose rows are the 
+      :term:`orientations <orientation>` the tiles take, stored as YAML files (see :term:`default tables`)
 
    default tables
       See :term:`installed tables`
@@ -145,17 +143,30 @@ detail.
       The :term:`orientation tables <orientation table>` installed with the package: ``default``,
       ``no_reorientation``, ``cube_quarter_spacing`` and ``sphere_quarter_spacing`` (see
       :doc:`user_guide/orientation_tables`). ``default`` is the default option of 
-      :class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`. 
+      :class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`, that is used when a table is not 
+      specified. 
 
    piece
-      One (snapshot, tile, file) to read, found by the :term:`gather step`. The particles of the selected
-      :term:`cells <cell>` of one snapshot file, to be placed in one :term:`tile` (with ``"sphere"``, in one layer of a
-      tile).
+      One (snapshot, tile) part of a lightcone :term:`shell`, found by the :term:`gather step`. The part of a
+      snapshot's redshift range that covers one :term:`tile` (with ``"sphere"``, one layer of a tile). 
+      Listed in ``last_shell.pieces``.
+
+   file to read
+      One snapshot file to read for one :term:`piece`: the snapshot, tile and file, and the offset and number of
+      particles of each selected :term:`cell` (a ``FileReadSpec``). Found by the :term:`gather step`, returned by
+      :meth:`gather_files <swiftlet.snapshot_lightcone.SnapshotLightcone.gather_files>` and listed in
+      ``last_shell.files``.
+
+   last_shell
+      What the last :term:`gather step` of a lightcone found: a
+      :class:`ShellRead <swiftlet.snapshot_lightcone.ShellRead>` for particles or a
+      :class:`HaloShellRead <swiftlet.snapshot_lightcone.HaloShellRead>` for haloes, with its snapshots, 
+      :term:`pieces <piece>`, :term:`files to read <file to read>` and cells. Each call makes a new one, so nothing is
+      carried from one call to the next (see :doc:`user_guide/building_lightcones`).
 
    read and place step
-      The second step of filling a lightcone: reading the particles (or haloes) of each :term:`piece` of the 
-      :term:`tiles <tile>`, moving them into their :term:`tile` and keeping those exactly inside the :term:`shell` 
-      (and the :term:`beam`).
+      The second step of populating a lightcone: reading the particles (or haloes) of each :term:`file to read`, moving
+      the particles and haloes into their :term:`tile` and keeping only those exactly inside the lightcone.
 
    shell
       The range of redshift (or comoving distance from the observer) a lightcone is filled over, given as
@@ -181,5 +192,5 @@ detail.
       observer. Also called a periodic replica of the box (see :doc:`user_guide/orientation`).
 
    touching pair
-      Or **touching cells**:, see :term:`clashing pair`.
+      Or **touching cells**: see :term:`clashing pair`.
 

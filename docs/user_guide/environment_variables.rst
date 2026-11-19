@@ -67,7 +67,7 @@ Maximum number of threads
 
 :envvar:`SWIFTLET_MAX_THREADS` sets the maximum number of threads for SWIFTLET's threaded code:
 
-* numba's parallel functions, which re-orient the box tiles (and swiftsimio's parallel projections);
+* numba's parallel functions, which re-orient 50,000 or more points at a time (and swiftsimio's parallel projections);
 * healpy's spherical harmonic transforms (``map2alm``, ``rotate_alm``, ``alm2map``), used to rotate HEALPix maps.
 
 The possible values of :envvar:`SWIFTLET_MAX_THREADS` are shown in the table below.
@@ -216,8 +216,7 @@ For simulations copied elsewhere, keeping the ``<box_res>/<sim_name>`` layout:
     export SWIFTLET_FLAMINGO_DIR=/data/flamingo        # finds /data/flamingo/L1000N1800/HYDRO_FIDUCIAL
     export SWIFTLET_COLIBRE_DIR=/data/colibre
 
-The variable is read when the ``Simulation`` is made (by ``Simulation.from_label``, or by a lightcone class given a 
-label and name; see :mod:`swiftlet.simulation_suites`).
+The variable is read when the ``Simulation`` is made by ``Simulation.from_label``, see :mod:`swiftlet.simulation_suites`.
 
 
 .. _healpix-weights:
@@ -226,9 +225,9 @@ HEALPix pixel weights
 ---------------------
 
 Rotating HEALPix maps is faster and more precise with healpy's pixel weights. 
-Use the prebuilt script `venv_scripts/healpix_pixel_weights.sh <../venv_scripts/make_cosma_env.sh>`_ to 
-download and add :envvar:`HEALPY_PIXEL_WEIGHTS` to the environment's activate script. The weights are looked for in this order, in a 
-directory holding a ``full_weights/`` folder:
+Use the prebuilt script `venv_scripts/healpix_pixel_weights.sh <https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/venv_scripts/healpix_pixel_weights.sh>`_
+to download and add :envvar:`HEALPY_PIXEL_WEIGHTS` to the environment's activate script. The weights are looked for in 
+this order, in a directory holding a ``full_weights/`` folder:
 
 #. The ``datapath`` argument, where a function takes one;
 #. :envvar:`HEALPY_PIXEL_WEIGHTS`;

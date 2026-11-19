@@ -2,10 +2,10 @@
 
 Contributions should come as a pull request submitted to the Git repository. 
 
-Contributions are encouraged and always welcome, but please should make sure of the following:
+Contributions are encouraged and always welcome, but should abide by the following criteria:
 
 * Your contributions pass the automated test suite (`pytest`).
-* Where appropriate, you include new tests for any new functionality added by you contributions.
+* Where appropriate, you include new tests for any new functionality added by your contributions.
 * Your contributions include docstrings in the Sphinx/reStructuredText style that pass the inbuilt style checks. 
 * Your contributions are formatted with the `ruff` formatter and pass the `ruff` style checks. 
 * Your contributions are fully documented with required text added to `./docs`. 

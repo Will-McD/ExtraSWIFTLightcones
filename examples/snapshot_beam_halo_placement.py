@@ -23,7 +23,6 @@ MASS_LABEL = r"$\log_{10}(M_{200\mathrm{c}}\,/\,\mathrm{M}_\odot)$"
 MARKER_SIZE_RANGE = (1.0, 150.0)  # marker area [pt^2] of the least and most massive halo shown
 MARKER_SIZE_POWER = 2.0  #
 
-
 # remote server and FLAMINGO's directory for use when the simulation is not on local disk.
 REMOTE_SERVER = "cosma"
 REMOTE_BASE_DIR = "FLAMINGO/L1_m10/L1_m10"
@@ -364,13 +363,10 @@ if __name__ == "__main__":
     snap_beam = SnapshotBeam(
         Simulation.from_label(args.box_res, args.sim_name, base_dir_format=base_dir_format),
         beam_vector=beam_vector,
-    )
-
-    halos = snap_beam.place_halos_in_shell(
-        halo_format=halo_format,
-        lightcone_redshift_range=redshift_range,
         ang_radius_deg=ang_radius_deg,
     )
+
+    halos = snap_beam.place_halos_in_shell(halo_format=halo_format, lightcone_redshift_range=redshift_range)
 
     n_halos = halos["Lightcone/HaloCentre"].shape[0]
     print(f"\nPlaced {n_halos} halos in the lightcone beam")

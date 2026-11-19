@@ -54,6 +54,7 @@ check this, see :doc:`../tests/index`). :meth:`SnapshotLightcone.gather_files` a
 ranks, give each rank its own share of the pieces from :meth:`gather_files <SnapshotLightcone.gather_files>` (every
 rank finds the same pieces).
 
+
 .. code-block:: python
 
     from mpi4py import MPI

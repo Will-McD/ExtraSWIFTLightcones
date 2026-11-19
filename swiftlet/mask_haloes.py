@@ -9,10 +9,8 @@ import healpy as hp
 import unyt
 from pathlib import Path
 from lightcone_io.units import units_from_attributes
-from .simulation_suites import output_redshifts
-from .flamingo_lightcones import flamingo_box_resolution, flamingo_shell_redshift_file
 from .simulation_suites import OUTPUT_LIST_NAME, output_redshifts
-from .flamingo_lightcones import flamingo_shell_redshift_file, flamingo_simulation_directory
+from .flamingo_lightcones import flamingo_box_resolution, flamingo_shell_redshift_file, flamingo_simulation_directory
 from .snapshot_redshifts import snapshots_in_range
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
