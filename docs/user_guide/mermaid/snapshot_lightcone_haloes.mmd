@@ -25,12 +25,12 @@ flowchart TD
     GX -- no --> P
 
     subgraph READ ["Read and place"]
-        P["split the catalogues<br/>into pieces of<br/>soap_chunk_size rows"] --> P1{"comm<br/>given?"}
-        P1 -- "no (serial)" --> P2["all pieces<br/>on one process"]
-        P1 -- "yes (MPI)" --> P3["at least one piece<br/>per rank, shared<br/>between the ranks"]
+        P["split the catalogues<br/>into chunks of<br/>soap_chunk_size rows"] --> P1{"comm<br/>given?"}
+        P1 -- "no (serial)" --> P2["all chunks<br/>on one process"]
+        P1 -- "yes (MPI)" --> P3["at least one chunk<br/>per rank, shared<br/>between the ranks"]
         P2 --> Q
         P3 --> Q
-        Q{{"for each<br/>piece"}} --> R
+        Q{{"for each<br/>chunk"}} --> R
         R["read HaloCentre and<br/>HaloCatalogueIndex<br/>of its rows, once"] --> S
         S{{"for each tile of<br/>its snapshot"}} --> T
         T["apply the tile transform<br/>to the halo centres, with the<br/>HaloShellRead's cell<br/>metadata, as for particles"] --> U

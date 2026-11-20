@@ -3,7 +3,7 @@ Halo lightcones
 
 .. currentmodule:: swiftlet.snapshot_lightcone
 
-A halo lightcone is built from a simulation's SOAP catalogues, exactly as a particle lightcone is
+A halo lightcone is built from a simulation's :term:`SOAP catalogues <SOAP catalogue>`, exactly as a particle lightcone is
 built from the snapshots. Every halo within a catalogue is treated as a particle with its position in the snapshot given 
 by the SOAP defined ``HaloCentre`` and is then placed into the lightcone the same way as any dark matter particle 
 in :mod:`swiftlet` (see :doc:`building_lightcones`). 
@@ -58,22 +58,22 @@ the lightcones and to map them back to their position in the SOAP catalogue:
      - the row of the halo in its snapshot's SOAP catalogue, so all other related properties can be mapped to the 
        lightcone
 
-Its ``.metadata`` records the settings that made the halo lightcone (simulation, orientation table, lock, seed, beam and 
-redshift range), as for particles (see :doc:`building_lightcones`).
+Its ``.metadata`` records the settings that made the halo lightcone (simulation, :term:`orientation table`, lock, seed,
+:term:`beam` and redshift range), as for particles (see :doc:`building_lightcones`).
 
 A halo appears once in every tile its snapshot fills, where its copy lies in the shell, so the same halo can be in the
-lightcone several times, from different tiles (see :doc:`repeated_objects`).
+lightcone several times, from different :term:`tiles <tile>` (see :doc:`repeated_objects`).
 
 How the catalogues are read
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-SOAP catalogues are not sorted by cell, so, unlike the particles of a snapshot, every halo of a catalogue is tested.
-Each catalogue is read once, and its haloes placed in every tile of its snapshot.
+SOAP catalogues are not sorted by :term:`cell`, so, unlike the particles of a snapshot, every halo of a catalogue is 
+tested. Each catalogue is read once, and its haloes placed in every tile of its snapshot.
 
 *   ``soap_chunk_size`` sets the number of rows read at a time, to limit the memory used. If ``None``, each catalogue is
-    read whole (in serial) or in one piece per MPI rank.
-*   The gather step, :meth:`SnapshotLightcone.gather_halo_catalogues`, finds the catalogues and tiles to read without
-    reading any halo, from the cell metadata of one snapshot only (the box and cell grid are the same in every
+    read whole (in serial) or in one chunk per MPI rank.
+*   The :term:`gather step`, :meth:`SnapshotLightcone.gather_halo_catalogues`, finds the catalogues and tiles to read without
+    reading any halo, from the cell :term:`metadata` of one snapshot only (the box and cell grid are the same in every
     snapshot) and keeps what it found in a :class:`HaloShellRead`. 
     :meth:`place_halos_in_shell <SnapshotLightcone.place_halos_in_shell>` runs it, and reuses it if it has
     already been run with the same arguments (even if particles were placed in between).
@@ -152,7 +152,7 @@ lightcones, so it can be read with `LightconeIO <https://lightconeio.readthedocs
     Write one file per snapshot, so that LightconeIO's ``HaloLightconeFile`` can pair the haloes of a file with their
     SOAP catalogue (one file per snapshot). A file can hold the haloes of several snapshots, but ``HaloLightconeFile`` 
     then can't pair them with a catalogue, you will have to perform this step yourself, snapshot by snapshot, with 
-    ``Lightcone/SnapshotNumber``.
+    ``Lightcone/SnapshotNumber`` and ``InputHalos/SOAPIndex``.
 
 
 Read a file back with LightconeIO, e.g. only the haloes within an angle of a direction:
@@ -172,7 +172,7 @@ With MPI
 --------
 
 With MPI, the rows of the catalogues are distributed across the ranks, with each rank receiving ``soap_chunk_size`` 
-rows (see :doc:`parallel_and_hpc`). Each rank returns the haloes it placed unless ``redistribute_halos=True``, then all 
+rows (see :doc:`parallel_and_hpc`). Each rank returns the haloes it placed unless ``redistribute_halos=True`` then all 
 haloes are shared evenly between the ranks. 
 The example ``make_colibre_halo_lightcone.py`` builds an all-sky halo lightcone of COLIBRE L400_m7 (see
 :doc:`../examples`).

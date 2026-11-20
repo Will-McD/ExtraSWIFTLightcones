@@ -1,7 +1,8 @@
 Additional tools
 ================
 
-Besides building lightcones, SWIFTLET has tools to work with FLAMINGO's own lightcone products and read SOAP catalogues. 
+Besides building lightcones, SWIFTLET has tools to work with FLAMINGO's own lightcone products and read 
+:term:`SOAP catalogues <SOAP catalogue>`. 
 This page lists them, with links to the corresponding API documentation.
 
 
@@ -22,8 +23,9 @@ Reading SOAP halo catalogues
 FLAMINGO lightcones and HEALPix maps
 ------------------------------------
 
-*   :mod:`swiftlet.flamingo_lightcones`: functions that read in the redshift bounds of the shells of FLAMINGO's 
-    lightcones, :func:`flamingo_shell_redshift_file <swiftlet.flamingo_lightcones.flamingo_shell_redshift_file>` (see
+*   :mod:`swiftlet.flamingo_lightcones`: functions that read in the redshift bounds of the :term:`shells <shell>` of 
+    FLAMINGO's lightcones, 
+    :func:`flamingo_shell_redshift_file <swiftlet.flamingo_lightcones.flamingo_shell_redshift_file>` (see
     :ref:`shell-redshifts`)
 *   :mod:`swiftlet.healpix_map_utils`: functions to rotate the HEALPix maps of FLAMINGO's lightcone shells
     (:func:`rotate_map <swiftlet.healpix_map_utils.rotate_map>`, or
