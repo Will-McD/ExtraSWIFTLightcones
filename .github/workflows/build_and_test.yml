@@ -65,6 +65,7 @@ jobs:
     - name: Test with pytest
       env:
         # the MPI tests run on 3 ranks. Git test runner has 2 cores. Let Open MPI place more processes than cores
-        OMPI_MCA_rmaps_base_oversubscribe: "1"
+        OMPI_MCA_rmaps_base_oversubscribe: "1"                    # Open MPI 4
+        PRTE_MCA_rmaps_default_mapping_policy: ":oversubscribe"   # Open MPI 5 (PRRTE)
       run: |
         pytest -v tests/
