@@ -4,7 +4,7 @@
 [![Documentation Status](https://readthedocs.org/projects/extraswiftlightcones/badge/?version=latest)](https://extraswiftlightcones.readthedocs.io/en/latest/)
 [![Version](https://img.shields.io/github/v/release/Will-McD/ExtraSWIFTLightcones?include_prereleases&sort=semver&label=version)](https://github.com/Will-McD/ExtraSWIFTLightcones/releases)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.12-blue)](https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/.github/workflows/build_and_test.yml)
-[![License](https://img.shields.io/github/license/Will-McD/ExtraSWIFTLightcones)](./PublicLicense)
+[![License](https://img.shields.io/github/license/Will-McD/ExtraSWIFTLightcones)](./LICENSE)
 
 SWIFTLET builds custom lightcones from the snapshots and SOAP halo catalogues of [SWIFT](https://swift.strw.leidenuniv.nl/docs/index.html) cosmological simulations.
 
@@ -122,7 +122,7 @@ All use of AI was supervised and any contribution to this module was first vette
 
 </summary>
 
-GNU General Public License v3, see [PublicLicense](./PublicLicense).
+GNU General Public License v3, see [LICENSE](./LICENSE).
 
 </details>
 
