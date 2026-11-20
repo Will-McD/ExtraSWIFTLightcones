@@ -138,7 +138,7 @@ class FileReadSpec(NamedTuple):
     The particles to read from one snapshot file for one tile of the lightcone.
 
     Finding the files of a shell (e.g. with :meth:`~SnapshotLightcone.gather_files`) makes one for each file holding
-    cells that are in the tile, and keeps them in ``snap_file_offset_lengths``.
+    cells that are in the tile, and keeps them in ``last_shell.files``.
 
     :ivar snap_nr:      snapshot number
     :vartype snap_nr:   int
@@ -161,9 +161,9 @@ class FileReadSpec(NamedTuple):
 
 class SnapshotReadRecord(NamedTuple):
     """
-    A snapshot tile read into the current shell of the lightcone.
+    A (snapshot, tile) piece of the lightcone, with the redshift range it fills.
 
-    They are kept in ``last_snapshot_read``, and used to find the snapshots and tiles of the most recent shell.
+    The gather step keeps them in ``last_shell.pieces``, e.g. to find the tiles of a snapshot in the last shell.
 
     :ivar snap_nr:      snapshot number
     :vartype snap_nr:   int
@@ -200,7 +200,7 @@ class HaloCatalogueSpec(NamedTuple):
     z_range: tuple
 
 
-class HaloReadPiece(NamedTuple):
+class HaloReadChunk(NamedTuple):
     """
     The rows [start, stop) of a snapshot's SOAP catalogue, read by one rank.
 
@@ -262,10 +262,11 @@ class ShellRead:
 @dataclass
 class HaloShellRead:
     """
-    What :meth:`~SnapshotLightcone.gather_halo_catalogues` found for a lightcone, the halo equivalent of ShellRead.
+    What the gather step (:meth:`~swiftlet.snapshot_lightcone.SnapshotLightcone.gather_halo_catalogues`) found for a
+    lightcone, the halo equivalent of ShellRead.
 
-    Kept as ``last_shell`` and reused by :meth:`~SnapshotLightcone.place_halos_in_shell` when it is called with the
-    same settings.
+    Kept as ``last_shell`` and reused by :meth:`~swiftlet.snapshot_lightcone.SnapshotLightcone.gather_halo_catalogues`
+    when it is called with the same settings.
 
     :ivar settings:             the arguments of gather_halo_catalogues, compared to reuse it
     :vartype settings:          tuple
@@ -384,7 +385,7 @@ if _HAVE_NUMBA:
 # set up redshift-comoving dist interpolation grid
 def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05, n_grid=3000, method="precise"):
     """
-    Returns a CubicSpline function taking comoving distance [Mpc] and returning redshift at the comoving distance.
+    Returns a CubicSpline function giving the redshift at a comoving distance [Mpc].
 
     :param  cosmo:  cosmology of the simulation
     :type   cosmo:  SnapshotCosmology, astropy.cosmology.w0waCDM or str
@@ -403,8 +404,7 @@ def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05,
                             root finding. As accurate, but ~8 s for 5000 points
     :type   method: str
     """
-    # ensure cosmology is correct format, use wrapper to read all used formats
-    # across astropy, lightcone_io, swiftsim_io and older version of swiftlet
+    # ensure cosmology is correct format, use wrapper to read all used formats across astropy, lightcone_io, swiftsim_io
     cosmo = as_astropy_cosmology(cosmo)
 
     if method == "fast":
@@ -469,8 +469,8 @@ LIGHTCONE_METADATA_NAMES = (
 
 class LightconeOutput(dict):
     """
-    The output dictionary object for particles or haloes placed in a lightcone, the lightcones settings are stored
-    as  .metadata.
+    The output dict of particles or haloes placed in a lightcone ({name: array}), the lightcones settings are stored
+    as ``.metadata``.
     """
 
     def __init__(self, data, metadata):  # noqa: D107
@@ -507,7 +507,8 @@ def read_lightcone_metadata(hdf5_object):
     """
     Read the settings written by write_lightcone_metadata.
 
-    Returns a dict of the settings, with "none" read back as None, except orientation_lock, which is recorded as "none".
+    Returns a dict of the settings, with "none" read back as None, except orientation_lock, where "none" is one of
+    its values and is kept as the string.
 
     :param  hdf5_object:    h5py file, group or dataset holding the attributes
     :type   hdf5_object:    h5py.File, h5py.Group or h5py.Dataset
@@ -530,8 +531,8 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
     """
     Write the halo lightcone data to a .hdf5 file.
 
-    Write each of the properties of the lightcones haloes as datasets in a .hdf5, formatted like the lightcone_io
-    (FLAMINGO) halo lightcones, so it is readable by lightcone_io.halo_reader.HaloLightconeFile().
+    Each property of the lightcone's haloes is written as a dataset, in the format of the FLAMINGO halo lightcones of
+    lightcone_io, so the file can be read with lightcone_io.halo_reader.HaloLightconeFile.
 
     :param  filename:       path of the HDF5 file to write, e.g. lightcone_haloes_0127.hdf5
     :type   filename:       str
@@ -691,15 +692,17 @@ class SnapshotLightcone:
     """
     Construct lightcones from snapshots and halo catalogues, the base of the SnapshotBeam and SnapshotAllSky classes.
 
-    This class tracks:
+    This class handles:
 
         1. the slicing of snapshots and their reorientation to avoid exact replication of structure
-        2. reading and placing particles from snapshots into the lightcone
-        3. the snapshot and lightcones cosmology
-        4. MPI ranks and communication between ranks
+        2. reading and placing particles and haloes from the snapshots and SOAP catalogues into the lightcone, in
+           serial or shared between MPI ranks (the communicator is given to each call, not kept)
+        3. the cosmology of the snapshots and the lightcone
 
-    The SnapshotBeam and SnapshotAllSky sub classes hold all geometry information and therefore the exact methods of
-    identifying the particles within the lightcone's footprint, and how the snapshot box replication occur.
+    What each gather step finds is kept as ``last_shell`` (a ShellRead or HaloShellRead) until the next call.
+
+    The SnapshotBeam and SnapshotAllSky sub classes define the geometry: which particles are inside the lightcone, and
+    which tiles and cells the lightcone crosses
     """
 
     def __init__(
@@ -854,13 +857,13 @@ class SnapshotLightcone:
         """
         Returns the lightcone metadata, a dict with the names LIGHTCONE_METADATA_NAMES.
 
-        Metadata tracks the settings that made the lightcone and a record of everything placed in it:
+        The metadata records the settings that made the lightcone:
 
-            - orientation_seed
-            - orientation_lock
-            - orientation table (file and fingerprint of its contents) that set the orientation of every box tile,
+            - the orientation seed and lock,
+            - the orientation table (its file and a fingerprint of its contents) that set the orientation of every box
+              tile,
             - the simulation,
-            - the beam (vector and angular radius)
+            - the beam (its vector and angular radius)
             - the redshift range.
 
         Given the same settings and snapshots, the same exact lightcone can be made again.
@@ -1142,14 +1145,11 @@ class SnapshotLightcone:
         """
         Returns the snapshot numbers for the redshift range of the lightcone shell, from high to low redshift.
 
-        Read ahead and find which snapshots (and SOAP catalogues) are available, then identify which snapshots fill the
-        lightcones redshift range. If any snapshots are missing, fill the gaps in redshift with the available
-        neighbouring snapshots.
+        Read ahead and find which snapshots (and SOAP catalogues) are available on disk, then identify which snapshots
+        fill the lightcones redshift range. If any snapshots are missing, fill the gaps in redshift with the available
+        neighbouring snapshots and raise a SnapshotGapWarning.
 
-        If snapshots are missing raise a SnapshotGapWarning.
-
-        Raise a ValueError if the redshift spacing between the snapshots is greater than
-        the MAX_SNAPSHOT_SPACING.
+        Raise a ValueError if the redshift spacing between the snapshots is greater than MAX_SNAPSHOT_SPACING.
 
         :param  shell_z:        minimum and maximum redshift of the lightcone shell [z_min, z_max]
         :type   shell_z:        sequence of two floats
@@ -2412,8 +2412,8 @@ class SnapshotLightcone:
         :type   use_snapshots:              list or numpy.ndarray
         :param  comm:                       MPI communicator. If None, read in serial
         :type   comm:                       mpi4py.MPI.Comm
-        :param  redistribute_particles:      If True, redistribute the particles evenly across the MPI ranks
-        :type   redistribute_particles:      bool
+        :param  redistribute_particles:     If True, redistribute the particles evenly across the MPI ranks
+        :type   redistribute_particles:     bool
         """
         if property_names is None:
             raise TypeError('place_snapshot_particles_in_shell needs property_names, e.g. ["Coordinates"]')
@@ -2536,10 +2536,8 @@ class SnapshotLightcone:
 
         For every snapshot that populates the shell, find the tiles and snapshot it's moved into, as done for the
         particles.
-
         Note that SOAP catalogues are not sorted by cells like the snapshot particle data, so unlike for particles no
         cells are selected and every halo of a catalogue is tested.
-
         Each SOAP catalogue to read is recorded with its tile and the tile's redshift range as a HaloCatalogueSpec.
         As done for particles, the tiles are also recorded and kept as ``last_shell`` in a HaloShellRead object.
 
@@ -2637,38 +2635,39 @@ class SnapshotLightcone:
 
         return shell.catalogues
 
-    def __halo_read_pieces(self, shell, chunk_size, nr_pieces_min=1):
+    def __halo_read_chunks(self, shell, chunk_size, nr_chunks_min=1):
         """
-        Split the SOAP catalogues to read into rows, in the order the haloes are placed.
+        Split the SOAP catalogues to read into chunks of rows, in the order the haloes are placed.
 
-        Returns a list of HaloReadPiece.
+        Returns a list of HaloReadChunk.
 
         :param  shell:          the lightcone redshift shell gathered
         :type   shell:          HaloShellRead
-        :param  chunk_size:     number of rows per piece. If None, each catalogue is split into nr_pieces_min pieces
+        :param  chunk_size:     number of rows per piece. If None, each catalogue is split into nr_chunks_min pieces
         :type   chunk_size:     int
-        :param  nr_pieces_min:  number of pieces each catalogue is split into when chunk_size is None
-        :type   nr_pieces_min:  int
+        :param  nr_chunks_min:  number of pieces each catalogue is split into when chunk_size is None
+        :type   nr_chunks_min:  int
         """
-        pieces = []
+        chunks = []
         # iterate through the SOAP catalogues, at each snapshots number
         for snap_nr in dict.fromkeys(spec.snap_nr for spec in shell.catalogues):
             nr_rows = shell.catalogue_lengths[snap_nr]  # numb haloes to read
 
             if chunk_size is None:
-                step = max(-(-nr_rows // nr_pieces_min), 1)
+                step = max(-(-nr_rows // nr_chunks_min), 1)
             else:
                 step = int(chunk_size)
                 if step < 1:
                     raise ValueError(f"soap_chunk_size must be at least 1, not {chunk_size}")
             for start in range(0, nr_rows, step):
-                # add new pieces
-                pieces.append(HaloReadPiece(snap_nr, start, min(start + step, nr_rows)))
-        return pieces
+                # add new chunks
+                chunks.append(HaloReadChunk(snap_nr, start, min(start + step, nr_rows)))
 
-    def __read_and_place_halos(self, shell, pieces):
+        return chunks
+
+    def __read_and_place_halos(self, shell, chunks):
         """
-        Read the pieces of the SOAP catalogues and place their haloes in the lightcone.
+        Read the chunks of the SOAP catalogues and place their haloes in the lightcone.
 
         Every halo is moved into each tile populated by its snapshot and kept if it is in the tile's part of the shell,
         the same as the particles.
@@ -2679,10 +2678,10 @@ class SnapshotLightcone:
 
         :param  shell:          the lightcone redshift shell gathered
         :type   shell:          HaloShellRead
-        :param  pieces:         pieces of the catalogues to read
-        :type   pieces:         list of HaloReadPiece
+        :param  chunks:         chunks of the catalogues to read
+        :type   chunks:         list of HaloReadChunk
         """
-        if not pieces:
+        if not chunks:
             return np.zeros((0, 3)), np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros(0, dtype=int), 0
 
         to_read = ["InputHalos/HaloCentre", "InputHalos/HaloCatalogueIndex"]
@@ -2695,10 +2694,10 @@ class SnapshotLightcone:
         cell_data = shell.cell_data[shell.cell_snapshot]
         nr_read = 0
 
-        # iterate through pieces of the snapshot
-        for piece in pieces:
-            specs = specs_of_snapshot[piece.snap_nr]
-            halo_data = read_soap_rows(specs[0][1].filename, to_read, piece.start, piece.stop)
+        # iterate through chunks of the snapshot
+        for chunk in chunks:
+            specs = specs_of_snapshot[chunk.snap_nr]
+            halo_data = read_soap_rows(specs[0][1].filename, to_read, chunk.start, chunk.stop)
             halo_index = halo_data["InputHalos/HaloCatalogueIndex"].value.astype(int)
 
             if halo_index.shape[0] == 0:
@@ -2726,10 +2725,10 @@ class SnapshotLightcone:
                     continue
 
                 # add selected haloes to keep dict
-                kept[spec_nr].append((lightcone_coords[keep_idx], halo_index[keep_idx], piece.start + keep_idx))
+                kept[spec_nr].append((lightcone_coords[keep_idx], halo_index[keep_idx], chunk.start + keep_idx))
 
         # joined catalogue tile by catalogue tile, so the order is the same however the catalogues are read
-        joined = [piece for spec_nr in sorted(kept) for piece in kept[spec_nr]]
+        joined = [chunk for spec_nr in sorted(kept) for chunk in kept[spec_nr]]
         if not joined:
             return np.zeros((0, 3)), np.zeros(0, dtype=int), np.zeros(0, dtype=int), np.zeros(0, dtype=int), nr_read
 
@@ -2739,11 +2738,11 @@ class SnapshotLightcone:
             # the snapshot of this catalogue tile, given to each of its haloes
             spec_snap_nr = shell.catalogues[spec_nr].snap_nr
 
-            for piece_centres, piece_index, piece_rows in kept[spec_nr]:
-                centres.append(piece_centres)
-                snap_nr.append(np.full(len(piece_index), spec_snap_nr, dtype=int))
-                index.append(piece_index)
-                rows.append(piece_rows)
+            for chunk_centres, chunk_index, chunk_rows in kept[spec_nr]:
+                centres.append(chunk_centres)
+                snap_nr.append(np.full(len(chunk_index), spec_snap_nr, dtype=int))
+                index.append(chunk_index)
+                rows.append(chunk_rows)
 
         # return empty structure if there are no haloes left
         if not centres:
@@ -2773,22 +2772,23 @@ class SnapshotLightcone:
         """
         Halo counterpart of place_snapshot_particles_in_shell.
 
-        Place the haloes of SOAP catalogues in a lightcone shell, exactly as done for the particles.
-        If gather_halo_catalogues has already been called with the same arguments then the first gather pass
-        is not repeated. Then the catalogues are read, and their haloes moved into the lightcone exactly as
-        particles are and kept if they are in the shell.
+        Place the haloes of SOAP catalogues in a lightcone, exactly as done for the particles.
+        The catalogues are gathered (as done by gather_halo_catalogues), read, and their haloes moved into the
+        lightcone exactly as particles are, keeping only those inside the lightcone. If gather_halo_catalogues was
+        already called with the same arguments, what it found (a HaloShellRead) is reused, even if particles were placed
+        in between.
 
         How the SOAP catalogues are read:
 
         -   in serial (no comm, one MPI rank):  soap_chunk_size rows at a time, or each catalogue as a whole if None.
-        -   with MPI:   the catalogues are split into pieces of soap_chunk_size rows
-            (if None, each catalogue into one piece per rank), shared between the ranks as particle files are.
-            Each rank reads only its own pieces, and returns the haloes it placed. With redistribute_halos, the haloes
+        -   with MPI:   the catalogues are split into chunks of soap_chunk_size rows
+            (if None, each catalogue into one chunk per rank), shared between the ranks as particle files are.
+            Each rank reads only its own chunk, and returns the haloes it placed. With redistribute_halos, the haloes
             are then shared evenly between the ranks.
 
         The haloes placed are the same whichever way the catalogues are read (serial or MPI).
 
-        Tracks the minimum number of properties needed to look up any other property in the SOAP catalogues later:
+        Tracks the fewest properties needed to look up any other property of a halo in the SOAP catalogues later:
 
         -   ``Lightcone/HaloCentre``: the halo's centre, transformed into the lightcone frame exactly like a particle's
             Coordinates.
@@ -2804,18 +2804,17 @@ class SnapshotLightcone:
         :param  lightcone_redshift_range:   minimum and maximum redshift of the shell to populate [z_min, z_max]
         :type   lightcone_redshift_range:   sequence of two floats
         :param  use_snapshots:              snapshot numbers to use, as in gather_files, bypassing the usual
-                                                redshift-range lookup
+                                            redshift-range lookup
         :type   use_snapshots:              list or numpy.ndarray
         :param  soap_chunk_size:            number of rows of a SOAP catalogue read at a time. If None, see above
         :type   soap_chunk_size:            int
         :param  comm:                       MPI communicator. If None, MPI.COMM_WORLD when more than one rank is
-                                                running, otherwise serial
+                                            running, otherwise serial
         :type   comm:                       mpi4py.MPI.Comm
         :param  redistribute_halos:         If True, with MPI, share the haloes placed evenly between the ranks
         :type   redistribute_halos:         bool
-        :param  snapshot_number:            snapshot to read the box and cell metadata from,
-                                                see gather_halo_catalogues
-        :type   snapshot_number:              int
+        :param  snapshot_number:            snapshot to read the box and cell metadata from, see gather_halo_catalogues
+        :type   snapshot_number:            int
         """
         if comm is None and MPI.COMM_WORLD.Get_size() > 1:
             comm = MPI.COMM_WORLD
@@ -2874,22 +2873,22 @@ class SnapshotLightcone:
         metadata = self.lightcone_metadata(lightcone_redshift_range)
 
         if comm is None:
-            my_pieces = self.__halo_read_pieces(shell, soap_chunk_size)
+            my_chunks = self.__halo_read_chunks(shell, soap_chunk_size)
         else:
-            # share the pieces between the ranks, as the particle files are
+            # share the chunks between the ranks, as the particle files are
             size, rank = comm.Get_size(), comm.Get_rank()  # numb of ranks and local rank
-            pieces = self.__halo_read_pieces(shell, soap_chunk_size, nr_pieces_min=size)
-            pieces_on_rank = phdf5.assign_files(len(pieces), size)  # local ranks pieces of a tile
-            first = (np.cumsum(pieces_on_rank) - pieces_on_rank)[rank]  # first halo on rank
-            my_pieces = pieces[first : first + pieces_on_rank[rank]]  # ranks own parts of the lightcone
+            chunks = self.__halo_read_chunks(shell, soap_chunk_size, nr_chunks_min=size)
+            chunks_on_rank = phdf5.assign_files(len(chunks), size)  # local ranks chunks of a tile
+            first = (np.cumsum(chunks_on_rank) - chunks_on_rank)[rank]  # first halo on rank
+            my_chunks = chunks[first : first + chunks_on_rank[rank]]  # ranks own parts of the lightcone
 
             update_str = (
-                f"Haloes: reading {len(my_pieces)}/{len(pieces)} SOAP catalogue pieces, "
-                f"{sum(piece.stop - piece.start for piece in my_pieces)} haloes"
+                f"Haloes: reading {len(my_chunks)}/{len(chunks)} SOAP catalogue chunks, "
+                f"{sum(piece.stop - piece.start for piece in my_chunks)} haloes"
             )
             self._log(update_str, level=1, every_rank=True)
 
-        centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(shell, my_pieces)
+        centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(shell, my_chunks)
 
         nr_kept = len(snap_nr)
         if comm is not None:
@@ -3249,13 +3248,13 @@ class SnapshotBeam(SnapshotLightcone):
 
     def beam_diameter(self, z, cosmo=None, use_comoving_dist=False):
         """
-        Returns diameter [Mpc] of the beam's cone at a given redshift.
+        Returns the diameter [Mpc] of the beam's cone at a given redshift.
 
         :param  z:                  redshift, or comoving distance [Mpc] if use_comoving_dist is True
         :type   z:                  float
-        :param  cosmo:              cosmology. If given, replaces the stored cosmology
-        :type   cosmo:              astropy.cosmology.w0waCDM
-        :param  use_comoving_dist:  If True, then z is passed as a comoving distance from the observer
+        :param  cosmo:              cosmology to use. If given, it also replaces the lightcone's stored cosmology
+        :type   cosmo:              astropy.cosmology.w0waCDM, SnapshotCosmology or str
+        :param  use_comoving_dist:  if True, z is a comoving distance [Mpc] from the observer, not a redshift
         :type   use_comoving_dist:  bool
         """
         return self._diameter_at_redshift(z, cosmo=cosmo, use_comoving_dist=use_comoving_dist)
@@ -3282,7 +3281,7 @@ class SnapshotBeam(SnapshotLightcone):
         Returns the offset of a snapshots geometric centre at its position on the lattice of tiles.
 
         :param  tile:                   (nx, ny, n_los), the tile's lattice position along the x, y or z axis
-                                            closest to e1, e2 and beam_vec (see __init_tile_frame for more details)
+                                        closest to e1, e2 and the beam vector
         :type   tile:                   tuple
         :param  snapshot_sidelengths:   side lengths [Mpc] of the snapshot box
         :type   snapshot_sidelengths:   numpy.ndarray
@@ -3503,13 +3502,13 @@ class SnapshotAllSky(SnapshotLightcone):
 
     def lightcone_diameter(self, z, cosmo=None, use_comoving_dist=False):
         """
-        Returns diameter [Mpc] of the past lightcone at a given redshift.
+        Returns the diameter [Mpc] of the past lightcone at a given redshift.
 
         :param  z:                  redshift, or comoving distance [Mpc] if use_comoving_dist is True
         :type   z:                  float
-        :param  cosmo:              cosmology. If given, replaces the stored cosmology
-        :type   cosmo:              astropy.cosmology.w0waCDM
-        :param  use_comoving_dist:  If True, then z is passed as a comoving distance from the observer
+        :param  cosmo:              cosmology to use. If given, it also replaces the lightcone's stored cosmology
+        :type   cosmo:              astropy.cosmology.w0waCDM, SnapshotCosmology or str
+        :param  use_comoving_dist:  if True, z is a comoving distance [Mpc] from the observer, not a redshift
         :type   use_comoving_dist:  bool
         """
         return self._diameter_at_redshift(z, cosmo=cosmo, use_comoving_dist=use_comoving_dist)

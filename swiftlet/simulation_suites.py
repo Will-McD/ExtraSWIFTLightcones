@@ -9,9 +9,13 @@ Every path to a snapshot or SOAP catalogue and every conversion between snapshot
 - ``SimulationSuite``: track information that is the same for every simulation of a suite
 - ``Simulation``: one simulation, with its suite, box size and resolution label, name and directory
 
-The base directory of each suite's simulations is taken from, in this order:
+The suites are read from YAML files: FLAMINGO's and COLIBRE's are installed with SWIFTLET (in
+``swiftlet/data/simulation_suites``), and the files in the directories listed in ``SWIFTLET_SUITES_DIR`` add new suites
+or update (and replace) an installed one of the same name. See :func:`~swiftlet.simulation_suites.read_suite_file`.
 
-1. the base directory (``base_dir_format``) if given to :meth:`~swiftlet.simulation_suites.Simulation.from_label`
+The base directory of each suite's simulations is taken from
+
+1. the base directory (``base_dir_format``) if given to a :meth:`~swiftlet.simulation_suites.Simulation` object
 2. the suite's environment variable (``SWIFTLET_FLAMINGO_DIR`` or ``SWIFTLET_COLIBRE_DIR``), the directory holding the
    simulations, each in ``<box_res>/<sim_name>``
 3. the suite's directory on COSMA
@@ -31,7 +35,8 @@ import os
 import re
 import numpy as np
 import string
-from dataclasses import dataclass, replace
+import yaml
+from dataclasses import dataclass, fields, replace
 from functools import cached_property, lru_cache
 from importlib import resources
 from pathlib import Path
@@ -43,6 +48,13 @@ OUTPUT_LIST_NAME = "output_list.txt"
 
 # universal format of soap catalogues from the simulations root directory
 SOAP_FORMAT = "SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"
+
+# snapshot files of a suite that doesn't give its own snapshot_format
+SNAPSHOT_FORMAT = "snapshots/snap_{snap_nr:04d}/snap_{snap_nr:04d}.{file_nr}.hdf5"
+
+# directories of suite files (.yaml files), separated by os.pathsep. A .yaml added to this directory adds a new suite or
+# replaces the installed one of the same name
+SUITES_DIR_ENV = "SWIFTLET_SUITES_DIR"
 
 # the fields each path format may have, and those it must have (the output list is a plain path)
 _PATH_FIELDS = {
@@ -198,38 +210,66 @@ class SimulationSuite:
     For a SWIFT simulation suite (FLAMINGO and COLIBRE) track what is common for all simulations in the suite:
     the directories and path formats for the snapshots, halo catalogues and output redshifts.
 
-    :ivar name:                     "flamingo" or "colibre"
+    :ivar name:                     name of the suite, lower case, e.g. "flamingo" or "colibre"
     :vartype name:                  str
     :ivar label_pattern:            regular expression matching the box size and resolution labels of the suite's
                                     simulations, e.g. "L1000N1800"
     :vartype label_pattern:         str
     :ivar base_dir_format:          directory of a simulation, with {box_res} and {sim_name} fields
     :vartype base_dir_format:       str
-    :ivar base_dir_env:             environment variable that, if set, replaces the directory holding the simulations
+    :ivar base_dir_env:             environment variable that, if set, replaces the directory holding the simulations.
+                                    None for none
     :vartype base_dir_env:          str
     :ivar snapshot_format:          snapshot file, relative to the simulation's directory, with {snap_nr} and {file_nr}
-                                    fields
+                                    fields (default to SNAPSHOT_FORMAT)
     :vartype snapshot_format:       str
     :ivar output_list:              the SWIFT output list of a simulation, relative to its directory (or an absolute
                                     path), read for the output redshifts of its snapshots (see read_output_list)
     :vartype output_list:           str
     :ivar soap_format:              SOAP halo catalogue, relative to the simulation's directory, with a {snap_nr} field
+                                    (default to SOAP_FORMAT)
     :vartype soap_format:           str
+    :ivar description:              what the suite is, for people reading its file
+    :vartype description:           str
     """
 
     # define types of each element
     name: str
     label_pattern: str
     base_dir_format: str
-    base_dir_env: str
-    snapshot_format: str
+    base_dir_env: str = None
+    snapshot_format: str = SNAPSHOT_FORMAT
     output_list: str = OUTPUT_LIST_NAME
     soap_format: str = SOAP_FORMAT
+    description: str = ""
 
     def __post_init__(self):
-        """Check the path formats have the fields they need, so a mistake shows when the suite is made."""
+        """Check the name, label pattern and path formats, so a mistake shows when the suite is made."""
+        # check that name is correctly formatted
+        if not isinstance(self.name, str) or not re.fullmatch(r"[a-z0-9_\-]+", self.name):
+            raise ValueError(f"a suite's name is lower case letters, digits, '_' and '-', not {self.name!r}")
+
+        # check label is re pattern with fields
+        if not isinstance(self.label_pattern, str):
+            raise TypeError(f"label_pattern must be a regular expression, not {self.label_pattern!r}")
+        try:
+            re.compile(self.label_pattern)
+        except re.error as error:
+            raise ValueError(f"label_pattern={self.label_pattern!r} is not a regular expression: {error}") from None
+
+        # check base directory is given and a str
+        if self.base_dir_env is not None and not isinstance(self.base_dir_env, str):
+            raise TypeError(
+                f"base_dir_env must be the name of an environment variable or None, not {self.base_dir_env!r}"
+            )
+
+        # check that file has a description str
+        if not isinstance(self.description, str):
+            raise TypeError(f"description must be a str, not {self.description!r}")
+
         for name in _PATH_FIELDS:
             _check_path_format(name, getattr(self, name))
+
         # a plain path, never formatted
         if not isinstance(self.output_list, (str, os.PathLike)):
             raise TypeError(f"output_list must be a path, not {self.output_list!r}")
@@ -268,34 +308,174 @@ class SimulationSuite:
         otherwise base_dir_format.
 
         """
-        base_dir = os.environ.get(self.base_dir_env)
+        if self.base_dir_env is None:
+            base_dir = None
+        else:
+            base_dir = os.environ.get(self.base_dir_env)
+
         if base_dir:
             return os.path.join(base_dir, "{box_res}", "{sim_name}")
         return self.base_dir_format
 
 
-# define FLAMINGO simulation suite
-FLAMINGO = SimulationSuite(
-    name="flamingo",
-    label_pattern=r"L1000N0900|L1000N1800|L1000N3600|L2800N5040",
-    base_dir_format="/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}",
-    base_dir_env="SWIFTLET_FLAMINGO_DIR",
-    snapshot_format="snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5",
-)
-
-# define COLIBRE simulation suite
-COLIBRE = SimulationSuite(
-    name="colibre",
-    # the box size zero padded to 4 digits, e.g. "L0200N1504", or with the mass resolution, e.g. "L200m6", "L200_m6"
-    label_pattern=r"L0\d{3}N\d{4}|L\d{3}_?m\d",
-    base_dir_format="/cosma8/data/dp004/colibre/Runs/{box_res}/{sim_name}",
-    base_dir_env="SWIFTLET_COLIBRE_DIR",
-    snapshot_format="snapshots/colibre_{snap_nr:04d}/colibre_{snap_nr:04d}.{file_nr}.hdf5",
-)
+# the fields of a suite file, the fields of SimulationSuite; name and label_pattern and base_dir_format are needed
+_SUITE_FIELDS = tuple(field.name for field in fields(SimulationSuite))
+_NEEDED_SUITE_FIELDS = ("label_pattern", "base_dir_format")
 
 
-SUITES = {suite.name: suite for suite in (FLAMINGO, COLIBRE)}
+def read_suite_file(path):
+    r"""
+    Read a simulation suite from a YAML file.
 
+    The file holds the fields of SimulationSuite, e.g.::
+
+        name: 'mysuite'
+        description: 'my simulations'
+        label_pattern: 'L\d{4}N\d{4}_my'
+        base_dir_format: '/data/mysuite/{box_res}/{sim_name}'
+        base_dir_env: 'SWIFTLET_MYSUITE_DIR'
+        snapshot_format: 'snapshots/snap_{snap_nr:04d}/snap_{snap_nr:04d}.{file_nr}.hdf5'
+        soap_format: 'SOAP/halo_properties_{snap_nr:04d}.hdf5'
+        output_list: 'output_list.txt'
+
+    ``label_pattern`` and ``base_dir_format`` are needed; ``name`` is the file's name without ``.yaml``.
+
+    Returns a SimulationSuite.
+
+    Raises ValueError, naming the file, if the file isn't a suite (unknown or missing fields, or a field that is wrong).
+
+    :param  path:   path of the suite file, e.g. "my_new_suite.yaml"
+    :type   path:   str or os.PathLike
+    """
+    path = os.fspath(path)  # convert path to str
+
+    # read .yaml sim suite file
+    with open(path, "r") as infile:
+        try:
+            values = yaml.safe_load(infile)
+        except yaml.YAMLError as error:
+            raise ValueError(f"{path}: not a YAML file: {error}") from None
+
+    # raise error if files values cannot be used as a dict
+    if not isinstance(values, dict):
+        raise ValueError(f"{path}: a suite file holds the fields of a suite ({', '.join(_SUITE_FIELDS)})")
+
+    # raise error if values are not a recognised field
+    unknown = sorted(set(values) - set(_SUITE_FIELDS))
+    if unknown:
+        raise ValueError(f"{path}: unknown fields {unknown}, a suite has {', '.join(_SUITE_FIELDS)}")
+
+    # identify the missing fields and give as an error
+    missing = [name for name in _NEEDED_SUITE_FIELDS if values.get(name) is None]
+    if missing:
+        raise ValueError(f"{path}: a suite needs {', '.join(missing)}")
+
+    # place known values into dict and then make into a SimulationSuite
+    values.setdefault("name", Path(path).stem)
+    values = {name: value for name, value in values.items() if value is not None}
+
+    try:
+        return SimulationSuite(**values)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{path}: {error}") from None
+
+
+def write_suite_file(suite, path):
+    """
+    Write a simulation suite as a YAML file, which read_suite_file reads back as the same suite.
+
+    To change an installed suite: edit the .yaml files in the SWIFTLET_SUITES_DIR directory or write a new YAML file to
+    the same directory.
+
+    :param  suite:  the suite, e.g. FLAMINGO
+    :type   suite:  SimulationSuite
+    :param  path:   path of the file to write, e.g. "suites/flamingo.yaml"
+    :type   path:   str or os.PathLike
+    """
+
+    def quoted(value):
+        # a single quoted YAML string: only ' is escaped (as ''), so regular expressions and {fields} are as written
+        return "null" if value is None else "'" + str(value).replace("'", "''") + "'"
+
+    lines = [
+        "# SWIFTLET simulation suite, see docs/user_guide/new_simulations_and_suites.rst",
+        "",
+    ]
+    lines += [f"{name}: {quoted(getattr(suite, name))}" for name in _SUITE_FIELDS]
+
+    # ensure output directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(os.fspath(path))), exist_ok=True)
+
+    # write YAML suite file
+    with open(path, "w") as outfile:
+        outfile.write("\n".join(lines) + "\n")
+
+
+def suite_directories():
+    """
+    The directories the suites are read from: the installed suites first, then those of SWIFTLET_SUITES_DIR in order.
+
+    Returns a list of paths.
+    """
+    directories = [str(resources.files("swiftlet") / "data" / "simulation_suites")]
+    directories += [d for d in os.environ.get(SUITES_DIR_ENV, "").split(os.pathsep) if d]
+    return directories
+
+
+def load_suites(directories=None):
+    """
+    Read the suites of every suite file (``*.yaml``) in the given directories.
+
+    A suite file in a directory of SWIFTLET_SUITES_DIR replaces the installed suite of its name.
+
+    Returns a dict {name: SimulationSuite}.
+
+    Raises ValueError if a directory has two suites of the same name, or isn't a directory.
+
+    :param  directories:    directories of suite files. If None, suite_directories()
+    :type   directories:    list
+    """
+    suites = {}
+    for directory in suite_directories() if directories is None else directories:
+        if not os.path.isdir(directory):
+            raise ValueError(f"{SUITES_DIR_ENV}: {directory} is not a directory of simulation suite files")
+        in_directory = {}
+        for path in sorted(Path(directory).glob("*.yaml")):
+            suite = read_suite_file(path)
+            if suite.name in in_directory:
+                raise ValueError(f"{in_directory[suite.name]} and {path} are both the suite {suite.name!r}")
+            in_directory[suite.name] = path
+            suites[suite.name] = suite
+    return suites
+
+
+def add_suite(suite):
+    """
+    Add a simulation suite to the suites SWIFTLET knows, so its simulations are found from their labels.
+
+    It replaces a suite of the same name. For this Python session only: to keep a suite, write it with
+    write_suite_file into a directory of SWIFTLET_SUITES_DIR.
+
+    Returns the SimulationSuite added.
+
+    :param  suite:  the suite, or the path of a suite file
+    :type   suite:  SimulationSuite or str or os.PathLike
+    """
+    if not isinstance(suite, SimulationSuite):
+        suite = read_suite_file(suite)
+    SUITES[suite.name] = suite
+    return suite
+
+
+###################################################################################################
+# load known suites from swiftlet/data/simulation_suites
+
+# the suites SWIFTLET knows are installed (FLAMINGO and COLIBRE), and those in SWIFTLET_SUITES_DIR
+SUITES = load_suites()
+
+# FLAMINGO and COLIBRE, as installed or replaced by a suite file of the same name
+FLAMINGO = SUITES["flamingo"]
+COLIBRE = SUITES["colibre"]
 
 ###################################################################################################
 # define simulation suite functions
@@ -303,7 +483,7 @@ SUITES = {suite.name: suite for suite in (FLAMINGO, COLIBRE)}
 
 def get_suite(suite):
     """
-    Returns SimulationSuite for a pre-defined swift simulation suite (e.g. "flamingo" or "colibre").
+    Returns the SimulationSuite of a suite SWIFTLET knows (e.g. "flamingo" or "colibre"), see SUITES.
 
     :param  suite:  name of the suite, or a SimulationSuite
     :type   suite:  str or SimulationSuite
@@ -338,8 +518,8 @@ def suite_for_label(boxsize_resolution=None, simulation_suite_name=None):
         if from_label is None:
             patterns = ", ".join(f"{suite.name.upper()}: {suite.label_pattern}" for suite in SUITES.values())
             raise ValueError(
-                f"can't tell which simulation suite boxsize_resolution={boxsize_resolution!r} belongs "
-                f"to ({patterns}). Pass simulation_suite_name='flamingo' or 'colibre'"
+                f"can't tell which simulation suite boxsize_resolution={boxsize_resolution!r} belongs to ({patterns}). "
+                f"Pass simulation_suite_name, one of {tuple(SUITES)}"
             )
         return from_label
 

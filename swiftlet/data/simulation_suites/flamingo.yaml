@@ -1,0 +1,23 @@
+# SWIFTLET simulation suite, see docs/user_guide/new_simulations_and_suites.rst
+#
+# To change this suite without editing the installed package, copy this file into a directory listed in
+# SWIFTLET_SUITES_DIR and edit the copy: a suite there replaces the installed suite of the same name.
+# Paths are relative to a simulation's directory, or absolute. Quote every value, as {fields} have a meaning in YAML.
+
+name: 'flamingo'
+description: 'FLAMINGO simulations on COSMA'
+
+# the box size and resolution labels of the suite's simulations: a regular expression they match in full
+label_pattern: 'L1000N0900|L1000N1800|L1000N3600|L2800N5040'
+
+# directory of a simulation, with {box_res} and {sim_name} fields
+base_dir_format: '/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}'
+# environment variable that, if set, replaces the directory holding the simulations (each in <box_res>/<sim_name>)
+base_dir_env: 'SWIFTLET_FLAMINGO_DIR'
+
+# snapshot files, with {snap_nr} and {file_nr} fields
+snapshot_format: 'snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5'
+# SOAP halo catalogues, with a {snap_nr} field
+soap_format: 'SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5'
+# the SWIFT output list, read for the output redshifts of the snapshots
+output_list: 'output_list.txt'

@@ -3,7 +3,7 @@
 # Run SWIFTLET's style checks (.github/workflows/styles.yml) and write the output to a .log file
 #
 # Usage, from anywhere in the repository:
-#     bash tools/style_check.sh            # check everything, log to logs/style_check_<date>_<time>.log
+#     bash tools/style_check.sh            # check everything, log to logs/style_check_<date>_<time>.log, 
 #     bash tools/style_check.sh --docs     # also build the docs with -W -n (slower)
 #     bash tools/style_check.sh --diff     # log the full formatting diff, not just the files ruff format would change
 #

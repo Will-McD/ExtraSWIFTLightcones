@@ -12,7 +12,7 @@ or the submodule they come from::
                             SnapshotGapWarning
     snapshot_cosmology      SnapshotCosmology
     simulation_suites       Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
-                            read_output_list, write_output_list
+                            read_output_list, write_output_list, read_suite_file, write_suite_file, add_suite
     snapshot_redshifts      redshift_edges, snapshots_in_range
     snapshot_orientation    write_orientation_tables, read_orientation_tables, generate_orientation_tables,
                             check_neighbouring_tiles, default_orientation_tables, generate_clash_free_tables,
@@ -62,6 +62,9 @@ _PUBLIC_NAMES = {
     "output_redshifts": "simulation_suites",
     "read_output_list": "simulation_suites",
     "write_output_list": "simulation_suites",
+    "read_suite_file": "simulation_suites",
+    "write_suite_file": "simulation_suites",
+    "add_suite": "simulation_suites",
     # orientation tables of the box tiles
     "write_orientation_tables": "snapshot_orientation",
     "read_orientation_tables": "snapshot_orientation",
