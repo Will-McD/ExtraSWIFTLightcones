@@ -1,0 +1,12 @@
+/* let the text in table cells wrap, so wide tables fit the page (sphinx_rtd_theme keeps each cell on one line) */
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+    white-space: normal;
+}
+
+
+/* a figure and the text beside it: the block holds its floated figure, so the next block starts below it */
+.figure-with-text { display: flow-root; margin-bottom: 24px; }
+
+/* headings always start below any floated figure */
+h1, h2, h3, h4, h5, h6 { clear: both; }

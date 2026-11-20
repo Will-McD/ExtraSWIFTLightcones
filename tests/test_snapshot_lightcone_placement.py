@@ -1,24 +1,7 @@
 #!/bin/env python
-import json
-import os
-import shutil
-import subprocess
-import sys
-from pathlib import Path
-
-import numpy as np
-import pytest
-import unyt
-
-h5py = pytest.importorskip("h5py")
-astropy_cosmology = pytest.importorskip("astropy.cosmology")
-snapshot_lightcone = pytest.importorskip("swiftlet.snapshot_lightcone")
-from swiftlet import snapshot_redshifts
-from swiftlet.simulation_suites import output_redshifts
-
 """
 Tests of where SnapshotLightcone places objects, using small fake snapshots and SOAP catalogues
-written to a temporary directory. 
+written to a temporary directory.
 
 No simulation data is required.
 
@@ -28,12 +11,29 @@ No simulation data is required.
   half a box length from the observer, end up on the same lattice centred on the observer, each once.
 """
 
-# make fake FLAMINGO snapshot data
+import json
+import os
+import shutil
+import subprocess
+import sys
+import warnings
+from pathlib import Path
+import numpy as np
+import pytest
+import unyt
+
+h5py = pytest.importorskip("h5py")
+astropy_cosmology = pytest.importorskip("astropy.cosmology")
+snapshot_lightcone = pytest.importorskip("swiftlet.snapshot_lightcone")
+from swiftlet import snapshot_redshifts
+from swiftlet.simulation_suites import OUTPUT_LIST_NAME, Simulation, read_output_list, write_output_list
+
+# make fake FLAMINGO snapshot data, with the output redshifts of FLAMINGO's 1 Gpc boxes
 BOX_RES = "L1000N0900"
-OUTPUT_REDSHIFTS = output_redshifts(BOX_RES)
+OUTPUT_REDSHIFTS = read_output_list(Path(__file__).resolve().parent / "data" / "output_lists" / "flamingo_L1.txt")
 SNAPSHOTS = range(69, 78)  # z = 0 to 0.425, out to about 1.65 box lengths from the observer
-BOXSIZE = 1000.
-NCELLS_AXIS = 10
+BOXSIZE = 1000.0
+NCELLS_AXIS = 8  # ensure multiple of 8
 CELL_SIZE = BOXSIZE / NCELLS_AXIS
 NFILES = 2
 PTYPE = "PartType1"
@@ -53,11 +53,12 @@ NEDGE = 400  # the first haloes of each snapshot sit exactly on cell faces or at
 
 # uniform lattice of particles, offset by half a spacing from the box faces
 LATTICE_SIM = "LATTICE_TEST"
-LATTICE_SPACING = 25.
-R_MIN, R_MAX = 20., 0.5 * BOXSIZE - 1.  # shell just inside half a box length from the observer
+LATTICE_SPACING = 25.0
+R_MIN, R_MAX = 20.0, 0.5 * BOXSIZE - 1.0  # shell just inside half a box length from the observer
 
 
-# tools for building fake SWIFT datasets: 
+# tools for building fake SWIFT datasets:
+
 
 def set_unit_attrs(dset, length_exponent, a_exponent, conversion=None):
     """
@@ -66,7 +67,7 @@ def set_unit_attrs(dset, length_exponent, a_exponent, conversion=None):
     for symbol in "ILMTt":
         dset.attrs[f"U_{symbol} exponent"] = [float(length_exponent if symbol == "L" else 0)]
     dset.attrs["a-scale exponent"] = [float(a_exponent)]
-    dset.attrs["h-scale exponent"] = [0.]
+    dset.attrs["h-scale exponent"] = [0.0]
     if conversion is not None:
         dset.attrs["Conversion factor to physical CGS (including cosmological corrections)"] = [conversion]
 
@@ -81,7 +82,7 @@ def write_metadata(f, redshift):
     constants.attrs["newton_G"] = [6.674e-8]
     cosmology = f.create_group("Cosmology")
     cosmology.attrs["Redshift"] = [redshift]
-    cosmology.attrs["Scale-factor"] = [1. / (1. + redshift)]
+    cosmology.attrs["Scale-factor"] = [1.0 / (1.0 + redshift)]
     cosmology.attrs["h"] = [0.68]
     for group_name in ("Units", "InternalCodeUnits"):
         group = f.create_group(group_name)
@@ -93,9 +94,8 @@ def write_snapshot(snap_dir, snap_nr, ids, pos):
     """
     Write one fake snapshot of dark matter particles, split over files by cell.
     """
-    #redshift = nz.snapshot_number_redshifts(snap_nr, BOX_RES)
     redshift = OUTPUT_REDSHIFTS[snap_nr]
-    centres = (np.indices((NCELLS_AXIS,)*3).reshape(3, -1).T + 0.5) * CELL_SIZE
+    centres = (np.indices((NCELLS_AXIS,) * 3).reshape(3, -1).T + 0.5) * CELL_SIZE
     ncells = len(centres)
     cell_file = np.arange(ncells) % NFILES
 
@@ -140,20 +140,25 @@ def write_snapshot(snap_dir, snap_nr, ids, pos):
             set_unit_attrs(dm.create_dataset("Coordinates", data=pos[in_file]), 1, 1)
             set_unit_attrs(dm.create_dataset("ParticleIDs", data=ids[in_file]), 0, 0)
 
+            # add velocities [km/s]
+            velocities = dm.create_dataset("Velocities", data=pos[in_file] - centres[cell[in_file]])
+            set_unit_attrs(velocities, 1, 0)
+            velocities.attrs["U_t exponent"] = [-1.0]
+
 
 def write_soap_catalogue(filename, snap_nr, halo_index, halo_centre):
     """
     Write a fake SOAP catalogue holding the halo centres [comoving Mpc] and their catalogue indices,
     read with lightcone_io's SOAPCatalogue.
     """
-    #redshift = nz.snapshot_number_redshifts(snap_nr, BOX_RES)
     redshift = OUTPUT_REDSHIFTS[snap_nr]
     filename.parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(filename, "w") as f:
         write_metadata(f, redshift)
-        set_unit_attrs(f.create_dataset("InputHalos/HaloCentre", data=halo_centre), 1, 1,
-                       conversion=MPC_CM / (1. + redshift))
-        set_unit_attrs(f.create_dataset("InputHalos/HaloCatalogueIndex", data=halo_index), 0, 0, conversion=1.)
+        set_unit_attrs(
+            f.create_dataset("InputHalos/HaloCentre", data=halo_centre), 1, 1, conversion=MPC_CM / (1.0 + redshift)
+        )
+        set_unit_attrs(f.create_dataset("InputHalos/HaloCatalogueIndex", data=halo_index), 0, 0, conversion=1.0)
 
 
 def halo_positions(rng):
@@ -162,9 +167,9 @@ def halo_positions(rng):
     where a halo and a particle could be put in different cells.
     """
     pos = rng.uniform(0, BOXSIZE, (NHALOS, 3))
-    pos[:NEDGE // 2] = rng.integers(0, NCELLS_AXIS, (NEDGE // 2, 3)) * CELL_SIZE
-    pos[NEDGE // 2, :] = 0.
-    pos[NEDGE // 2 + 1:NEDGE, 0] = rng.integers(0, NCELLS_AXIS, NEDGE - NEDGE // 2 - 1) * CELL_SIZE
+    pos[: NEDGE // 2] = rng.integers(0, NCELLS_AXIS, (NEDGE // 2, 3)) * CELL_SIZE
+    pos[NEDGE // 2, :] = 0.0
+    pos[NEDGE // 2 + 1 : NEDGE, 0] = rng.integers(0, NCELLS_AXIS, NEDGE - NEDGE // 2 - 1) * CELL_SIZE
     return pos
 
 
@@ -182,18 +187,19 @@ def lattice_positions():
     Positions [Mpc] of a uniform lattice filling the box, offset by half a spacing from the box faces.
     """
     n = int(round(BOXSIZE / LATTICE_SPACING))
-    return (np.indices((n,)*3).reshape(3, -1).T + 0.5) * LATTICE_SPACING
+    return (np.indices((n,) * 3).reshape(3, -1).T + 0.5) * LATTICE_SPACING
 
 
 class Cosmology:
     """
     Stand in for swiftlet.cosmology.SnapshotCosmology, the fake snapshots only have minimal metadata.
     """
+
     COSMO = astropy_cosmology.FlatLambdaCDM(H0=68, Om0=0.3)
 
     def __init__(self, filename):
         pass
-    
+
     @classmethod
     def from_simulation(cls, simulation):
         return cls(simulation.snapshot_file(simulation.z0_snapshot))
@@ -201,6 +207,7 @@ class Cosmology:
     @classmethod
     def from_path(cls, path):
         return cls(path)
+
 
 def merge_cells(offsets, lengths):
     """
@@ -225,29 +232,42 @@ def write_fake_runs(run_dir):
 
     Returns the SOAP catalogue filename format of the halo simulation.
     """
-    # fake halo simulation: one particle at the centre of each halo, with the halo's catalogue index as its ID. 
+    # fake halo simulation: one particle at the centre of each halo, with the halo's catalogue index as its ID.
     # As in SOAP the index is only unique within a snapshot: every snapshot's haloes are numbered from 0
     halo_dir = run_dir / BOX_RES / HALO_SIM
+    halo_dir.mkdir(parents=True, exist_ok=True)
+
+    # SWIFTLET reads a simulation's output redshifts from the output_list.txt in its directory
+    write_output_list(halo_dir / OUTPUT_LIST_NAME, OUTPUT_REDSHIFTS)
+
     for snap_nr in SNAPSHOTS:
         pos = halo_positions(np.random.default_rng(snap_nr))
-        #index = np.arange(NHALOS) + snap_nr * 10**6
-        index = np.arange(NHALOS) # make it more realistic by having repeats per snapshot. Now start indexing without offset or reliance on snapshot number. 
+        index = np.arange(NHALOS)
+        # make it more realistic by having repeats per snapshot. Now start indexing without offset or reliance on
+        # snapshot number.
         write_snapshot(halo_dir / "snapshots" / f"flamingo_{snap_nr:04d}", snap_nr, index, pos)
         write_soap_catalogue(halo_dir / "SOAP" / f"halo_properties_{snap_nr:04d}.hdf5", snap_nr, index, pos)
 
     # lattice simulation: the same lattice in every snapshot
     lattice_dir = run_dir / BOX_RES / LATTICE_SIM
+    lattice_dir.mkdir(parents=True, exist_ok=True)
+
+    write_output_list(lattice_dir / OUTPUT_LIST_NAME, OUTPUT_REDSHIFTS)
+
     pos = lattice_positions()
     for snap_nr in SNAPSHOTS:
         write_snapshot(lattice_dir / "snapshots" / f"flamingo_{snap_nr:04d}", snap_nr, np.arange(len(pos)), pos)
+        write_soap_catalogue(
+            lattice_dir / "SOAP" / f"halo_properties_{snap_nr:04d}.hdf5", snap_nr, np.arange(len(pos)), pos
+        )
     return soap_format(run_dir)
 
 
-def soap_format(run_dir):
+def soap_format(run_dir, sim_name=HALO_SIM):
     """
-    SOAP catalogue filename format of the fake halo simulation in run_dir.
+    SOAP catalogue filename format of a fake simulation in run_dir, by default the halo simulation.
     """
-    return str(run_dir / BOX_RES / HALO_SIM / "SOAP" / "halo_properties_{snap_nr:04d}.hdf5")
+    return str(run_dir / BOX_RES / sim_name / "SOAP" / "halo_properties_{snap_nr:04d}.hdf5")
 
 
 def patch_snapshot_lightcone(patch, run_dir):
@@ -259,21 +279,18 @@ def patch_snapshot_lightcone(patch, run_dir):
     :param  run_dir:    directory the fake simulations were written to
     :type   run_dir:    pathlib.Path
     """
-    #patch.setattr(snapshot_lightcone, "Snapshot_Cosmology_For_Lightcone", Cosmology)
+
     patch.setattr(snapshot_lightcone, "SnapshotCosmology", Cosmology)
     if not callable(snapshot_lightcone.merge_cells):
         patch.setattr(snapshot_lightcone, "merge_cells", merge_cells)
-    #init = snapshot_lightcone.SnapshotLightcone.__init__
-    #defaults = list(init.__defaults__)
-    #defaults[0] = str(run_dir) + "/{box_res}/{sim_name}"
-    #patch.setattr(init, "__defaults__", tuple(defaults))
-    
+
     # FLAMINGO simulations are looked for in <SWIFTLET_FLAMINGO_DIR>/<box_res>/<sim_name>
     patch.setenv("SWIFTLET_FLAMINGO_DIR", str(run_dir))
 
 
-# 'run' fake SWIFT simulations, 
+# 'run' fake SWIFT simulations,
 # i.e. place fake particles in snapshot and SOAP catalogue and write ID values
+
 
 @pytest.fixture(scope="module")
 def fake_run_dir(tmp_path_factory):
@@ -300,20 +317,23 @@ def fake_runs(fake_run_dir):
     return soap_format(fake_run_dir)
 
 
-def new_lightcone(sim_name, beam_vector, orientation_lock, **kwargs):
+def new_lightcone(sim_name, beam_vector, orientation_lock, ang_radius_deg=None, **kwargs):
     """
     SnapshotBeam along beam_vector, or SnapshotAllSky if beam_vector is None, using a fake simulation.
     """
+    # suite base directory given by SWIFTLET_FLAMINGO_DIR, which points at the fake simulations
+    simulation = Simulation.from_label(BOX_RES, sim_name)
+
     if beam_vector is None:
-        return snapshot_lightcone.SnapshotAllSky(boxsize_resolution=BOX_RES, simulation_name=sim_name, verbose=0, orientation_lock=orientation_lock, **kwargs)
-    return snapshot_lightcone.SnapshotBeam(boxsize_resolution=BOX_RES, simulation_name=sim_name, beam_vector=beam_vector, verbose=0, orientation_lock=orientation_lock, **kwargs)
-
-
-def shell_args(lightcone, ang_radius_deg):
-    """
-    Angular radius argument of the placing methods: only SnapshotBeam takes one.
-    """
-    return {} if isinstance(lightcone, snapshot_lightcone.SnapshotAllSky) else {"ang_radius_deg": ang_radius_deg}
+        return snapshot_lightcone.SnapshotAllSky(simulation, verbose=0, orientation_lock=orientation_lock, **kwargs)
+    return snapshot_lightcone.SnapshotBeam(
+        simulation,
+        beam_vector=beam_vector,
+        ang_radius_deg=ang_radius_deg,
+        verbose=0,
+        orientation_lock=orientation_lock,
+        **kwargs,
+    )
 
 
 def sorted_rows(snap_nr, ids, coords, a, edge):
@@ -321,8 +341,7 @@ def sorted_rows(snap_nr, ids, coords, a, edge):
     Rows of (snapshot, ID, position, expansion factor), sorted so two sets of rows can be compared.
     If edge, only the rows of the haloes on cell faces, otherwise only the rest.
     """
-    #keep = (ids % 10**6 < NEDGE) == edge
-    keep = (ids < NEDGE) == edge # updated to match new halo id's without offsets
+    keep = (ids < NEDGE) == edge  # updated to match new halo id's without offsets
     snap_nr, ids, coords, a = snap_nr[keep], ids[keep], coords[keep], a[keep]
     order = np.lexsort((coords[:, 2], coords[:, 1], coords[:, 0], ids, snap_nr))
     return snap_nr[order], ids[order], coords[order], a[order]
@@ -334,18 +353,27 @@ def place_haloes_and_particles(halo_format, beam_vector, ang_radius_deg, redshif
 
     Returns the sorted rows of the haloes and of the particles, see sorted_rows.
     """
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock)
-    halos = lightcone.place_halos_in_shell(halo_format, redshift_range, **shell_args(lightcone, ang_radius_deg))
-    particles = lightcone.place_snapshot_particles_in_shell(redshift_range, property_names=["ParticleIDs", "Coordinates"],
-                                                            particle_types=PTYPE, **shell_args(lightcone, ang_radius_deg))[PTYPE]
-    halo_rows = sorted_rows(halos["Lightcone/SnapshotNumber"].value.astype(int),
-                            halos["InputHalos/HaloCatalogueIndex"].value.astype(int),
-                            halos["Lightcone/HaloCentre"].to_value("Mpc"),
-                            halos["Lightcone/ExpansionFactor"].value, edge)
-    particle_rows = sorted_rows(particles["SnapshotNumber"].value.astype(int),
-                                particles["ParticleIDs"].value.astype(int),
-                                particles["Coordinates"].to_value("Mpc"),
-                                particles["ExpansionFactors"].value, edge)
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+    halos = lightcone.place_halos_in_shell(halo_format, redshift_range)
+    particles = lightcone.place_snapshot_particles_in_shell(
+        redshift_range,
+        property_names=["ParticleIDs", "Coordinates"],
+        particle_types=PTYPE,
+    )[PTYPE]
+    halo_rows = sorted_rows(
+        halos["Lightcone/SnapshotNumber"].value.astype(int),
+        halos["InputHalos/HaloCatalogueIndex"].value.astype(int),
+        halos["Lightcone/HaloCentre"].to_value("Mpc"),
+        halos["Lightcone/ExpansionFactor"].value,
+        edge,
+    )
+    particle_rows = sorted_rows(
+        particles["SnapshotNumber"].value.astype(int),
+        particles["ParticleIDs"].value.astype(int),
+        particles["Coordinates"].to_value("Mpc"),
+        particles["ExpansionFactors"].value,
+        edge,
+    )
     return halo_rows, particle_rows
 
 
@@ -362,20 +390,25 @@ def assert_same_rows(halo_rows, particle_rows):
 # params for lightcone beam tests
 
 LIGHTCONES = [
-    pytest.param((0, 0, 1), 20., (0.05, 0.25), id="beam_z_axis"),
-    pytest.param((1, 2, 3), 15., (0.05, 0.25), id="beam_off_axis"),
+    pytest.param((0, 0, 1), 20.0, (0.05, 0.25), id="beam_z_axis"),
+    pytest.param((1, 2, 3), 15.0, (0.05, 0.25), id="beam_off_axis"),
     pytest.param(None, None, (0.1, 0.2), id="all_sky"),
 ]
 
 
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
 @pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range", LIGHTCONES)
-def test_haloes_placed_as_particles_at_their_centres(fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock):
+def test_haloes_placed_as_particles_at_their_centres(
+    fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock
+):
     """
     Haloes read from SOAP catalogues are placed in the lightcone exactly as particles at the same positions in the
-    snapshots: from the same snapshots, at the same lightcone positions and expansion factors, each the same number of times.
+    snapshots: from the same snapshots, at the same lightcone positions and expansion factors, each the same
+    number of times.
     """
-    halo_rows, particle_rows = place_haloes_and_particles(fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock, edge=False)
+    halo_rows, particle_rows = place_haloes_and_particles(
+        fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock, edge=False
+    )
     assert len(halo_rows[0]) > 0
     assert_same_rows(halo_rows, particle_rows)
 
@@ -390,15 +423,18 @@ def test_haloes_placed_as_particles_at_their_centres(fake_runs, beam_vector, ang
 
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
 @pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range", LIGHTCONES)
-def test_haloes_on_cell_faces_placed_as_particles(fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock):
+def test_haloes_on_cell_faces_placed_as_particles(
+    fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock
+):
     """
-    Place the centre of haloes on the edges and/or faces of the snapshot box tiles. 
+    Place the centre of haloes on the edges and/or faces of the snapshot box tiles.
     Ensure that both particles and haloes have:
-        1) the same re-orientation for edge cases. 
-        2) are not wrapped around the tile, but instead remain on the tiles face. 
+        1) the same re-orientation for edge cases.
+        2) are not wrapped around the tile, but instead remain on the tiles face.
     """
-    halo_rows, particle_rows = place_haloes_and_particles(fake_runs, beam_vector, ang_radius_deg, redshift_range,
-                                                          orientation_lock, edge=True)
+    halo_rows, particle_rows = place_haloes_and_particles(
+        fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock, edge=True
+    )
     assert len(halo_rows[0]) > 0
     assert_same_rows(halo_rows, particle_rows)
 
@@ -407,21 +443,22 @@ def test_haloes_on_cell_faces_placed_as_particles(fake_runs, beam_vector, ang_ra
 @pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range", LIGHTCONES)
 def test_haloes_read_in_chunks_as_whole(fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock):
     """
-    Test that reading the SOAP catalogues in chunks places the same haloes, in the same order as when reading them whole catalogue.
+    Test that reading the SOAP catalogues in chunks places the same haloes, in the same order as when reading them
+    whole catalogue.
     Test in serial and for any chunk size.
     """
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock)
-    whole = lightcone.place_halos_in_shell(fake_runs, redshift_range, **shell_args(lightcone, ang_radius_deg))
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+    whole = lightcone.place_halos_in_shell(fake_runs, redshift_range)
     assert len(whole["Lightcone/SnapshotNumber"]) > 0
     for chunk_size in (333, NHALOS - 1, 10 * NHALOS):
-        chunked = lightcone.place_halos_in_shell(fake_runs, redshift_range, soap_chunk_size=chunk_size,
-                                                 **shell_args(lightcone, ang_radius_deg))
+        chunked = lightcone.place_halos_in_shell(fake_runs, redshift_range, soap_chunk_size=chunk_size)
         assert set(chunked) == set(whole)
         for name in whole:
             assert chunked[name].units == whole[name].units, name
-            np.testing.assert_array_equal(chunked[name].value, whole[name].value, err_msg=f"{name}, chunks of {chunk_size}")
+            np.testing.assert_array_equal(
+                chunked[name].value, whole[name].value, err_msg=f"{name}, chunks of {chunk_size}"
+            )
         assert chunked.metadata == whole.metadata
-
 
 
 def test_read_soap_in_chunks(fake_runs):
@@ -435,7 +472,7 @@ def test_read_soap_in_chunks(fake_runs):
     chunks = list(snapshot_lightcone.read_soap_in_chunks(fake_runs.format(snap_nr=snap_nr), names, 1000))
     assert [start for start, _ in chunks] == list(range(0, NHALOS, 1000))
     for name in names:
-        joined = unyt.uconcatenate([chunk[name] for _, chunk in chunks])
+        joined = np.concatenate([chunk[name] for _, chunk in chunks])
         assert joined.units == whole[name].units
         np.testing.assert_array_equal(joined.value, whole[name].value)
     with pytest.raises(ValueError, match="at least 1"):
@@ -450,36 +487,187 @@ def test_haloes_with_mpi_communicator_as_serial(fake_runs):
     MPI = pytest.importorskip("mpi4py.MPI")
     lightcone = new_lightcone(HALO_SIM, None, "cube")
     serial = lightcone.place_halos_in_shell(fake_runs, (0.1, 0.2))
-    assert lightcone.comm is None
+
     for chunk_size in (None, 333):
         with_mpi = lightcone.place_halos_in_shell(fake_runs, (0.1, 0.2), soap_chunk_size=chunk_size, comm=MPI.COMM_SELF)
-        assert lightcone.comm is MPI.COMM_SELF
+
+        # the communicator is not kept for the next call
+        assert lightcone._log_rank is None
+
         for name in serial:
             np.testing.assert_array_equal(with_mpi[name].value, serial[name].value, err_msg=name)
 
 
 def test_angular_radius_checked(fake_runs):
     """
-    Test that the shared methods of Beam and AllSky handle angular radius correctly. 
+    Test that the shared methods of Beam and AllSky handle angular radius correctly.
     AllSky should ignore it whilst Beam should use the radius.
     """
-    beam = new_lightcone(sim_name=HALO_SIM, beam_vector=(0, 0, 1), orientation_lock=None)
-    all_sky = new_lightcone(sim_name=HALO_SIM, beam_vector=None, orientation_lock=None)
+
     redshift_range = (0.05, 0.07)
-    with pytest.raises(TypeError, match="SnapshotBeam needs ang_radius_deg"): 
-        beam.gather_files(PTYPE, redshift_range)
-    with pytest.raises(TypeError, match="SnapshotBeam needs ang_radius_deg"):
-        beam.place_halos_in_shell(fake_runs, redshift_range)
-    with pytest.raises(TypeError, match="SnapshotAllSky doesn't need an angular radius"):
-        all_sky.gather_halo_catalogues(fake_runs, redshift_range, 10.)
-    with pytest.raises(TypeError, match="SnapshotAllSky doesn't need an angular radius"):
-        all_sky.place_snapshot_particles_in_shell(redshift_range, ["Coordinates"], ang_radius_deg=10, particle_types=PTYPE)
+
+    with pytest.raises(TypeError, match="SnapshotBeam needs an angular radius"):
+        new_lightcone(sim_name=HALO_SIM, beam_vector=(0, 0, 1), orientation_lock=None)
+
+    # test that the radius is set and checked at the same time as the beam vector
+
+    with pytest.raises(ValueError, match="exceeds the maximum radius"):
+        new_lightcone(HALO_SIM, (0, 0, 1), None, ang_radius_deg=snapshot_lightcone.MAX_BEAM_ANG_RADIUS_DEG + 1)
+
+    with pytest.raises(TypeError, match="SnapshotAllSky"):
+        snapshot_lightcone.SnapshotAllSky(
+            boxsize_resolution=BOX_RES, simulation_name=HALO_SIM, ang_radius_deg=10.0, verbose=0
+        )
+
+    beam = new_lightcone(HALO_SIM, (0, 0, 1), None, ang_radius_deg=10.0)
+    assert beam.ang_radius_deg == 10.0
+    assert beam.lightcone_metadata(redshift_range)["ang_radius_deg"] == 10.0
+
+    # test radius metadata is found for haloes
+
+    halos = beam.place_halos_in_shell(fake_runs, redshift_range)
+    assert halos.metadata["ang_radius_deg"] == 10.0
+
+    all_sky = new_lightcone(sim_name=HALO_SIM, beam_vector=None, orientation_lock=None)
+
     with pytest.raises(TypeError, match="needs property_names"):
         all_sky.place_snapshot_particles_in_shell(redshift_range, property_names=None, particle_types=PTYPE)
+
     # without the radius, by position as before
     numb_files, _ = all_sky.gather_files(PTYPE, redshift_range)
     assert numb_files > 0
     assert len(all_sky.place_halos_in_shell(fake_runs, redshift_range)["Lightcone/SnapshotNumber"]) > 0
+
+
+def test_serial_after_mpi(fake_runs):
+    """
+    Test that a serial gather_files and place_file_in_shell work after placing particles with MPI.
+    The communicator of a call is not kept for the next.
+    """
+    MPI = pytest.importorskip("mpi4py.MPI")
+    lightcone = new_lightcone(HALO_SIM, None, None)
+    with_mpi = lightcone.place_snapshot_particles_in_shell(
+        (0.05, 0.15), ["ParticleIDs"], particle_types=PTYPE, comm=MPI.COMM_SELF
+    )[PTYPE]
+    numb_files, _ = lightcone.gather_files(PTYPE, (0.05, 0.15))
+    assert lightcone._log_rank is None
+    file_by_file = sum(
+        len(lightcone.place_file_in_shell(i, PTYPE, ["ParticleIDs"]).get("ParticleIDs", [])) for i in range(numb_files)
+    )
+    assert file_by_file == len(with_mpi["ParticleIDs"])
+
+
+@pytest.mark.parametrize("beam_vector, ang_radius_deg", [(None, None), ((1, 2, 3), 20.0)], ids=["all_sky", "beam"])
+def test_snapshot_to_lightcone(fake_runs, beam_vector, ang_radius_deg):
+    """
+    Test that Snapshot2Lightcone needs the tile, and moves the particles of a snapshot to where the lightcone places
+    them.
+    """
+    lightcone = new_lightcone(HALO_SIM, beam_vector, "cube", ang_radius_deg=ang_radius_deg)
+
+    with pytest.raises(TypeError, match="tile"):
+        lightcone.Snapshot2Lightcone(76, np.zeros((1, 3)))
+
+    placed = lightcone.place_snapshot_particles_in_shell((0.05, 0.15), ["ParticleIDs"], particle_types=PTYPE)[PTYPE]
+    snap_nr = placed["SnapshotNumber"].value.astype(int)
+    ids = placed["ParticleIDs"].value.astype(int)
+    coords = placed["Coordinates"].to_value("Mpc")
+
+    # where Snapshot2Lightcone moves each particle, in every tile its snapshot fills
+    moved_to = {}
+
+    for record in lightcone.last_shell.pieces:
+        box_ids, box_pos = read_fake_snapshot(HALO_SIM, record.snap_nr)
+        moved = lightcone.Snapshot2Lightcone(record.snap_nr, box_pos, tile=record.tile)
+
+        assert moved.shape == box_pos.shape
+
+        for particle_id, position in zip(box_ids.tolist(), moved):
+            moved_to.setdefault((record.snap_nr, particle_id), []).append(position)
+
+    # every particle placed is at one of them
+    assert len(ids) > 0
+
+    for n, particle_id, position in zip(snap_nr, ids, coords):
+        assert np.min(np.linalg.norm(np.array(moved_to[(n, particle_id)]) - position, axis=1)) < 1e-6
+
+
+def test_cell_data_only_of_the_current_call(fake_runs):
+    """
+    Test that the cell metadata kept only holds the snapshots of the current call, so it doesn't grow with the number
+    of shells placed, gather_files keeps its snapshots for place_file_in_shell, and the placing methods free them.
+    """
+    lightcone = new_lightcone(HALO_SIM, (1, 2, 3), "cube", ang_radius_deg=20.0)
+    lightcone.gather_files(PTYPE, (0.05, 0.15))
+    assert set(lightcone.last_shell.cell_data) == {74, 75, 76}
+
+    lightcone.place_file_in_shell(0, PTYPE, ["ParticleIDs"])
+    lightcone.gather_files(PTYPE, (0.15, 0.25))
+    assert set(lightcone.last_shell.cell_data) == {72, 73, 74}
+
+    placed = lightcone.place_snapshot_particles_in_shell((0.25, 0.35), ["ParticleIDs"], particle_types=PTYPE)
+    assert len(placed[PTYPE]["ParticleIDs"]) > 0 and lightcone.last_shell.cell_data == {}
+
+    # the halo placement keeps the one snapshot it reads the box and cells from, to reuse its gather step
+    lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))
+    assert set(lightcone.last_shell.cell_data) == {lightcone.last_shell.cell_snapshot}
+    assert len(lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))["Lightcone/SnapshotNumber"]) > 0
+
+    # Snapshot2Lightcone works for any snapshot, without keeping what it reads
+    moved = lightcone.Snapshot2Lightcone(70, np.zeros((1, 3)), tile=(0, 0, 0))
+    assert moved.shape == (1, 3) and set(lightcone.last_shell.cell_data) == {lightcone.last_shell.cell_snapshot}
+
+
+@pytest.mark.parametrize("shell_z", [(0.0, 0.06), (0.05, 0.15), (0.1, 0.35)])
+def test_particles_and_haloes_choose_the_same_snapshots(fake_runs, shell_z):
+    """
+    Test that particles and haloes choose the same snapshots for the same shell, with and without use_snapshots.
+    """
+    lightcone = new_lightcone(HALO_SIM, None, "cube")
+    for use_snapshots in (None, [72, 73, 74, 75, 76, 77]):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", snapshot_lightcone.SnapshotGapWarning)
+            lightcone.gather_files(PTYPE, shell_z, use_snapshots=use_snapshots)
+            particles = lightcone.last_shell.snapshots.tolist()
+
+            lightcone.gather_halo_catalogues(fake_runs, shell_z, use_snapshots=use_snapshots)
+            haloes = lightcone.last_shell.snapshots.tolist()
+
+        assert len(particles) > 0
+        assert haloes == particles, use_snapshots
+
+
+def test_each_call_has_its_own_read_state(fake_runs):
+    """
+    Test that each gather step: 1) makes its own record of what it found, 2) that a later call doesn't change it and 3)
+    that nothing else in a call is kept on the lightcone.
+    """
+    lightcone = new_lightcone(HALO_SIM, (1, 2, 3), "cube", ang_radius_deg=20.0)
+
+    numb_files, files = lightcone.gather_files(PTYPE, (0.05, 0.15))
+    first = lightcone.last_shell
+    # test first location, content of files, selected cells and snapshots + files
+    assert isinstance(first, snapshot_lightcone.ShellRead)
+    assert (first.ptype, first.shell_z, first.files) == (PTYPE, (0.05, 0.15), files) and numb_files == len(files) > 0
+    assert set(first.tile_cells) == {(piece.snap_nr, piece.tile) for piece in first.pieces}
+    assert {spec.snap_nr for spec in files} <= set(first.snapshots.tolist())
+
+    lightcone.gather_halo_catalogues(fake_runs, (0.15, 0.25))
+
+    assert isinstance(lightcone.last_shell, snapshot_lightcone.HaloShellRead)
+    assert first.shell_z == (0.05, 0.15) and first.files == files
+
+    # the files placed one at a time are those of the last gather_files, and of its particle type
+    with pytest.raises(ValueError, match="must call gather_files"):
+        lightcone.place_file_in_shell(0, PTYPE, ["ParticleIDs"])
+
+    lightcone.gather_files(PTYPE, (0.05, 0.15))
+    with pytest.raises(ValueError, match=f"files of {PTYPE}, not PartType0"):
+        lightcone.place_file_in_shell(0, "PartType0", ["ParticleIDs"])
+
+    for name in ("comm", "comm_rank", "comm_size", "redistribute", "particle_data", "snapshots_to_read"):
+        assert not hasattr(lightcone, name), name
+
 
 def test_no_haloes_without_snapshots_in_the_shell(fake_runs):
     """
@@ -487,19 +675,24 @@ def test_no_haloes_without_snapshots_in_the_shell(fake_runs):
     No snapshot in the shell, no catalogue is gathered and no halo placed, in serial and with MPI.
     """
     MPI = pytest.importorskip("mpi4py.MPI")
-    lightcone = new_lightcone(HALO_SIM, (0, 0, 1), None)
+    lightcone = new_lightcone(HALO_SIM, (0, 0, 1), None, ang_radius_deg=10.0)
     far_snapshot = SNAPSHOTS[0]  # the highest redshift, outside the shell
-    assert lightcone.gather_halo_catalogues(fake_runs, (0., 0.01), 10., use_snapshots=[far_snapshot]) == []
+    assert lightcone.gather_halo_catalogues(fake_runs, (0.0, 0.01), use_snapshots=[far_snapshot]) == []
+    assert lightcone.gather_halo_catalogues(fake_runs, (0.0, 0.01), use_snapshots=[far_snapshot]) == []
+
     for comm in (None, MPI.COMM_SELF):
-        halos = lightcone.place_halos_in_shell(fake_runs, (0., 0.01), 10., use_snapshots=[far_snapshot], comm=comm)
+        halos = lightcone.place_halos_in_shell(fake_runs, (0.0, 0.01), use_snapshots=[far_snapshot], comm=comm)
+
         assert all(len(values) == 0 for values in halos.values())
         assert halos["Lightcone/HaloCentre"].shape == (0, 3)
+
 
 # tests for when snapshots are missing
 class hidden:
     """
     Context manager hiding a file or directory of the fake simulations (renaming it), and restoring it on exit.
     """
+
     def __init__(self, path):
         self.path = Path(path)
         self.hidden_path = self.path.with_name("hidden_" + self.path.name)
@@ -521,15 +714,18 @@ def snapshot_dir(fake_run_dir, sim_name, snap_nr):
 
 def test_missing_snapshot_filled_with_a_warning(fake_run_dir, fake_runs):
     """
-    If the z = 0 snapshot is missing, test that the next snapshot (0.05 higher in redshift) fills the missing redshift range and gives with a warning. 
-    Additionally ensure that every point of the lattice in the shell is still placed exactly once.
+    If the z = 0 snapshot is missing, test that the next snapshot (0.05 higher in redshift) fills the missing redshift
+    range and gives with a warning. Additionally ensure that every point of the lattice in the shell is still placed
+    exactly once.
     """
-    redshift_range, beam_vector, ang_radius_deg = (0., 0.06), (0, 0, 1), 25.
+    redshift_range, beam_vector, ang_radius_deg = (0.0, 0.06), (0, 0, 1), 25.0
     with hidden(snapshot_dir(fake_run_dir, LATTICE_SIM, 77)):
-        lightcone = new_lightcone(LATTICE_SIM, beam_vector, None)
+        lightcone = new_lightcone(LATTICE_SIM, beam_vector, None, ang_radius_deg=ang_radius_deg)
+
         gap = "snapshots \\[77\\] are missing.*snapshot 77 by 76"
         with pytest.warns(snapshot_lightcone.SnapshotGapWarning, match=gap):
-            particles = place_particles(lightcone, redshift_range, ang_radius_deg)
+            particles = place_particles(lightcone, redshift_range)
+
     snap_nr, ids, coords = particle_rows(particles)
     assert set(snap_nr.tolist()) == {76}
     r_range = [Cosmology.COSMO.comoving_distance(z).to_value("Mpc") for z in redshift_range]
@@ -541,15 +737,19 @@ def test_missing_snapshot_filled_with_a_warning(fake_run_dir, fake_runs):
 
 def test_missing_snapshot_with_large_spacing_fails_early(fake_run_dir, fake_runs):
     """
-    Test that without snapshot 73, its neighbours are 0.1 apart in redshift: the shell is not filled and nothing is read.
+    Test that without snapshot 73, its neighbours are 0.1 apart in redshift: the shell is not filled
+    and nothing is read.
     """
     with hidden(snapshot_dir(fake_run_dir, LATTICE_SIM, 73)):
-        lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None)
+        lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None, ang_radius_deg=25.0)
+
         with pytest.raises(ValueError, match="redshift spacing between snapshots is too large.*\\[73\\] are missing"):
-            lightcone.gather_files(PTYPE, (0.05, 0.3), ang_radius_deg=25.)
-        assert lightcone.snap_file_offset_lengths is None
+            lightcone.gather_files(PTYPE, (0.05, 0.3))
+
+        assert lightcone.last_shell is None
+
         # a shell the missing snapshot does not fill is not affected
-        numb_files, _ = lightcone.gather_files(PTYPE, (0.0, 0.1), ang_radius_deg=25.)
+        numb_files, _ = lightcone.gather_files(PTYPE, (0.0, 0.1))
         assert numb_files > 0
 
 
@@ -559,50 +759,57 @@ def test_missing_snapshot_given_with_use_snapshots(fake_run_dir, fake_runs):
     warned about but not filled.
     """
     with hidden(snapshot_dir(fake_run_dir, LATTICE_SIM, 73)):
-        lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None)
+        lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None, ang_radius_deg=25.0)
+
         with pytest.raises(FileNotFoundError, match="snapshot files of snapshots \\[73\\] are missing"):
-            lightcone.gather_files(PTYPE, (0.05, 0.3), ang_radius_deg=25., use_snapshots=[72, 73, 74])
-    lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None)
+            lightcone.gather_files(PTYPE, (0.05, 0.3), use_snapshots=[72, 73, 74])
+
+    lightcone = new_lightcone(LATTICE_SIM, (0, 0, 1), None, ang_radius_deg=25.0)
+
     with pytest.warns(snapshot_lightcone.SnapshotGapWarning, match="0.175 < z < 0.225 \\(snapshot 73\\)"):
-        lightcone.gather_files(PTYPE, (0.05, 0.3), ang_radius_deg=25., use_snapshots=[71, 72, 74, 75, 76])
-    assert 73 not in {spec.snap_nr for spec in lightcone.snap_file_offset_lengths}
+        lightcone.gather_files(PTYPE, (0.05, 0.3), use_snapshots=[71, 72, 74, 75, 76])
+
+    assert 73 not in {spec.snap_nr for spec in lightcone.last_shell.files}
 
 
 def test_missing_soap_catalogue_filled_with_a_warning(fake_run_dir, fake_runs):
     """
-    Without the SOAP catalogue at z = 0, test that the next snapshots catalogue fills the missing redshifts, with a warning, and the
-    box and cells are read from the snapshot files, which are all there.
+    Without the SOAP catalogue at z = 0, test that the next snapshots catalogue fills the missing redshifts, with
+    a warning, and the box and cells are read from the snapshot files, which are all there.
     """
     with hidden(fake_runs.format(snap_nr=77)):
-        lightcone = new_lightcone(HALO_SIM, (0, 0, 1), None)
+        lightcone = new_lightcone(HALO_SIM, (0, 0, 1), None, ang_radius_deg=25.0)
+
         with pytest.warns(snapshot_lightcone.SnapshotGapWarning, match="SOAP catalogues of snapshots \\[77\\]"):
-            halos = lightcone.place_halos_in_shell(fake_runs, (0., 0.06), 25.)
+            halos = lightcone.place_halos_in_shell(fake_runs, (0.0, 0.06))
+
     assert len(halos["Lightcone/SnapshotNumber"]) > 0
     assert set(halos["Lightcone/SnapshotNumber"].value.astype(int).tolist()) == {76}
-    assert lightcone.halo_cell_snapshot == 76
+    assert lightcone.last_shell.cell_snapshot == 76
 
 
+@pytest.mark.parametrize("kind", ["particles", "haloes"])
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg", [
-    pytest.param(None, None, id="all_sky"),
-    pytest.param((0, 0, 1), 30., id="beam_z_axis"),
-    pytest.param((1, 2, 3), 30., id="beam_off_axis"),
-])
-def test_lattice_within_half_a_box_length(fake_runs, beam_vector, ang_radius_deg, orientation_lock):
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg",
+    [
+        pytest.param(None, None, id="all_sky"),
+        pytest.param((0, 0, 1), 30.0, id="beam_z_axis"),
+        pytest.param((1, 2, 3), 30.0, id="beam_off_axis"),
+    ],
+)
+def test_lattice_within_half_a_box_length(fake_run_dir, fake_runs, beam_vector, ang_radius_deg, orientation_lock, kind):
     """
-    Place particles from a uniform lattive across the whole snapshot box into a lightcone redshift shell with a radius 
-    approx L/2. Therefore only the observer's box tile, [-L/2, L/2) along each axis, is within this shell. 
+    Place particles from a uniform lattive across the whole snapshot box into a lightcone redshift shell with a radius
+    approx L/2. Therefore only the observer's box tile, [-L/2, L/2) along each axis, is within this shell.
 
-    Test that regardless of the orientation, the particles placed in the lightcone must be the
-    points of the lattice centred on the observer that lie in the shell (and the beam), each exactly once, taken
+    Test that regardless of the orientation, the particles placed in the lightcone must be
+    points of the lattice,  centred on the observer, are within the shell (and the beam), only placed once and taken
     from the snapshot whose redshift range holds their distance from the observer.
     """
-    lightcone = new_lightcone(LATTICE_SIM, beam_vector, orientation_lock)
+    lightcone = new_lightcone(LATTICE_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
     z_min, z_max = redshift_at_distance([R_MIN, R_MAX])
-    particles = lightcone.place_snapshot_particles_in_shell((z_min, z_max), property_names=["ParticleIDs", "Coordinates"],
-                                                            particle_types=PTYPE, **shell_args(lightcone, ang_radius_deg))[PTYPE]
-    coords = particles["Coordinates"].to_value("Mpc")
-    snap_nr = particles["SnapshotNumber"].value.astype(int)
+    snap_nr, ids, coords = place_lattice(lightcone, (z_min, z_max), kind, fake_run_dir)
 
     # the lattice centred on the observer, in the shell and the beam
     expected = lattice_positions() - 0.5 * BOXSIZE
@@ -627,13 +834,15 @@ def test_lattice_within_half_a_box_length(fake_runs, beam_vector, ang_radius_deg
 
     # each particle of a snapshot is placed at most once, as only one tile is used
     for snap in np.unique(snap_nr):
-        ids = particles["ParticleIDs"].value.astype(int)[snap_nr == snap]
-        assert len(np.unique(ids)) == len(ids)
+        snap_ids = ids[snap_nr == snap]
+        assert len(np.unique(snap_ids)) == len(snap_ids)
 
-    # each point comes from the snapshot whose redshift range holds its distance from the observer
+    # several snapshots fill the shell, and each point comes from the one whose redshift range holds its distance
+    # from the observer
+    assert len(np.unique(snap_nr)) > 1, f"the points come from {len(np.unique(snap_nr))} snapshot"
+
     z = redshift_at_distance(np.linalg.norm(coords, axis=1))
     for snap in np.unique(snap_nr):
-        #z_lo, z_hi = nz.snapshot_redshift_range(snap, BOX_RES)
         z_lo, z_hi = snapshot_redshifts.snapshot_redshift_range(OUTPUT_REDSHIFTS, snap)
         assert np.all((z[snap_nr == snap] >= z_lo - 1e-6) & (z[snap_nr == snap] <= z_hi + 1e-6))
 
@@ -641,8 +850,9 @@ def test_lattice_within_half_a_box_length(fake_runs, beam_vector, ang_radius_deg
 @pytest.mark.parametrize("use_numba", [True, False])
 def test_reorientation_of_points_on_cell_faces(use_numba, monkeypatch):
     """
-    Quarter turns, reflections and whole cell shifts map the points on the cell faces of a box onto cell faces again,
-    one to one, staying within [0, L] along each axis, with the numba and numpy versions giving the same result.
+    Test that quarter turns, reflections and whole cell shifts map the points on the cell faces of a box onto
+    cell faces again. Must be one to one, staying within [0, L] along each axis.
+    The numba and numpy versions giving the same result.
     """
     box_structure = snapshot_lightcone.box_structure
     if use_numba and not box_structure._HAVE_NUMBA:
@@ -650,8 +860,8 @@ def test_reorientation_of_points_on_cell_faces(use_numba, monkeypatch):
     monkeypatch.setattr(box_structure, "_HAVE_NUMBA", use_numba)
 
     # every corner of every cell, and points on the cell faces
-    corners = np.indices((NCELLS_AXIS,)*3).reshape(3, -1).T * CELL_SIZE
-    on_faces = corners + np.array([0., 0.5, 0.25]) * CELL_SIZE
+    corners = np.indices((NCELLS_AXIS,) * 3).reshape(3, -1).T * CELL_SIZE
+    on_faces = corners + np.array([0.0, 0.5, 0.25]) * CELL_SIZE
     points = np.concatenate([corners, on_faces])
 
     rng = np.random.default_rng(3)
@@ -659,28 +869,37 @@ def test_reorientation_of_points_on_cell_faces(use_numba, monkeypatch):
         angles = rng.integers(-2, 3, 3) * 90
         reflections = rng.choice([-1, 1], 3)
         shift = rng.integers(-NCELLS_AXIS, NCELLS_AXIS, 3) * CELL_SIZE
-        out = box_structure.rotate_coords_cartesian(points, angles, reflections=reflections, periodic_shift=shift,
-                                                    sidelengths=BOXSIZE, degrees=True)
+        out = box_structure.rotate_coords_cartesian(
+            points, angles, reflections=reflections, periodic_shift=shift, sidelengths=BOXSIZE, degrees=True
+        )
         assert np.all((out >= 0) & (out <= BOXSIZE))
         # still on the cell faces, exactly, and no two points mapped to the same place within the periodic box
         np.testing.assert_array_equal(out / CELL_SIZE * 4, np.round(out / CELL_SIZE * 4))
         assert len(np.unique(np.mod(out, BOXSIZE), axis=0)) == len(points)
         # the inverse recovers the original points
-        back = box_structure.rotate_coords_cartesian(out, angles, reflections=reflections, periodic_shift=shift,
-                                                     sidelengths=BOXSIZE, degrees=True, invert=True)
+        back = box_structure.rotate_coords_cartesian(
+            out, angles, reflections=reflections, periodic_shift=shift, sidelengths=BOXSIZE, degrees=True, invert=True
+        )
         np.testing.assert_allclose(np.mod(back, BOXSIZE), points, atol=1e-9)
 
 
 # functions to test the consistency of the particles placed over many box tiles, snapshots and shells
 
-def particle_rows(particles):
+
+def particle_rows(particles, velocities=False):
     """
-    Rows of (snapshot, particle ID, position [Mpc]) of placed particles, sorted so two sets can be compared.
+    Rows of (snapshot, particle ID, position [Mpc]) of placed particles,
+    sorted so two sets can be compared.
+
+    If velocities is True, include velocities [km/s] in the same order.
+
     """
     snap_nr = particles["SnapshotNumber"].value.astype(int)
     ids = particles["ParticleIDs"].value.astype(int)
     coords = particles["Coordinates"].to_value("Mpc")
     order = np.lexsort((coords[:, 2], coords[:, 1], coords[:, 0], ids, snap_nr))
+    if velocities:
+        return snap_nr[order], ids[order], coords[order], particles["Velocities"].to_value("km/s")[order]
     return snap_nr[order], ids[order], coords[order]
 
 
@@ -694,19 +913,45 @@ def assert_same_particles(rows, other_rows):
     np.testing.assert_allclose(rows[2], other_rows[2], atol=1e-6)
 
 
-def place_particles(lightcone, redshift_range, ang_radius_deg):
+def place_particles(lightcone, redshift_range):
     """
     Place the dark matter particles of a fake simulation in a shell of the lightcone.
     """
-    return lightcone.place_snapshot_particles_in_shell(redshift_range, property_names=["ParticleIDs", "Coordinates"],
-                                                       particle_types=PTYPE, **shell_args(lightcone, ang_radius_deg))[PTYPE]
+    return lightcone.place_snapshot_particles_in_shell(
+        redshift_range,
+        property_names=["ParticleIDs", "Coordinates"],
+        particle_types=PTYPE,
+    )[PTYPE]
+
+
+def place_lattice(lightcone, redshift_range, kind, run_dir):
+    """
+    Place the input lattice in a lightcone shell.
+    Use kind to select between reading particles from the fake snapshots or haloes from
+    the fake SOAP catalogue.
+
+    Returns rows of (snapshot number, ID, position [Mpc] relative to the observer)
+    """
+    if kind == "particles":
+        return particle_rows(place_particles(lightcone, redshift_range))
+
+    haloes = lightcone.place_halos_in_shell(soap_format(run_dir, LATTICE_SIM), redshift_range)
+
+    return particle_rows(
+        {
+            "SnapshotNumber": haloes["Lightcone/SnapshotNumber"],
+            "ParticleIDs": haloes["InputHalos/HaloCatalogueIndex"],
+            "Coordinates": haloes["Lightcone/HaloCentre"],
+        }
+    )
 
 
 def lattice_in_shell(r_min, r_max, beam_vector, ang_radius_deg):
     """
-    Points [Mpc] of the lattice filling all space that the snapshot lattice makes when its box is tiled around the observer,
-    (k + 1/2) * spacing - L/2 for every integer k along each axis, between r_min and r_max from the observer and in the beam.
-    Checks no point is within 1e-3 Mpc of the edges of the shell or the beam.
+    Points [Mpc] of the lattice filling all space that the snapshot lattice makes when its box is tiled around the
+    observer, (k + 1/2) * spacing - L/2 for every integer k along each axis, between r_min and r_max from the
+    observer and in the beam.
+    Finally, check no point are within 1e-3 Mpc of the edges of the shell or the beam.
     """
     k_max = int(np.ceil((r_max + 0.5 * BOXSIZE) / LATTICE_SPACING)) + 1
     axis = (np.arange(-k_max, k_max + 1) + 0.5) * LATTICE_SPACING - 0.5 * BOXSIZE
@@ -733,147 +978,34 @@ def lattice_index(coords):
     return k
 
 
-def plot_lattice_slice(filename, placed, expected, beam_vector, r_range, title):
-    """
-    Save a figure of the lattice layer with points closest to the observers. 
-    The first (left) panel shows the length of the beam where applicable. The second (right) panel 
-    zooms in on a corner where tiles meet.  
-
-    :param  filename:       path of the figure
-    :type   filename:       pathlib.Path
-    :param  placed:         positions [Mpc] of the particles placed
-    :type   placed:         np.ndarray
-    :param  expected:       positions [Mpc] of the lattice points expected in the shell
-    :type   expected:       np.ndarray
-    :param  beam_vector:    direction of the beam, None for all-sky
-    :type   beam_vector:    tuple
-    :param  r_range:        inner and outer comoving distance [Mpc] of the shell
-    :type   r_range:        tuple
-    :param  title:          title of the figure
-    :type   title:          str
-    """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D
-
-    # the layer of lattice points, and the two axes in its plane
-    normal = 2 if beam_vector is None else int(np.argmin(np.abs(beam_vector)))
-    u, v = [axis for axis in range(3) if axis != normal]
-    layer = 0.5 * LATTICE_SPACING
-    in_layer = lambda points: points[np.abs(points[:, normal] - layer) < 1e-3]
-    placed, expected = in_layer(placed), in_layer(expected)
-
-    # how many times each lattice point of the layer was placed
-    key = lambda points: [tuple(k) for k in lattice_index(points)]
-    counts = {}
-    for k in key(placed):
-        counts[k] = counts.get(k, 0) + 1
-    expected_keys = set(key(expected))
-    missing = np.array([p for p, k in zip(expected, key(expected)) if counts.get(k, 0) == 0]).reshape(-1, 3)
-    extra = {k: p for p, k in zip(placed, key(placed)) if counts[k] > 1 or k not in expected_keys}  # one per lattice point
-    extra = np.array(list(extra.values())).reshape(-1, 3)
-
-    # distances where one snapshot's redshift range ends and the next begins, inside the shell
-    #edges_z = sorted({z for snap_nr in SNAPSHOTS for z in nz.snapshot_redshift_range(snap_nr, BOX_RES)})
-    edges_z = sorted({z for snap_nr in SNAPSHOTS for z in snapshot_redshifts.snapshot_redshift_range(OUTPUT_REDSHIFTS, snap_nr)})
-    snapshot_edges = [r for r in Cosmology.COSMO.comoving_distance(edges_z).to_value("Mpc") if r_range[0] < r < r_range[1]]
-
-    ink, muted, grid = "#1f2328", "#9aa0a6", "#c8ccd0"
-    missing_colour, repeated_colour = "#c62828", "#b26a00"
-    fig, axes = plt.subplots(1, 2, figsize=(11, 5.6), gridspec_kw={"width_ratios": [1.35, 1]})
-    for ax, zoom in zip(axes, (False, True)):
-        if zoom:
-            # the tile corner nearest the first missing or repeated point if there is one, otherwise the middle of
-            # the placed points
-            problems = np.concatenate([missing, extra])
-            if len(problems):
-                centre = problems[0, [u, v]]
-            else:
-                centre = np.median(placed[:, [u, v]], axis=0) if len(placed) else np.zeros(2)
-            corner = (np.round(centre / BOXSIZE - 0.5) + 0.5) * BOXSIZE
-            half = 4.2 * LATTICE_SPACING
-            limits = [(corner[0] - half, corner[0] + half), (corner[1] - half, corner[1] + half)]
-        else:
-            r_plane = np.sqrt(max(r_range[1]**2 - layer**2, 0.))
-            points = expected[:, [u, v]] if len(expected) else np.array([[-r_plane, -r_plane], [r_plane, r_plane]])
-            pad = 2 * LATTICE_SPACING
-            limits = [(points[:, 0].min() - pad, points[:, 0].max() + pad), (points[:, 1].min() - pad, points[:, 1].max() + pad)]
-
-        # box tile edges at (n + 1/2) box lengths, and the shell and snapshot hand-overs in the plane of the layer
-        for axis_limits, draw in ((limits[0], ax.axvline), (limits[1], ax.axhline)):
-            for n in range(int(np.floor(axis_limits[0] / BOXSIZE - 0.5)), int(np.ceil(axis_limits[1] / BOXSIZE + 0.5)) + 1):
-                draw((n + 0.5) * BOXSIZE, color=muted, lw=1.2, zorder=1)
-        theta = np.linspace(0, 2 * np.pi, 721)
-        for r, style in [(r_range[0], "-"), (r_range[1], "-")] + [(r, "--") for r in snapshot_edges]:
-            if r > layer:
-                ax.plot(np.sqrt(r**2 - layer**2) * np.cos(theta), np.sqrt(r**2 - layer**2) * np.sin(theta),
-                        ls=style, color=muted if style == "-" else "#5f6368", lw=0.8 if style == "-" else 1.0,
-                        zorder=1 if style == "-" else 5)
-
-        size = 3 if not zoom else 28
-        ax.scatter(expected[:, u], expected[:, v], s=size * 2.2, facecolors="none", edgecolors=grid, linewidths=0.6, zorder=2)
-        ax.scatter(placed[:, u], placed[:, v], s=size, color=ink, linewidths=0, zorder=3)
-        if len(missing):
-            ax.scatter(missing[:, u], missing[:, v], s=size * 6, marker="x", color=missing_colour, linewidths=1.2, zorder=4)
-        if len(extra):
-            ax.scatter(extra[:, u], extra[:, v], s=size * 6, facecolors="none", edgecolors=repeated_colour, linewidths=1.2, zorder=4)
-        ax.set_xlim(*limits[0])
-        ax.set_ylim(*limits[1])
-        ax.set_aspect("equal")
-        ax.set_xlabel(f"{'xyz'[u]} [Mpc]")
-        ax.set_ylabel(f"{'xyz'[v]} [Mpc]")
-        ax.set_title(f"tile corner at ({corner[0]:.0f}, {corner[1]:.0f}) Mpc" if zoom else
-                     f"lattice layer {'xyz'[normal]} = {layer:.1f} Mpc", fontsize=10)
-
-    handles = [
-        Line2D([], [], ls="", marker="o", color=ink, markersize=4, label=f"placed ({len(placed)})"),
-        Line2D([], [], ls="", marker="o", markerfacecolor="none", markeredgecolor=grid, markersize=6,
-               label=f"expected lattice point ({len(expected)})"),
-        Line2D([], [], ls="", marker="x", color=missing_colour, markersize=7, label=f"missing ({len(missing)})"),
-        Line2D([], [], ls="", marker="o", markerfacecolor="none", markeredgecolor=repeated_colour, markersize=7,
-               label=f"repeated or off the lattice ({len(extra)})"),
-        Line2D([], [], color=muted, lw=1.2, label="box tile edge"),
-        Line2D([], [], color=muted, lw=0.8, label="shell edge"),
-        Line2D([], [], color="#5f6368", lw=1.0, ls="--", label="snapshot hand-over"),
-    ]
-    fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, fontsize=9)
-    fig.suptitle(title, fontsize=11)
-    fig.tight_layout(rect=(0, 0.1, 1, 1))
-    fig.savefig(filename, dpi=150)
-    plt.close(fig)
-
-
+@pytest.mark.parametrize("kind", ["particles", "haloes"])
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg, r_range", [
-    pytest.param(None, None, (440., 1110.), id="all_sky"),
-    pytest.param((0, 0, 1), 25., (110., 1610.), id="beam_z_axis"),
-    pytest.param((1, 2, 3), 25., (110., 1610.), id="beam_off_axis"),
-    pytest.param((1, 1, 1), 40., (110., 1610.), id="beam_diagonal_wide"),
-])
-def test_lattice_over_many_tiles(fake_runs, beam_vector, ang_radius_deg, r_range, orientation_lock, figures_dir, request):
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, r_range",
+    [
+        pytest.param(None, None, (440.0, 1110.0), id="all_sky"),
+        pytest.param((0, 0, 1), 25.0, (110.0, 1610.0), id="beam_z_axis"),
+        pytest.param((1, 2, 3), 25.0, (110.0, 1610.0), id="beam_off_axis"),
+        pytest.param((1, 1, 1), 40.0, (110.0, 1610.0), id="beam_diagonal_wide"),
+    ],
+)
+def test_lattice_over_many_tiles(
+    fake_run_dir, fake_runs, beam_vector, ang_radius_deg, r_range, orientation_lock, kind, figures_dir, request
+):
     """
-    Place particles from a uniform lattive across the whole snapshot box into a lightcone redshift shell with a radius 
-    larger than L/2. Therefore many tiles are needed within this shell. 
+    Place particles from a uniform lattive across the whole snapshot box into a lightcone redshift shell with a radius
+    larger than L/2. Therefore many tiles are needed within this shell.
 
     Test that the particles placed in the lightcone retain the same lattice structure:
         1) There are no gaps in the lattice
-        2) The spaces between particles has not decreased or increased.  
+        2) The spaces between particles has not decreased or increased.
 
     """
-    lightcone = new_lightcone(LATTICE_SIM, beam_vector, orientation_lock)
-    particles = place_particles(lightcone, redshift_at_distance(r_range), ang_radius_deg)
-    snap_nr, ids, coords = particle_rows(particles)
+    lightcone = new_lightcone(LATTICE_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+    snap_nr, ids, coords = place_lattice(lightcone, redshift_at_distance(r_range), kind, fake_run_dir)
 
     expected = lattice_in_shell(*r_range, beam_vector, ang_radius_deg)
-    if figures_dir is not None:
-        # before the checks, so a failing case still shows where it goes wrong
-        case = request.node.callspec.id
-        plot_lattice_slice(
-            figures_dir / f"lattice_over_many_tiles[{case}].png", 
-            coords, expected, beam_vector, r_range, 
-            f"Lattice placed in the lightcone: {case} ({r_range[0]:.0f} to {r_range[1]:.0f} Mpc, orientation_lock={orientation_lock})"
-            )
+
     placed_idx = lattice_index(coords)
     expected_idx = lattice_index(expected)
     unique_idx, counts = np.unique(placed_idx, axis=0, return_counts=True)
@@ -882,32 +1014,43 @@ def test_lattice_over_many_tiles(fake_runs, beam_vector, ang_radius_deg, r_range
     assert missing == 0, f"{missing} lattice points not placed"
     np.testing.assert_array_equal(unique_idx, np.unique(expected_idx, axis=0))
 
-    # more than one snapshot fills the shell, and each point comes from the one holding its distance
-    assert len(np.unique(snap_nr)) > 1
+    # the shell needs many box tiles and several snapshots: the points come from more than one tile (tile n spans
+    # [n L - L/2, n L + L/2) along each axis), and more than one snapshot fills the shell
+    tiles = np.unique(np.floor(coords / BOXSIZE + 0.5).astype(int), axis=0)
+
+    assert len(tiles) > 1, f"the points come from {len(tiles)} tile"
+    assert len(np.unique(snap_nr)) > 1, f"the points come from {len(np.unique(snap_nr))} snapshot"
+
     z = redshift_at_distance(np.linalg.norm(coords, axis=1))
     for snap in np.unique(snap_nr):
-        #z_lo, z_hi = nz.snapshot_redshift_range(snap, BOX_RES)
         z_lo, z_hi = snapshot_redshifts.snapshot_redshift_range(OUTPUT_REDSHIFTS, snap)
         assert np.all((z[snap_nr == snap] >= z_lo - 1e-6) & (z[snap_nr == snap] <= z_hi + 1e-6))
 
 
 @pytest.mark.parametrize("orientation_lock", [None, "sphere"])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_ranges", [
-    pytest.param(None, None, (0.1, 0.163, 0.2), id="all_sky"),
-    pytest.param((1, 2, 3), 20., (0.05, 0.137, 0.3), id="beam_off_axis"),
-])
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, redshift_ranges",
+    [
+        pytest.param(None, None, (0.1, 0.163, 0.2), id="all_sky"),
+        pytest.param((1, 2, 3), 20.0, (0.05, 0.137, 0.3), id="beam_off_axis"),
+    ],
+)
 def test_consecutive_shells(fake_runs, beam_vector, ang_radius_deg, redshift_ranges, orientation_lock):
     """
-    Test that placing two consecutive shells ([z0, z1] and [z1, z2]), gives exactly the particles of expected from a larger shell [z0, z2]. 
+    Test that placing two consecutive shells ([z0, z1] and [z1, z2]), gives exactly the particles of expected from a
+    larger shell [z0, z2].
+
     At the shared boundary check for:
-        1) missing particles 
-        2) duplicated particles
+
+    1. missing particles
+    2. duplicated particles
+
     """
     z0, z1, z2 = redshift_ranges
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock)
-    inner = particle_rows(place_particles(lightcone, (z0, z1), ang_radius_deg))
-    outer = particle_rows(place_particles(lightcone, (z1, z2), ang_radius_deg))
-    whole = particle_rows(place_particles(lightcone, (z0, z2), ang_radius_deg))
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+    inner = particle_rows(place_particles(lightcone, (z0, z1)))
+    outer = particle_rows(place_particles(lightcone, (z1, z2)))
+    whole = particle_rows(place_particles(lightcone, (z0, z2)))
 
     assert len(inner[0]) > 0 and len(outer[0]) > 0
     combined = tuple(np.concatenate([a, b]) for a, b in zip(inner, outer))
@@ -915,17 +1058,22 @@ def test_consecutive_shells(fake_runs, beam_vector, ang_radius_deg, redshift_ran
     assert_same_particles(tuple(a[order] for a in combined), whole)
 
 
-@pytest.mark.parametrize("orientation_lock", ["cube", "sphere"])
-@pytest.mark.parametrize("beam_vector", [(0, 0, 1), (1, 2, 3), (-1, 0.5, 0.2)])
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+@pytest.mark.parametrize("beam_vector", [(0, 0, 1), (1, 2, 3), (-1, 0.5, 0.2), (0.1, 0.5, -0.9)])
 def test_beam_is_part_of_all_sky(fake_runs, beam_vector, orientation_lock):
     """
-    Test that for a given orientation lock (i.e. every tile's orientation is set by its layer) a beam is exactly the part of the
-    all-sky lightcone inside its cone. 
-    The overlapping footprints of the BEAM and ALLSKY methods should return the same particles from the same snapshots at the same positions.
+    Test that for all orientation locks a beam is exactly the part of the all-sky lightcone inside its cone.
+
+    The overlapping footprints of the BEAM and ALLSKY methods should return the same particles from the same snapshots
+    at the same positions.
     """
-    redshift_range, ang_radius_deg = (0.1, 0.2), 20.
-    all_sky = particle_rows(place_particles(new_lightcone(HALO_SIM, None, orientation_lock), redshift_range, None))
-    beam = particle_rows(place_particles(new_lightcone(HALO_SIM, beam_vector, orientation_lock), redshift_range, ang_radius_deg))
+    redshift_range, ang_radius_deg = (0.1, 0.2), 20.0
+    all_sky = particle_rows(place_particles(new_lightcone(HALO_SIM, None, orientation_lock), redshift_range))
+    beam = particle_rows(
+        place_particles(
+            new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg), redshift_range
+        )
+    )
 
     beam_vec = np.asarray(beam_vector, dtype=float) / np.linalg.norm(beam_vector)
     cos_angle = all_sky[2] @ beam_vec / np.linalg.norm(all_sky[2], axis=1)
@@ -934,27 +1082,176 @@ def test_beam_is_part_of_all_sky(fake_runs, beam_vector, orientation_lock):
     assert_same_particles(tuple(a[in_cone] for a in all_sky), beam)
 
 
+# test velocities are correctly updated.
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg", [(None, None), ((1, 2, 3), 20.0)], ids=["all_sky", "beam_off_axis"]
+)
+def test_velocities_reoriented_with_the_coordinates(fake_runs, beam_vector, ang_radius_deg, orientation_lock):
+    """
+    Test that velocities are turned and reflected the same as the coordinates, but without the shift or the tile's
+    offset. In the lattice each particle's velocity [km/s] is the vector [Mpc] from its cell's centre to it, and cells
+    move whole, so after placement it must still be the vector from the centre of the particle's cell in the lightcone
+    to the particle, in every tile of a shell crossing many tiles.
+    Check the velocities change but nothing else, and without them none are returned.
+    """
+    redshift_range = (0.05, 0.3)
+    lightcone = new_lightcone(
+        LATTICE_SIM, beam_vector, orientation_lock, orientation_seed=3, ang_radius_deg=ang_radius_deg
+    )
+
+    particles = lightcone.place_snapshot_particles_in_shell(
+        redshift_range,
+        property_names=["ParticleIDs", "Coordinates", "Velocities"],
+        particle_types=PTYPE,
+    )[PTYPE]
+
+    coords = particles["Coordinates"].to_value("Mpc")
+    velocities = particles["Velocities"].to_value("km/s")
+    assert len(coords) > 10000
+
+    tiles = np.floor(coords / BOXSIZE + 0.5).astype(int)
+    assert len(np.unique(tiles, axis=0)) > 5
+
+    # the cells of the lightcone: tile (0, 0, 0) is the box centred on the observer
+    cell_centres = (np.floor((coords + 0.5 * BOXSIZE) / CELL_SIZE) + 0.5) * CELL_SIZE - 0.5 * BOXSIZE
+    np.testing.assert_allclose(velocities, coords - cell_centres, atol=1e-6)
+
+    # the particles are re-oriented, not just carried through: some velocities differ from the snapshot's
+    lattice = lattice_positions()
+    ids = particles["ParticleIDs"].value.astype(int)
+    snapshot_velocities = lattice[ids] - (np.floor(lattice[ids] / CELL_SIZE) + 0.5) * CELL_SIZE
+    assert not np.allclose(velocities, snapshot_velocities, atol=1e-6)
+
+    np.testing.assert_allclose(
+        np.linalg.norm(velocities, axis=1), np.linalg.norm(snapshot_velocities, axis=1), atol=1e-6
+    )
+
+    # the same particles without the velocities, and none returned
+    without = new_lightcone(
+        LATTICE_SIM, beam_vector, orientation_lock, orientation_seed=3, ang_radius_deg=ang_radius_deg
+    )
+
+    placed = place_particles(without, redshift_range)
+
+    assert "Velocities" not in placed or placed["Velocities"] is None
+
+    assert_same_particles(particle_rows(placed), particle_rows(particles))
+
+
+# the lattice without re-orientation, check that every tile is the same as the snapshot box
+
+
+def unchanged_orientation_table(directory):
+    """
+    Write an orientation table of one row that leaves every box tile unchanged: no rotation, reflection or cell shift.
+
+    Returns the path of the table file.
+    """
+    orientation = pytest.importorskip(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
+    filename = Path(directory) / "unchanged_orientation_table.yaml"
+    orientation.write_orientation_tables(
+        filename, tables={"QuarterTurns": [[0, 0, 0]], "Reflections": [[1, 1, 1]], "CellShifts": [[0, 0, 0]]}
+    )
+    return filename
+
+
+def not_reoriented_wrong_ids(ids, coords):
+    """
+    For a lightcone that is not re-oriented, the number of points whose ID is not the same as lattice point of
+    the initial snapshot box they were copied from: the point wrapped back into the box, (position + L/2) modulo L.
+    The observer is always at the centre of the box.
+
+    Return wrapped ids
+    """
+
+    wrapped = np.mod(coords + 0.5 * BOXSIZE, BOXSIZE)  # wrap coords
+
+    return int(np.sum(np.any(np.abs(wrapped - lattice_positions()[ids]) > 1e-6, axis=1)))
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, r_range",
+    [
+        pytest.param(None, None, (440.0, 1110.0), id="all_sky"),
+        pytest.param((0, 0, 1), 25.0, (110.0, 1610.0), id="beam_z_axis"),
+        pytest.param((1, 2, 3), 25.0, (110.0, 1610.0), id="beam_off_axis"),
+    ],
+)
+def test_not_reoriented_lattice_carries_the_ids_of_the_box(
+    fake_run_dir, fake_runs, tmp_path, beam_vector, ang_radius_deg, r_range, orientation_lock
+):
+    """
+    With an orientation table of one unchanged row, the lightcone is made of only exact periodic replicas of the
+    snapshot box.
+
+    Test that every point in the lattice is placed into the lightcone exactly once, and carries the ID of its periodic
+    copy of the snapshot box, so each is repeated exactly as often as its periodic copies fall in the shell.
+
+    Iterate thought locks to test that they do not change the resulting non-rotation lattice but that different locks
+    still change how the tiles are found and split (a "sphere" tile is used once for each layer it crosses).
+    In this test haloes are placed exactly where the particles are.
+    """
+
+    table = unchanged_orientation_table(tmp_path)
+    expected_idx = np.unique(lattice_index(lattice_in_shell(*r_range, beam_vector, ang_radius_deg)), axis=0)
+    placed = {}
+    for kind in ("particles", "haloes"):
+        lightcone = new_lightcone(
+            LATTICE_SIM, beam_vector, orientation_lock, orientation_table=table, ang_radius_deg=ang_radius_deg
+        )
+        snap_nr, ids, coords = place_lattice(lightcone, redshift_at_distance(r_range), kind, fake_run_dir)
+        unique_idx, counts = np.unique(lattice_index(coords), axis=0, return_counts=True)
+        assert np.all(counts == 1), f"{kind}: {np.sum(counts > 1)} lattice points placed more than once"
+        np.testing.assert_array_equal(unique_idx, expected_idx)
+        assert not_reoriented_wrong_ids(ids, coords) == 0, f"{kind}: points with the ID of another point of the box"
+        assert len(np.unique(np.floor(coords / BOXSIZE + 0.5).astype(int), axis=0)) > 1
+        placed[kind] = (snap_nr, ids, coords)
+    # the same points as particles and as haloes, compared in the same order
+    particles, haloes = placed["particles"], placed["haloes"]
+    order_p = np.lexsort((particles[1], particles[0]))
+    order_h = np.lexsort((haloes[1], haloes[0]))
+    np.testing.assert_array_equal(particles[0][order_p], haloes[0][order_h])
+    np.testing.assert_array_equal(particles[1][order_p], haloes[1][order_h])
+    np.testing.assert_allclose(particles[2][order_p], haloes[2][order_h], atol=1e-6)
+
+
+def test_not_reoriented_check_finds_wrong_ids():
+    """
+    Test that not_reoriented_wrong_ids passes correct placements of points in a lattice, in any tile, and finds
+    swapped IDs.
+    """
+    ids = np.arange(len(lattice_positions()))
+    coords = lattice_positions() - 0.5 * BOXSIZE
+    assert not_reoriented_wrong_ids(ids, coords) == 0
+    assert not_reoriented_wrong_ids(ids, coords + [BOXSIZE, 0.0, -2 * BOXSIZE]) == 0
+    swapped = ids.copy()
+    swapped[[3, 40]] = swapped[[40, 3]]
+    assert not_reoriented_wrong_ids(swapped, coords) == 2
+
+
 @pytest.mark.parametrize("orientation_lock", [None, "sphere"])
 @pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range", LIGHTCONES)
 def test_file_by_file_placement(fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock):
     """
-    Test that placing the particles one file at a time gives exactly the particles of reading and 
+    Test that placing the particles one file at a time gives exactly the particles of reading and
     placing all files are once.
     """
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock)
-    args = shell_args(lightcone, ang_radius_deg)
-    whole = particle_rows(place_particles(lightcone, redshift_range, ang_radius_deg))
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+    whole = particle_rows(place_particles(lightcone, redshift_range))
 
-    numb_files, files = lightcone.gather_files(PTYPE, redshift_range, **args)
+    numb_files, files = lightcone.gather_files(PTYPE, redshift_range)
     assert numb_files > 0
     per_file = []
     for file_number in range(numb_files):
-        particles = lightcone.place_file_in_shell(file_number, PTYPE, ["ParticleIDs", "Coordinates"], **args)
+        particles = lightcone.place_file_in_shell(file_number, PTYPE, ["ParticleIDs", "Coordinates"])
         if particles:
-            particles["SnapshotNumber"] = unyt.unyt_array(np.full(len(particles["ParticleIDs"]), files[file_number].snap_nr),
-                                                          "dimensionless")
+            particles["SnapshotNumber"] = unyt.unyt_array(
+                np.full(len(particles["ParticleIDs"]), files[file_number].snap_nr), "dimensionless"
+            )
             per_file.append({name: particles[name].copy() for name in ("SnapshotNumber", "ParticleIDs", "Coordinates")})
-    combined = {name: unyt.uconcatenate([d[name] for d in per_file]) for name in per_file[0]}
+    combined = {name: np.concatenate([d[name] for d in per_file]) for name in per_file[0]}
     assert_same_particles(particle_rows(combined), whole)
 
 
@@ -968,59 +1265,120 @@ def mpiexec_command():
 
 
 @pytest.mark.parametrize("nr_ranks", [2, 3])
-@pytest.mark.parametrize("sim_name, beam_vector, ang_radius_deg, redshift_range, orientation_lock, redistribute", [
-    pytest.param(HALO_SIM, None, None, (0.1, 0.2), None, False, id="all_sky"),
-    pytest.param(HALO_SIM, None, None, (0.1, 0.2), "sphere", False, id="all_sky_sphere"),
-    pytest.param(HALO_SIM, (1, 2, 3), 20., (0.05, 0.3), "cube", False, id="beam"),
-    pytest.param(HALO_SIM, (1, 2, 3), 20., (0.05, 0.3), None, True, id="beam_redistributed"),
-    pytest.param(LATTICE_SIM, (0, 0, 1), 25., (0.05, 0.3), None, False, id="lattice_beam"),
-    # one snapshot and at most two files, so some ranks are given no files to read
-    pytest.param(HALO_SIM, (0, 0, 1), 20., (0.06, 0.07), None, True, id="beam_redistributed_ranks_without_files"),
-])
-def test_mpi_matches_serial(fake_run_dir, tmp_path, nr_ranks, sim_name, beam_vector, ang_radius_deg, redshift_range,
-                            orientation_lock, redistribute):
+@pytest.mark.parametrize(
+    "sim_name, beam_vector, ang_radius_deg, redshift_range, orientation_lock, redistribute",
+    [
+        pytest.param(HALO_SIM, None, None, (0.1, 0.2), None, False, id="all_sky"),
+        pytest.param(HALO_SIM, None, None, (0.1, 0.2), "sphere", False, id="all_sky_sphere"),
+        pytest.param(HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), "cube", False, id="beam"),
+        pytest.param(HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), None, True, id="beam_redistributed"),
+        pytest.param(LATTICE_SIM, (0, 0, 1), 25.0, (0.05, 0.3), None, False, id="lattice_beam"),
+        # one snapshot and at most two files, so some ranks are given no files to read
+        pytest.param(HALO_SIM, (0, 0, 1), 20.0, (0.06, 0.07), None, True, id="beam_redistributed_ranks_without_files"),
+    ],
+)
+def test_mpi_matches_serial(
+    fake_run_dir,
+    tmp_path,
+    nr_ranks,
+    sim_name,
+    beam_vector,
+    ang_radius_deg,
+    redshift_range,
+    orientation_lock,
+    redistribute,
+):
     """
-    Test that the mpi and serial methods achieve the same results. 
+    Test that the mpi and serial methods achieve the same results.
     """
     pytest.importorskip("mpi4py")
     mpiexec = mpiexec_command()
     if mpiexec is None:
         pytest.skip("mpiexec is not available")
 
-    args = dict(run_dir=str(fake_run_dir), sim_name=sim_name, beam_vector=beam_vector, ang_radius_deg=ang_radius_deg,
-                redshift_range=redshift_range, orientation_lock=orientation_lock, redistribute=redistribute,
-                output=str(tmp_path / "placed"))
+    args = dict(
+        run_dir=str(fake_run_dir),
+        sim_name=sim_name,
+        beam_vector=beam_vector,
+        ang_radius_deg=ang_radius_deg,
+        redshift_range=redshift_range,
+        orientation_lock=orientation_lock,
+        redistribute=redistribute,
+        output=str(tmp_path / "placed"),
+    )
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join([str(Path(__file__).resolve().parents[1]), env.get("PYTHONPATH", "")])
-    run = subprocess.run([mpiexec, "-n", str(nr_ranks), sys.executable, str(Path(__file__).parent / "mpi_place_particles.py"),
-                          json.dumps(args)], env=env, capture_output=True, text=True, timeout=600)
+    run = subprocess.run(
+        [
+            mpiexec,
+            "-n",
+            str(nr_ranks),
+            sys.executable,
+            str(Path(__file__).parent / "mpi_place_particles.py"),
+            json.dumps(args),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
     assert run.returncode == 0, run.stdout[-3000:] + run.stderr[-3000:]
 
     ranks = [np.load(tmp_path / f"placed.{rank}.npz") for rank in range(nr_ranks)]
+
     for rank in ranks:
         assert len(rank["snap_nr"]) == len(rank["ids"]) == len(rank["coords"])
+
     assert sum(len(rank["ids"]) > 0 for rank in ranks) > 1, "the particles were not split between the ranks"
-    snap_nr, ids, coords = (np.concatenate([rank[name] for rank in ranks]) for name in ("snap_nr", "ids", "coords"))
+
+    snap_nr, ids, coords, velocities = (
+        np.concatenate([rank[name] for rank in ranks]) for name in ("snap_nr", "ids", "coords", "velocities")
+    )
     order = np.lexsort((coords[:, 2], coords[:, 1], coords[:, 0], ids, snap_nr))
     parallel = snap_nr[order], ids[order], coords[order]
 
-    lightcone = new_lightcone(sim_name, beam_vector, orientation_lock)
-    serial = particle_rows(place_particles(lightcone, redshift_range, ang_radius_deg))
-    assert_same_particles(parallel, serial)
+    lightcone = new_lightcone(sim_name, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+
+    serial = particle_rows(
+        lightcone.place_snapshot_particles_in_shell(
+            redshift_range,
+            property_names=["ParticleIDs", "Coordinates", "Velocities"],
+            particle_types=PTYPE,
+        )[PTYPE],
+        velocities=True,
+    )
+    assert_same_particles(parallel, serial[:3])
+
+    np.testing.assert_allclose(velocities[order], serial[3], atol=1e-6)
+
 
 @pytest.mark.parametrize("nr_ranks", [2, 3])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range, orientation_lock, soap_chunk_size, redistribute", [
-    pytest.param(None, None, (0.1, 0.2), None, None, False, id="all_sky"),
-    pytest.param(None, None, (0.1, 0.2), "sphere", 700, False, id="all_sky_sphere_chunks"),
-    pytest.param((1, 2, 3), 20., (0.05, 0.3), "cube", None, False, id="beam"),
-    pytest.param((1, 2, 3), 20., (0.05, 0.3), None, 1000, True, id="beam_chunks_redistributed"),
-    # one snapshot in one piece, so some ranks are given nothing to read
-    pytest.param((0, 0, 1), 20., (0.06, 0.07), None, 10 * NHALOS, True, id="beam_redistributed_ranks_without_pieces"),
-])
-def test_mpi_haloes_match_serial(fake_run_dir, tmp_path, nr_ranks, beam_vector, ang_radius_deg, redshift_range,
-                                 orientation_lock, soap_chunk_size, redistribute):
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, redshift_range, orientation_lock, soap_chunk_size, redistribute",
+    [
+        pytest.param(None, None, (0.1, 0.2), None, None, False, id="all_sky"),
+        pytest.param(None, None, (0.1, 0.2), "sphere", 700, False, id="all_sky_sphere_chunks"),
+        pytest.param((1, 2, 3), 20.0, (0.05, 0.3), "cube", None, False, id="beam"),
+        pytest.param((1, 2, 3), 20.0, (0.05, 0.3), None, 1000, True, id="beam_chunks_redistributed"),
+        # one snapshot in one piece, so some ranks are given nothing to read
+        pytest.param(
+            (0, 0, 1), 20.0, (0.06, 0.07), None, 10 * NHALOS, True, id="beam_redistributed_ranks_without_pieces"
+        ),
+    ],
+)
+def test_mpi_haloes_match_serial(
+    fake_run_dir,
+    tmp_path,
+    nr_ranks,
+    beam_vector,
+    ang_radius_deg,
+    redshift_range,
+    orientation_lock,
+    soap_chunk_size,
+    redistribute,
+):
     """
-    Same as above, but for haloes. 
+    Same as above, but for haloes.
     Haloes placed with the SOAP catalogues shared between MPI ranks are the haloes placed in serial.
     """
     pytest.importorskip("mpi4py")
@@ -1028,37 +1386,66 @@ def test_mpi_haloes_match_serial(fake_run_dir, tmp_path, nr_ranks, beam_vector, 
     if mpiexec is None:
         pytest.skip("mpiexec is not available")
 
-    args = dict(run_dir=str(fake_run_dir), beam_vector=beam_vector, ang_radius_deg=ang_radius_deg,
-                redshift_range=redshift_range, orientation_lock=orientation_lock, soap_chunk_size=soap_chunk_size,
-                redistribute=redistribute, output=str(tmp_path / "placed"))
+    args = dict(
+        run_dir=str(fake_run_dir),
+        beam_vector=beam_vector,
+        ang_radius_deg=ang_radius_deg,
+        redshift_range=redshift_range,
+        orientation_lock=orientation_lock,
+        soap_chunk_size=soap_chunk_size,
+        redistribute=redistribute,
+        output=str(tmp_path / "placed"),
+    )
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join([str(Path(__file__).resolve().parents[1]), env.get("PYTHONPATH", "")])
-    run = subprocess.run([mpiexec, "-n", str(nr_ranks), sys.executable, str(Path(__file__).parent / "mpi_place_haloes.py"),
-                          json.dumps(args)], env=env, capture_output=True, text=True, timeout=600)
+    run = subprocess.run(
+        [
+            mpiexec,
+            "-n",
+            str(nr_ranks),
+            sys.executable,
+            str(Path(__file__).parent / "mpi_place_haloes.py"),
+            json.dumps(args),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
     assert run.returncode == 0, run.stdout[-3000:] + run.stderr[-3000:]
 
     names = ("snap_nr", "index", "soap_index", "centre", "a")
     ranks = [np.load(tmp_path / f"placed.{rank}.npz") for rank in range(nr_ranks)]
     expect_split = redistribute or soap_chunk_size != 10 * NHALOS
+
     if expect_split:
         assert sum(len(rank["index"]) > 0 for rank in ranks) > 1, "the haloes were not split between the ranks"
+
     if redistribute:
         counts = [len(rank["index"]) for rank in ranks]
         assert max(counts) - min(counts) <= 1
+
     parallel = {name: np.concatenate([rank[name] for rank in ranks]) for name in names}
 
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock)
-    halos = lightcone.place_halos_in_shell(soap_format(fake_run_dir), redshift_range, **shell_args(lightcone, ang_radius_deg))
-    serial = {"snap_nr": halos["Lightcone/SnapshotNumber"].value.astype(int),
-              "index": halos["InputHalos/HaloCatalogueIndex"].value.astype(int),
-              "soap_index": halos["InputHalos/SOAPIndex"].value.astype(int),
-              "centre": halos["Lightcone/HaloCentre"].to_value("Mpc"),
-              "a": halos["Lightcone/ExpansionFactor"].value}
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+    halos = lightcone.place_halos_in_shell(soap_format(fake_run_dir), redshift_range)
+
+    serial = {
+        "snap_nr": halos["Lightcone/SnapshotNumber"].value.astype(int),
+        "index": halos["InputHalos/HaloCatalogueIndex"].value.astype(int),
+        "soap_index": halos["InputHalos/SOAPIndex"].value.astype(int),
+        "centre": halos["Lightcone/HaloCentre"].to_value("Mpc"),
+        "a": halos["Lightcone/ExpansionFactor"].value,
+    }
+
     assert len(serial["index"]) > 0
 
     def in_order(rows):
-        order = np.lexsort((rows["centre"][:, 2], rows["centre"][:, 1], rows["centre"][:, 0], rows["index"], rows["snap_nr"]))
+        order = np.lexsort(
+            (rows["centre"][:, 2], rows["centre"][:, 1], rows["centre"][:, 0], rows["index"], rows["snap_nr"])
+        )
         return {name: values[order] for name, values in rows.items()}
+
     parallel, serial = in_order(parallel), in_order(serial)
     for name in names:
         np.testing.assert_array_equal(parallel[name], serial[name], err_msg=name)
@@ -1068,22 +1455,24 @@ def test_mpi_haloes_match_serial(fake_run_dir, tmp_path, nr_ranks, beam_vector, 
 @pytest.mark.parametrize("sim_name", [HALO_SIM, LATTICE_SIM])
 def test_all_sky_within_half_a_box_length_is_the_snapshot(fake_runs, sim_name, orientation_lock):
     """
-    Test that for when the tile is not rotated, reflected or has a periodic shift the particles are in the 
-    same position about the observer as in the snapshot. 
+    Test that for when the tile is not rotated, reflected or has a periodic shift the particles are in the
+    same position about the observer as in the snapshot.
 
-    An all-sky lightcone with radius L/2 is filled only by tile, (0, 0, 0). 
-    With orientation_seed=0 that tile is not rotated, reflected or shifted (with or without a lock), so every
-    particle of the snapshots within half a box length of the centre of the box is placed exactly once, at its box
-    position less half a box length, from the snapshot whose redshift range holds its distance from the observer.
+    An all-sky lightcone with radius L/2 is filled only by tile, (0, 0, 0).
+    The tile is not rotated, reflected or shifted (with or without a lock), so every snapshot particle
+    within half a box length of the centre is placed exactly once, at its snapshot position less half a box length,
+    from the snapshot whose redshift range holds its distance from the observer.
     """
     lightcone = new_lightcone(sim_name, None, orientation_lock)
-    observer_tile = (0, 0, 0, 0) if orientation_lock == "sphere" else (0, 0, 0)  # "sphere" labels tiles with their layer
+    observer_tile = (
+        (0, 0, 0, 0) if orientation_lock == "sphere" else (0, 0, 0)
+    )  # "sphere" labels tiles with their layer
     rot_angles, reflections, shift = lightcone._snapshot_reorientation(observer_tile)
     assert np.all(rot_angles == 0) and np.all(reflections == 1) and np.all(shift == 0)
 
     r_max = 0.5 * BOXSIZE
-    redshift_range = (0., float(redshift_at_distance(r_max)))
-    placed = particle_rows(place_particles(lightcone, redshift_range, None))
+    redshift_range = (0.0, float(redshift_at_distance(r_max)))
+    placed = particle_rows(place_particles(lightcone, redshift_range))
 
     # every particle of each snapshot, at its box position less half a box length, in the part of the shell
     # the snapshot fills
@@ -1091,77 +1480,87 @@ def test_all_sky_within_half_a_box_length_is_the_snapshot(fake_runs, sim_name, o
     expected = [], [], []
     near_boundary = 0
     for snap_nr in SNAPSHOTS:
-        #z_lo, z_hi = nz.snapshot_redshift_range(snap_nr, BOX_RES)
         z_lo, z_hi = snapshot_redshifts.snapshot_redshift_range(OUTPUT_REDSHIFTS, snap_nr)
-        r_lo, r_hi = Cosmology.COSMO.comoving_distance([max(z_lo, 0.), min(z_hi, redshift_range[1])]).to_value("Mpc")
+        r_lo, r_hi = Cosmology.COSMO.comoving_distance([max(z_lo, 0.0), min(z_hi, redshift_range[1])]).to_value("Mpc")
         if z_lo >= redshift_range[1]:
             continue
         if sim_name == HALO_SIM:
-            #ids, pos = np.arange(NHALOS) + snap_nr * 10**6, halo_positions(np.random.default_rng(snap_nr))
-            ids, pos = np.arange(NHALOS), halo_positions(np.random.default_rng(snap_nr)) # updated to match new halo ids without offset. 
+            # updated to match new halo ids without offset.
+            ids, pos = (
+                np.arange(NHALOS),
+                halo_positions(np.random.default_rng(snap_nr)),
+            )
         else:
             pos = lattice_positions()
             ids = np.arange(len(pos))
-        
+
         # in Mpc, converted from the snapshot length unit as the placed coordinates are
         lightcone_pos = (pos - 0.5 * BOXSIZE) * snap_length_in_mpc
         r = np.linalg.norm(lightcone_pos, axis=1)
-        
-        # leave out the particles within 1e-6 Mpc of the edges of the shell or a snapshot's range, which may go either way
+
+        # leave out the particles within 1e-6 Mpc of the edges of the shell or a snapshot's range
         edge = (np.abs(r - r_lo) < 1e-6) | (np.abs(r - r_hi) < 1e-6)
         near_boundary += np.count_nonzero(edge & (r >= r_lo - 1e-6) & (r <= r_hi + 1e-6))
         keep = (r >= r_lo) & (r <= r_hi) & ~edge
         expected[0].append(np.full(np.count_nonzero(keep), snap_nr))
         expected[1].append(ids[keep])
         expected[2].append(lightcone_pos[keep])
-    
+
     expected = tuple(np.concatenate(a) for a in expected)
     order = np.lexsort((expected[2][:, 2], expected[2][:, 1], expected[2][:, 0], expected[1], expected[0]))
     expected = tuple(a[order] for a in expected)
 
     # leave out the same particles from those placed
     r_placed = np.linalg.norm(placed[2], axis=1)
-    #snapshot_edges = Cosmology.COSMO.comoving_distance([z for snap_nr in SNAPSHOTS for z in nz.snapshot_redshift_range(snap_nr, BOX_RES)] + [redshift_range[1]]).to_value("Mpc")
-    snapshot_edges = Cosmology.COSMO.comoving_distance([z for snap_nr in SNAPSHOTS for z in snapshot_redshifts.snapshot_redshift_range(OUTPUT_REDSHIFTS, snap_nr)] + [redshift_range[1]]).to_value("Mpc")
+    snapshot_edges = Cosmology.COSMO.comoving_distance(
+        [z for snap_nr in SNAPSHOTS for z in snapshot_redshifts.snapshot_redshift_range(OUTPUT_REDSHIFTS, snap_nr)]
+        + [redshift_range[1]]
+    ).to_value("Mpc")
     on_edge = np.any(np.abs(r_placed[:, None] - snapshot_edges[None, :]) < 1e-6, axis=1)
     placed = tuple(a[~on_edge] for a in placed)
-    
+
     assert near_boundary <= 10
     assert len(placed[0]) > 0
-    
+
     assert_same_particles(placed, expected)
-    
+
     np.testing.assert_allclose(placed[2], expected[2], rtol=0, atol=1e-9)  # the same positions, to float rounding
 
 
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range", [
-    pytest.param(None, None, (0.1, 0.27), id="all_sky"),
-    pytest.param((1, 2, 3), 20., (0.05, 0.4), id="beam_off_axis"),
-    pytest.param((0, 0, 1), 40., (0.05, 0.4), id="beam_z_axis_wide"),
-])
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, redshift_range",
+    [
+        pytest.param(None, None, (0.1, 0.27), id="all_sky"),
+        pytest.param((1, 2, 3), 20.0, (0.05, 0.4), id="beam_off_axis"),
+        pytest.param((0, 0, 1), 40.0, (0.05, 0.4), id="beam_z_axis_wide"),
+    ],
+)
 def test_number_density(fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock):
     """
-    Test that the number of particles placed matches the number density of the snapshots times the volume they fill, within
-    3 sigma. Repeat for the whole redshift shell, the shell filled by each individual snapshot and for each octant on the sky.
+    Test that the number of particles placed matches the number density of the snapshots times the volume they fill,
+    within 3 sigma.
+    Repeat for the whole redshift shell, the shell filled by each individual snapshot and for each octant on the sky.
     Excludes particles/ haloes on snapshot box faces.
     """
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock)
-    snap_nr, ids, coords = particle_rows(place_particles(lightcone, redshift_range, ang_radius_deg))
-    #uniform = ids % 10**6 >= NEDGE
-    uniform = ids >= NEDGE # updated to match 0 offset snapshot IDs
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+    snap_nr, ids, coords = particle_rows(place_particles(lightcone, redshift_range))
+
+    uniform = ids >= NEDGE  # updated to match 0 offset snapshot IDs
     snap_nr, coords = snap_nr[uniform], coords[uniform]
 
     density = (NHALOS - NEDGE) / BOXSIZE**3  # [Mpc^-3]
     solid_angle = 4 * np.pi if beam_vector is None else 2 * np.pi * (1 - np.cos(np.deg2rad(ang_radius_deg)))
 
-    def expected_count(z_lo, z_hi, fraction_of_sky=1.):
+    def expected_count(z_lo, z_hi, fraction_of_sky=1.0):
         r_lo, r_hi = Cosmology.COSMO.comoving_distance([z_lo, z_hi]).to_value("Mpc")
         return density * fraction_of_sky * solid_angle / 3 * (r_hi**3 - r_lo**3)
 
     def assert_poisson(count, expected, what):
-        assert abs(count - expected) < 3 * np.sqrt(expected), \
+        fail_str = (
             f"{what}: {count} particles, {expected:.0f} expected ({(count - expected) / np.sqrt(expected):+.1f} sigma)"
+        )
+        assert abs(count - expected) < 3 * np.sqrt(expected), fail_str
 
     # whole shell
     assert_poisson(len(snap_nr), expected_count(*redshift_range), "whole shell")
@@ -1169,7 +1568,6 @@ def test_number_density(fake_runs, beam_vector, ang_radius_deg, redshift_range, 
     # the part of the shell each snapshot fills
     snapshots_used = 0
     for snap in SNAPSHOTS:
-        #z_lo, z_hi = nz.snapshot_redshift_range(snap, BOX_RES)
         z_lo, z_hi = snapshot_redshifts.snapshot_redshift_range(OUTPUT_REDSHIFTS, snap)
         z_lo, z_hi = max(z_lo, redshift_range[0]), min(z_hi, redshift_range[1])
         if z_lo >= z_hi:
@@ -1183,29 +1581,35 @@ def test_number_density(fake_runs, beam_vector, ang_radius_deg, redshift_range, 
     if beam_vector is None:
         octant = (coords[:, 0] > 0) * 4 + (coords[:, 1] > 0) * 2 + (coords[:, 2] > 0)
         for i in range(8):
-            assert_poisson(np.count_nonzero(octant == i), expected_count(*redshift_range, fraction_of_sky=1/8), f"octant {i}")
+            assert_poisson(
+                np.count_nonzero(octant == i), expected_count(*redshift_range, fraction_of_sky=1 / 8), f"octant {i}"
+            )
 
 
 # objects repeated over the box tiles
+
 
 def placed_particles_by_tile(lightcone, redshift_range, ang_radius_deg):
     """
     Place dark matter particles in a shell one file at a time and label each particle with the tile it was placed from.
 
     Returns arrays of the snapshot number, particle ID and tile label of each particle placed.
-    
+
     """
-    args = shell_args(lightcone, ang_radius_deg)
-    numb_files, files = lightcone.gather_files(PTYPE, redshift_range, **args)
+    numb_files, files = lightcone.gather_files(PTYPE, redshift_range)
     snap_nr, ids, tiles = [], [], []
+
     for file_number in range(numb_files):
-        particles = lightcone.place_file_in_shell(file_number, PTYPE, ["ParticleIDs", "Coordinates"], **args)
+        particles = lightcone.place_file_in_shell(file_number, PTYPE, ["ParticleIDs", "Coordinates"])
+
         if not particles:
             continue
+
         n = len(particles["ParticleIDs"])
         snap_nr.append(np.full(n, files[file_number].snap_nr))
         ids.append(particles["ParticleIDs"].value.astype(int))
         tiles.append(np.tile(np.asarray(files[file_number].tile, dtype=int), (n, 1)))
+
     return np.concatenate(snap_nr), np.concatenate(ids), np.concatenate(tiles)
 
 
@@ -1214,35 +1618,39 @@ def placed_haloes_by_tile(lightcone, halo_format, redshift_range, ang_radius_deg
     Same as above but for haloes.
 
     Place the haloes of the SOAP catalogues in a shell and label each halo with the tile it was placed from.
-    Use place_halos_in_shell to move haloes into one tile at a time then keep those in the shell, 
-    so the tile of each halo kept is the one of the last call to Snapshot2Lightcone.
+    Use place_halos_in_shell to move haloes into one tile at a time then keep those in the shell,
+    so the tile of each halo kept is the one of the last call to _to_lightcone.
 
     Returns arrays of the snapshot number, halo ID (SOAP catalogue index) and tile label of each halo placed.
-    
+
     """
     current = {}
     kept_tiles = []
-    #to_lightcone = lightcone.Snapshot2Lightcone
-    to_lightcone = lightcone._halo_tile_to_lightcone # use halo specific method
-    select_in_shell = lightcone._SnapshotLightcone__select_paticles_in_shell
+    to_lightcone = lightcone._to_lightcone  # moves the haloes of a catalogue into one tile
+    select_in_shell = lightcone._SnapshotLightcone__select_particles_in_shell
 
-    def halo_tile_to_lightcone(centres, tile):
+    def to_lightcone_and_record_tile(coords, tile, cell_data):
         current["tile"] = tile
-        return to_lightcone(centres, tile)
+        return to_lightcone(coords, tile, cell_data)
 
     def select_and_record_tile(*args, **kwargs):
         keep_idx, other = select_in_shell(*args, **kwargs)
         kept_tiles.extend([current["tile"]] * len(keep_idx))
         return keep_idx, other
 
-    monkeypatch.setattr(lightcone, "_halo_tile_to_lightcone", halo_tile_to_lightcone)
-    monkeypatch.setattr(lightcone, "_SnapshotLightcone__select_paticles_in_shell", select_and_record_tile)
-    halos = lightcone.place_halos_in_shell(halo_format, redshift_range, **shell_args(lightcone, ang_radius_deg))
+    monkeypatch.setattr(lightcone, "_to_lightcone", to_lightcone_and_record_tile)
+    monkeypatch.setattr(lightcone, "_SnapshotLightcone__select_particles_in_shell", select_and_record_tile)
+
+    halos = lightcone.place_halos_in_shell(halo_format, redshift_range)
     monkeypatch.undo()
 
     snap_nr = halos["Lightcone/SnapshotNumber"].value.astype(int)
     assert len(kept_tiles) == len(snap_nr), "could not match every halo placed to a tile"
-    return snap_nr, halos["InputHalos/HaloCatalogueIndex"].value.astype(int), np.array(kept_tiles, dtype=int).reshape(-1, 3)
+    return (
+        snap_nr,
+        halos["InputHalos/HaloCatalogueIndex"].value.astype(int),
+        np.array(kept_tiles, dtype=int).reshape(-1, 3),
+    )
 
 
 def assert_unique_ids_in_fake_run(run_dir):
@@ -1268,48 +1676,59 @@ def assert_unique_ids_in_fake_run(run_dir):
     # the same IDs in every snapshot
     assert all(np.array_equal(ids, halo_ids_of_snapshot[0]) for ids in halo_ids_of_snapshot)
 
+
 def assert_no_repeats_in_a_tile(snap_nr, ids, tiles, what):
     """
-    Test that a particle is not repeated more than the number of tiles within the lightcone. 
-    Each tile holds one copy of the snapshot box, so an object (snapshot, ID) is placed at most once in a tile. Across the
-    lightcone it is placed at most once per tile its snapshot fills, so never more often than the number of those tiles.
+    Test that a particle is not repeated more than the number of tiles within the lightcone.
+    Each tile holds one copy of the snapshot box, so an object (snapshot, ID) is placed at most once in a tile. Across
+    the lightcone it is placed at most once per tile its snapshot fills, so never more often than the number of
+    those tiles.
 
     Returns the most times any one object was placed.
     """
     rows = np.column_stack([snap_nr, ids, tiles])
     unique_rows, counts = np.unique(rows, axis=0, return_counts=True)
     repeated = unique_rows[counts > 1]
-    assert len(repeated) == 0, f"{len(repeated)} {what} placed more than once in a tile, e.g. (snapshot, ID, tile) = {repeated[:3].tolist()}"
+    fail_str = (
+        f"{len(repeated)} {what} placed more than once in a tile, e.g. (snapshot, ID, tile) = {repeated[:3].tolist()}"
+    )
+    assert len(repeated) == 0, fail_str
 
     objects, placements = np.unique(np.column_stack([snap_nr, ids]), axis=0, return_counts=True)
     for snap in np.unique(snap_nr):
         n_tiles = len(np.unique(tiles[snap_nr == snap], axis=0))
         most = placements[objects[:, 0] == snap].max()
-        assert most <= n_tiles, f"a {what[:-1]} of snapshot {snap} placed {most} times, its snapshot fills {n_tiles} tiles"
+        fail_str = f"a {what[:-1]} of snapshot {snap} placed {most} times, its snapshot fills {n_tiles} tiles"
+        assert most <= n_tiles, fail_str
     assert np.all(placements <= len(np.unique(tiles, axis=0)))
     return placements.max()
 
 
-# example params for duplication tests. 
+# example params for duplication tests.
 @pytest.mark.parametrize("orientation_lock", [None, "cube"])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range", [
-    pytest.param(None, None, (0.1, 0.27), id="all_sky"),
-    pytest.param((1, 2, 3), 20., (0.05, 0.4), id="beam_off_axis"),
-    pytest.param((0, 0, 1), 40., (0.05, 0.4), id="beam_z_axis_wide"),
-])
-def test_no_repeats_within_a_tile(fake_run_dir, fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock,
-                                  monkeypatch):
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, redshift_range",
+    [
+        pytest.param(None, None, (0.1, 0.27), id="all_sky"),
+        pytest.param((1, 2, 3), 20.0, (0.05, 0.4), id="beam_off_axis"),
+        pytest.param((0, 0, 1), 40.0, (0.05, 0.4), id="beam_z_axis_wide"),
+    ],
+)
+def test_no_repeats_within_a_tile(
+    fake_run_dir, fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock, monkeypatch
+):
     """
     Test the number of times a halo and particle are placed in the same tiles.
-    Excluding orientation_lock=='sphere', each tile is one re-oriented copy of the snapshot box, so no particle 
-    or halo should be placed twice in the same tile. For the whole lightcone each particle or halo is can only placed 
-    as many times as there are new tiles filled by the corresponding snapshot box. 
+    Excluding orientation_lock=='sphere', each tile is one re-oriented copy of the snapshot box, so no particle
+    or halo should be placed twice in the same tile. For the whole lightcone each particle or halo is can only placed
+    as many times as there are new tiles filled by the corresponding snapshot box.
     """
     assert_unique_ids_in_fake_run(fake_run_dir)
 
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock)
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
     particles = placed_particles_by_tile(lightcone, redshift_range, ang_radius_deg)
     haloes = placed_haloes_by_tile(lightcone, fake_runs, redshift_range, ang_radius_deg, monkeypatch)
+
     assert len(particles[0]) > 0 and len(haloes[0]) > 0
 
     most_particle = assert_no_repeats_in_a_tile(*particles, "particles")
@@ -1322,7 +1741,151 @@ def test_no_repeats_within_a_tile(fake_run_dir, fake_runs, beam_vector, ang_radi
     def sorted_rows_by_tile(snap_nr, ids, tiles):
         rows = np.column_stack([snap_nr, ids, tiles])
         return rows[np.lexsort(rows.T[::-1])]
+
     np.testing.assert_array_equal(sorted_rows_by_tile(*haloes), sorted_rows_by_tile(*particles))
+
+
+def read_fake_snapshot(sim_name, snap_nr):
+    """
+    The particle IDs and positions [Mpc] of a snapshot of a fake simulation, read straight from its files.
+    """
+    snap_dir = Path(os.environ["SWIFTLET_FLAMINGO_DIR"]) / BOX_RES / sim_name / "snapshots" / f"flamingo_{snap_nr:04d}"
+    ids, pos = [], []
+    for filename in sorted(snap_dir.glob("*.hdf5")):
+        with h5py.File(filename, "r") as f:
+            ids.append(f[f"{PTYPE}/ParticleIDs"][...])
+            pos.append(f[f"{PTYPE}/Coordinates"][...])
+    return np.concatenate(ids).astype(int), np.concatenate(pos)
+
+
+def expected_placements_by_tile(lightcone, sim_name, beam_vector, ang_radius_deg, margin=1e-3):
+    """
+    The placements expected from the (snapshot, tile) pieces of the last shell placed: every object of the snapshot
+    is moved into the tile and kept if it is in that tile's part of the shell (and the beam), independently of the
+    cells the lightcone selects to read.
+
+    Returns (snapshot numbers, IDs, tiles) of the objects expected, and the set of (snapshot, ID) within margin [Mpc]
+    of a shell or beam edge, whose placement depends on rounding.
+    """
+    beam_vec = None if beam_vector is None else np.asarray(beam_vector, dtype=float) / np.linalg.norm(beam_vector)
+    snap_nr, ids, tiles, ambiguous = [], [], [], set()
+
+    for record in lightcone.last_shell.pieces:
+        box_ids, box_pos = read_fake_snapshot(sim_name, record.snap_nr)
+        coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_pos, tile=record.tile)
+        r = np.linalg.norm(coords, axis=1)
+        r_in, r_out = Cosmology.COSMO.comoving_distance(list(record.z_updated)).to_value("Mpc")
+
+        # distance to the nearest edge of the tile's part of the shell, and of the beam
+        edge_distance = np.minimum(np.abs(r - r_in), np.abs(r - r_out))
+        keep = (r >= r_in) & (r <= r_out)
+
+        if beam_vec is not None:
+            angle = np.arccos(np.clip(coords @ beam_vec / np.maximum(r, 1e-300), -1.0, 1.0))
+            ang_radius = np.deg2rad(ang_radius_deg)
+            keep &= angle <= ang_radius
+            edge_distance = np.minimum(edge_distance, r * np.abs(angle - ang_radius))
+
+        for i in np.flatnonzero(edge_distance < margin):
+            ambiguous.add((int(record.snap_nr), int(box_ids[i])))
+
+        n = int(np.sum(keep))
+
+        snap_nr.append(np.full(n, record.snap_nr))
+        ids.append(box_ids[keep])
+        tiles.append(np.tile(np.asarray(record.tile, dtype=int), (n, 1)))
+
+    return np.concatenate(snap_nr), np.concatenate(ids), np.concatenate(tiles), ambiguous
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, redshift_range",
+    [
+        pytest.param(None, None, (0.1, 0.27), id="all_sky"),
+        pytest.param((1, 2, 3), 20.0, (0.05, 0.4), id="beam_off_axis"),
+        pytest.param((0, 0, 1), 40.0, (0.05, 0.4), id="beam_z_axis_wide"),
+    ],
+)
+def test_exact_number_of_repeats(fake_runs, beam_vector, ang_radius_deg, redshift_range, orientation_lock):
+    """
+    Test that each particle is placed exactly once in every tile its snapshot fills where its copy lies in that
+    tile's part of the shell (and the beam), and in no other tile. This includes a snapshot filling
+    several tiles of the same layer.
+    """
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+
+    placed = placed_particles_by_tile(lightcone, redshift_range, ang_radius_deg)
+    expected_snap, expected_ids, expected_tiles, ambiguous = expected_placements_by_tile(
+        lightcone, HALO_SIM, beam_vector, ang_radius_deg
+    )
+
+    # some haloes of the fake simulation sit on cell faces on purpose, so a few land exactly on an edge
+    assert len(ambiguous) < 0.02 * len(expected_ids), "too many objects on the edges of the shell to compare"
+
+    def rows_without_ambiguous(snap_nr, ids, tiles):
+        clear = np.array([(int(s), int(i)) not in ambiguous for s, i in zip(snap_nr, ids)], dtype=bool)
+        rows = np.column_stack([snap_nr, ids, tiles])[clear]
+        return rows[np.lexsort(rows.T[::-1])]
+
+    placed_rows = rows_without_ambiguous(*placed)
+    expected_rows = rows_without_ambiguous(expected_snap, expected_ids, expected_tiles)
+
+    # the same tiles for every object, so the same number of repeats
+    np.testing.assert_array_equal(placed_rows, expected_rows)
+    _, placed_counts = np.unique(placed_rows[:, :2], axis=0, return_counts=True)
+    _, expected_counts = np.unique(expected_rows[:, :2], axis=0, return_counts=True)
+    np.testing.assert_array_equal(placed_counts, expected_counts)
+
+    if beam_vector is None:
+        # the all-sky shell has snapshots filling several tiles of one layer, with objects repeated across them
+        layer = np.array([lightcone._orientation_layer(tuple(tile)) for tile in placed_rows[:, 2:]])
+        rows_with_layer = np.column_stack([placed_rows[:, :2], layer])
+        _, per_layer = np.unique(rows_with_layer, axis=0, return_counts=True)
+        assert per_layer.max() > 1, "no object repeated across the tiles of one layer"
+
+
+def test_cube_lock_no_close_repeats_along_a_line_of_sight_within_a_layer(fake_runs):
+    """
+    Test that with orientation_lock="cube" two copies of the same particle that lie in nearly the same direction from
+    the observer, and in the same layer, are at least a box length apart: the tiles of a layer share one
+    orientation, so a layer is the snapshot box repeated periodically.
+
+    Copies closer than a box length along a line of sight can only be in different layers, where the orientation
+    changes at a tile face.
+    """
+    r_range = (110.0, 1610.0)
+    lightcone = new_lightcone(LATTICE_SIM, None, "cube")
+    snap_nr, ids, coords = particle_rows(place_particles(lightcone, redshift_at_distance(r_range)))
+
+    r = np.linalg.norm(coords, axis=1)
+    direction = coords / r[:, None]
+    layer = np.max(np.abs(np.floor(coords / BOXSIZE + 0.5).astype(int)), axis=1)
+
+    key = snap_nr.astype(np.int64) * 10**7 + ids.astype(np.int64)
+    order = np.argsort(key, kind="stable")
+
+    key, r, direction, layer = key[order], r[order], direction[order], layer[order]
+
+    starts = np.flatnonzero(np.r_[True, key[1:] != key[:-1]])
+    ends = np.r_[starts[1:], len(key)]
+
+    cos_1deg = np.cos(np.deg2rad(1.0))
+    close_across_layers = 0
+
+    for start, end in zip(starts, ends):
+        if end - start < 2:
+            continue
+        same_direction = direction[start:end] @ direction[start:end].T > cos_1deg
+        closer_than_box = np.abs(r[start:end, None] - r[None, start:end]) < BOXSIZE
+        same_layer = layer[start:end, None] == layer[None, start:end]
+        close = np.triu(same_direction & closer_than_box, 1)
+        assert not np.any(close & same_layer), "copies in one cube layer closer than a box length along a line of sight"
+
+        close_across_layers += int(np.sum(close))
+
+    # the shell crosses layers, where such repeats are possible (this is what the README warns of)
+    assert close_across_layers > 0
 
 
 def orientation_matrix(rot_angles, reflections):
@@ -1330,6 +1893,7 @@ def orientation_matrix(rot_angles, reflections):
     Matrix of a tile's reflections and quarter turns, as applied to the snapshot coordinates.
     """
     from importlib import import_module
+
     orientation = import_module(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
     return orientation._build_rotation_matrix(rot_angles, order="xyz", degrees=True) @ np.diag(reflections)
 
@@ -1339,7 +1903,9 @@ def orientation_key(lightcone, tile):
     The orientation of a tile as a hashable key: its matrix and its periodic shift.
     """
     rot_angles, reflections, shift = lightcone._snapshot_reorientation(tile)
-    return tuple(np.rint(orientation_matrix(rot_angles, reflections)).astype(int).ravel()) + tuple(int(n) for n in shift)
+    return tuple(np.rint(orientation_matrix(rot_angles, reflections)).astype(int).ravel()) + tuple(
+        int(n) for n in shift
+    )
 
 
 # test the orientation tables read from a file and that their metadata is recorded correctly with every lightcone output
@@ -1353,83 +1919,129 @@ def tile_orientations(lightcone, extent=5):
 
 def test_default_tables_from_a_file_are_unchanged(fake_runs, tmp_path):
     """
-    Test that a lightcone made with the default tables written to a file is the same as one made from 
-    reading the hardcoded default table  a table. Must have the same orientation of every tile, and the same particles placed.
+    Test that a lightcone made with the default tables written to a file is the same as one made from
+    reading the hardcoded default table  a table. Must have the same orientation of every tile, and the same
+    particles placed.
     """
     orientation = pytest.importorskip(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
-    filename = tmp_path / "default_tables.hdf5"
+    filename = tmp_path / "default_tables.yaml"
     orientation.write_orientation_tables(filename, tables=orientation.default_orientation_tables())
 
-    without, with_file = new_lightcone(HALO_SIM, None, None), new_lightcone(HALO_SIM, None, None, orientation_table=filename)
+    without, with_file = (
+        new_lightcone(HALO_SIM, None, None),
+        new_lightcone(HALO_SIM, None, None, orientation_table=filename),
+    )
     assert tile_orientations(without) == tile_orientations(with_file)
     assert without.orientation_table_fingerprint == with_file.orientation_table_fingerprint
-    assert_same_particles(particle_rows(place_particles(with_file, (0.1, 0.2), None)),
-                          particle_rows(place_particles(without, (0.1, 0.2), None)))
+    assert_same_particles(
+        particle_rows(place_particles(with_file, (0.1, 0.2))),
+        particle_rows(place_particles(without, (0.1, 0.2))),
+    )
 
 
-@pytest.mark.parametrize("orientation_lock", [None, "cube"])
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
 def test_lightcone_with_generated_tables(fake_runs, tmp_path, orientation_lock):
     """
-    With a file of generated tables each tile reads the row (tile hash % number of rows) of every table, 
-    as with the default tables, so the tiles take many more orientations than the 79 of the default tables. 
-    The lattice is still placed exactly once everywhere, and the same tables, seed and lock make the same lightcone again.
+    Repeat above lattice test but for many many iterations of the oritentaion table.
+
+    With a file of generated tables each tile reads the row of every table as with the default tables.
+    The lattice is placed exactly once everywhere, and the same seed + lock make the same lightcone again.
+
+    Checked for every tile of the shell, with an orientation_seed.
+    Test that the points in the lattice are placed once, each from the snapshot.
     """
     orientation = pytest.importorskip(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
-    filename = tmp_path / "tables.hdf5"
+    filename = tmp_path / "tables.yaml"
     orientation.write_orientation_tables(filename, seed=1)
     tables = orientation.read_orientation_tables(filename)
-    lightcone = new_lightcone(LATTICE_SIM, None, orientation_lock, orientation_table=filename)
+    seed = 3
 
-    # each tile's orientation is the row (tile hash % number of rows) of the tables
-    p1, p2, p3 = snapshot_lightcone.TILE_HASH_PRIMES
-    for tile in [(0, 0, 0), (1, -2, 3), (-4, 0, 2)]:
-        layer_tile = tile if orientation_lock is None else (0, 0, max(abs(n) for n in tile))
-        row = (layer_tile[0] * p1 + layer_tile[1] * p2 + layer_tile[2] * p3) % len(tables["QuarterTurns"])
-        rot_angles, reflections, shift = lightcone._snapshot_reorientation(tile)
-        np.testing.assert_array_equal(rot_angles, tables["QuarterTurns"][row] * 90)
-        np.testing.assert_array_equal(reflections, tables["Reflections"][row])
-        np.testing.assert_array_equal(shift, tables["CellShifts"][row])
+    lightcone = new_lightcone(LATTICE_SIM, None, orientation_lock, orientation_seed=seed, orientation_table=filename)
+
     if orientation_lock is None:
         orientations = tile_orientations(lightcone)
         assert len(set(orientations.values())) > 1000, "no more orientations than the default tables"
 
-    # the lattice is placed exactly once everywhere
-    r_range = (440., 1110.)
-    snap_nr, ids, coords = particle_rows(place_particles(lightcone, redshift_at_distance(r_range), None))
+    # the lattice is placed exactly once everywhere: exactly the lattice points of the shell, each once
+    r_range = (440.0, 1110.0)
+
+    snap_nr, ids, coords = particle_rows(place_particles(lightcone, redshift_at_distance(r_range)))
     placed_idx, expected_idx = lattice_index(coords), lattice_index(lattice_in_shell(*r_range, None, None))
     unique_idx, counts = np.unique(placed_idx, axis=0, return_counts=True)
-    assert np.all(counts == 1) and len(unique_idx) == len(np.unique(expected_idx, axis=0))
+    assert np.all(counts == 1), f"{np.sum(counts > 1)} lattice points placed more than once"
+
+    np.testing.assert_array_equal(unique_idx, np.unique(expected_idx, axis=0))
+
+    # each point from the snapshot whose redshift range holds its distance from the observer
+    z = redshift_at_distance(np.linalg.norm(coords, axis=1))
+    assert len(np.unique(snap_nr)) > 1
+
+    for snap in np.unique(snap_nr):
+        z_lo, z_hi = snapshot_redshifts.snapshot_redshift_range(OUTPUT_REDSHIFTS, snap)
+        assert np.all((z[snap_nr == snap] >= z_lo - 1e-6) & (z[snap_nr == snap] <= z_hi + 1e-6))
+
+    # every tile of the shell takes the row (tile hash % number of rows) of the tables
+    p1, p2, p3 = snapshot_lightcone.TILE_HASH_PRIMES
+    n_rows = len(tables["QuarterTurns"])
+    tiles = {record.tile for record in lightcone.last_shell.pieces}
+    assert len(tiles) > 1
+
+    for tile in tiles:
+        if orientation_lock is None:
+            hashed = tile[:3]
+        elif orientation_lock == "cube":
+            hashed = (0, 0, max(abs(int(n)) for n in tile[:3]))
+        else:
+            hashed = (0, 0, int(tile[3]))
+        tile_hash = hashed[0] * p1 + hashed[1] * p2 + hashed[2] * p3 + seed * snapshot_lightcone.TILE_HASH_SEED_PRIME
+        row = tile_hash % n_rows
+        rot_angles, reflections, shift = lightcone._snapshot_reorientation(tile)
+        np.testing.assert_array_equal(rot_angles, tables["QuarterTurns"][row] * 90)
+        np.testing.assert_array_equal(reflections, tables["Reflections"][row])
+        np.testing.assert_array_equal(shift, tables["CellShifts"][row])
 
     # the same tables, seed and lock make the same lightcone
-    again = new_lightcone(LATTICE_SIM, None, orientation_lock, orientation_table=filename)
-    assert_same_particles(particle_rows(place_particles(again, redshift_at_distance(r_range), None)), (snap_nr, ids, coords))
+    again = new_lightcone(LATTICE_SIM, None, orientation_lock, orientation_seed=seed, orientation_table=filename)
+
+    assert_same_particles(particle_rows(place_particles(again, redshift_at_distance(r_range))), (snap_nr, ids, coords))
 
 
-@pytest.mark.parametrize("beam_vector, ang_radius_deg, orientation_lock, use_table", [
-    pytest.param(None, None, "cube", False, id="all_sky_cube"),
-    pytest.param((1, 2, 3), 20., None, True, id="beam_with_table"),
-])
-def test_outputs_carry_the_lightcone_settings(fake_runs, tmp_path, beam_vector, ang_radius_deg, orientation_lock, use_table):
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, orientation_lock, use_table",
+    [
+        pytest.param(None, None, "cube", False, id="all_sky_cube"),
+        pytest.param((1, 2, 3), 20.0, None, True, id="beam_with_table"),
+    ],
+)
+def test_outputs_carry_the_lightcone_settings(
+    fake_runs, tmp_path, beam_vector, ang_radius_deg, orientation_lock, use_table
+):
     """
-    Test that the output lightcone carries the metadata that made it in .metadata so the exact same lightcone can be reproduced. 
+    Test that the output lightcone carries the metadata that made it in .metadata so the exact same lightcone can
+    be reproduced.
+
     Should store the:
+
         - orientation_seed
         - orientation_lock
         - orientation table (file and fingerprint)
-        - simulation, 
+        - simulation,
         - beam
         - redshift range
-    
-    This .metadata should be the same when written to and read back from .hdf5 attributes.
+
+    The metadata should be the same when written to and read back from a .hdf5 file as attributes.
 
     """
     orientation = pytest.importorskip(snapshot_lightcone.__name__.rsplit(".", 1)[0] + ".snapshot_orientation")
     kwargs = {"orientation_seed": 7}
+
     if use_table:
-        kwargs["orientation_table"] = tmp_path / "tables.hdf5"
+        kwargs["orientation_table"] = tmp_path / "tables.yaml"
         orientation.write_orientation_tables(kwargs["orientation_table"], seed=2)
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, **kwargs)
+
+    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, **kwargs, ang_radius_deg=ang_radius_deg)
     redshift_range = (0.05, 0.15)
+
     expected = {
         "lightcone_type": "SnapshotAllSky" if beam_vector is None else "SnapshotBeam",
         "boxsize_resolution": BOX_RES,
@@ -1438,7 +2050,10 @@ def test_outputs_carry_the_lightcone_settings(fake_runs, tmp_path, beam_vector, 
         "orientation_lock": "none" if orientation_lock is None else orientation_lock,
         "orientation_table": str(Path(kwargs["orientation_table"]).resolve()) if use_table else "default",
         "orientation_table_fingerprint": orientation.orientation_tables_fingerprint(
-            orientation.read_orientation_tables(kwargs["orientation_table"]) if use_table else orientation.default_orientation_tables()),
+            orientation.read_orientation_tables(kwargs["orientation_table"])
+            if use_table
+            else orientation.default_orientation_tables()
+        ),
         "ang_radius_deg": ang_radius_deg,
         "redshift_range": list(redshift_range),
     }
@@ -1452,16 +2067,23 @@ def test_outputs_carry_the_lightcone_settings(fake_runs, tmp_path, beam_vector, 
             np.testing.assert_allclose(metadata["beam_vector"], np.asarray(beam_vector) / np.linalg.norm(beam_vector))
         assert metadata["version"]
 
-    args = shell_args(lightcone, ang_radius_deg)
-    shell = lightcone.place_snapshot_particles_in_shell(redshift_range, property_names=["ParticleIDs", "Coordinates"],
-                                                        particle_types=PTYPE, **args)
+    shell = lightcone.place_snapshot_particles_in_shell(
+        redshift_range, property_names=["ParticleIDs", "Coordinates"], particle_types=PTYPE
+    )
+
     assert_settings(shell.metadata, "particles placed")
     assert_settings(shell[PTYPE].metadata, "particles of one type")
-    numb_files, _ = lightcone.gather_files(PTYPE, redshift_range, **args)
-    assert_settings(lightcone.place_file_in_shell(0, PTYPE, ["ParticleIDs", "Coordinates"], **args).metadata,
-                    "particles placed file by file")
-    halos = lightcone.place_halos_in_shell(fake_runs, redshift_range, **args)
+
+    numb_files, _ = lightcone.gather_files(PTYPE, redshift_range)
+
+    assert_settings(
+        lightcone.place_file_in_shell(0, PTYPE, ["ParticleIDs", "Coordinates"]).metadata,
+        "particles placed file by file",
+    )
+
+    halos = lightcone.place_halos_in_shell(fake_runs, redshift_range)
     assert len(halos["Lightcone/SnapshotNumber"]) > 0
+
     assert_settings(halos.metadata, "haloes placed")
 
     # written to and read back from HDF5 attributes
@@ -1469,4 +2091,3 @@ def test_outputs_carry_the_lightcone_settings(fake_runs, tmp_path, beam_vector, 
         snapshot_lightcone.write_lightcone_metadata(f, shell.metadata)
     with h5py.File(tmp_path / "metadata.hdf5", "r") as f:
         assert_settings(snapshot_lightcone.read_lightcone_metadata(f), "settings read back from HDF5")
-

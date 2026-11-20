@@ -1,32 +1,41 @@
+#!/bin/env python
 """
-SWIFTLET (SWIFT Lightcone Extension Tools): tools to build new lightcones from SWIFT snapshots, post-process and
-visualise SWIFT lightcones.
+SWIFTLET (SWIFT Lightcone Extension Tools): build new lightcones from SWIFT snapshots and halo catalogues.
 
-The main classes and functions can be imported from the package:
+The main classes and functions can be imported from the package::
 
     from swiftlet import SnapshotBeam, BeamProjection
-    snapshot_lightcone:                 SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS, SnapshotGapWarning,
-    snapshot_cosmology:                 SnapshotCosmology
-    simulation_suites:                  Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
-                                        read_output_redshifts
-    snapshot_redshifts:                 redshift_edges, snapshots_in_range
-    snapshot_orientation:               write_orientation_tables, read_orientation_tables, generate_orientation_tables
-    lightcone_projections:              BeamProjection
-    beam_plotting:                      BeamPlot
-    healpix_map_utils:                  write_rotated_lightcone_chunks, sum_maps
-    mask_haloes:                        write_binary_masks
-    flamingo_lightcones:                flamingo_shell_redshift_file
-    snapshot_units:                     apply_expected_units
-    config:                             configure, download_shell_redshifts
-    threads:                            set_max_threads, max_threads, thread_limit
 
-Each is imported when first used, so importing the package doesn't need MPI, matplotlib or lightcone_io
-until something needing them is used. The submodules can also be used as attributes, e.g. swiftlet.config.
+or the submodule they come from::
+
+    snapshot_lightcone      SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS,
+                            SnapshotGapWarning
+    snapshot_cosmology      SnapshotCosmology
+    simulation_suites       Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
+                            read_output_list, write_output_list, read_suite_file, write_suite_file, add_suite
+    snapshot_redshifts      redshift_edges, snapshots_in_range
+    snapshot_orientation    write_orientation_tables, read_orientation_tables, generate_orientation_tables,
+                            check_neighbouring_tiles, default_orientation_tables, generate_clash_free_tables,
+                            tables_are_clash_free
+    repeat_check            find_close_cell_repeats, CloseRepeatWarning
+    lightcone_projections   BeamProjection
+    beam_plotting           BeamPlot, plot_beam_on_sky, sky_coordinates
+    healpix_map_utils       write_rotated_lightcone_chunks, sum_maps
+    mask_haloes             write_binary_masks
+    flamingo_lightcones     flamingo_shell_redshift_file
+    snapshot_units          apply_expected_units
+    config                  configure, download_shell_redshifts
+    threads                 set_max_threads, max_threads, thread_limit
+
+Each is imported when first used, so importing the package doesn't need MPI, matplotlib or lightcone_io until
+something that needs them is used. The submodules can also be used as attributes, e.g. ``swiftlet.config``.
 """
+
 import importlib
 
 # Use setuptools_scm to get version from git tags
 from importlib.metadata import version, PackageNotFoundError
+
 try:
     __version__ = version("swiftlet-lightcones")
 except PackageNotFoundError:
@@ -51,14 +60,27 @@ _PUBLIC_NAMES = {
     "COLIBRE": "simulation_suites",
     "suite_for_label": "simulation_suites",
     "output_redshifts": "simulation_suites",
-    "read_output_redshifts": "simulation_suites",
+    "read_output_list": "simulation_suites",
+    "write_output_list": "simulation_suites",
+    "read_suite_file": "simulation_suites",
+    "write_suite_file": "simulation_suites",
+    "add_suite": "simulation_suites",
     # orientation tables of the box tiles
     "write_orientation_tables": "snapshot_orientation",
     "read_orientation_tables": "snapshot_orientation",
     "generate_orientation_tables": "snapshot_orientation",
+    "check_neighbouring_tiles": "snapshot_orientation",
+    "default_orientation_tables": "snapshot_orientation",
+    "generate_clash_free_tables": "snapshot_orientation",
+    "tables_are_clash_free": "snapshot_orientation",
+    # early detection of close repeats, from cell centres
+    "find_close_cell_repeats": "repeat_check",
+    "CloseRepeatWarning": "repeat_check",
     # projecting and plotting beams
     "BeamProjection": "lightcone_projections",
     "BeamPlot": "beam_plotting",
+    "plot_beam_on_sky": "beam_plotting",
+    "sky_coordinates": "beam_plotting",
     # HEALPix maps and halo masks
     "write_rotated_lightcone_chunks": "healpix_map_utils",
     "sum_maps": "healpix_map_utils",
@@ -100,11 +122,13 @@ __all__ = list(_PUBLIC_NAMES)
 
 def __getattr__(name):
     """
-    Import the public classes, functions and submodules of the package when first used, so that modules
-    which don't need MPI (e.g. swiftlet.config) can be imported without it.
-    
+
+    Import the public classes, functions and submodules of the package when first used.
+
+    Modules which don't need MPI (e.g. swiftlet.config) can be imported without it.
+
     Returns the class, function or submodule named.
-    
+
     :param  name:   name of the attribute
     :type   name:   str
     """
@@ -121,7 +145,5 @@ def __getattr__(name):
 
 
 def __dir__():
-    """
-    Names in the package, including the ones imported when first used.
-    """
+    """Names in the package, including the ones imported when first used."""
     return sorted(set(globals()) | set(_PUBLIC_NAMES) | set(_SUBMODULES))

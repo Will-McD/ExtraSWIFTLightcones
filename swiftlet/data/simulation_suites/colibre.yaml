@@ -1,0 +1,24 @@
+# SWIFTLET simulation suite, see docs/user_guide/new_simulations_and_suites.rst
+#
+# To change this suite without editing the installed package, copy this file into a directory listed in
+# SWIFTLET_SUITES_DIR and edit the copy: a suite there replaces the installed suite of the same name.
+# Paths are relative to a simulation's directory, or absolute. Quote every value, as {fields} have a meaning in YAML.
+
+name: 'colibre'
+description: 'COLIBRE simulations on COSMA'
+
+# the box size and resolution labels of the suite's simulations: a regular expression they match in full
+# the box size zero padded to 4 digits, e.g. L0200N1504, or with the mass resolution, e.g. L200m6 or L200_m6
+label_pattern: 'L0\d{3}N\d{4}|L\d{3}_?m\d'
+
+# directory of a simulation, with {box_res} and {sim_name} fields
+base_dir_format: '/cosma8/data/dp004/colibre/Runs/{box_res}/{sim_name}'
+# environment variable that, if set, replaces the directory holding the simulations (each in <box_res>/<sim_name>)
+base_dir_env: 'SWIFTLET_COLIBRE_DIR'
+
+# snapshot files, with {snap_nr} and {file_nr} fields
+snapshot_format: 'snapshots/colibre_{snap_nr:04d}/colibre_{snap_nr:04d}.{file_nr}.hdf5'
+# SOAP halo catalogues, with a {snap_nr} field
+soap_format: 'SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5'
+# the SWIFT output list, read for the output redshifts of the snapshots
+output_list: 'output_list.txt'

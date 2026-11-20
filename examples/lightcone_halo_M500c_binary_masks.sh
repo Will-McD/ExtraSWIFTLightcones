@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH -J HYDRO_FIDUCIAL
 #SBATCH -o ./logs/L2800N5040/bin_halo_mask_M500c.lightcone%a.out
-#SBATCH -p cosma8
+#SBATCH -p cosma8-serial
 #SBATCH -A dp004
 #SBATCH -t 12:00:00
 ########################

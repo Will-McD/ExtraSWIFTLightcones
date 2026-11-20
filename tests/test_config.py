@@ -1,6 +1,8 @@
 #!/bin/env python
 """
-Tests for swiftlet.config: 
+Test the config.py works correctly.
+
+Tests for swiftlet.config:
     - download the FLAMINGO shell redshift files into the environment
     - export paths when the environment is activated.
     - max number of threads are correctly set and abided by
@@ -12,11 +14,10 @@ import http.server
 import os
 import sys
 import threading
-
 import pytest
-
 from swiftlet import config
 from swiftlet import flamingo_lightcones
+
 
 FILE_CONTENTS = {
     "L1": "0.0, 0.05\n0.05, 0.1\n",
@@ -53,7 +54,10 @@ def file_server(tmp_path, monkeypatch):
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=str(served)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{server.server_address[1]}"
-    files = {box: (env_name, filename, f"{url}/{box}.txt") for box, (env_name, filename, _) in config.SHELL_REDSHIFT_FILES.items()}
+    files = {
+        box: (env_name, filename, f"{url}/{box}.txt")
+        for box, (env_name, filename, _) in config.SHELL_REDSHIFT_FILES.items()
+    }
     monkeypatch.setattr(config, "SHELL_REDSHIFT_FILES", files)
     monkeypatch.setattr(flamingo_lightcones, "SHELL_REDSHIFT_FILES", files)
     yield requests, url
@@ -62,9 +66,7 @@ def file_server(tmp_path, monkeypatch):
 
 @pytest.fixture
 def fake_venv(tmp_path, monkeypatch):
-    """
-    A fake virtual environment, with an activate script, used as sys.prefix.
-    """
+    """A fake virtual environment, with an activate script, used as sys.prefix."""
     prefix = tmp_path / "venv"
     (prefix / "bin").mkdir(parents=True)
     (prefix / "bin" / "activate").write_text("# venv activate script\n")
@@ -72,7 +74,7 @@ def fake_venv(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "base_prefix", "/usr")
     for env_name, _, _ in config.SHELL_REDSHIFT_FILES.values():
         monkeypatch.delenv(env_name, raising=False)
-        monkeypatch.delenv("SWIFTLET_MAX_THREADS", raising=False) # read in max threads for testing
+        monkeypatch.delenv("SWIFTLET_MAX_THREADS", raising=False)  # read in max threads for testing
     return prefix
 
 
@@ -81,8 +83,10 @@ def test_download_shell_redshifts(file_server, fake_venv):
     paths = config.download_shell_redshifts(verbose=False)
     # downloaded into the environment
     redshift_dir = fake_venv / "share" / "swiftlet" / "redshifts"
-    assert paths == {"L1_REDSHIFTS_FILENAME": str(redshift_dir / "L1_shell_redshifts_z3.txt"),
-                     "L2P8_REDSHIFTS_FILENAME": str(redshift_dir / "L2p8_shell_redshifts_z5.txt")}
+    assert paths == {
+        "L1_REDSHIFTS_FILENAME": str(redshift_dir / "L1_shell_redshifts_z3.txt"),
+        "L2P8_REDSHIFTS_FILENAME": str(redshift_dir / "L2p8_shell_redshifts_z5.txt"),
+    }
     assert open(paths["L1_REDSHIFTS_FILENAME"]).read() == FILE_CONTENTS["L1"]
     assert open(paths["L2P8_REDSHIFTS_FILENAME"]).read() == FILE_CONTENTS["L2p8"]
     # files already downloaded are not downloaded again, unless forced
@@ -105,8 +109,10 @@ def test_download_rejects_web_pages(file_server, tmp_path, monkeypatch):
 
 
 def test_download_reports_unreachable_server(tmp_path, monkeypatch):
-    files = {box: (env_name, filename, "http://127.0.0.1:9/missing.txt")
-             for box, (env_name, filename, _) in config.SHELL_REDSHIFT_FILES.items()}
+    files = {
+        box: (env_name, filename, "http://127.0.0.1:9/missing.txt")
+        for box, (env_name, filename, _) in config.SHELL_REDSHIFT_FILES.items()
+    }
     monkeypatch.setattr(config, "SHELL_REDSHIFT_FILES", files)
     with pytest.raises(OSError, match="could not download"):
         config.download_shell_redshifts(dest_dir=tmp_path, verbose=False)
@@ -146,6 +152,7 @@ def test_configure_replaces_lines_of_the_old_package_name(file_server, fake_venv
     for kind in ("activate.d", "deactivate.d"):
         assert not (prefix / "etc" / "conda" / kind / "extra_swift_lightcones.sh").exists()
         assert (prefix / "etc" / "conda" / kind / "swiftlet.sh").exists()
+
 
 def test_configure_exports_paths_in_conda(file_server, tmp_path, monkeypatch):
     prefix = tmp_path / "conda_env"
@@ -216,29 +223,23 @@ def test_shell_redshift_file_lookup(file_server, fake_venv, tmp_path, monkeypatc
     env_file = tmp_path / "from_env.txt"
     env_file.write_text("0.0, 0.1\n")
     monkeypatch.setenv("L1_REDSHIFTS_FILENAME", str(env_file))
-    #assert nz.flamingo_shell_redshift_file("L1") == str(env_file)
     assert flamingo_lightcones.flamingo_shell_redshift_file("L1") == str(env_file)
     monkeypatch.delenv("L1_REDSHIFTS_FILENAME")
 
     # otherwise the files are downloaded into the environment when they are first needed, and found there after
     monkeypatch.setattr(os.path, "expanduser", lambda path: path.replace("~", str(tmp_path / "home")))
-    #monkeypatch.setattr(nz, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
-    #path = nz.flamingo_shell_redshift_file("L2p8")
     monkeypatch.setattr(flamingo_lightcones, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
     path = flamingo_lightcones.flamingo_shell_redshift_file("L2p8")
     assert path == str(fake_venv / "share" / "swiftlet" / "redshifts" / "L2p8_shell_redshifts_z5.txt")
-    #assert nz.flamingo_shell_redshift_file("L2p8") == path
     assert flamingo_lightcones.flamingo_shell_redshift_file("L2p8") == path
     assert requests == {"L1": 1, "L2p8": 1}
 
     with pytest.raises(ValueError, match="box must be one of"):
-        #nz.flamingo_shell_redshift_file("L5")
         flamingo_lightcones.flamingo_shell_redshift_file("L5")
+
 
 def test_shell_redshift_file_not_found(fake_venv, tmp_path, monkeypatch):
     monkeypatch.setattr(os.path, "expanduser", lambda path: path.replace("~", str(tmp_path / "home")))
-    #monkeypatch.setattr(nz, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
     monkeypatch.setattr(flamingo_lightcones, "__file__", str(tmp_path / "not_a_repo" / "module.py"))
     with pytest.raises(FileNotFoundError, match="swiftlet-configure"):
-        #nz.flamingo_shell_redshift_file("L1", download=False)
         flamingo_lightcones.flamingo_shell_redshift_file("L1", download=False)

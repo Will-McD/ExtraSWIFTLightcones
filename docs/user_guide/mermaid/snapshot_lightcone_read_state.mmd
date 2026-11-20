@@ -1,0 +1,40 @@
+%%{init: {"htmlLabels": false, "themeVariables": {"fontFamily": "arial, helvetica, sans-serif", "fontSize": "14px"}, "flowchart": {"htmlLabels": false, "wrappingWidth": 400, "padding": 30, "nodeSpacing": 40, "rankSpacing": 50}}}%%
+flowchart TD
+    GF("gather_files(ptype,<br/>z_range, use_snapshots)") --> SR1
+    PS("place_snapshot_particles_in_shell(<br/>z_range, property_names,<br/>particle_types, ..., comm)") --> SR2
+    GH("gather_halo_catalogues(...),<br/>or place_halos_in_shell(...)<br/>unless _halo_shell has<br/>the same settings") --> HR
+
+    SR1["a new ShellRead:<br/>snapshots, pieces, files,<br/>tile_cells, and the cell<br/>metadata of its snapshots"]
+    SR2["a new ShellRead for each<br/>particle type, all sharing<br/>one cell metadata cache<br/>for the call"]
+    HR["a new HaloShellRead:<br/>settings, pieces, catalogues,<br/>catalogue lengths, and the<br/>cell metadata of one snapshot"]
+
+    subgraph KEPT ["Kept on the lightcone between calls"]
+        LS["last_shell:<br/>the record of the<br/>last gather step"]
+    end
+
+    subgraph ALSO ["Also kept"]
+        HS["_halo_shell:<br/>the last HaloShellRead,<br/>reused by place_halos_in_shell<br/>with the same settings"]
+        CA["caches that are the same<br/>for the whole simulation:<br/>units, snapshots on disk,<br/>redshift interpolation"]
+    end
+
+    SR1 --> LS
+    SR2 --> LS
+    HR --> LS
+    HR --> HS
+
+    LS --> PF("place_file_in_shell(i, ptype, ...):<br/>reads last_shell.files[i], with<br/>the cell metadata it kept<br/>(ValueError if last_shell isn't<br/>from gather_files, or of ptype)")
+    LS --> S2L("Snapshot2Lightcone(snap,<br/>coords, tile): last_shell's cell<br/>metadata if it has the snapshot,<br/>otherwise read, not kept")
+    LS --> RC("repeat_check.find_close_cell_repeats:<br/>calls gather_files, then reads<br/>last_shell.pieces, tile_cells<br/>and cell_data")
+    LS --> DEP("last_snapshot_read and<br/>snap_file_offset_lengths:<br/>views of last_shell.pieces and<br/>.files, with a DeprecationWarning")
+
+    subgraph GONE ["Not kept after a call"]
+        FREE["the call's cell metadata<br/>cache of place_snapshot_<br/>particles_in_shell: emptied<br/>when it ends (last_shell keeps<br/>the pieces and files of<br/>its last particle type)"]
+        MPI["comm: passed to the read<br/>step, never stored; _mpi_call<br/>sets the rank that prints for<br/>the call and restores it after,<br/>also on an error"]
+    end
+
+    classDef out fill:#d6eeee,stroke:darkcyan;
+    classDef record fill:#e8e4f4,stroke:#5b4a99;
+    classDef gone fill:#f4f4f4,stroke:#888,stroke-dasharray:4 3;
+    class GF,PS,GH,PF,S2L,RC,DEP out;
+    class SR1,SR2,HR,LS,HS record;
+    class FREE,MPI gone;
