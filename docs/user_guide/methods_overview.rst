@@ -18,7 +18,7 @@ introduction to this tool kit.
    :align: right
    :alt: Diagram of a tile in the lightcone, i.e. a SWIFT simulation's comoving volume and top level cell structure
    
-   Diagram of a tile in the lightcone: a SWIFT simulation's comoving volume and top level cell structure
+   Diagram of a :term:`tile` in the lightcone: a SWIFT simulation's comoving volume and top level cell structure
 
 
 .. Note::
@@ -131,9 +131,9 @@ between them is no longer continuous.
 The order that these :term:`orientation tables <orientation table>` are read and where the discontinuities occur are 
 controlled by an :term:`orientation seed` and :term:`orientation lock`, respectively. The seeds do not alter the 
 orientation, only the order that the instructions from the table are read. 
-The locks are used to control where the discontinuities occur by organising the lattice of tiles into layers that share 
-the same orientation. Meaning that discontinuities only occur at the boundaries of these layers. See :doc:`orientation` 
-for further information on the tile orientations and building these layers. 
+The locks are used to control where the discontinuities occur by organising the lattice of tiles into 
+:term:`layers <layer>` that share the same orientation. Meaning that discontinuities only occur at the boundaries of 
+these layers. See :doc:`orientation` for further information on the tile orientations and building these layers. 
 
 
 .. _fig-periodic_replica-1:

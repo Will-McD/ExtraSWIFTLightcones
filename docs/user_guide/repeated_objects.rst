@@ -2,41 +2,53 @@ Repeated particles and haloes
 ==============================
 
 
-A lightcone built from the snapshots holds **many copies of the same particles and haloes**, each tile in the lightcone 
-is a copy of a snapshot box, so every halo in a given snapshot can appear once in every tile populated from that 
-snapshot. This periodic replication results in the same structures being reproduced along a given line of sight and 
-inherently biases the distribution of matter in any of the lightcones. 
+A lightcone built from the snapshots holds **many copies of the same particles and haloes**, where each :term:`tile` in 
+the lattice is a copy of a snapshot box, so every halo from a snapshot can appear once in every tile populated by that 
+snapshot. The same structures can therefore repeat along a line of sight, which biases the distribution of matter in the 
+lightcone (see :doc:`methods_overview`).
 
 .. Tip::
-    **Before continuing**, see :doc:`orientation` to read up on how the lightcones are built with a regular lattice of 
-    tiles, that can be organised into periodic layers by controlling the orientation of individual tiles. 
-
+    **Before continuing**, see :doc:`methods_overview` and :doc:`orientation` to read up on how the lightcones are built 
+    with a regular lattice of tiles, that can be organised into periodic :term:`layers <layer>` by controlling the 
+    :term:`orientation` of individual tiles. 
 
 There are three scenarios of periodic replications that you should be aware of:    
 
-#.  **Exact perodic replicas** If the tiles added into the lightcone are not reorientated then all tiles are exact 
-    replicas of and the same structures can consistently reappear along the line of sight in all directions. This 
-    can be avoided by simply changing the orientation of neighbouring tiles. To build a lightcone where all structure is 
-    replicated every snapshot sidelength, use the installed ``"no_reorientation"`` tables (see
-    :doc:`orientation_tables`).
+#.  **Exact periodic replicas.** If the tiles containing the lightcone are not re-oriented, every tile is an 
+    :term:`exact replica <exact periodic replica>` of the box, and the same structures will reappear at regular 
+    intervals along every line of sight. Re-orienting neighbouring tiles avoids this. To build a lightcone where all 
+    structure repeats every box side length, use the installed ``"no_reorientation"`` tables 
+    (see :doc:`orientation_tables`).
 
-#.  **Clashes due to different orientations** Where two neighbouring tiles are oriented differently, a SWIFT cell can 
-    end up being in contact with **its own copy** (the same cell index of the snapshot box) in the other tile, resulting 
-    in the same structures sit side by side. The two copies can be filled by the **same snapshot**, or by 
-    **adjacent snapshots** where the boundary between their redshift ranges passes between them. Both are 
-    :term:`clashes <clash>`, and both are called :term:`clashing pairs <clashing pair>` in these docs. Which cells clash 
-    depends only on the orientation table, the ``orientation_lock``, the ``orientation_seed`` and the number of cells 
-    per axis. When the orientation lock is either set as ``"cube"`` or ``"sphere"``  this cannot occur within the same 
-    layer (a layer is one continuous periodic boundary); without a lock it can happen at any tile face. Clashes can be 
-    avoided by the choice of orientation table (see :ref:`tables keeping copies apart <tables-keeping-copies-apart>`).
+#.  **Clashes due to different orientations** Where two neighbouring tiles are oriented differently, a 
+    :term:`SWIFT cell <cell>` can end up being in contact with **its own copy** (the same cell index of the snapshot 
+    box) in the other tile, resulting in the same structures sit side by side. The two copies can be filled by the 
+    **same snapshot**, or by **adjacent snapshots** where the boundary between their redshift ranges passes between 
+    them. Both are :term:`clashes <clash>`, and both are called :term:`clashing pairs <clashing pair>` in these docs. 
+    Which cells clash depends only on the orientation table, the ``orientation_lock``, the ``orientation_seed`` and the 
+    number of cells per axis. When the :term:`orientation lock` is either set as ``"cube"`` or ``"sphere"``  this cannot 
+    occur within the same layer (a layer is one continuous periodic boundary); without a lock it can happen at any tile 
+    face. Clashes can be avoided by the choice of orientation table (see 
+    :ref:`tables keeping copies apart <tables-keeping-copies-apart>`).
+
+#.  **Clashing pairs, from different orientations.** Where two neighbouring tiles are oriented differently, a
+    :term:`SWIFT cell <cell>` can end up in contact with **its own copy** (the same cell, based on location in the 
+    snapshot box) in the other tile, so the same structures sit side by side: a :term:`clashing pair`. The two copies 
+    can be given particles or haloes by the **same snapshot**, or **adjacent snapshots** where the boundary between 
+    their redshift ranges passes between them. Which cells :term:`clash` depends only on the :term:`orientation table`, 
+    the :term:`orientation lock`, the :term:`orientation seed`, and the number of cells per axis. 
+    When the orientation lock is either ``"cube"`` or ``"sphere"`` this can't happen within a layer (a layer is 
+    periodically continuous) and only on the boundaries of two different layers. Without a lock it can happen at any 
+    tile face. The choice of orientation table can rule clashing pairs out (see 
+    :ref:`tables keeping copies apart <tables-keeping-copies-apart>`).
 
 #.  **Close replicas along a line of sight.** Where the orientation changes, instead of all objects being periodically 
-    replicated each box sidelength, replicas of a given object can lie in **nearly the same direction, less than a box 
+    replicated each box side length, replicas of a given object can lie in **nearly the same direction, less than a box 
     length apart along a given line of sight**. Therefore in some given direction an object can be repeated more often 
     than each box length. This can happen at every tile face without a lock, at every layer with ``"sphere"``, and only 
-    between layers with ``"cube"``, but never within a layer. Unlike the clashing cells mentioned above, this cannot be 
-    avoided, only reduced (with ``"cube"``, and by choosing the seed). 
-    Keep this in mind for any measurement along lines of sight, or on scales comparable to the snapshot boxes sidelength.
+    between layers with ``"cube"``, but never within a layer. Unlike clashing pairs, this cannot be avoided, only 
+    reduced (with ``"cube"``, and by choosing the seed). Keep this in mind for any measurement along lines of sight, or 
+    on scales comparable to the snapshot boxes side length.
 
 .. Note::
     The occurrence of close replicas along a line of sight increases with smaller snapshot boxes, as more tiles
@@ -45,7 +57,8 @@ There are three scenarios of periodic replications that you should be aware of:
 .. _fig-clashing-cells:
 
 The figures below show a clash between two neighbouring tiles, A and B, in a slice through one layer of cells, every
-cell coloured and numbered by its place in the snapshot box so its two copies can be matched.
+cell is coloured and numbered by its place in the snapshot box so its two copies in adjacent tiles can be easily 
+paired up.
 
 .. grid:: 3 1 1 1
    :gutter: 2
@@ -117,10 +130,9 @@ Repeats along a line of sight
 -----------------------------
 
 Within a region of the same orientation (one tile without a lock, one cube layer, or one sphere layer) the tiles are the
-same box, forming one continuous periodically repeating layer. In such a region all objects are then replicated every 
-whole box sidelength. Meaning the length between each replica (:math:`\lambda`) is equal to the snapshots 
-sidelength (:math:`L`) when looking along the axis of the snapshots sidelength, :math:`\sqrt{2}L` along a face diagonal 
-and :math:`\sqrt{3}L` along the longest diagonal within the snapshots box. 
+same box, forming one continuous periodically repeating region. In it, every objects is replicated every box side 
+length: the distance between each replica (:math:`\lambda`) is the box's side length :math:`L` along the axes of the
+box, :math:`\sqrt{2}L` along a face diagonal and :math:`\sqrt{3}L` along the longest diagonal of the box.
 For a distance of :math:`\Delta r` along a line-of-sight, a region of the same orientation can have, at most, 
 :math:`\lfloor \Delta r / \lambda \rfloor + 1` copies of an object.
 
@@ -161,10 +173,10 @@ every change of orientation the line of sight crosses within its snapshot's reds
 Small boxes
 -----------
 
-Smaller snapshot boxes repeat more frequently along a given line of sight due to the smaller sidelength and as a result 
-one snapshots redshift range can cover more than one tile. To illustrate this the table below shows, for a 
-single snapshot at redshift 0.1, the thickness (:math:`r(z_1) - r(z_0)`) of the lightcone shell that it populates in 
-units of the snapshots sidelength. 
+Smaller snapshot boxes repeat more frequently along a given line of sight due to the smaller side length and as a result 
+one :term:`snapshots redshift range <snapshot redshift range>` can cover more than one tile. To illustrate this the 
+table below shows, for a single snapshot at redshift 0.1, the thickness (:math:`r(z_1) - r(z_0)`) of the lightcone shell 
+that it populates in units of the snapshots side length. 
 
 .. list-table::
    :header-rows: 1
@@ -211,12 +223,12 @@ It builds lightcone shells from the position of the cell centres only and reads 
 (snapshot, tile) :term:`piece` of the lightcone, it moves every cell into the corresponding tile and keeps the cells 
 overlapping that tile's part of the lightcone. It then compares pairs of each cell, and reports:
 
-* **clashing pairs**: two copies of the same cell sharing a face, so the same structures sit 
-  side by side. Each pair from is counted once. With ``orientation_lock="sphere"`` this includes the 
-  clashes of cells across the spherical layers inside of a tile.  
-  :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` pairs the copies of a cell. Copies of 
-  the same cell from adjacent snapshots can also touch, where the boundary between the snapshots' redshift ranges 
-  crosses the face between two tiles, and it does not report those.
+* **clashing pairs**: two copies of the same cell sharing a face, so the same structures sit side by side, each
+  pair counted once. With ``orientation_lock="sphere"`` this includes the clashing pairs across the spherical layers
+  inside a tile. By default (``max_snapshot_difference=1``) the copies from the same and from adjacent snapshots are
+  paired, so this includes the clashing pairs where the boundary between two snapshots' redshift ranges crosses the
+  face between two tiles; with ``max_snapshot_difference=0``, only copies from the same snapshot are paired.
+
 * **line of sight pairs**: two copies of the same cell that could hold copies of the same particles 
   (and therefore haloes), where the cell centres are within a given angular separation ``angle_deg`` (1° by default) on 
   the sky and closer than ``max_los_separation`` (a box length by default). These choices are conservative as the angle
@@ -226,7 +238,7 @@ overlapping that tile's part of the lightcone. It then compares pairs of each ce
 
 .. code-block:: python
 
-    from swiftlet import SnapshotAllSky, find_close_cell_repeats
+    from swiftlet import Simulation, SnapshotAllSky, find_close_cell_repeats
 
     lightcone = SnapshotAllSky(simulation=Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL"), 
                                   orientation_lock="cube", orientation_seed=0)
@@ -243,9 +255,9 @@ copies. ``output_file`` writes these to an HDF5 file, with the lightcone's setti
 pair of copies closer than that.
 
 For a quicker check you can use the orientation tables by themselves with 
-:func:`check_neighbouring_tiles <swiftlet.snapshot_orientation.check_neighbouring_tiles>` which finds clashes of cells 
-between neighbouring tiles based on the rows of the tables (see :ref:`Orientation tables <checking-tables-for-clashes>`). 
-
+:func:`check_neighbouring_tiles <swiftlet.snapshot_orientation.check_neighbouring_tiles>`, which finds the clashing
+pairs between neighbouring tiles from the rows of the tables alone (see
+:ref:`Orientation tables <checking-tables-for-clashes>`).
 
 Visualising line-of-sight pairs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -260,19 +272,20 @@ FLAMINGO L1_m9 simulation:
    :figwidth: 100%
    :width: 100%
    :align: left
-   :alt: ...
+   :alt: All-sky maps of the line of sight pairs found for each orientation lock, from the close repeat check example.
 
-   Summary plot output from running the example:  `snapshot_close_repeat_check.py <https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/examples/snapshot_close_repeat_check.py>`_ 
+   Summary plot output from running the example: `snapshot_close_repeat_check.py <https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/examples/snapshot_close_repeat_check.py>`_ 
    which uses the default table, which doesn't allow for replicas of the same cell in adjacent tiles to be in contact.
    The all-sky maps show the location of the **line of sight pairs** relative to the observer, for ``orientation_lock`` 
    with ``orientation_seed=13``, purposefully selected for this example to show multiple pairs for each 
    ``orientation_lock``.
 
-The :ref:`figure <fig-pairs-on-sky>` below shows the projection of all pairs of cells identified by 
-:func:`check_neighbouring_tiles <swiftlet.snapshot_orientation.check_neighbouring_tiles>` for an all-sky lightcone that 
-spans redshifts :math:`z=0 - 1` of the fiducial L1_m9 FLAMINGO simulation, generated with each ``orientation_lock`` 
-(``"None"``, ``"cube"`` and ``"sphere"``) and orientation table (``default``, ``cube_quarter_spacing`` and 
-``sphere_quarter_spacing``) for the same seed, ``orientation_seed=7``.  
+The :ref:`figure <fig-pairs-on-sky>` below, made with the example `snapshot_close_repeat_map.py
+<https://github.com/Will-McD/ExtraSWIFTLightcones/blob/main/examples/snapshot_close_repeat_map.py>`_, shows the 
+:term:`line of sight pairs <line of sight pair>` found by :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` 
+for an all-sky lightcone that covers  redshifts :math:`z=0 - 1` of the fiducial L1_m9 FLAMINGO simulation, generated 
+with each ``orientation_lock`` (``"None"``, ``"cube"`` and ``"sphere"``) and orientation table 
+(``default``, ``cube_quarter_spacing`` and ``sphere_quarter_spacing``) for the same seed, ``orientation_seed=7``.  
 Each point on the Mollweide projections corresponds to a pair of the same cells that are within 1° of each other on the 
 sky, where the colour indicates both the orientation lock and minimum distance between the cell pairs. 
 
@@ -288,7 +301,7 @@ sky, where the colour indicates both the orientation lock and minimum distance b
          :width: 100%
 
          The projection of line-of-sight pairs for ``orientation_table="default"``. As described in 
-         :doc:`orientation_tables`, with this set of orientations there are no clashes between pairs for when 
+         :doc:`orientation_tables`, with this set of orientations there are no clashing pairs for when
          ``orientation_lock="cube"`` (blues) and ``"none"`` (greens). 
 
    .. grid-item::
@@ -298,8 +311,8 @@ sky, where the colour indicates both the orientation lock and minimum distance b
 
          The projection of line-of-sight pairs for ``orientation_table="cube_quarter_spacing"``. All pairs for when 
          ``orientation_lock="cube"`` (blues) and ``orientation_lock="none"`` (greens) are separated by at least 250 Mpc
-         (a quarter of the snapshots sidelength), which is not true for when ``orientation_lock="sphere"`` (reds) as 
-         described in :doc:`orientation_tables`. 
+         (a quarter of the snapshot box's side length), which is not true for when ``orientation_lock="sphere"`` (reds)
+         as described in :doc:`orientation_tables`. 
 
    .. grid-item::
 
@@ -308,7 +321,7 @@ sky, where the colour indicates both the orientation lock and minimum distance b
 
          The projection of line-of-sight pairs for ``orientation_table="sphere_quarter_spacing"``. All pairs identified,
          for each orientation lock, even if within 1° of each other on the sky are still separated by at least a quarter 
-         of the snapshots sidelength. 
+         of the snapshots box's side length.
 
    .. grid-item::
 

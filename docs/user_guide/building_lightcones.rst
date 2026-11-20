@@ -3,10 +3,11 @@ Building lightcones
 
 .. currentmodule:: swiftlet.snapshot_lightcone
 
-This page covers how to build a lightcone with :mod:`swiftlet` in two parts, first an overview of how to use the
-:mod:`swiftlet.snapshot_lightcone` module and then in a more detailed :ref:`step-by-step <lightcone-step-by-step>` 
-walkthrough of the main methods in the :class:`SnapshotLightcone` class used to build lightcones.
-See :doc:`methods_overview` for an overview of the main ideas behind how lightcones are built in :mod:`swiftlet`.  
+
+This page covers how to build a lightcone with :mod:`swiftlet`, this includes an overview of how to use the
+:mod:`swiftlet.snapshot_lightcone` module and a :ref:`step-by-step <lightcone-step-by-step>` 
+walkthrough of the main methods in the :class:`SnapshotLightcone` class that is used to build lightcones.
+See :doc:`methods_overview` for an overview of the main ideas behind how lightcones are built in :mod:`swiftlet`. 
 
 All lightcones in :mod:`swiftlet` are classified as either an :term:`all-sky <all-sky lightcone>` or :term:`beam` 
 lightcone. The former are lightcones with a footprint that covers the whole sky (has a solid angle of :math:`4 \pi` 
@@ -16,21 +17,22 @@ constructed with the :class:`SnapshotBeam` class.
 Both :class:`SnapshotAllSky` and :class:`SnapshotBeam` are subclasses of :class:`SnapshotLightcone`, which only contain 
 information specific to the geometry of the lightcone it builds: an all-sky or beam lightcone. 
 The methods used for building a lightcone are held by :class:`SnapshotLightcone` and shared by both subclasses.
-As shown in :doc:`methods_overview` we build lightcones by taking copies of the simulations snapshot box and placing 
-them into a lattice around the observer, before then populating the lattice using slices of particle and haloes from 
-snapshots chosen by redshift. 
+As shown in :doc:`methods_overview`, :mod:`swiftlet` builds lightcones by taking copies of the simulations snapshot box 
+and placing them into a lattice around the observer, before then populating the lattice using slices of particle and 
+haloes from snapshots chosen by their redshift (comoving distance from the observer). 
 
 .. _lightcone_building_step_list:
 
-In practice we can build lightcones with the :class:`SnapshotLightcone` in main three steps:
+In practice we use :class:`SnapshotLightcone` to build lightcones in main three steps:
 
 #.  **Defining the lightcone**: choose the simulation, the lightcone's geometry (an :term:`all-sky lightcone` or 
     :term:`beam`) and its internal structure (how the copies of the snapshot box are :term:`oriented <orientation>`).
-#.  **Gather**: build the lightcone at the :term:`cell` level to find the exact files and cells to read without ever 
-    touching the particle or halo data. 
-#.  **Read and place**: read the particles or haloes of those cells and place them into the lightcone, 
-    following the blueprint laid out by the previous gather step.
-
+#.  **Gather**: build the lattice containing the lightcone at the :term:`cell` level and mapping each cell the lightcone 
+    passes through to the same cell in a snapshot that is output at the redshift corresponding to the comoving distance 
+    from the observer in the lightcone. This step finds the exact files and cells to read without ever touching the 
+    particle or halo data. 
+#.  **Read and place**: read the particles or haloes of those cells, keeping only those within the lightcone and place 
+    them into the lightcone, following the blueprint laid out by the previous step.
 
 .. important::
    **Lightcones should be built in thin redshift shells:**
@@ -73,9 +75,9 @@ To define a lightcone it needs:
         orientation_seed=0
         )
 
-With the same internal structure (set by the orientation tables, lock and seed: see :doc:`orientation`), in the code 
-block above ``beam`` gives the exact same lightcone as the same subvolume within ``all_sky`` 
-(see :ref:`beams-are-part-of-the-all-sky-lightcone`).
+With the same internal structure (set by the :term:`orientation tables <orientation table>`, lock and seed: see 
+:doc:`orientation`), in the code block above ``beam`` gives the exact same lightcone as the same subvolume within 
+``all_sky`` (see :ref:`beams-are-part-of-the-all-sky-lightcone`).
 
 .. tip::
    Before building a large lightcone it is a good idea to check how close periodic replicas will be within the 
@@ -86,16 +88,12 @@ block above ``beam`` gives the exact same lightcone as the same subvolume within
 Populating a lightcone
 ----------------------
 
-A lightcone is populated with particles or haloes, as described in :doc:`methods_overview`, in two separate steps 
-(steps 2 and 3 from the first :ref:`list <lightcone_building_step_list>`):
+A lightcone is filled one redshift shell at a time, with particles or haloes, by the gather and the read and place
+steps above.
 
-#.  **Gather**: build the lattice of tiles (and cells within the tile) that contains the lightcone and then map each 
-    cell the lightcone passes through to a snapshot, via the cells redshift in the lightcone. The snapshot files that 
-    need to be read to populate each cell in the lightcone are stored as a blueprint to populate the full lightcone. No 
-    particle data is read.
-#.  **Read and place**: read the particles (or haloes) of those cells, move them into each tile, keeping only the 
-    particles and haloes that are inside the lightcone. All of this is done by following the blueprint made by the prior
-    :term:`gather step`.
+A lightcone is populated with particles or haloes one shell at a time (described in :doc:`methods_overview`), by 
+the :term:`gather <gather step>` and the :term:`read and place <read and place step>` steps from the 
+:ref:`list <lightcone_building_step_list>` above.
 
 The diagram below sketches out what the end result of the gather step looks like for a lightcone :term:`beam`. 
 
@@ -128,7 +126,7 @@ The methods that do both steps at once are:
        the coordinates
 
    * - :meth:`SnapshotLightcone.place_halos_in_shell`
-     - the haloes of the SOAP catalogues, at the paths of the simulation's ``soap_format`` (see
+     - the haloes of the :term:`SOAP catalogues <SOAP catalogue>`, at the paths of the simulation's ``soap_format`` (see
        :ref:`simulation parameters <table-of-values>`), with the properties needed to find each halo in its catalogue 
        (see :doc:`halo_lightcones`)
 
@@ -137,10 +135,45 @@ Both methods can work with MPI to share the work between ranks (see :doc:`parall
 If a **simulation's snapshot is missing on disk** then snapshots next to it cover its redshift range, as long as the 
 snapshots are less than 0.1 apart in redshift by default. Any time this occurs a :class:`SnapshotGapWarning` is given. 
 
+
+.. _max-snapshot-spacing:
+
+Redshift between snapshots and missing snapshots
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A lightcone is filled by the snapshots whose redshift ranges cover the lightcones comoving distance, each filling the 
+redshifts between the midpoints to its neighbours (see :doc:`methods_overview` and :doc:`new_simulations_and_suites`). 
+Snapshots missing on disk are filled by the available ones and you are warned each time this happens with a 
+:class:`SnapshotGapWarning <swiftlet.snapshot_lightcone.SnapshotGapWarning>`. By default if the snapshots are 0.1 or 
+more apart in redshift (:math:`\Delta z =0.1`), a ``ValueError`` is raised before any data is read.
+
+:envvar:`SWIFTLET_MAX_SNAPSHOT_SPACING` sets another limit and can be changed if needed:
+
+.. code-block:: bash
+
+    export SWIFTLET_MAX_SNAPSHOT_SPACING=0.22     # for one shell or job script
+
+.. code-block:: python
+
+    import os
+    os.environ["SWIFTLET_MAX_SNAPSHOT_SPACING"] = "0.22"
+
+    from swiftlet.snapshot_redshifts import max_snapshot_spacing
+    max_snapshot_spacing()                         # the limit used: 0.22
+
+
 .. caution::
-    The limit can be changed with :envvar:`SWIFTLET_MAX_SNAPSHOT_SPACING` (see :ref:`max-snapshot-spacing`), but 
-    raising it gives larger discontinuities between snapshots, and above 0.25 the steps in time between them are too 
-    large.
+
+    **Keep the snapshot spacing small.** Increasing the distance in redshift between the snapshots filling a lightcone 
+    will increase the severity of the discontinuities when one snapshot meets another.  
+    Raising :envvar:`SWIFTLET_MAX_SNAPSHOT_SPACING` above its default of 0.1 is not advised and there is a hard limit of
+    0.25. 
+
+The output redshifts of FLAMINGO and COLIBRE are themselves spaced more widely at high redshift, so the limit also sets
+the maximum redshift of a lightcone for these simulations. For a maximum snapshot redshift spacing of 0.1
+(:math:`\Delta z =0.1`), FLAMINGO and COLIBRE can build lightcones out to :math:`z=3.0`, however if 
+:envvar:`SWIFTLET_MAX_SNAPSHOT_SPACING` is increased to :math:`\Delta z =0.25` then the lightcones can be extended out 
+to :math:`z=5.0` and :math:`10`, respectively. 
 
 
 .. _placing-files-one-at-a-time:
@@ -151,7 +184,7 @@ Placing files one at a time
 A lightcone or even the shell populated by one snapshot can hold more particles than can be fit on the disks memory. 
 :meth:`SnapshotLightcone.gather_files` runs the gather step alone, for one particle type, and returns the files to read:
 one :class:`FileReadSpec` for each (snapshot, tile, file). :meth:`SnapshotLightcone.place_file_in_shell` then reads and 
-places one piece at a time, so each can be added to a map and discarded:
+places one :term:`piece` at a time, so each can be added to a map and discarded:
 
 .. code-block:: python
 
@@ -171,15 +204,16 @@ raises a ``ValueError``).
 .. _lightcone-output:
 
 
-What is returned
-----------------
+The output lightcones
+---------------------
 
 Each method returns a :class:`LightconeOutput`: a dictionary of `unyt` arrays, one row per particle or halo (for
 particles, one :class:`LightconeOutput` per particle type), with the positions relative to the observer. Its
 ``.metadata`` records every setting that made it:
 
 *   the lightcone type, the simulation (suite, label and name)
-*   the ``orientation_seed``, ``orientation_lock``, the ``orientation_table`` and the fingerprint of its contents
+*   the ``orientation_seed``, ``orientation_lock``, the ``orientation_table`` and the :term:`fingerprint` of its 
+    contents
 *   the beam vector and angular radius, and the redshift range
 
 
@@ -189,18 +223,17 @@ Given the same settings and snapshots, the same lightcone is made again (see :do
 :doc:`../quickstart`).
 
 
-
 .. _lightcone-step-by-step:
 
 Building lightcones: Step by step
 ---------------------------------
 
-What happens when a lightcone is set up and filled with particles or haloes, step by step.
+What happens when a lightcone is being populated with particles or haloes, step by step.
 
 
 Particles
 ^^^^^^^^^
- 
+
 .. dropdown:: Flowchart: placing particles into a lightcone
    :icon: workflow
    :animate: fade-in
@@ -227,16 +260,16 @@ Particles and haloes choose their snapshots in exactly the same way.
 
 **Step 1, gather** (no particle data is read)
 
-#.  For each snapshot, its redshift range is clipped to the lightcone, and its cell metadata (cell centres, and which files
-    hold the particle type) is loaded.
+#.  For each snapshot, its redshift range is clipped to the lightcone, and its cell :term:`metadata` (cell centres, and 
+    which files hold the particle type) is loaded.
 #.  For each snapshot, its redshift range is clipped to the lightcone, and its cell metadata (the cell centres, the
     file itself, offset and number of particles of each cell for each particle type) is read from its file 0, once per 
     call. A snapshot without the particle type (e.g. no stars at high redshift) adds no files and a particle type in not 
     found in any of the snapshots raises a ``ValueError``.
-#.  The tiles the lightcone passes through are found. With ``"sphere"``, the tiles crossing a layer sphere are
+#.  The tiles the lightcone passes through are found. With ``"sphere"``, the tiles crossing a :term:`layer` are
     split into one :term:`piece` (tile, snapshot) per layer, each with its own redshift range.
 #.  For each tile, its orientation is read from the tables, from its position on the lattice (or its layer) and the
-    seed. The periodic cell shift, reflections and quarter turns are applied on each axis. 
+    seed. The periodic :term:`cell shift`, reflections and quarter turns are applied on each axis. 
 #.  The cell centres are transformed and moved to the tile's position, and the cells inside the tile's part of the
     lightcone are kept (with a buffer of one cell length).
 #.  A :class:`FileReadSpec` (snapshot, tile, file, offsets and lengths of the cells) is recorded for each file with
@@ -289,7 +322,7 @@ applications and examples).
 **Step 1, gather**
 
 #.  The snapshots are chosen exactly the same as done for the particles, from the SOAP catalogues on disk (gaps filled
-     with a warning, and a ``ValueError`` if they are 0.1 or more apart in redshift; see :ref:`max-snapshot-spacing`).
+    with a warning, and a ``ValueError`` if they are 0.1 or more apart in redshift; see :ref:`max-snapshot-spacing`).
 #.  The cell metadata are read from one snapshot only (it is the same in every snapshot).
 #.  For each snapshot, its redshift range is clipped to the lightcone, and the tiles (and spherical layers) the 
     lightcone crosses are found.
@@ -299,9 +332,9 @@ applications and examples).
 
 **Step 2, read and place**
 
-#.  The catalogues are split into pieces of ``soap_chunk_size`` rows, read on one process or shared between the MPI
-    ranks.
-#.  For each piece, the halo centres and catalogue indices of its rows are read once.
+#.  The catalogues are split into chunks of ``soap_chunk_size`` rows, read on one process or shared between the MPI 
+    ranks
+#.  For each chunk, the halo centres and catalogue indices of its rows are read once.
 #.  For each tile of its snapshot, the tile's transform is applied to the halo centres, as for particles, and the haloes
     exactly inside the tile's part of the shell are kept, with their snapshot, ``HaloCatalogueIndex`` and
     ``SOAPIndex`` (row in the catalogue).

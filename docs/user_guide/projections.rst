@@ -1,10 +1,8 @@
 Lightcone projections
 =====================
 
-
-SWIFT includes a module: :mod:`swiftlet.lightcone_projections`, that includes a basic template for making nice 
-looking projections of any particle lightcone. These tools can be useful for visualising the cosmic web and the redshift 
-evolution of different particle properties within the lightcone. 
+The :mod:`swiftlet.lightcone_projections` module makes projections of any particle lightcone. These tools can be useful 
+for visualising the cosmic web and the redshift evolution of different particle properties within the lightcone. 
 
 This page contains an example of how to make a projection of the surface density of a particle lightcone built from the 
 snapshots of the L400_m7 COLIBRE simulation. 
@@ -46,7 +44,6 @@ As shown in the example below, to make a projection:
 
 .. code-block:: python
 
-    
     from swiftlet import Simulation, BeamProjection, SnapshotBeam, SnapshotCosmology
 
     sim = Simulation.from_label("L0400N3008", "Thermal") # L400m7 COLIBRE, Thermal AGN
@@ -121,8 +118,9 @@ and/or property:
     )
 
 It either draws a new figure or adds each wedge to an existing axes, then returns the figure, the axes and the image of 
-each wedge. Other keyword arguments style the wedges, ticks, labels and grid lines (see :meth:`BeamPlot.add_wedge <swiftlet.beam_plotting.BeamPlot.add_wedge>` and 
-:meth:`BeamPlot.add_beam_axes <swiftlet.beam_plotting.BeamPlot.add_wedge>`).
+each wedge. Other keyword arguments style the wedges, ticks, labels and grid lines (see 
+:meth:`BeamPlot.add_wedge <swiftlet.beam_plotting.BeamPlot.add_wedge>` and 
+:meth:`BeamPlot.add_beam_axes <swiftlet.beam_plotting.BeamPlot.add_beam_axes>`).
 
 The plotting is done by :class:`BeamPlot <swiftlet.beam_plotting.BeamPlot>`, which can also be used on its own with a 
 cosmology, angular diameter, redshift range and the extent of the images.

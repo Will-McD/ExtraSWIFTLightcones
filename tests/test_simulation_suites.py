@@ -6,17 +6,24 @@ Test each simulation's paths and snapshot redshifts come from its suite and the
 that lightcone classes take a Simulation or the box size and resolution label and name.
 """
 
+import os
 import shutil
 from pathlib import Path
 import numpy as np
 import pytest
 import dataclasses
-from swiftlet import snapshot_lightcone
+from swiftlet import simulation_suites, snapshot_lightcone
 from swiftlet.simulation_suites import (
     COLIBRE,
     FLAMINGO,
     Simulation,
+    SimulationSuite,
+    add_suite,
     get_suite,
+    load_suites,
+    read_suite_file,
+    suite_directories,
+    write_suite_file,
     output_redshifts,
     read_output_list,
     suite_for_label,
@@ -40,6 +47,9 @@ def no_suite_directories(monkeypatch):
     # each suite's own directory, unless a test sets the environment variable
     monkeypatch.delenv("SWIFTLET_FLAMINGO_DIR", raising=False)
     monkeypatch.delenv("SWIFTLET_COLIBRE_DIR", raising=False)
+
+    # only the installed suite files, unless a test sets the directories of its own
+    monkeypatch.delenv(simulation_suites.SUITES_DIR_ENV, raising=False)
 
 
 @pytest.fixture
@@ -526,3 +536,173 @@ def test_snapshot_dir(snapshot_format, snapshot_dir):
     """The snapshot directory is the directory of the snapshot format up to its first field."""
     sim = Simulation(FLAMINGO, "L1000N1800", "HYDRO_FIDUCIAL", "/sim").with_paths(snapshot_format=snapshot_format)
     assert sim.snapshot_dir == snapshot_dir
+
+
+# simulation suites read from YAML files
+
+
+def test_installed_suite_files():
+    """
+    Test that the installed suite files give FLAMINGO and COLIBRE as they were defined in the code before.
+    """
+    assert set(load_suites()) == {"flamingo", "colibre"}
+
+    assert FLAMINGO == SimulationSuite(
+        name="flamingo",
+        label_pattern=r"L1000N0900|L1000N1800|L1000N3600|L2800N5040",
+        base_dir_format="/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}",
+        base_dir_env="SWIFTLET_FLAMINGO_DIR",
+        snapshot_format="snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5",
+        description="FLAMINGO simulations on COSMA",
+    )
+
+    assert COLIBRE == SimulationSuite(
+        name="colibre",
+        label_pattern=r"L0\d{3}N\d{4}|L\d{3}_?m\d",
+        base_dir_format="/cosma8/data/dp004/colibre/Runs/{box_res}/{sim_name}",
+        base_dir_env="SWIFTLET_COLIBRE_DIR",
+        snapshot_format="snapshots/colibre_{snap_nr:04d}/colibre_{snap_nr:04d}.{file_nr}.hdf5",
+        description="COLIBRE simulations on COSMA",
+    )
+
+    assert (FLAMINGO.output_list, FLAMINGO.soap_format) == (
+        "output_list.txt",
+        "SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5",
+    )
+
+    assert suite_for_label("L1000N1800") is FLAMINGO and suite_for_label("L200_m6") is COLIBRE
+
+
+# make new custom suite to test for reading and writing of new suites
+MYSUITE = SimulationSuite(
+    name="mysuite",
+    label_pattern=r"L\d{4}N\d{4}_my",
+    base_dir_format="/data/my 'suite'/{box_res}/{sim_name}",
+    soap_format="SOAP/{snap_nr:03d}.hdf5",
+    description="my simulations, with a ' and a \\ in the text",
+)
+
+
+@pytest.mark.parametrize("suite", [FLAMINGO, COLIBRE, MYSUITE], ids=["flamingo", "colibre", "mysuite"])
+def test_suite_file_round_trip(tmp_path, suite):
+    """
+    Test that a suite written with write_suite_file is read back as the same suite, regular expression included.
+    """
+    path = tmp_path / "suites" / f"{suite.name}.yaml"
+    write_suite_file(suite, path)
+    assert read_suite_file(path) == suite
+
+
+def test_suite_files_add_and_replace_suites(tmp_path, monkeypatch):
+    """
+    Test that the .yaml files in SWIFTLET_SUITES_DIR add new suites and replace the installed ones of the same name and
+    that a file's name is its suite's name if it doesn't give one.
+    """
+
+    first, second = tmp_path / "first", tmp_path / "second"
+
+    # write new suite .yaml file
+    write_suite_file(MYSUITE, first / "mysuite.yaml")
+
+    # update flamingo .yaml file
+    write_suite_file(
+        FLAMINGO.with_paths(soap_format="SOAP/halo_properties_{snap_nr:04d}.hdf5"), first / "flamingo.yaml"
+    )
+
+    second.mkdir()
+
+    (second / "flamingo.yaml").write_text(
+        "label_pattern: 'L1000N1800'\nbase_dir_format: '/elsewhere/{box_res}/{sim_name}'\n"
+    )
+
+    monkeypatch.setenv(simulation_suites.SUITES_DIR_ENV, f"{first}{os.pathsep}{second}")
+
+    assert suite_directories()[1:] == [str(first), str(second)]
+
+    # load all suites
+    suites = load_suites()
+
+    # check all suites are found by name
+    assert set(suites) == {"flamingo", "colibre", "mysuite"}
+
+    # check that read suites are the same as the existing ones
+    assert suites["mysuite"] == MYSUITE and suites["colibre"] == COLIBRE
+
+    # the last directory's flamingo, with the defaults of the fields it doesn't give the same as the updated suite
+    assert suites["flamingo"] == SimulationSuite(
+        name="flamingo", label_pattern="L1000N1800", base_dir_format="/elsewhere/{box_res}/{sim_name}"
+    )
+
+    assert suites["flamingo"].base_dir_env is None
+
+    # check correct updated path is found
+    assert suites["flamingo"].directory_format() == "/elsewhere/{box_res}/{sim_name}"
+
+
+def test_add_suite(tmp_path, monkeypatch):
+    """
+    Test that a suite added is found from the labels of its simulations.
+    """
+
+    monkeypatch.setattr(simulation_suites, "SUITES", dict(simulation_suites.SUITES))
+
+    with pytest.raises(ValueError, match="can't tell which simulation suite"):
+        Simulation.from_label("L0100N0512_my", "Fiducial")
+
+    assert add_suite(MYSUITE) is MYSUITE
+
+    sim = Simulation.from_label("L0100N0512_my", "Fiducial")
+    assert sim.suite is MYSUITE and sim.soap_file(5) == "/data/my 'suite'/L0100N0512_my/Fiducial/SOAP/005.hdf5"
+
+    other = dataclasses.replace(MYSUITE, base_dir_format="/other/{box_res}/{sim_name}")
+
+    write_suite_file(other, tmp_path / "mysuite.yaml")
+
+    assert add_suite(tmp_path / "mysuite.yaml") == other
+    assert Simulation.from_label("L0100N0512_my", "Fiducial").directory == "/other/L0100N0512_my/Fiducial"
+
+
+@pytest.mark.parametrize(
+    "text, error",
+    [
+        ("- not\n- a suite\n", "holds the fields of a suite"),
+        ("label_pattern: 'L1'\nbase_dir_format: '/d/{box_res}/{sim_name}'\nsoap: 'x'\n", "unknown fields \\['soap'\\]"),
+        ("base_dir_format: '/d/{box_res}/{sim_name}'\n", "needs label_pattern"),
+        ("label_pattern: 'L(1'\nbase_dir_format: '/d/{box_res}/{sim_name}'\n", "not a regular expression"),
+        ("name: 'My Suite'\nlabel_pattern: 'L1'\nbase_dir_format: '/d/{box_res}/{sim_name}'\n", "lower case"),
+        (
+            "label_pattern: 'L1'\nbase_dir_format: '/d/{box_res}/{sim_name}'\nsoap_format: 'soap.hdf5'\n",
+            "needs \\{snap_nr\\}",
+        ),
+        ("label_pattern: 'L1'\nbase_dir_format: {box_res}/{sim_name}\n", "not a YAML file|must be a path"),
+    ],
+    ids=["not_a_mapping", "unknown_field", "missing_field", "bad_pattern", "bad_name", "bad_path", "unquoted"],
+)
+def test_suite_file_errors(tmp_path, text, error):
+    """
+    Test that a file that isn't a suite raises a ValueError naming the file and what is wrong.
+    """
+    path = tmp_path / "broken.yaml"
+    path.write_text(text)
+    with pytest.raises(ValueError, match=error) as raised:
+        read_suite_file(path)
+
+    assert str(path) in str(raised.value)
+
+
+def test_suite_directory_errors(tmp_path, monkeypatch):
+    """
+    Test that a directory with two suites of the same name, or a path to a file in SWIFTLET_SUITES_DIR that isn't a
+    directory, raises a ValueError.
+    """
+    # write test files
+    write_suite_file(MYSUITE, tmp_path / "a.yaml")
+    write_suite_file(MYSUITE, tmp_path / "b.yaml")
+
+    with pytest.raises(ValueError, match="are both the suite 'mysuite'"):
+        load_suites([str(tmp_path)])
+
+    monkeypatch.setenv(simulation_suites.SUITES_DIR_ENV, str(tmp_path / "missing"))
+
+    with pytest.raises(ValueError, match="is not a directory"):
+        load_suites()

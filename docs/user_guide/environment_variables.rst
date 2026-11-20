@@ -7,13 +7,19 @@ data files. This page lists each one and how to change it.
 
 .. envvar:: SWIFTLET_MAX_THREADS
 
-  Maximum number of threads used by SWIFTLET, 30 by default. 
+  Maximum number of threads used by SWIFTLET, 30 by default (see :ref:`max-threads`). 
 
 .. envvar:: SWIFTLET_MAX_SNAPSHOT_SPACING
 
-  The largest redshift spacing allowed between the snapshots filling a lightcone shell: a gap of this much or more
-  (from missing snapshots, or between the outputs themselves) raises a ``ValueError``. Set to 0.1 by default (see
-  :ref:`max-snapshot-spacing`).
+  The largest redshift spacing allowed between the snapshots filling a lightcone :term:`shell`: a gap of this much or 
+  more (from missing snapshots, or between the outputs themselves) raises a ``ValueError``. 
+  :envvar:`SWIFTLET_MAX_SNAPSHOT_SPACING` is set to 0.1 by default (see :ref:`max-snapshot-spacing`).
+
+.. envvar:: SWIFTLET_SUITES_DIR
+
+  Directories of simulation suite files (``*.yaml``), separated by ``:``, read after the installed FLAMINGO and COLIBRE
+  suites when SWIFTLET is imported. A file there adds a new suite, or replaces the suite of the same name (see
+  :ref:`new-suite`). Not set by default.
 
 .. envvar:: L1_REDSHIFTS_FILENAME
 
@@ -62,117 +68,6 @@ There are four ways, from the most permanent to the most temporary:
     os.environ["SWIFTLET_FLAMINGO_DIR"] = "/my/flamingo/runs"
 
 
-Maximum number of threads 
--------------------------
-
-:envvar:`SWIFTLET_MAX_THREADS` sets the maximum number of threads for SWIFTLET's threaded code:
-
-* numba's parallel functions, which re-orient 50,000 or more points at a time (and swiftsimio's parallel projections);
-* healpy's spherical harmonic transforms (``map2alm``, ``rotate_alm``, ``alm2map``), used to rotate HEALPix maps.
-
-The possible values of :envvar:`SWIFTLET_MAX_THREADS` are shown in the table below.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 35 65
-
-   * - Value
-     - Threads used
-
-   * - Not set
-     - 30
-
-   * - A whole number, e.g. 16
-     - That number
-
-   * - ``all``
-     - Every core the process is allowed
-
-Whatever the value, a process never uses more threads than the cores it is allowed, e.g. the cores given to a job, or 
-to one MPI rank. numba is also capped by ``NUMBA_NUM_THREADS`` (set before Python starts).
-
-Set it with any of:
-
-.. code-block:: bash
-
-    swiftlet-configure --max_threads 16     # saved in the environment's activate script ("all" also works)
-    export SWIFTLET_MAX_THREADS=16          # for one shell or job script
-
-.. code-block:: python
-
-    import swiftlet
-    swiftlet.set_max_threads(16)            # while running, from then on
-    swiftlet.max_threads()                  # the maximum: 16, or None for "all"
-    swiftlet.threads.thread_limit()         # the threads actually used: the maximum, capped by the cores allowed
-
-The value is read each time threaded code runs, so changing it while running takes effect from the next call.
-
-**In job scripts:**
-
-*   **One process with several cores:** match the cores given to the job,
-    e.g. ``export SWIFTLET_MAX_THREADS=${SLURM_CPUS_PER_TASK}``.
-*   **With MPI:** use 1 (or the cores per rank), so the ranks on a node don't compete for its cores.
-
-healpy's transforms are limited with ``threadpoolctl``, if it is installed. Without it, set ``OMP_NUM_THREADS`` instead.
-
-
-.. _max-snapshot-spacing:
-
-Largest spacing between snapshots
----------------------------------
-
-A lightcone is filled by the snapshots whose redshift ranges cover the lightcones comoving distance, each filling the 
-redshifts between the midpoints to its neighbours (see :doc:`new_simulations_and_suites`). Snapshots missing on disk are 
-filled by the available ones, with a :class:`SnapshotGapWarning <swiftlet.snapshot_lightcone.SnapshotGapWarning>`. By 
-default if the snapshots filling the shell are then 0.1 or more apart in redshift, a ``ValueError`` is raised before any 
-data is read.
-
-:envvar:`SWIFTLET_MAX_SNAPSHOT_SPACING` sets another limit (it is read each time a shell is filled):
-
-.. code-block:: bash
-
-    export SWIFTLET_MAX_SNAPSHOT_SPACING=0.22     # for one shell or job script
-
-.. code-block:: python
-
-    import os
-    os.environ["SWIFTLET_MAX_SNAPSHOT_SPACING"] = "0.22"
-
-    from swiftlet.snapshot_redshifts import max_snapshot_spacing
-    max_snapshot_spacing()                         # the limit used: 0.22
-
-The output redshifts of FLAMINGO and COLIBRE are themselves spaced more widely at high redshift, so the limit also sets
-how far out a lightcone can be built from them:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 35 35
-
-   * - Limit
-     - FLAMINGO (``flamingo_L1``) reaches
-     - COLIBRE reaches
-
-   * - 0.1 (the default)
-     - :math:`z = 3`
-     - :math:`z = 2.5`
-
-   * - 0.26
-     - :math:`z = 5`
-     - :math:`z = 10`
-
-   * - 0.51
-     - :math:`z = 5.5`
-     - :math:`z = 15`
-
-
-.. caution::
-
-    **Keep the snapshot spacing small.** Each snapshot fills the redshifts around its own, so increasing the distance in 
-    redshift between the snapshots filling a lightcone will increase the severity of the discontinuities where one 
-    snapshot hands over to the next. Raising :envvar:`SWIFTLET_MAX_SNAPSHOT_SPACING` above its default of 0.1 is not 
-    advised and SWIFTLET warns whenever the limit is raised.
-
-
 .. _install-flamingo-redshifts:
 
 FLAMINGO redshift shells
@@ -193,30 +88,6 @@ for in this order:
 
 If ``swiftlet-configure`` is not run, the files are downloaded the first time they are needed instead. 
 To use your own copies, set the variables to their paths. 
-
-
-Where to look for the simulations
----------------------------------
-
-Each suite looks for its simulations in ``<directory>/<box_res>/<sim_name>`` (see :ref:`simulation-paths`).
-
-The directory of a simulation is chosen in this order:
-
-#.  the base directory (``base_dir_format``), if given, 
-    e.g. ``Simulation.from_label(..., base_dir_format="/my/runs/{box_res}/{sim_name}")``, 
-    or ``simulation_base_dir_format=`` for the lightcone classes
-#.  the suite's environment variable, :envvar:`SWIFTLET_FLAMINGO_DIR` or :envvar:`SWIFTLET_COLIBRE_DIR`, the directory
-    holding the simulations
-
-
-For simulations copied elsewhere, keeping the ``<box_res>/<sim_name>`` layout:
-
-.. code-block:: bash
-
-    export SWIFTLET_FLAMINGO_DIR=/data/flamingo        # finds /data/flamingo/L1000N1800/HYDRO_FIDUCIAL
-    export SWIFTLET_COLIBRE_DIR=/data/colibre
-
-The variable is read when the ``Simulation`` is made by ``Simulation.from_label``, see :mod:`swiftlet.simulation_suites`.
 
 
 .. _healpix-weights:

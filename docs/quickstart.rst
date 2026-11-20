@@ -6,17 +6,10 @@ halo catalogues of the fiducial `L1_m10 FLAMINGO simulation <https://dataweb.cos
 We will build a pencil beam with an angular radius of :math:`\theta=2.5^{\circ}` that extends out to redshift 
 :math:`z=0.3`.
 
-:mod:`swiftlet` builds lightcones from snapshots in three steps:
-
-#.  **Define the lightcone**: choose the simulation, the lightcone's geometry and its internal structure (how the 
-    copies of the snapshot box are :term:`oriented <orientation>`).
-#.  **Gather**: build the lightcone at the level of the snapshots' :term:`cells <cell>`, to find exactly which files and 
-    cells to read, without reading any particle (or halo) data.
-#.  **Read and place**: read the particles or haloes of those cells and place them in the lightcone, as the 
-    :term:`gather step` planned.
-
-For an overview of the main ideas and specific steps for building a lightcone with :mod:`swiftlet` see 
-:doc:`user_guide/methods_overview` and :doc:`user_guide/building_lightcones`, respectively. 
+A lightcone is built in three steps: **define** the lightcone, **gather** the files and cells to read, then **read and
+place** their particles or haloes. 
+:doc:`user_guide/building_lightcones` and :doc:`user_guide/methods_overview`  explain each step and the ideas behind 
+them, respectively. 
 
 
 Defining the lightcone 
@@ -31,8 +24,8 @@ both the direction and angular radius (``ang_radius_deg`` in degrees) of the bea
 a vector (``beam_vector``), here :math:`\mathbf{v}_{\mathrm{beam}}=(0,0,1)`, to point the beam along the z-axis of the 
 simulations box. 
 
-In addition to the direction and angular radius of the beam , the lightcone also needs to know which simulation it is 
-being built from. All the information on where to find the snapshots, :term:`SOAP catalogues <SOAP catalogue>` 
+In addition to the direction and angular radius of the beam , the lightcone needs to know which simulation it is 
+being built from. All the information on where to find a simultions snapshots, :term:`SOAP catalogues <SOAP catalogue>` 
 and the output redshifts is handled by a :class:`Simulation <swiftlet.simulation_suites.Simulation>` object. 
 
 For now, we will not worry about the internal structure of the beam, we will use the default :term:`orientation table` 
@@ -97,14 +90,15 @@ the :term:`gather step` and, :term:`read and place step`.
     halos.metadata                          # the settings that made the lightcone
 
 
-The halo lightcone holds only the properties needed to place each halo in the lightcone (``"Lightcone/HaloCentre"``,
-``"Lightcone/ExpansionFactor"``) and to match it back with the SOAP catalogues (``"Lightcone/SnapshotNumber"`` and 
-``"InputHalos/SOAPIndex"``). Any other property can be read from the SOAP catalogues in post, 
-see :ref:`map-halo-lightcone-to-soap`.
+The returned halo lightcone holds only the properties needed to place each halo in the lightcone 
+(``"Lightcone/HaloCentre"``, ``"Lightcone/ExpansionFactor"``) and to match it back with the SOAP catalogues 
+(``"Lightcone/SnapshotNumber"`` and ``"InputHalos/SOAPIndex"``). Any other property can be read from the SOAP catalogues 
+in post, see :ref:`map-halo-lightcone-to-soap`.
 
-As an example we will select only central haloes in the lightcone, as indicated by the SOAP catalogues, and then store 
-the selected haloes in HDF5 files with the same format as the existing FLAMINGO halo lightcones: one file per snapshot 
-(for more information see :ref:`write-halo-lightcone`). 
+The haloes can be selected by properties from the SOAP catalogues and written to HDF5 files in the format of FLAMINGO's 
+halo lightcones (for more information see :ref:`write-halo-lightcone`).
+As an example we will select only central haloes in the lightcone, given by ``InputHalos/IsCentral`` in the SOAP 
+catalogues, and then store the selected central haloes in HDF5 files with one file per snapshot:
 
 .. code-block:: python
     
@@ -187,7 +181,8 @@ Here we will place gas particles (``PartType0``), along with their masses and te
 
 
 .. Note::
-    ``SmoothingLengths`` **are always returned** for any particle that has them.
+    ``Coordinates``, ``ParticleIDs``, ``ExpansionFactors`` and ``SnapshotNumber`` **are always returned**, whilst
+    ``SmoothingLengths`` are returned for every particle type that has the property.
 
 Building a particle lightcone can be very computationally expensive, it is suggested that you build particle lightcones 
 in thin redshift shells or by one snapshot file at a time to limit the peak memory used, see

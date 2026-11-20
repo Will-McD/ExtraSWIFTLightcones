@@ -81,7 +81,9 @@ The following table summarises the test files and what they check.
         directories (including :envvar:`SWIFTLET_FLAMINGO_DIR` and :envvar:`SWIFTLET_COLIBRE_DIR`), reading output lists 
         and refusing other files. The lightcone classes take a :class:`swiftlet.simulation_suites.Simulation` 
         and refuse a label, with an error showing how to make a 
-        :class:`Simulation <swiftlet.simulation_suites.Simulation>`.
+        :class:`Simulation <swiftlet.simulation_suites.Simulation>`. A suite written to a .yaml file is read back the
+        same, moreover the files in :envvar:`SWIFTLET_SUITES_DIR` are preferentially used over the installed ones and a 
+        file that isn't a suite fails.
 
    * -  ``test_soap_reader.py``
      -  The SOAP readers of :mod:`swiftlet.soap_reader` give the same rows and units whether reading in chunks or 
