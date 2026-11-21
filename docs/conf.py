@@ -136,7 +136,6 @@ html_css_files = ["custom.css"]
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy", None),
     "astropy": ("https://docs.astropy.org/en/stable", None),
     "unyt": ("https://unyt.readthedocs.io/en/stable", None),
     "h5py": ("https://docs.h5py.org/en/stable", None),
@@ -145,6 +144,8 @@ intersphinx_mapping = {
     "swiftsimio": ("https://swiftsimio.readthedocs.io/en/latest", None),
     "mpi4py": ("https://mpi4py.readthedocs.io/en/stable/", None),
 }
+
+intersphinx_timeout = 30
 
 # words used in :type: lines that describe a type rather than name a class, and classes with no docs to link to
 nitpick_ignore_regex = [

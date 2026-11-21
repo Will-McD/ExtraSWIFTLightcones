@@ -933,56 +933,6 @@ class SnapshotLightcone:
             cache[snap_nr] = self.__get_cell_data(snap_nr)
         return cache[snap_nr]
 
-    def __last_snapshot_index(self, snap_nr, tile):
-        """
-        Find the index of a snapshot tile in the records of the snapshots read.
-
-        :param  snap_nr:    snapshot number
-        :type   snap_nr:    int
-        :param  tile:       periodic replica tile index
-        :type   tile:       tuple
-        """
-        for idx, record in enumerate(self.last_snapshot_read):
-            if record.snap_nr == snap_nr and record.tile == tile:
-                return idx
-        raise ValueError(f"snapshot {snap_nr}, tile {tile} not found in last_snap records")
-
-    @property
-    def last_snapshot_read(self):
-        """
-        The (snapshot, tile) pieces of the last shell gathered.
-
-        Deprecated, use ``last_shell.pieces``.
-        """
-        # make a warning for using the wrong properties that are being removed going forward.
-        # REMOVE AFTER TESTING
-        replacement = "last_shell.pieces"
-        name = "last_snapshot_read"
-        warnings.warn(
-            f"SnapshotLightcone.{name} is deprecated and will be removed in a later version, use {replacement}",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        return None if self.last_shell is None else self.last_shell.pieces
-
-    @property
-    def snap_file_offset_lengths(self):
-        """
-        The files to read of the last particle shell gathered.
-
-        Deprecated, use ``last_shell.files``.
-        """
-        # make a warning for using the wrong properties that are being removed going forward.
-        # REMOVE AFTER TESTING
-        replacement = "last_shell.files"
-        name = "snap_file_offset_lengths"
-        warnings.warn(
-            f"SnapshotLightcone.{name} is deprecated and will be removed in a later version, use {replacement}",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        return self.last_shell.files if isinstance(self.last_shell, ShellRead) else None
-
     @staticmethod
     def __define_beam_vector(beam_vector):
         """

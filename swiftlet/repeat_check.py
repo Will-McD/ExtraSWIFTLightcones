@@ -150,7 +150,7 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, cell_data, tile_cells=No
 
     beam_vec = None if ang_radius_deg is None else np.asarray(lightcone.beam_vec, dtype=float)
 
-    # for record in lightcone.last_snapshot_read:
+    # for record in lightcone.last_shell
     for record in records:
         # get grid info from cell metadata
         snapshot_cells = cell_data[int(record.snap_nr)]
