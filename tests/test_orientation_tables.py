@@ -147,10 +147,11 @@ def test_installed_tables_are_those_of_the_tool():
 @pytest.mark.parametrize("nr_cells_axis", [16, 32])
 def test_default_is_clash_free(nr_cells_axis):
     """
-    No two rows of default make a cell touch its own copy across the face between neighbouring tiles (64 cells per
-    axis is checked by tools/make_default_orientation_tables.py --check 64, as it takes minutes).
+    Check that no two rows of default make a cell touch its own copy across the face between neighbouring tiles (64
+    cells per axis is checked by tools/make_default_orientation_tables.py --check 64, as it takes minutes).
     """
     assert so.tables_are_clash_free(so.default_orientation_tables(), nr_cells_axis) == 0
+
     # tables that do make cells clash are caught: the first default tables (tests/clashing_orientation_tables.py)
     clashing = clashing_tables()
     assert so.orientation_tables_fingerprint(clashing) == CLASHING_FINGERPRINT
@@ -600,3 +601,118 @@ def test_numpy_and_numba_rotations_identical(monkeypatch):
                 with_numpy = so.rotate_coords_cartesian(coords, angles, numba_min_points=len(coords) + 1, **kwargs)
 
                 np.testing.assert_array_equal(with_numpy, with_numba, err_msg=f"{angles}, {reflections}, {shift}")
+
+
+# the observer position: the nearest cell corner, and the periodic shift of every tile that moves it to the observer
+
+
+@pytest.mark.parametrize(
+    "position, tile_shift, corner, shift",
+    [
+        pytest.param((330.0, 512.0, 760.0), None, (375.0, 500.0, 750.0), (1, 0, 6), id="nearest_corner"),
+        pytest.param((62.5, 187.5, 312.5), None, (125.0, 250.0, 375.0), (3, 2, 1), id="cell_centres_go_up"),
+        pytest.param((999.0, -1.0, 1062.5), None, (0.0, 0.0, 125.0), (4, 4, 3), id="wrapped_into_the_box"),
+        pytest.param((500.0, 500.0, 500.0), None, (500.0, 500.0, 500.0), (0, 0, 0), id="box_centre"),
+        pytest.param((330.0, 512.0, 760.0), (2, -1, 3), (375.0, 500.0, 750.0), (7, 1, 3), id="tile_own_shift"),
+    ],
+)
+def test_observer_corner_and_shift(position, tile_shift, corner, shift):
+    """
+    Check that each axis the nearest corner is floor(p / d + 0.5) * d, wrapped into the box (cell centre goes to upper
+    corner), and the shift [cells] is n/2 - corner / d less the observer's tile's own shift, modulo n.
+    """
+    got_corner, got_shift = so.observer_corner_and_shift(position, 1000.0, 8, tile_cell_shift=tile_shift)
+    np.testing.assert_allclose(got_corner, corner)
+    np.testing.assert_array_equal(got_shift, shift)
+    assert got_shift.dtype.kind == "i"
+
+
+def test_observer_corner_and_shift_errors():
+    with pytest.raises(ValueError, match="observer_position"):
+        so.observer_corner_and_shift((1.0, 2.0), 1000.0, 8)
+
+    with pytest.raises(ValueError, match="observer_position"):
+        so.observer_corner_and_shift((1.0, np.nan, 2.0), 1000.0, 8)
+
+    with pytest.raises(ValueError, match="even"):
+        so.observer_corner_and_shift((1.0, 2.0, 3.0), 1000.0, 7)
+
+
+def shifted_tables(tables, shift_in_eighths):
+    """The tables with a shift [eighths of the box] added to the cell shift of every row, wrapped into -3 to 4."""
+    tables = so.check_orientation_tables(tables)
+    shifts = np.mod(tables["CellShifts"] + np.asarray(shift_in_eighths) + 3, 8) - 3
+    return {**tables, "CellShifts": shifts}
+
+
+@pytest.mark.parametrize("nr_cells_axis", [8, 16])
+def test_tables_are_clash_free_with_an_observer_shift(nr_cells_axis):
+    """
+    Check that adding an observer's shift [cells] to every row is the same as adding it to the tables' own cell shifts
+    and that with orientation_seed, the observer's tile's own shift for that seed is taken out of the shift first.
+    """
+    tables = clashing_tables()
+    eighths = np.array([1, -2, 3])
+    in_cells = eighths * (nr_cells_axis // 8)
+
+    with_shift = so.tables_are_clash_free(tables, nr_cells_axis, observer_cell_shift=in_cells)
+    assert with_shift == so.tables_are_clash_free(shifted_tables(tables, eighths), nr_cells_axis)
+
+    # with a seed: the shift less the observer's tile's own shift (its row for the seed)
+    seed = 3
+    row = so._observer_tile_row(len(tables["QuarterTurns"]), seed)
+    tile_shift = so.cell_shifts_in_cells(so.check_orientation_tables(tables)["CellShifts"][row], nr_cells_axis)
+
+    assert so.tables_are_clash_free(
+        tables, nr_cells_axis, observer_cell_shift=in_cells, orientation_seed=seed
+    ) == so.tables_are_clash_free(tables, nr_cells_axis, observer_cell_shift=in_cells - tile_shift)
+
+    # the unchanged box shifted alike everywhere is still the box repeated periodically
+    assert so.tables_are_clash_free(UNCHANGED_TABLES, nr_cells_axis, observer_cell_shift=(1, 2, 3)) == 0
+
+    with pytest.raises(ValueError, match="orientation_seed"):
+        so.tables_are_clash_free(tables, nr_cells_axis, orientation_seed=seed)
+
+    with pytest.raises(ValueError, match="observer_cell_shift"):
+        so.tables_are_clash_free(tables, nr_cells_axis, observer_cell_shift=(1.5, 0, 0))
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube"])
+def test_check_neighbouring_tiles_with_an_observer(orientation_lock):
+    """
+    Check that: check_neighbouring_tiles with an observer position (and the box size) is the check with the shift it
+    gives,recorded in the report; the unchanged tables still never touch; giving both, or a position without the box
+    size, is an error.
+    """
+    tables, n, seed = so.generate_orientation_tables(seed=4), 8, 5
+    position = (330.0, 512.0, 760.0)
+    row = so._observer_tile_row(len(tables["QuarterTurns"]), seed)
+    tile_shift = so.cell_shifts_in_cells(tables["CellShifts"][row], n)
+    _, shift = so.observer_corner_and_shift(position, 1000.0, n, tile_cell_shift=tile_shift)
+
+    from_position = so.check_neighbouring_tiles(
+        tables, n, orientation_lock, seed, extent=2, warn=False, boxsize=1000.0, observer_position=position
+    )
+    from_shift = so.check_neighbouring_tiles(
+        tables, n, orientation_lock, seed, extent=2, warn=False, observer_cell_shift=shift
+    )
+    assert from_position.observer_cell_shift == tuple(int(k) for k in shift)
+
+    for name in ("tile_a", "tile_b", "cell"):
+        np.testing.assert_array_equal(from_position.touching[name], from_shift.touching[name])
+
+    assert "observer shift" in from_position.summary()
+
+    unchanged = so.check_neighbouring_tiles(
+        UNCHANGED_TABLES, 16, orientation_lock, extent=2, warn=False, observer_cell_shift=(3, 5, 7)
+    )
+
+    assert unchanged.nr_touching_cells == 0
+
+    with pytest.raises(ValueError, match="not both"):
+        so.check_neighbouring_tiles(
+            tables, n, orientation_lock, boxsize=1000.0, observer_position=position, observer_cell_shift=shift
+        )
+
+    with pytest.raises(ValueError, match="boxsize"):
+        so.check_neighbouring_tiles(tables, n, orientation_lock, observer_position=position)

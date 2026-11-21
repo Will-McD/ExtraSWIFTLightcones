@@ -117,6 +117,12 @@ detail.
       :term:`fingerprint`, the beam and the redshift range. With the same metadata and snapshots, the same lightcone is
       made again.
 
+   observer position
+      ``observer_position``: a comoving position ``(x, y, z)`` [Mpc] in the snapshot box to put the observer at. The
+      observer is put at the nearest :term:`cell` corner, by adding the same periodic shift of whole cells to every
+      :term:`tile` before its rotation and reflection. Without it, the observer is at the centre of its tile (see
+      :ref:`observer-position`).
+
    orientation
       How a :term:`tile` is rearranged from the initial snapshot box. The cells of the snapshot box are periodically 
       shifted (:term:`cell shift`) and reflected along each axis, then quarter turns are made about each axis 

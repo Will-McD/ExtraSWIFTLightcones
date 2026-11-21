@@ -348,6 +348,51 @@ with ``Lightcone/HaloCentre``, ``Lightcone/ExpansionFactor``, ``Lightcone/Snapsh
 properties, via ``Lightcone/SnapshotNumber`` and ``InputHalos/SOAPIndex`` (see :doc:`halo_lightcones`). 
 
 
+.. _observer-position:
+
+Moving the observer
+^^^^^^^^^^^^^^^^^^^
+
+By default the observer sits at the centre of the observer's :term:`tile`, ``(0, 0, 0)`` (see :doc:`orientation`). To 
+put the observer somewhere else in the snapshot box a new :term:`observer position` can be passed as 
+``observer_position``: a comoving position ``(x, y, z)`` in Mpc in the frame of the snapshot box. 
+
+.. code-block:: python
+
+    from swiftlet import Simulation, SnapshotBeam
+
+    sim = Simulation.from_label("L1000N0900", "HYDRO_FIDUCIAL")
+    beam = SnapshotBeam(sim, beam_vector=(0, 0, 1), ang_radius_deg=2.5, observer_position=(330.0, 512.0, 760.0))
+    particles = beam.place_snapshot_particles_in_shell((0.05, 0.3), ["Masses"], particle_types="PartType0")
+
+    position, corner = beam.observer_snapshot_coords  # the position given, and the cell corner the observer is at
+
+What you need to know about updating the observer position:
+
+*   **The observer is put at the nearest cell corner.** On each axis, the corner is
+    :math:`\lfloor p / d + 1/2 \rfloor\, d` for a position :math:`p` and cells of side length :math:`d`. A position at a
+    cell centre goes to the upper corner, and a position outside the box goes to the nearest corner of its periodic copy
+    in the box, with a warning. The position of the nearest corner used is printed and given by
+    :attr:`observer_snapshot_coords <SnapshotLightcone.observer_snapshot_coords>`, as ``(observer_position,
+    observer_corner)``. The corner needs the snapshots' cell grid, so it is ``None`` until the first call reads one.
+*   **Every tile is shifted by the same whole number of cells**, before its rotation and reflection, so the corner is
+    at the observer. The shift is added to the total cell shift each tile takes from its row of the 
+    :term:`orientation table`, in one step, so it is the same for every tile, with every seed and every 
+    :term:`orientation lock`. Therefore even with the installed table to not make any changes to the orientation of the 
+    tiles (``orientation_table="no_reorientation"``) the lightcone is still made of exact periodic replicas of the box, 
+    continuous across the faces of every tile.
+*   Particles and haloes placed in the same shell share the observer only if they're gathered with the same observer
+    position.
+*   The lightcone's ``.metadata`` records the ``observer_position``, the ``observer_corner`` and the
+    ``observer_cell_shift`` added to every tile (``None`` without an observer position).
+
+.. warning::
+    The installed orientation tables where built for the default observer position, so for new observer positions they 
+    may no longer function as intended. The guarantee of no clashing pairs of the ``"default"``,
+    ``"cube_quarter_spacing"`` and ``"sphere_quarter_spacing"`` tables no longer holds. Only ``"no_reorientation"``
+    behaves as before. It is up to you to check the result, e.g. with
+    :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>`, which includes the observer shift.
+
 
 What a lightcone keeps between calls
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -370,8 +415,10 @@ Each call makes its own record of what its gather step found, so nothing is carr
     :meth:`Snapshot2Lightcone <SnapshotLightcone.Snapshot2Lightcone>` uses its cell metadata, and
     :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` reads its pieces and cells.
 *   The last :class:`HaloShellRead` is also kept, so 
-    :meth:`place_halos_in_shell <SnapshotLightcone.place_halos_in_shell>` called again with the same settings doesn't 
-    repeat its gather step.
+    :meth:`place_halos_in_shell <SnapshotLightcone.place_halos_in_shell>` called again with the same settings
+    (including the observer position) doesn't repeat its gather step.
+*   Each record keeps the observer position it was gathered with, and the cell corner and shift that gave (see
+    :ref:`observer-position`).
 *   The cell metadata of the snapshots is kept for one call only: 
     :meth:`place_snapshot_particles_in_shell <SnapshotLightcone.place_snapshot_particles_in_shell>` empties it when it 
     ends.

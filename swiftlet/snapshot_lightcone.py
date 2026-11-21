@@ -226,26 +226,26 @@ class ShellRead:
     :meth:`~SnapshotLightcone.place_snapshot_particles_in_shell` for each particle type, and keeps it as ``last_shell``,
     so nothing is carried from one call to the next.
 
-    :ivar shell_z:          minimum and maximum redshift of the shell
-    :vartype shell_z:       tuple
-    :ivar ptype:            particle type, e.g. "PartType1"
-    :vartype ptype:         str
-    :ivar snapshots:        snapshot numbers used, from high to low redshift
-    :vartype snapshots:     numpy.ndarray
-    :ivar z_ranges:         redshift range each snapshot fills, {snapshot number: (z_min, z_max)}, wider where it fills
-                            in for a missing neighbour. A snapshot not in it fills its own range
-    :vartype z_ranges:      dict
-    :ivar pieces:           the (snapshot, tile) pieces of the shell, with the redshift range each fills, as
-                            SnapshotReadRecord
-    :vartype pieces:        list
-    :ivar files:            the files to read, a FileReadSpec per (snapshot, tile, file) with particles in the selected
-                            cells
-    :vartype files:         list
-    :ivar tile_cells:       the cells of each piece that overlap the shell, {(snapshot, tile): cell indices}
-    :vartype tile_cells:    dict
-    :ivar cell_data:        the cell metadata of the call's snapshots, {snapshot number: cell metadata}. Shared by the
-                            particle types of one call, and emptied when the call ends
-    :vartype cell_data:     dict
+    :ivar shell_z:                  minimum and maximum redshift of the shell
+    :vartype shell_z:               tuple
+    :ivar ptype:                    particle type, e.g. "PartType1"
+    :vartype ptype:                 str
+    :ivar snapshots:                snapshot numbers used, from high to low redshift
+    :vartype snapshots:             numpy.ndarray
+    :ivar z_ranges:                 redshift range each snapshot fills, {snapshot number: (z_min, z_max)}, wider where
+                                    it fills in for a missing neighbour. A snapshot not in it fills its own range
+    :vartype z_ranges:              dict
+    :ivar pieces:                   the (snapshot, tile) pieces of the shell, with the redshift range each fills, as
+                                    SnapshotReadRecord
+    :vartype pieces:                list
+    :ivar files:                    the files to read, a FileReadSpec per (snapshot, tile, file) with particles in the
+                                    selected cells
+    :vartype files:                 list
+    :ivar tile_cells:               the cells of each piece that overlap the shell, {(snapshot, tile): cell indices}
+    :vartype tile_cells:            dict
+    :ivar cell_data:                the cell metadata of the call's snapshots, {snapshot number: cell metadata}. Shared
+                                    by the particle types of one call, and emptied when the call ends
+    :vartype cell_data:             dict
     """
 
     # properties tracked by the internal shell read states are now be recorded here instead
@@ -268,24 +268,24 @@ class HaloShellRead:
     Kept as ``last_shell`` and reused by :meth:`~swiftlet.snapshot_lightcone.SnapshotLightcone.gather_halo_catalogues`
     when it is called with the same settings.
 
-    :ivar settings:             the arguments of gather_halo_catalogues, compared to reuse it
-    :vartype settings:          tuple
-    :ivar shell_z:              minimum and maximum redshift of the shell
-    :vartype shell_z:           tuple
-    :ivar snapshots:            snapshot numbers used, from high to low redshift
-    :vartype snapshots:         numpy.ndarray
-    :ivar z_ranges:             redshift range each snapshot fills, as in ShellRead
-    :vartype z_ranges:          dict
-    :ivar pieces:               the (snapshot, tile) pieces of the shell, as SnapshotReadRecord
-    :vartype pieces:            list
-    :ivar catalogues:           the SOAP catalogue to read for each piece, as HaloCatalogueSpec
-    :vartype catalogues:        list
-    :ivar catalogue_lengths:    number of haloes in each catalogue, {snapshot number: rows}
-    :vartype catalogue_lengths: dict
-    :ivar cell_snapshot:        the snapshot the box and cell metadata are read from
-    :vartype cell_snapshot:     int
-    :ivar cell_data:            its cell metadata, {cell_snapshot: cell metadata}
-    :vartype cell_data:         dict
+    :ivar settings:                 the arguments of gather_halo_catalogues, compared to reuse it
+    :vartype settings:              tuple
+    :ivar shell_z:                  minimum and maximum redshift of the shell
+    :vartype shell_z:               tuple
+    :ivar snapshots:                snapshot numbers used, from high to low redshift
+    :vartype snapshots:             numpy.ndarray
+    :ivar z_ranges:                 redshift range each snapshot fills, as in ShellRead
+    :vartype z_ranges:              dict
+    :ivar pieces:                   the (snapshot, tile) pieces of the shell, as SnapshotReadRecord
+    :vartype pieces:                list
+    :ivar catalogues:               the SOAP catalogue to read for each piece, as HaloCatalogueSpec
+    :vartype catalogues:            list
+    :ivar catalogue_lengths:        number of haloes in each catalogue, {snapshot number: rows}
+    :vartype catalogue_lengths:     dict
+    :ivar cell_snapshot:            the snapshot the box and cell metadata are read from
+    :vartype cell_snapshot:         int
+    :ivar cell_data:                its cell metadata, {cell_snapshot: cell metadata}
+    :vartype cell_data:             dict
     """
 
     # properties tracked by the internal shell read states are now be recorded here instead
@@ -300,7 +300,7 @@ class HaloShellRead:
     cell_data: dict = field(default_factory=dict)
 
     @staticmethod
-    def settings_of(halo_format, shell_z, ang_radius_deg, use_snapshots, snapshot_number):
+    def settings_of(halo_format, shell_z, ang_radius_deg, use_snapshots, snapshot_number, observer_position=None):
         """
         Returns the arguments of :meth:`~SnapshotLightcone.gather_halo_catalogues` as a tuple.
 
@@ -314,6 +314,8 @@ class HaloShellRead:
         :type   use_snapshots:      list or numpy.ndarray
         :param  snapshot_number:    see gather_halo_catalogues
         :type   snapshot_number:    int
+        :param  observer_position:  the observer position [Mpc] in the snapshot box, or None
+        :type   observer_position:  array-like, shape (3,)
         """
         # halo_settings internal read state now given here
         return (
@@ -322,6 +324,7 @@ class HaloShellRead:
             ang_radius_deg,
             None if use_snapshots is None else tuple(int(n) for n in np.atleast_1d(use_snapshots)),
             None if snapshot_number is None else int(snapshot_number),
+            None if observer_position is None else tuple(float(x) for x in observer_position),
         )
 
 
@@ -448,6 +451,31 @@ class SnapshotGapWarning(UserWarning):
 
 
 ######################################################
+# observer position / repositioning functions and global variables
+
+
+def _check_observer_position(observer_position):
+    """
+    Returns an observer position as a numpy.ndarray of 3 floats [Mpc], or raises ValueError.
+
+    :param  observer_position:  (x, y, z) comoving position in the snapshot box, [Mpc] if not a unyt array
+    :type   observer_position:  array-like or unyt.unyt_array, shape (3,)
+    """
+    value = observer_position
+    if isinstance(value, unyt.unyt_array):
+        value = value.to_value("Mpc")
+    try:
+        position = np.array(value, dtype=np.float64)
+    except (TypeError, ValueError):
+        position = None
+    if position is None or position.shape != (3,) or not np.all(np.isfinite(position)):
+        raise ValueError(
+            f"observer_position must be 3 finite numbers (x, y, z) [Mpc] or None, not {observer_position!r}"
+        )
+    return position
+
+
+######################################################
 # Metadata class and related functions
 
 # the settings recorded with every lightcone output .metadata, what is needed to exactly reproduce the same lightcone
@@ -463,7 +491,10 @@ LIGHTCONE_METADATA_NAMES = (
     "beam_vector",
     "ang_radius_deg",
     "redshift_range",  # beam info
-    "version",  # not included just yet, keep as place holder for now
+    "observer_position",
+    "observer_corner",
+    "observer_cell_shift",  # observer: position given [Mpc], cell corner used [Mpc], shift of every tile [cells]
+    "version",  # the SWIFTLET version
 )
 
 
@@ -716,6 +747,7 @@ class SnapshotLightcone:
         verbose=1,
         redshift_interp_method="fast",
         redshift_interp_grid_size=3000,
+        observer_position=None,
     ):
         """
         :param  simulation:                 the Simulation (e.g. Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")),
@@ -754,6 +786,12 @@ class SnapshotLightcone:
         :param  redshift_interp_grid_size:  number of points in the grid used to interpolate redshifts from comoving
                                             distances
         :type   redshift_interp_grid_size:  int
+        :param  observer_position:          (x, y, z) comoving position [Mpc] in the snapshot box to put the observer
+                                            at: the nearest cell corner is used, and every tile is periodically shifted
+                                            by the same whole number of cells to move it to the observer. It can be
+                                            replaced by each gather or placing call. If None, the observer is at the
+                                            centre of its tile, as before.
+        :type   observer_position:          array-like, shape (3,)
         """
         # Check simluation passed is a Simulation object
         self.simulation = check_simulation(simulation, lightcone_type="SnapshotLightcone")
@@ -806,6 +844,16 @@ class SnapshotLightcone:
         # Read the tables finger print so it can be recovered as needed.
         self.orientation_table_fingerprint = box_structure.orientation_tables_fingerprint(self._orientation_tables)
 
+        # The observer position in the snapshot box, and the corresponding cell corner and periodic shift [cells]
+        # The corner needs the cell grid, so it is found with the first cell metadata read
+        self.__observer_snapshot_coords = None
+        self.__observer_corner = None
+        self.__observer_cell_shift = None
+        self.__observer_grid = None  # (cells per axis, box size) the corner was found for
+        self.__observer_shifts = {}  # (cells per axis, box size): (corner, shift)
+        if observer_position is not None:
+            self.__observer_snapshot_coords = _check_observer_position(observer_position)
+
         # The snapshots' units, the same for every snapshot of the simulation: read once, from the first file read
         self.unit_registry = None  # place holder
         self._unit_metadata = None  # place holder
@@ -848,10 +896,16 @@ class SnapshotLightcone:
         # suite / sim info
         suite = self.simulation_suite_name.upper()
 
-        return (
+        summary = (
             f"{type(self).__name__}: {suite} {self.box_res}/{self.sim_name}, geometry: {geometry}, "
             f"orientation table: {table}, lock: {self.orientation_lock or 'none'}, seed: {self.orientation_seed}"
         )
+        # add new observer coords to the summary
+        if self.__observer_snapshot_coords is not None:
+            position = ", ".join(f"{x:g}" for x in self.__observer_snapshot_coords)
+            summary += f", observer position: ({position}) Mpc"
+
+        return summary
 
     def lightcone_metadata(self, redshift_range=None):
         """
@@ -865,6 +919,7 @@ class SnapshotLightcone:
             - the simulation,
             - the beam (its vector and angular radius)
             - the redshift range.
+            - the observer position, the cell corner it was put at and the periodic shift [cells] of every tile
 
         Given the same settings and snapshots, the same exact lightcone can be made again.
 
@@ -885,10 +940,21 @@ class SnapshotLightcone:
             "beam_vector": None if self.beam_vec is None else [float(x) for x in np.ravel(self.beam_vec)],
             "ang_radius_deg": None if self.ang_radius_deg is None else float(self.ang_radius_deg),
             "redshift_range": None if redshift_range is None else [float(z) for z in redshift_range],
+            "observer_position": None,
+            "observer_corner": None,
+            "observer_cell_shift": None,
             "version": package_version,
         }
+
+        # include observer position information
+        position, corner = self.observer_snapshot_coords
+        if position is not None:
+            metadata_dict["observer_position"] = list(position)
+            metadata_dict["observer_corner"] = None if corner is None else list(corner)
+            shift = self.__observer_cell_shift
+            metadata_dict["observer_cell_shift"] = None if shift is None else [int(k) for k in shift]
+
         # remove excess metadata names
-        # for metadata_prop in metadata_dict:
         for metadata_prop in list(metadata_dict):
             if metadata_prop not in LIGHTCONE_METADATA_NAMES:
                 del metadata_dict[metadata_prop]
@@ -899,6 +965,48 @@ class SnapshotLightcone:
                 metadata_dict[required_prop] = None
 
         return metadata_dict
+
+    @property
+    def observer_snapshot_coords(self):
+        """
+        Returns (observer_position, observer_corner): the observer position [Mpc] given in the snapshot box and the cell
+        corner the observer is placed at [Mpc].
+
+        without an observer position: (None, None).
+        The corner needs the snapshots' cell grid, so it is None until the first gather or placing call
+        (or Snapshot2Lightcone) reads cell metadata.
+        """
+        position = self.__observer_snapshot_coords
+        return (None if position is None else tuple(float(x) for x in position), self.__observer_corner)
+
+    def _set_observer_position(self, observer_position):
+        """
+        Set the lightcone's observer position, kept for the later calls.
+
+        None keeps the current one and a position replaces it.
+
+        :param  observer_position:  (x, y, z) comoving position [Mpc] in the snapshot box, None or "default"
+        :type   observer_position:  array-like, shape (3,)
+        """
+        if observer_position is None:
+            return
+        if isinstance(observer_position, str):
+            raise ValueError(f"observer_position must be (x, y, z)or None or not {observer_position!r}")
+            position = None
+        else:
+            position = _check_observer_position(observer_position)
+
+        current = self.__observer_snapshot_coords
+
+        if position is None and current is None:
+            return
+        if position is not None and current is not None and np.array_equal(position, current):
+            return
+
+        self.__observer_snapshot_coords = position
+        self.__observer_corner = None  # found again with the next cell metadata read
+        self.__observer_cell_shift = None
+        self.__observer_grid = None
 
     @contextmanager
     def _mpi_call(self, comm) -> Iterator[None]:
@@ -964,6 +1072,22 @@ class SnapshotLightcone:
         property_names = list(property_names)
         needed = ["ParticleIDs", "Coordinates"] + ([] if ptype == "PartType1" else ["SmoothingLengths"])
         return property_names + [name for name in needed if name not in property_names]
+
+    @staticmethod
+    def _observer_metadata(metadata, shell):
+        """
+        Returns the metadata with the observer of the shell placed, as recorded by its gather step.
+
+        :param  metadata:   lightcone metadata, see lightcone_metadata
+        :type   metadata:   dict
+        :param  shell:      the shell placed
+        :type   shell:      ShellRead or HaloShellRead
+        """
+        metadata = dict(metadata)
+        metadata["observer_position"] = None if shell.observer_position is None else list(shell.observer_position)
+        metadata["observer_corner"] = None if shell.observer_corner is None else list(shell.observer_corner)
+        metadata["observer_cell_shift"] = None if shell.observer_cell_shift is None else list(shell.observer_cell_shift)
+        return metadata
 
     def __get_cell_data(self, snap_nr):
         """
@@ -1309,6 +1433,43 @@ class SnapshotLightcone:
             level=2,
         )
 
+    def __log_observer(self, position, corner, shift, nr_cells_axis, boxsize):
+        """
+        Print the cell corner the observer was placed at, and warn if the position was outside the snapshot box.
+
+        :param  position:       the observer position given [Mpc]
+        :type   position:       numpy.ndarray
+        :param  corner:         the nearest cell corner [Mpc]
+        :type   corner:         numpy.ndarray
+        :param  shift:          the periodic shift [cells] of every tile
+        :type   shift:          numpy.ndarray
+        :param  nr_cells_axis:  number of cells along each axis
+        :type   nr_cells_axis:  numpy.ndarray
+        :param  boxsize:        side length [Mpc] of the box along each axis
+        :type   boxsize:        numpy.ndarray
+        """
+        position = np.asarray(position, dtype=np.float64)
+
+        if np.any(position < 0.0) or np.any(position >= boxsize):
+            warnings.warn(
+                f"observer_position: {tuple(float(x) for x in position)} [Mpc] is outside the snapshot box "
+                f"[0, {float(np.max(boxsize)):g}) [Mpc]: the nearest cell corner is used",
+                stacklevel=4,
+            )
+
+        def coords(values):
+            return ", ".join(f"{float(x):.4f}" for x in values)
+
+        cell_size = boxsize / nr_cells_axis
+        self._log(
+            (
+                f"Observer: requested ({coords(position)}) [Mpc], placed at the nearest cell corner ({coords(corner)}) "
+                f"[Mpc] (cell size {float(np.max(cell_size)):g} [Mpc], {int(np.max(nr_cells_axis))} cells per axis).\nA"
+                f" periodic shift of ({', '.join(str(int(k)) for k in shift)}) cells added to every tile"
+            ),
+            level=1,
+        )
+
     def _snapshot_tile_idx(self, snap_shell_z_range, cell_data):
         """
         Find every tile a snapshot's assigned redshift range touches and the snapshot's full (unsplit) redshift range.
@@ -1433,6 +1594,54 @@ class SnapshotLightcone:
 
         return ang, ref, shift
 
+    def _observer_cell_shift(self, nr_cells_axis, boxsize):
+        """
+        Returns the periodic cell shift [cells] added to every tile for the observer position, zero without an observer
+        position.
+
+        The first time the corner is found it is kept for observer_snapshot_coords and printed.
+
+        :param  nr_cells_axis:  number of cells along each axis of the snapshot
+        :type   nr_cells_axis:  int or array-like of int, shape (3,)
+        :param  boxsize:        side length [Mpc] of the snapshot box
+        :type   boxsize:        float or array-like, shape (3,)
+        """
+        position = self.__observer_snapshot_coords
+        if position is None:
+            return np.zeros(3, dtype=np.int64)
+
+        n = np.broadcast_to(np.asarray(nr_cells_axis, dtype=np.int64), (3,))
+        boxsize = np.broadcast_to(np.asarray(boxsize, dtype=np.float64), (3,))
+        key = (tuple(int(k) for k in n), tuple(float(x) for x in boxsize))
+
+        if key not in self.__observer_shifts:
+            # the observer's tile takes its own shift from its row of the tables: (0, 0, 0) in layer 0 for every lock,
+            # which the observer's shift makes up for, so the corner is at the observer for any seed and table
+            _, _, tile_shift = self._snapshot_reorientation((0, 0, 0, 0))
+            tile_shift = box_structure.cell_shifts_in_cells(tile_shift, n)
+            self.__observer_shifts[key] = box_structure.observer_corner_and_shift(
+                position, boxsize, n, tile_cell_shift=tile_shift
+            )
+        corner, shift = self.__observer_shifts[key]
+
+        if key != self.__observer_grid:
+            self.__observer_grid = key
+            self.__observer_corner = tuple(float(x) for x in corner)
+            self.__observer_cell_shift = tuple(int(k) for k in shift)
+            self.__log_observer(position, corner, shift, n, boxsize)
+
+        return shift
+
+    def _find_observer_corner(self, cell_data):
+        """
+        Find and print the cell corner the observer is placed at, from a snapshot's cell metadata.
+
+        :param  cell_data:  cell metadata of a snapshot, or None if none was read
+        :type   cell_data:  dict
+        """
+        if cell_data is not None and self.__observer_snapshot_coords is not None:
+            self._observer_cell_shift(cell_data["nr_cells_axis"], cell_data["snap_boxsize"].to_value("Mpc"))
+
     def _cell_shift_to_vector(self, cell_shift, n_cells_per_axis, cell_sidelength, snapshot_sidelength):
         """
         Convert cell shift to a comoving distance vector.
@@ -1474,6 +1683,9 @@ class SnapshotLightcone:
                     f"match snapshot_sidelength ({snapshot_sidelength})"
                 )
             )
+
+        # the observer's periodic shift, the same for every tile, added before the tile's rotation and reflection
+        cell_shift += self._observer_cell_shift(n_cells_per_axis, snapshot_sidelength)
 
         # wrap around the box
         wrapped_cell_shift = np.mod(cell_shift, n_cells_per_axis)
@@ -1629,6 +1841,9 @@ class SnapshotLightcone:
         # each snapshot's tile pieces (snapshot, tile) and their files (a single snapshot may need more than one piece)
         for snap_nr in shell.snapshots:
             self.__gather_cells_and_tiles(shell, int(snap_nr))
+
+        # the observer's cell corner, from the cell grid (the same for every snapshot)
+        self._find_observer_corner(next(iter(shell.cell_data.values()), None))
 
         # sanity check a particle types that are not in the snapshots. These are is most likely a typo, e.g. "PartType9"
         in_snapshots = [int(n) for n in shell.snapshots]
@@ -2281,10 +2496,6 @@ class SnapshotLightcone:
         """
         Determine the snapshot files containing the particles needed to populate the lightcone.
 
-        For a single particle type, determine every (snapshot, tile, file) needed to populate the given redshift shell,
-        without reading any particle data. What is found is kept as ``last_shell`` (ShellRead) and used by
-        place_file_in_shell.
-
         Returns a tuple (number of files found, the list of FileReadSpec entries)
 
         :param  current_ptype:  particle type to gather, e.g. "PartType1"
@@ -2301,10 +2512,12 @@ class SnapshotLightcone:
         """
         Read and place a single file, selected by index, into the beam.
 
-        Returns the same per property particle data as place_snapshot_particles_in_shell, but containing
-        only the particles kept in the selected file.
+        The file is placed with the observer position of the gather_files call that found it (kept in ``last_shell``),
+        even if the lightcone's has changed since.
 
-        Returns an empty dictionary if there are no particles from the file inside the beam.
+        Returns the same per property particle data as place_snapshot_particles_in_shell, but containing
+        only the particles kept in the selected file. An empty dictionary is returned if there are no particles from
+        the file inside the lightcone.
 
         :param  file_number:    index of the files found by gather_files
         :type   file_number:    int
@@ -2427,9 +2640,9 @@ class SnapshotLightcone:
         """
         Move coordinates from a snapshot's box into a tile of the lightcone, as the particles of the snapshot are moved.
 
-        The tile's rotation, reflection and periodic shift are applied, then the box is moved to the tile's position.
-        A snapshot can fill more than one tile of a shell, each oriented differently, so the tile must always be
-        specified (i.e. a tile of ``last_shell.pieces``).
+        The tile's rotation, reflection and periodic shifts (with the shift of the lightcone's observer position) are
+        applied, then the box is moved to the tile's position. A snapshot can fill more than one tile of a shell, each
+        oriented differently, so the tile must always be specified (i.e. a tile of ``last_shell.pieces``).
 
         Returns the lightcone coordinates [Mpc]
 
@@ -2544,6 +2757,9 @@ class SnapshotLightcone:
 
         # get cell metadata
         cell_data = self._cell_data(shell.cell_snapshot, shell.cell_data)
+
+        # the observer's cell corner, from the cell grid
+        self._find_observer_corner(cell_data)
 
         for snap_nr in shell.snapshots:
             snap_nr = int(snap_nr)
@@ -2900,6 +3116,7 @@ class SnapshotBeam(SnapshotLightcone):
         verbose=1,
         redshift_interp_method="fast",
         redshift_interp_grid_size=3000,
+        observer_position=None,
     ):
         """
 
@@ -2938,6 +3155,12 @@ class SnapshotBeam(SnapshotLightcone):
         :param  redshift_interp_grid_size:  number of points in the grid used to interpolate redshifts from comoving
                                             distances
         :type   redshift_interp_grid_size:  int
+        :param  observer_position:          (x, y, z) comoving position [Mpc] in the snapshot box to put the observer
+                                            at: the nearest cell corner is used, and every tile is periodically shifted
+                                            by the same whole number of cells to move it to the observer. It can be
+                                            replaced by each gather or placing call. If None, the observer is at the
+                                            centre of its tile, as before.
+        :type   observer_position:          array-like, shape (3,)
         """
         # check beam vector and angular radius is passed, the angular radius will be checked by _validate_ang_radius_deg
         if beam_vector is None:
@@ -2956,6 +3179,7 @@ class SnapshotBeam(SnapshotLightcone):
             verbose=verbose,
             redshift_interp_method=redshift_interp_method,
             redshift_interp_grid_size=redshift_interp_grid_size,
+            observer_position=observer_position,
         )
 
         # set up orthonormal basis perpendicular to beam_vec, used to place tiles transverse to the line of sight once
@@ -3255,6 +3479,7 @@ class SnapshotAllSky(SnapshotLightcone):
         verbose=1,
         redshift_interp_method="fast",
         redshift_interp_grid_size=3000,
+        observer_position=None,
     ):
         """
 
@@ -3289,6 +3514,12 @@ class SnapshotAllSky(SnapshotLightcone):
         :param  redshift_interp_grid_size:  number of points in the grid used to interpolate redshifts from comoving
                                             distances
         :type   redshift_interp_grid_size:  int
+        :param  observer_position:          (x, y, z) comoving position [Mpc] in the snapshot box to put the observer
+                                            at: the nearest cell corner is used, and every tile is periodically shifted
+                                            by the same whole number of cells to move it to the observer. It can be
+                                            replaced by each gather or placing call. If None, the observer is at the
+                                            centre of its tile, as before.
+        :type   observer_position:          array-like, shape (3,)
         """
         # pass all info to SnapshotLightcone class.
         super().__init__(
@@ -3301,6 +3532,7 @@ class SnapshotAllSky(SnapshotLightcone):
             verbose=verbose,
             redshift_interp_method=redshift_interp_method,
             redshift_interp_grid_size=redshift_interp_grid_size,
+            observer_position=observer_position,
         )
 
     def _validate_ang_radius_deg(self, ang_radius_deg):
