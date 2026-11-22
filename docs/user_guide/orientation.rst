@@ -7,15 +7,20 @@ Lightcone geometry and tile orientation
 The lattice of tiles
 --------------------
 
-The observer sits at the centre of the first :term:`tile`, ``(0, 0, 0)``. The tile ``(nx, ny, nz)`` is the copy of the box
-whose centre is :math:`(n_x, n_y, n_z)\,L` from the observer, for a box of side length :math:`L`, so the tiles fill
+The observer sits at the centre of the first :term:`tile`, ``(0, 0, 0)``. The tile ``(nx, ny, nz)`` is the copy of the 
+box whose centre is :math:`(n_x, n_y, n_z)\,L` from the observer, for a box of side length :math:`L`, so the tiles fill
 space exactly once, with no gaps or overlaps.
+Within the first tile, as the :term:`observers position <observer position>` is in the centre of the tile, it is always 
+a corner where eight cells meet and never at a cell centre as the number of cells per axis is a multiple of 8 
+(for all current COLIBRE and FLAMINGO simulations). By default the observer or centre of the lattice corresponds to 
+:math:`(L/2, L/2, L/2)` in the snapshots box, however to change the observers location in the snapshots box see 
+:ref:`observer-position`.
 
 In the lightcone each snapshot covers the range of redshifts given by the the midpoints to its neighbouring snapshots 
 (see :doc:`new_simulations_and_suites`). A snapshots data is placed in every tile whose comoving
 distance from the observer overlaps with the :term:`snapshots redshift range <snapshot redshift range>`, and in each 
-tile only the part within that range (and within the :term:`beam`, for a :class:`SnapshotBeam`) is kept. So a tile can span 
-across several snapshots, each in its own shell, and one snapshot can pass through many tiles 
+tile only the part within that range (and within the :term:`beam`, for a :class:`SnapshotBeam`) is kept. So a tile can 
+span across several snapshots, each in its own shell, and one snapshot can pass through many tiles 
 (see :ref:`example diagram <fig-cell-in-shell>`).
 
 Within a tile, the snapshot's :term:`cells <cell>` are first moved as the tile's orientation says (a 

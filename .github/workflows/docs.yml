@@ -56,7 +56,8 @@ jobs:
       run: |
         # -E: read every file again, -W: fail on any warning, -n: fail on links that don't resolve,
         # --keep-going: report every warning, not just the first
-        sphinx-build -E -W -n --keep-going -b html docs docs/_build/html
+        sphinx-build -E -W -n --keep-going -b html docs docs/_build/html \
+        || (sleep 60 && sphinx-build -E -W -n --keep-going -b html docs docs/_build/html)
 
     - name: Upload the built docs
       if: always()

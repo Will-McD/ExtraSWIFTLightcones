@@ -11,6 +11,7 @@ No simulation data is required.
   half a box length from the observer, end up on the same lattice centred on the observer, each once.
 """
 
+import inspect
 import json
 import os
 import shutil
@@ -347,19 +348,28 @@ def sorted_rows(snap_nr, ids, coords, a, edge):
     return snap_nr[order], ids[order], coords[order], a[order]
 
 
-def place_haloes_and_particles(halo_format, beam_vector, ang_radius_deg, redshift_range, orientation_lock, edge):
+def place_haloes_and_particles(
+    halo_format, beam_vector, ang_radius_deg, redshift_range, orientation_lock, edge, **lightcone_kwargs
+):
     """
     Place the haloes and the particles at their centres in a lightcone shell.
 
     Returns the sorted rows of the haloes and of the particles, see sorted_rows.
     """
-    lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
+    # define lightcone for testing
+    lightcone = new_lightcone(
+        HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg, **lightcone_kwargs
+    )
+    # get haloes for testing lightcone
     halos = lightcone.place_halos_in_shell(halo_format, redshift_range)
+    # get particles for testing lightcone
     particles = lightcone.place_snapshot_particles_in_shell(
         redshift_range,
         property_names=["ParticleIDs", "Coordinates"],
         particle_types=PTYPE,
     )[PTYPE]
+
+    # corresponding sorted rows for particles and haloes
     halo_rows = sorted_rows(
         halos["Lightcone/SnapshotNumber"].value.astype(int),
         halos["InputHalos/HaloCatalogueIndex"].value.astype(int),
@@ -374,6 +384,7 @@ def place_haloes_and_particles(halo_format, beam_vector, ang_radius_deg, redshif
         particles["ExpansionFactors"].value,
         edge,
     )
+
     return halo_rows, particle_rows
 
 
@@ -2091,3 +2102,388 @@ def test_outputs_carry_the_lightcone_settings(
         snapshot_lightcone.write_lightcone_metadata(f, shell.metadata)
     with h5py.File(tmp_path / "metadata.hdf5", "r") as f:
         assert_settings(snapshot_lightcone.read_lightcone_metadata(f), "settings read back from HDF5")
+
+
+# tests of the observer position: the observer is put at the cell corner nearest a position in the snapshot box, by a
+# periodic shift of whole cells added to every tile before its rotation and reflection
+
+# a position in the box of 8 cells of 125 Mpc per axis, its nearest cell corner and the shift it needs to move to the
+# box centre (4 cells), n/2 - corner / cell size, in cells
+OBSERVER = (330.0, 512.0, 760.0)
+OBSERVER_CORNER = (375.0, 500.0, 750.0)
+OBSERVER_TO_CENTRE = (1, 0, -2)
+OTHER_OBSERVER = (100.0, 900.0, 30.0)
+OTHER_OBSERVER_CORNER = (125.0, 875.0, 0.0)
+
+
+def approx(corner):
+    """A corner [Mpc] compared to 1e-6 Mpc: the fake snapshots' length unit is not exactly unyt's Mpc."""
+    return pytest.approx(corner, abs=1e-6)
+
+
+def observer_tile(orientation_lock):
+    """The observer's tile, labelled with its layer for orientation_lock="sphere"."""
+    return (0, 0, 0, 0) if orientation_lock == "sphere" else (0, 0, 0)
+
+
+@pytest.mark.parametrize("orientation_seed", [0, 7])
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg", [(None, None), ((1, 2, 3), 20.0)], ids=["all_sky", "beam_off_axis"]
+)
+def test_observer_at_the_nearest_cell_corner(
+    fake_runs, beam_vector, ang_radius_deg, orientation_lock, orientation_seed
+):
+    """
+    Test that the cell corner nearest the observer position is moved to the observer (the lightcone's origin), for
+    any orientation lock and seed: with seed 7 the observer's tile has a shift of its own in the default table, which
+    the observer's shift makes up for.
+
+    The corner is only known once cell metadata is read: observer_snapshot_coords gives (position, None) before.
+    """
+    lightcone = new_lightcone(
+        HALO_SIM,
+        beam_vector,
+        orientation_lock,
+        ang_radius_deg=ang_radius_deg,
+        orientation_seed=orientation_seed,
+        observer_position=OBSERVER,
+    )
+    assert lightcone.observer_snapshot_coords == (OBSERVER, None)
+
+    at_observer = lightcone.Snapshot2Lightcone(SNAPSHOTS[-1], [OBSERVER_CORNER], observer_tile(orientation_lock))
+    np.testing.assert_allclose(at_observer, 0.0, atol=1e-6)
+    assert lightcone.observer_snapshot_coords == (OBSERVER, approx(OBSERVER_CORNER))
+
+    # a point one cell from the corner is one cell from the observer
+    near = lightcone.Snapshot2Lightcone(
+        SNAPSHOTS[-1], [np.add(OBSERVER_CORNER, (CELL_SIZE, 0.0, 0.0))], observer_tile(orientation_lock)
+    )
+    np.testing.assert_allclose(np.linalg.norm(near), CELL_SIZE, rtol=1e-6)
+
+
+@pytest.mark.parametrize(
+    "position, corner",
+    [
+        pytest.param((62.5, 187.5, 312.5), (125.0, 250.0, 375.0), id="cell_centres_go_up"),
+        pytest.param((999.0, -1.0, 1062.5), (0.0, 0.0, 125.0), id="wrapped_into_the_box"),
+        pytest.param((500.0, 500.0, 500.0), (500.0, 500.0, 500.0), id="box_centre"),
+    ],
+)
+def test_observer_corner_ties_and_wrapping(fake_runs, position, corner):
+    """
+    Test that a position at a cell centre goes to the upper corner, and a position outside the box goes to the nearest
+    corner of its periodic copy in the box, with a warning.
+    """
+    lightcone = new_lightcone(HALO_SIM, None, None, observer_position=position)
+    outside = np.any(np.asarray(position) < 0.0) or np.any(np.asarray(position) >= BOXSIZE)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        lightcone.Snapshot2Lightcone(SNAPSHOTS[-1], [corner], (0, 0, 0))
+    assert any("outside the snapshot box" in str(w.message) for w in caught) == outside
+    assert lightcone.observer_snapshot_coords == (tuple(float(x) for x in position), approx(corner))
+
+
+def test_observer_at_the_box_centre_is_the_default(fake_runs):
+    """
+    Test that an observer position at the box centre (with seed 0, whose observer's tile has no shift of its own)
+    places the same particles as no observer position, with a shift of zero cells recorded.
+    """
+    redshift_range = (0.05, 0.15)
+    default = particle_rows(place_particles(new_lightcone(HALO_SIM, None, None), redshift_range))
+    placed = place_particles(
+        new_lightcone(HALO_SIM, None, None, observer_position=(500.0, 500.0, 500.0)), redshift_range
+    )
+    assert_same_particles(particle_rows(placed), default)
+    assert placed.metadata["observer_cell_shift"] == [0, 0, 0]
+
+
+def not_reoriented_wrong_ids_with_shift(ids, coords, cell_shift):
+    """
+    not_reoriented_wrong_ids, for every tile shifted by cell_shift [cells]: a point at lightcone position c comes from
+    the box position (c + L/2 - shift) modulo L.
+    """
+    shift = np.asarray(cell_shift) * CELL_SIZE
+    wrapped = np.mod(coords + 0.5 * BOXSIZE - shift, BOXSIZE)
+    return int(np.sum(np.any(np.abs(wrapped - lattice_positions()[ids]) > 1e-6, axis=1)))
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, r_range",
+    [
+        pytest.param(None, None, (440.0, 1110.0), id="all_sky"),
+        pytest.param((1, 2, 3), 25.0, (110.0, 1610.0), id="beam_off_axis"),
+    ],
+)
+def test_not_reoriented_lattice_with_an_observer_position(
+    fake_run_dir, fake_runs, tmp_path, beam_vector, ang_radius_deg, r_range, orientation_lock
+):
+    """
+    Test that with the no-reorientation table every tile is shifted by the same whole number of cells, so the
+    lightcone is still made of exact periodic replicas for every lock.
+
+    Every lattice point needs to be placed exactly once, carrying the ID of the box position it was shifted from.
+    """
+    table = unchanged_orientation_table(tmp_path)
+    expected_idx = np.unique(lattice_index(lattice_in_shell(*r_range, beam_vector, ang_radius_deg)), axis=0)
+
+    for kind in ("particles", "haloes"):
+        lightcone = new_lightcone(
+            LATTICE_SIM,
+            beam_vector,
+            orientation_lock,
+            orientation_table=table,
+            ang_radius_deg=ang_radius_deg,
+            observer_position=OBSERVER,
+        )
+
+        snap_nr, ids, coords = place_lattice(lightcone, redshift_at_distance(r_range), kind, fake_run_dir)
+        unique_idx, counts = np.unique(lattice_index(coords), axis=0, return_counts=True)
+        assert np.all(counts == 1), f"{kind}: {np.sum(counts > 1)} lattice points placed more than once"
+
+        np.testing.assert_array_equal(unique_idx, expected_idx)
+
+        assert not_reoriented_wrong_ids_with_shift(ids, coords, OBSERVER_TO_CENTRE) == 0, kind
+        assert lightcone.observer_snapshot_coords == (OBSERVER, approx(OBSERVER_CORNER))
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+def test_haloes_placed_as_particles_with_an_observer_position(fake_runs, orientation_lock):
+    """
+    Test that with an observer position haloes are still placed exactly as the particles at their centres.
+    """
+    halo_rows, particle_rows = place_haloes_and_particles(
+        fake_runs, (1, 2, 3), 15.0, (0.05, 0.25), orientation_lock, edge=False, observer_position=OBSERVER
+    )
+    assert len(halo_rows[0]) > 0
+    assert_same_rows(halo_rows, particle_rows)
+
+
+@pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
+def test_beam_is_part_of_all_sky_with_an_observer_position(fake_runs, orientation_lock):
+    """
+    Test that a beam is exactly the part of the all-sky lightcone inside its cone with the same observer position.
+    """
+    redshift_range, ang_radius_deg, beam_vector = (0.1, 0.2), 20.0, (1, 2, 3)
+    kwargs = {"observer_position": OBSERVER, "orientation_seed": 7}
+
+    all_sky = particle_rows(place_particles(new_lightcone(HALO_SIM, None, orientation_lock, **kwargs), redshift_range))
+
+    beam = particle_rows(
+        place_particles(
+            new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg, **kwargs),
+            redshift_range,
+        )
+    )
+
+    beam_vec = np.asarray(beam_vector, dtype=float) / np.linalg.norm(beam_vector)
+
+    in_cone = all_sky[2] @ beam_vec / np.linalg.norm(all_sky[2], axis=1) >= np.cos(np.deg2rad(ang_radius_deg))
+
+    assert len(beam[0]) > 0
+    assert_same_particles(tuple(a[in_cone] for a in all_sky), beam)
+
+
+def test_file_by_file_placement_with_an_observer_position(fake_runs):
+    """
+    Test, with an observer position, placing the particles one file at a time (gather_files and
+    place_file_in_shell) gives exactly the particles placed all at once, with the observer in the metadata.
+    """
+    redshift_range = (0.05, 0.15)
+    lightcone = new_lightcone(HALO_SIM, (1, 2, 3), "cube", ang_radius_deg=20.0, observer_position=OBSERVER)
+    whole = particle_rows(place_particles(lightcone, redshift_range))
+
+    numb_files, files = lightcone.gather_files(PTYPE, redshift_range)
+    assert numb_files > 0
+
+    per_file = []
+    for file_number in range(numb_files):
+        particles = lightcone.place_file_in_shell(file_number, PTYPE, ["ParticleIDs", "Coordinates"])
+        assert particles.metadata["observer_position"] == list(OBSERVER)
+        assert particles.metadata["observer_corner"] == approx(list(OBSERVER_CORNER))
+        if particles:
+            particles["SnapshotNumber"] = unyt.unyt_array(
+                np.full(len(particles["ParticleIDs"]), files[file_number].snap_nr), "dimensionless"
+            )
+            per_file.append({name: particles[name].copy() for name in ("SnapshotNumber", "ParticleIDs", "Coordinates")})
+
+    combined = {name: np.concatenate([d[name] for d in per_file]) for name in per_file[0]}
+
+    assert_same_particles(particle_rows(combined), whole)
+
+
+def test_observer_position_is_set_when_the_lightcone_is_made(fake_runs):
+    """
+    Test that the observer position is only given when the lightcone is defined.
+    """
+    with pytest.raises(ValueError, match="observer_position"):
+        new_lightcone(HALO_SIM, None, None, observer_position=(1.0, 2.0))
+
+    with pytest.raises(ValueError, match="observer_position"):
+        new_lightcone(HALO_SIM, None, None, observer_position=(1.0, np.inf, 2.0))
+
+    lightcone = new_lightcone(HALO_SIM, None, None, observer_position=OBSERVER)
+    for method in (
+        "gather_files",
+        "place_snapshot_particles_in_shell",
+        "gather_halo_catalogues",
+        "place_halos_in_shell",
+    ):
+        assert "observer_position" not in inspect.signature(getattr(lightcone, method)).parameters, method
+
+    # particles and haloes of the same lightcone share its observer
+    lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))
+    lightcone.gather_files(PTYPE, (0.05, 0.15))
+
+    assert lightcone.observer_snapshot_coords == (OBSERVER, approx(OBSERVER_CORNER))
+
+
+def test_observer_position_in_the_metadata(fake_runs, tmp_path):
+    """
+    Test that the observer position, the corner it was put in and the shift of every tile are recorded in the
+    metadata of every output, and read back from an HDF5 file.
+    """
+    lightcone = new_lightcone(HALO_SIM, None, None, orientation_seed=7, observer_position=OBSERVER)
+    placed = place_particles(lightcone, (0.05, 0.15))
+    metadata = placed.metadata
+
+    assert metadata["observer_position"] == list(OBSERVER)
+    assert metadata["observer_corner"] == approx(list(OBSERVER_CORNER))
+
+    # the shift moves the corner to the box centre, after the observer's tile's own shift (seed 7)
+    _, _, tile_shift = lightcone._snapshot_reorientation((0, 0, 0))
+    tile_shift = np.asarray(tile_shift) * (NCELLS_AXIS // 8)
+    expected_shift = np.mod(np.asarray(OBSERVER_TO_CENTRE) - tile_shift, NCELLS_AXIS)
+
+    assert metadata["observer_cell_shift"] == [int(k) for k in expected_shift]
+
+    with h5py.File(tmp_path / "metadata.hdf5", "w") as f:
+        snapshot_lightcone.write_lightcone_metadata(f, metadata)
+
+    with h5py.File(tmp_path / "metadata.hdf5", "r") as f:
+        read = snapshot_lightcone.read_lightcone_metadata(f)
+
+    for name in ("observer_position", "observer_corner", "observer_cell_shift"):
+        assert read[name] == metadata[name], name
+
+    without = place_particles(new_lightcone(HALO_SIM, None, None), (0.05, 0.15)).metadata
+
+    assert without["observer_position"] is None and without["observer_corner"] is None
+    assert without["observer_cell_shift"] is None
+
+
+@pytest.mark.parametrize("kind", ["particles", "haloes"])
+def test_mpi_with_an_observer_position_matches_serial(fake_run_dir, fake_runs, tmp_path, kind):
+    """
+    Test that with an observer position, the particles and haloes placed on 3 MPI ranks are those placed in serial.
+    """
+    pytest.importorskip("mpi4py")
+    mpiexec = mpiexec_command()
+
+    if mpiexec is None:
+        pytest.skip("mpiexec is not available")
+
+    beam_vector, ang_radius_deg, redshift_range, orientation_lock = (1, 2, 3), 20.0, (0.05, 0.3), "cube"
+
+    args = dict(
+        run_dir=str(fake_run_dir),
+        sim_name=HALO_SIM,
+        beam_vector=beam_vector,
+        ang_radius_deg=ang_radius_deg,
+        redshift_range=redshift_range,
+        orientation_lock=orientation_lock,
+        redistribute=False,
+        soap_chunk_size=1000,
+        observer_position=list(OBSERVER),
+        output=str(tmp_path / "placed"),
+    )
+
+    script = "mpi_place_particles.py" if kind == "particles" else "mpi_place_haloes.py"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join([str(Path(__file__).resolve().parents[1]), env.get("PYTHONPATH", "")])
+    run = subprocess.run(
+        [mpiexec, "-n", "3", sys.executable, str(Path(__file__).parent / script), json.dumps(args)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+
+    assert run.returncode == 0, run.stdout[-3000:] + run.stderr[-3000:]
+
+    ranks = [np.load(tmp_path / f"placed.{rank}.npz") for rank in range(3)]
+
+    lightcone = new_lightcone(
+        HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg, observer_position=OBSERVER
+    )
+
+    if kind == "particles":
+        snap_nr, ids, coords = (np.concatenate([rank[name] for rank in ranks]) for name in ("snap_nr", "ids", "coords"))
+        order = np.lexsort((coords[:, 2], coords[:, 1], coords[:, 0], ids, snap_nr))
+        serial = particle_rows(place_particles(lightcone, redshift_range))
+
+        assert len(serial[0]) > 0
+
+        assert_same_particles((snap_nr[order], ids[order], coords[order]), serial)
+
+    else:
+        snap_nr, index, centre = (
+            np.concatenate([rank[name] for rank in ranks]) for name in ("snap_nr", "index", "centre")
+        )
+
+        halos = lightcone.place_halos_in_shell(soap_format(fake_run_dir), redshift_range)
+
+        serial_snap = halos["Lightcone/SnapshotNumber"].value.astype(int)
+        serial_index = halos["InputHalos/HaloCatalogueIndex"].value.astype(int)
+        serial_centre = halos["Lightcone/HaloCentre"].to_value("Mpc")
+
+        assert len(serial_index) > 0
+
+        order, serial_order = np.lexsort((index, snap_nr)), np.lexsort((serial_index, serial_snap))
+
+        np.testing.assert_array_equal(snap_nr[order], serial_snap[serial_order])
+        np.testing.assert_array_equal(index[order], serial_index[serial_order])
+        np.testing.assert_allclose(centre[order], serial_centre[serial_order], atol=1e-6)
+
+
+def test_observer_written_to_the_output_files(fake_runs, tmp_path):
+    """
+    Test that the observer position, its cell corner and the shift of every tile are written with the rest of the
+    metadata to the files SWIFTLET writes.
+    """
+    from swiftlet.repeat_check import find_close_cell_repeats, write_close_repeats
+
+    lightcone = new_lightcone(HALO_SIM, (1, 2, 3), "cube", ang_radius_deg=20.0, observer_position=OBSERVER)
+    haloes = lightcone.place_halos_in_shell(fake_runs, (0.05, 0.25))
+    expected = {name: haloes.metadata[name] for name in ("observer_position", "observer_corner", "observer_cell_shift")}
+
+    assert expected["observer_position"] == list(OBSERVER)
+    assert expected["observer_corner"] == approx(list(OBSERVER_CORNER))
+    assert expected["observer_cell_shift"] is not None
+
+    def assert_observer_written(hdf5_object, what):
+        read = snapshot_lightcone.read_lightcone_metadata(hdf5_object)
+        assert read["observer_position"] == expected["observer_position"], what
+        assert read["observer_corner"] == approx(expected["observer_corner"]), what
+        assert read["observer_cell_shift"] == expected["observer_cell_shift"], what
+
+    # the haloes of one snapshot, in a halo lightcone file
+    snap_nr = int(haloes["Lightcone/SnapshotNumber"].value[0])
+    keep = haloes["Lightcone/SnapshotNumber"].value == snap_nr
+    one_snapshot = snapshot_lightcone.LightconeOutput({k: v[keep] for k, v in haloes.items()}, haloes.metadata)
+
+    snapshot_lightcone.write_halo_lightcone_file(
+        tmp_path / "haloes.hdf5", one_snapshot, fake_runs.format(snap_nr=snap_nr), {}, one_snapshot.metadata
+    )
+
+    with h5py.File(tmp_path / "haloes.hdf5", "r") as f:
+        assert_observer_written(f["Lightcone"], "halo lightcone file")
+
+    # a close repeat report of the same lightcone
+    report = find_close_cell_repeats(lightcone, (0.05, 0.1), warn=False)
+
+    write_close_repeats(tmp_path / "repeats.hdf5", report, lightcone, (0.05, 0.1), ang_radius_deg=20.0)
+
+    with h5py.File(tmp_path / "repeats.hdf5", "r") as f:
+        assert_observer_written(f["lightcone"], "close repeat report")

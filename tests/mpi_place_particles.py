@@ -37,7 +37,11 @@ def main(args):
     placement.patch_snapshot_lightcone(patch, Path(args["run_dir"]))
 
     lightcone = placement.new_lightcone(
-        args["sim_name"], args["beam_vector"], args["orientation_lock"], ang_radius_deg=args["ang_radius_deg"]
+        args["sim_name"],
+        args["beam_vector"],
+        args["orientation_lock"],
+        ang_radius_deg=args["ang_radius_deg"],
+        observer_position=args.get("observer_position"),
     )
     kwargs = {"comm": comm}
 

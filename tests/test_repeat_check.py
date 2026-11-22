@@ -230,13 +230,17 @@ def test_reflected_tiles_make_touching_cells(lattice_run, tmp_path):
     np.testing.assert_array_equal(np.abs(tile_step), [[1, 0, 0]] * len(tile_step))
 
 
+@pytest.mark.parametrize("observer_position", [None, (330.0, 512.0, 760.0)], ids=["box_centre", "observer_position"])
 @pytest.mark.parametrize("orientation_seed", [0, 2])
-def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orientation_seed, tmp_path):
+def test_table_check_finds_the_touching_cells_of_the_lightcone(
+    lattice_run, orientation_seed, observer_position, tmp_path
+):
     """
     The touching cells of the lightcone shell (find_close_cell_repeats) are found from the tables alone
     (snapshot_orientation.check_neighbouring_tiles), in the same two tiles: the two move the cells alike. Without the
     shell, the tables find more (whole tiles); given the shell, exactly the same cells, as many as the touching pairs
     the shell check counts.
+
     """
 
     from swiftlet.snapshot_orientation import check_neighbouring_tiles
@@ -250,8 +254,10 @@ def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orie
         orientation_seed=orientation_seed,
         orientation_table=write_clashing_tables(tmp_path),
         verbose=0,
+        observer_position=observer_position,
     )
     report = find_close_cell_repeats(lightcone, shell(cosmo, r_range), warn=False, max_snapshot_difference=0)
+    observer = {} if observer_position is None else {"observer_position": observer_position, "boxsize": lattice.BOXSIZE}
 
     assert report.nr_touching > 0
     touching = report.pairs["touching"]
@@ -269,7 +275,7 @@ def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orie
         }
 
     whole_tiles = check_neighbouring_tiles(
-        clashing_tables(), lattice.NCELLS_AXIS, None, orientation_seed, extent=3, warn=False
+        clashing_tables(), lattice.NCELLS_AXIS, None, orientation_seed, extent=3, warn=False, **observer
     )
     assert in_shell < touching_cells(whole_tiles)
 
@@ -284,10 +290,30 @@ def test_table_check_finds_the_touching_cells_of_the_lightcone(lattice_run, orie
         warn=False,
         boxsize=lattice.BOXSIZE,
         shell=shell_r_range,
+        **{name: value for name, value in observer.items() if name != "boxsize"},
     )
 
     assert touching_cells(in_tables_shell) == in_shell
     assert in_tables_shell.nr_touching_cells == report.nr_touching
+
+    # is observer is moved then use extra tests
+    if observer_position is not None:
+        # the same check, given the shift the lightcone recorded instead of the position
+        recorded_shift = lightcone.lightcone_metadata()["observer_cell_shift"]
+
+        from_shift = check_neighbouring_tiles(
+            clashing_tables(),
+            lattice.NCELLS_AXIS,
+            None,
+            orientation_seed,
+            extent=3,
+            warn=False,
+            boxsize=lattice.BOXSIZE,
+            shell=shell_r_range,
+            observer_cell_shift=recorded_shift,
+        )
+        assert touching_cells(from_shift) == in_shell
+        assert from_shift.observer_cell_shift == tuple(recorded_shift)
 
 
 def test_close_repeat_check_example(lattice_run, tmp_path):

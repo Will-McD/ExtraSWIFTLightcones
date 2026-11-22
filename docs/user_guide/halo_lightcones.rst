@@ -17,6 +17,10 @@ Placing haloes
 catalogues as a format string with a ``{snap_nr}`` field, usually the simulation's ``soap_format`` (see
 :ref:`simulation parameter <table-of-values>`).
 
+With an ``observer_position`` (see :ref:`observer-position`), the haloes are moved with the same shift of every tile as
+the particles. Particles and haloes placed in the same shell share the observer only if they're gathered with the same 
+:term:`observer position`.
+
 .. code-block:: python
 
     from swiftlet import Simulation, SnapshotAllSky, SnapshotBeam

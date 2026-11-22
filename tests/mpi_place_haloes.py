@@ -5,7 +5,7 @@ test_snapshot_lightcone_placement.test_mpi_haloes_match_serial.
 
 Each rank saves the haloes it placed to <output>.<rank>.npz.
 The json arguments are run_dir, beam_vector (null for all-sky), ang_radius_deg, redshift_range, orientation_lock,
-soap_chunk_size, redistribute and output.
+soap_chunk_size, redistribute and output, and optionally observer_position.
 """
 
 import json
@@ -34,7 +34,11 @@ def main(args):
     placement.patch_snapshot_lightcone(patch, run_dir)
 
     lightcone = placement.new_lightcone(
-        placement.HALO_SIM, args["beam_vector"], args["orientation_lock"], ang_radius_deg=args["ang_radius_deg"]
+        placement.HALO_SIM,
+        args["beam_vector"],
+        args["orientation_lock"],
+        ang_radius_deg=args["ang_radius_deg"],
+        observer_position=args.get("observer_position"),
     )
     halos = lightcone.place_halos_in_shell(
         placement.soap_format(run_dir),

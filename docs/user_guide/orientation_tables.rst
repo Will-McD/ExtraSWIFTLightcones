@@ -276,6 +276,29 @@ them for a lightcone.
 :func:`swiftlet.repeat_check.find_close_cell_repeats`, which builds the actual lightcone at the cell level 
 (see :doc:`Repeated particles and haloes <repeated_objects>`). 
 
+For a lightcone with a user defined :term:`observer position` (see :ref:`observer-position`), check the tables with the
+observer's shift added to every tile:
+
+*   :func:`check_neighbouring_tiles` takes the ``observer_position`` (with ``boxsize``) or the
+    ``observer_cell_shift`` recorded in the lightcone's ``.metadata``, not both. The report's ``observer_cell_shift``
+    and summary say which parameter was checked.
+*   :func:`tables_are_clash_free` takes the ``observer_cell_shift`` recorded in the metadata. With
+    ``orientation_seed`` too, it takes the shift that moves the observer's corner to the box centre
+    (``n / 2 - corner / cell size`` cells, for ``n`` cells per axis) and takes out the observer's tile's own shift for
+    that seed, as the lightcone does. ``orientation_seed`` is only used with ``observer_cell_shift``.
+*   :func:`swiftlet.repeat_check.find_close_cell_repeats` builds the lightcone itself, so it includes the observer
+    shift without any extra input.
+
+.. warning::
+
+   With ``observer_position``, every tile gets an extra periodic shift before its rotation and reflection. Rotations
+   turn that shift in different directions in different tiles, so tiles that touch no longer have the relative offsets
+   the installed tables were built and checked with. The guarantee of no clashing pairs of the ``"default"``,
+   ``"cube_quarter_spacing"`` and ``"sphere_quarter_spacing"`` tables no longer holds. Only ``"no_reorientation"``
+   behaves as before. 
+
+
+
 .. grid:: 1 1 2 2
    :gutter: 2
 
@@ -397,9 +420,12 @@ This works exactly the same way for :class:`swiftlet.snapshot_lightcone.Snapshot
 Reproducing a lightcone
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-The lightcone's ``.metadata`` records which tables were used when making it (see :ref:`lightcone output <lightcone-output>`). 
-As the fingerprint depends only on the contents of the tables, if a file containing a table is moved or renamed, the 
-same fingerprint shows it holds the same tables. If two files have the same name but different fingerprints, they hold 
-different tables. Keep the file with the lightcones made from it. With the same tables, seed, lock and snapshots, the 
-same lightcone is made again.
-
+The lightcone's ``.metadata`` records which tables were used when making it 
+(see :ref:`lightcone output <lightcone-output>`) and can be used to reproduce lightcones. 
+The fingerprint depends only on the contents of the tables, if a file containing a table is moved or renamed, the same 
+fingerprint shows it holds the same tables. If two files have the same name but different fingerprints, they hold 
+different tables. 
+For Lightcones made with an set :term:`observer position` the ``.metadata`` also records the position, the cell corner
+used and the shift added to every tile (``observer_position``, ``observer_corner`` and ``observer_cell_shift``).
+Therefore, with the same tables and ``.metadata`` to apply the same settings to the lightcone, any lightcone can be 
+reproduced.

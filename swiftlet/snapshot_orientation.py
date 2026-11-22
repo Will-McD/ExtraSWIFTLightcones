@@ -441,6 +441,88 @@ def cell_shifts_in_cells(cell_shift, nr_cells_axis):
     return cell_shift * (nr_cells_axis // 8)
 
 
+def observer_corner_and_shift(observer_position, boxsize, nr_cells_axis, tile_cell_shift=None):
+    """
+    Find the cell corner nearest to an observer position in the snapshot box, and the periodic shift that moves it to
+    the centre of the observer's tile.
+
+    On each axis the corner is floor(p / d + 0.5) * d for a position p and cell size d, wrapped into the box, so a
+    position exactly halfway between two corners (at a cell centre) goes to the upper corner. The box centre is
+    itself a cell corner (the number of cells per axis is even), so the shift is a whole number of cells:
+    (n / 2 - corner / d - tile_cell_shift) modulo n, for n cells per axis. Added to every tile's own shift, it moves
+    the corner to the observer in the observer's tile, whatever that tile's own shift (tile_cell_shift) is.
+
+    Returns a tuple (corner [Mpc], shift [cells]), numpy.ndarray of shape (3,), float and int.
+
+    :param  observer_position:  (x, y, z) comoving position [Mpc] in the snapshot box
+    :type   observer_position:  array-like, shape (3,)
+    :param  boxsize:            side length [Mpc] of the snapshot box
+    :type   boxsize:            float or array-like, shape (3,)
+    :param  nr_cells_axis:      number of cells along each axis of the snapshot, an even number
+    :type   nr_cells_axis:      int or array-like of int, shape (3,)
+    :param  tile_cell_shift:    the observer's tile's own shift [cells], from its row of the orientation tables. If
+                                None, no shift
+    :type   tile_cell_shift:    array-like of int, shape (3,)
+    """
+    position = np.asarray(observer_position, dtype=np.float64)
+
+    if position.shape != (3,) or not np.all(np.isfinite(position)):
+        raise ValueError(f"observer_position must be 3 finite numbers (x, y, z), not {observer_position!r}")
+
+    n = np.broadcast_to(np.asarray(nr_cells_axis, dtype=np.int64), (3,))
+    if np.any(n < 2) or np.any(n % 2 != 0):
+        raise ValueError(f"the number of cells per axis must be even, not {n}")
+
+    boxsize = np.broadcast_to(np.asarray(boxsize, dtype=np.float64), (3,))
+    cell_size = boxsize / n
+
+    # the nearest corner, as a cell index: ties (a position at a cell centre) go up, and the box wraps
+    corner_index = np.mod(np.floor(position / cell_size + 0.5).astype(np.int64), n)
+
+    tile_cell_shift = np.zeros(3, dtype=np.int64) if tile_cell_shift is None else np.asarray(tile_cell_shift)
+    tile_cell_shift = tile_cell_shift.astype(np.int64)
+
+    if tile_cell_shift.shape != (3,):
+        raise ValueError("tile_cell_shift must have shape (3,)")
+
+    shift = np.mod(n // 2 - corner_index - tile_cell_shift, n)
+    return corner_index * cell_size, shift
+
+
+def _observer_tile_row(n_rows, orientation_seed):
+    """
+    Returns the row of the orientation tables taken by the observer's tile, (0, 0, 0), as
+    SnapshotLightcone._snapshot_reorientation chooses it (for every orientation lock, as the observer is in layer 0).
+
+    :param  n_rows:             number of rows of the tables
+    :type   n_rows:             int
+    :param  orientation_seed:   seed of the tile orientations
+    :type   orientation_seed:   int
+    """
+    from .snapshot_lightcone import TILE_HASH_SEED_PRIME
+
+    return (int(orientation_seed) * TILE_HASH_SEED_PRIME) % int(n_rows)
+
+
+def _check_extra_cell_shift(cell_shift, nr_cells_axis, name="observer_cell_shift"):
+    """
+    Returns a periodic shift [cells] as an int numpy.ndarray of shape (3,), wrapped into [0, nr_cells_axis), or None.
+
+    :param  cell_shift:     the shift along x, y and z in whole cells, or None
+    :type   cell_shift:     array-like of int, shape (3,)
+    :param  nr_cells_axis:  number of cells along each axis
+    :type   nr_cells_axis:  int
+    :param  name:           the name of the argument, for the error message
+    :type   name:           str
+    """
+    if cell_shift is None:
+        return None
+    shift = np.asarray(cell_shift)
+    if shift.shape != (3,) or not np.all(np.mod(shift, 1) == 0):
+        raise ValueError(f"{name} must be 3 whole numbers of cells (x, y, z), not {cell_shift!r}")
+    return np.mod(shift.astype(np.int64), int(nr_cells_axis))
+
+
 def check_orientation_tables(tables):
     """
     Check orientation tables are correctly formatted and have the required columns.
@@ -709,9 +791,11 @@ class NeighbourTileReport:
     :vartype touching:              dict
     :ivar shell:                    the shell [Mpc] the touching cells were kept in, or None for whole tiles
     :vartype shell:                 tuple
+    :ivar observer_cell_shift:      the periodic shift [cells] from an observer position added to every tile, or None
+    :vartype observer_cell_shift:   tuple
     """
 
-    def __init__(self, nr_neighbour_pairs, nr_reoriented_pairs, touching, shell=None):  # noqa: D107
+    def __init__(self, nr_neighbour_pairs, nr_reoriented_pairs, touching, shell=None, observer_cell_shift=None):  # noqa: D107
         """
 
         :param  nr_neighbour_pairs:     number of pairs of tiles sharing a face that were checked
@@ -723,11 +807,14 @@ class NeighbourTileReport:
         :type   touching:               dict
         :param  shell:                  the shell [Mpc] the touching cells were kept in, or None for whole tiles
         :type   shell:                  tuple
+        :param  observer_cell_shift:    the cell shift [cells] from an observer position added to every tile, or None
+        :type   observer_cell_shift:    tuple
         """
         self.nr_neighbour_pairs = nr_neighbour_pairs
         self.nr_reoriented_pairs = nr_reoriented_pairs
         self.touching = touching
         self.shell = shell
+        self.observer_cell_shift = None if observer_cell_shift is None else tuple(int(k) for k in observer_cell_shift)
         self.nr_touching_cells = len(touching["cell"])
         pairs = np.column_stack([touching["tile_a"], touching["tile_b"]])
         self.nr_touching_pairs = len(np.unique(pairs, axis=0)) if len(pairs) else 0
@@ -738,16 +825,28 @@ class NeighbourTileReport:
             f"{self.nr_touching_cells} cells clashing with (in contact with) their own replica across the faces of "
             f"{self.nr_touching_pairs} pairs of neighbouring tiles"
             f"({self.nr_reoriented_pairs} / {self.nr_neighbour_pairs} pairs of neighbouring tiles are "
-            "oriented differently)."
+            "oriented differently)"
         )
-        return summary_str
+        if self.observer_cell_shift is not None:
+            summary_str += f", with the observer shift {self.observer_cell_shift} cells added to every tile"
+
+        return summary_str + "."
 
     def __repr__(self):  # noqa: D105
         return f"NeighbourTileReport({self.summary()})"
 
 
 def check_neighbouring_tiles(
-    tables, nr_cells_axis, orientation_lock=None, orientation_seed=0, extent=3, warn=True, boxsize=None, shell=None
+    tables,
+    nr_cells_axis,
+    orientation_lock=None,
+    orientation_seed=0,
+    extent=3,
+    warn=True,
+    boxsize=None,
+    shell=None,
+    observer_position=None,
+    observer_cell_shift=None,
 ):
     """
     Returns a :class:`NeighbourTileReport` after checking the orientation tables for clashing cells in neighbouring
@@ -758,30 +857,40 @@ def check_neighbouring_tiles(
     Only neighbouring tiles that are oriented differently can make copies of the same cell touch, e.g. with
     orientation_lock="cube" cells can only touch on the faces between layers.
 
-    This method is quicker and coarser than :func:`swiftlet.repeat_check.find_close_cell_repeats`, which builds the
-    actual lightcone shell of a simulation and also finds copies close along a line of sight.
+    This method is quicker and a more coarse search than :func:`swiftlet.repeat_check.find_close_cell_repeats`, which
+    builds the actual lightcone shell of a simulation and also finds copies close along a line of sight.
     As this is only a coarse check, orientation_lock="sphere" cannot be used with it, as that needs a more complete
     rebuild of the lightcone. To check "sphere", use :func:`swiftlet.repeat_check.find_close_cell_repeats`.
 
-    :param  tables:             orientation tables, as a dict (see check_orientation_tables) or the path of a table file
-                                (see write_orientation_tables)
-    :type   tables:             dict or str
-    :param  nr_cells_axis:      number of SWIFT cells along each axis of the snapshots, e.g. 32 for FLAMINGO
-    :type   nr_cells_axis:      int
-    :param  orientation_lock:   None (or "none") or "cube". "sphere" splits tiles between layers by distance, which
-                                needs the lightcone: use find_close_cell_repeats
-    :type   orientation_lock:   str
-    :param  orientation_seed:   seed of the tile orientations
-    :type   orientation_seed:   int
-    :param  extent:             check the tiles (nx, ny, nz) with ``|nx|, |ny|, |nz| <= extent``
-    :type   extent:             int
-    :param  warn:               If True, warn (swiftlet.repeat_check.CloseRepeatWarning) if cells touch their copy
-    :type   warn:               bool
-    :param  boxsize:            side length [Mpc] of the snapshot box. Needed with shell
-    :type   boxsize:            float
-    :param  shell:              (minimum, maximum) comoving distance [Mpc] of a lightcone shell. If given, only touching
-                                copies whose cells overlap the shell are kept
-    :type   shell:              tuple
+    With observer_position (and boxsize), or observer_cell_shift, the tables are checked with the observer's periodic
+    shift added to every tile, as a lightcone with that observer position moves them (see
+    :func:`observer_corner_and_shift`). Give one or the other, not both.
+
+    :param  tables:                 orientation tables, as a dict (see check_orientation_tables) or the path of a table
+                                    file (see write_orientation_tables)
+    :type   tables:                 dict or str
+    :param  nr_cells_axis:          number of SWIFT cells along each axis of the snapshots, e.g. 32 for FLAMINGO
+    :type   nr_cells_axis:          int
+    :param  orientation_lock:       None (or "none") or "cube". "sphere" splits tiles between layers by distance, which
+                                    needs the lightcone: use find_close_cell_repeats
+    :type   orientation_lock:       str
+    :param  orientation_seed:       seed of the tile orientations
+    :type   orientation_seed:       int
+    :param  extent:                 check the tiles (nx, ny, nz) with ``|nx|, |ny|, |nz| <= extent``
+    :type   extent:                 int
+    :param  warn:                   If True, warn (swiftlet.repeat_check.CloseRepeatWarning) if cells touch their copy
+    :type   warn:                   bool
+    :param  boxsize:                side length [Mpc] of the snapshot box. Needed with shell
+    :type   boxsize:                float
+    :param  shell:                  (minimum, maximum) comoving distance [Mpc] of a lightcone shell. If given, only
+                                    touching copies whose cells overlap the shell are kept
+    :type   shell:                  tuple
+    :param  observer_position:      (x, y, z) comoving position [Mpc] of the observer in the snapshot box, as given to
+                                    the lightcone. Needs boxsize
+    :type   observer_position:      array-like, shape (3,)
+    :param  observer_cell_shift:    the periodic shift [cells] added to every tile for the observer, as recorded in a
+                                    lightcone's metadata (observer_cell_shift)
+    :type   observer_cell_shift:    array-like of int, shape (3,)
     """
     import warnings
     from .snapshot_lightcone import TILE_HASH_PRIMES, TILE_HASH_SEED_PRIME
@@ -799,6 +908,19 @@ def check_neighbouring_tiles(
 
     n = int(nr_cells_axis)
     n_rows = len(tables["QuarterTurns"])
+
+    # the observer's shift, added to every tile
+    if observer_position is not None and observer_cell_shift is not None:
+        raise ValueError("give check_neighbouring_tiles observer_position or observer_cell_shift, not both")
+
+    if observer_position is not None:
+        if boxsize is None:
+            raise ValueError("check_neighbouring_tiles needs the boxsize with observer_position")
+
+        tile_shift = cell_shifts_in_cells(tables["CellShifts"][_observer_tile_row(n_rows, orientation_seed)], n)
+        _, observer_cell_shift = observer_corner_and_shift(observer_position, boxsize, n, tile_cell_shift=tile_shift)
+
+    observer_cell_shift = _check_extra_cell_shift(observer_cell_shift, n)
 
     if shell is not None:
         if boxsize is None:
@@ -821,11 +943,13 @@ def check_neighbouring_tiles(
     tile_rows = {tuple(int(t) for t in tile): row_of(tuple(int(t) for t in tile)) for tile in tiles}
 
     # only cells on the shared face can clash: the cells on each face of the box after each row used moves it, as
-    # keys (cell, u, v), see _face_cell_keys. A cell of tile a touches its copy in the next tile along an axis if
-    # its key is on the + face of a's row and on the - face of the next tile's row
+    # keys (cell, u, v). A cell of tile a touches its copy in the next tile along an axis if  its key is on the + face
+    # of a's row and on the - face of the next tile's row
     rows_used = np.unique(list(tile_rows.values()))
     position_of_row = {int(row): i for i, row in enumerate(rows_used)}
-    plus, minus = _face_cell_keys({name: tables[name][rows_used] for name in ORIENTATION_TABLE_NAMES}, n)
+    plus, minus = _face_cell_keys(
+        {name: tables[name][rows_used] for name in ORIENTATION_TABLE_NAMES}, n, extra_cell_shift=observer_cell_shift
+    )
     touching_keys = {}
 
     def touching_on_face(row_a, row_b, axis):
@@ -892,6 +1016,7 @@ def check_neighbouring_tiles(
         nr_reoriented_pairs,
         {"tile_a": joined(tile_a, (0, 3)), "tile_b": joined(tile_b, (0, 3)), "cell": joined(cells, (0,))},
         shell=shell,
+        observer_cell_shift=observer_cell_shift,
     )
 
     if warn and report.nr_touching_cells > 0:
@@ -912,7 +1037,7 @@ def check_neighbouring_tiles(
 # tables in which no two rows make a cell touch its own copy
 
 
-def _face_cell_keys(tables, nr_cells_axis):
+def _face_cell_keys(tables, nr_cells_axis, extra_cell_shift=None):
     """
     The cells on each face of the box after each row of the tables moves it, as sorted keys (cell, u, v), the cell's
     index and its position on the face.
@@ -922,20 +1047,29 @@ def _face_cell_keys(tables, nr_cells_axis):
 
     Returns a tuple (plus, minus), the keys (cell, u, v) on the + and - face along each axis
 
-    :param  tables:         orientation tables, see check_orientation_tables
-    :type   tables:         dict
-    :param  nr_cells_axis:  number of cells along each axis
-    :type   nr_cells_axis:  int
+    :param  tables:             orientation tables, see check_orientation_tables
+    :type   tables:             dict
+    :param  nr_cells_axis:      number of cells along each axis
+    :type   nr_cells_axis:      int
+    :param  extra_cell_shift:   a periodic shift [cells] added to every row's shift (an observer's), or None
+    :type   extra_cell_shift:   array-like of int, shape (3,)
     """
     tables = check_orientation_tables(tables)
+
     n = int(nr_cells_axis)
+    extra = np.zeros(3, dtype=np.int64) if extra_cell_shift is None else np.asarray(extra_cell_shift, dtype=np.int64)
+
     n_rows = len(tables["QuarterTurns"])
+
     cell_centres = np.indices((n,) * 3).reshape(3, -1).T + 0.5
     cell_index = np.arange(n**3)
+
     plus = np.zeros((3, n_rows, n * n), dtype=np.int64)
     minus = np.zeros((3, n_rows, n * n), dtype=np.int64)
+
     for row in range(n_rows):
-        shift = cell_shifts_in_cells(tables["CellShifts"][row], n)
+        shift = cell_shifts_in_cells(tables["CellShifts"][row], n) + extra
+
         # the cell each cell is moved to, (i, j, k) from 0 to n - 1
         moved = np.rint(
             rotate_coords_cartesian(
@@ -949,11 +1083,13 @@ def _face_cell_keys(tables, nr_cells_axis):
             )
             - 0.5
         ).astype(np.int64)
+
         for axis in range(3):
             u, v = [a for a in range(3) if a != axis]
             for face, keys in ((n - 1, plus), (0, minus)):
                 on_face = moved[:, axis] == face
                 keys[axis, row] = np.sort((cell_index[on_face] * n + moved[on_face, u]) * n + moved[on_face, v])
+
     return plus, minus
 
 
@@ -965,17 +1101,20 @@ class _ClashIndex:
     along any axis and either way round.
     """
 
-    def __init__(self, tables, nr_cells_axis):
+    def __init__(self, tables, nr_cells_axis, extra_cell_shift=None):
         """
-        :param  tables:         orientation tables, see check_orientation_tables
-        :type   tables:         dict
-        :param  nr_cells_axis:  number of SWIFT cells along each axis of the snapshots
-        :type   nr_cells_axis:  int
+        :param  tables:             orientation tables, see check_orientation_tables
+        :type   tables:             dict
+        :param  nr_cells_axis:      number of SWIFT cells along each axis of the snapshots
+        :type   nr_cells_axis:      int
+        :param  extra_cell_shift:   a periodic shift [cells] added to every row's shift (an observer's), or None
+        :type   extra_cell_shift:   array-like of int, shape (3,)
         """
-        self.plus, self.minus = _face_cell_keys(tables, nr_cells_axis)
+        self.plus, self.minus = _face_cell_keys(tables, nr_cells_axis, extra_cell_shift=extra_cell_shift)
         n_rows, n_keys = self.plus.shape[1:]
         self.index = []
         rows = np.repeat(np.arange(n_rows), n_keys)
+
         for axis in range(3):
             for faces in (self.minus[axis], self.plus[axis]):
                 keys = faces.ravel()
@@ -1032,7 +1171,7 @@ def generate_clash_free_tables(seed=21, nr_cells_axis=16, cell_shift_values=EIGH
     #.  set unchanged row (no rotation, reflection or shifts) as the first entry and then randomly shuffle the order of
         the remaining rows added to the table.
 
-    Returns the tables as a dict, see :func:`check_orientation_tables`.
+    Returns the tables as a dict
 
     :param  seed:               seed of the random order in which the rows are chosen
     :type   seed:               int
@@ -1107,21 +1246,46 @@ def generate_clash_free_tables(seed=21, nr_cells_axis=16, cell_shift_values=EIGH
     return check_orientation_tables(tables)
 
 
-def tables_are_clash_free(tables, nr_cells_axis=16):
+def tables_are_clash_free(tables, nr_cells_axis=16, observer_cell_shift=None, orientation_seed=None):
     """
     Check that an orientation table will not produce clashing cell replicas.
 
     Check that no two rows of orientation tables (nor a row with itself) make a cell clash with its own copy across the
     face between neighbouring tiles.
+    With observer_cell_shift, the rows are checked with an observer's periodic shift added to every row, as a
+    lightcone with an observer position moves its tiles:
+
+    -   without orientation_seed, observer_cell_shift is the whole shift added to every tile, as recorded in a
+        lightcone's metadata (observer_cell_shift);
+    -   with orientation_seed, observer_cell_shift is the shift that moves the observer's corner to the box centre,
+        n/2 - corner / cell size, and the observer's tile's own shift, from its row for that seed, is taken out of it
+        as a lightcone does (see :func:`observer_corner_and_shift`). orientation_seed is only used with
+        observer_cell_shift.
 
     Returns the number of clashing (row, row) pairs, 0 if the tables are clash-free.
 
-    :param  tables:         orientation tables, see check_orientation_tables
-    :type   tables:         dict
-    :param  nr_cells_axis:  number of cells along each axis
-    :type   nr_cells_axis:  int
+    :param  tables:                 orientation tables, see check_orientation_tables
+    :type   tables:                 dict
+    :param  nr_cells_axis:          number of cells along each axis
+    :type   nr_cells_axis:          int
+    :param  observer_cell_shift:    the observer's periodic shift [cells], see above. If None, no shift
+    :type   observer_cell_shift:    array-like of int, shape (3,)
+    :param  orientation_seed:       seed of the tile orientations, to take the observer's tile's own shift out of
+                                    observer_cell_shift. Only with observer_cell_shift
+    :type   orientation_seed:       int
     """
-    clashes = _ClashIndex(tables, nr_cells_axis)
+    if orientation_seed is not None and observer_cell_shift is None:
+        raise ValueError("tables_are_clash_free uses orientation_seed only with observer_cell_shift")
+
+    n = int(nr_cells_axis)
+    extra = _check_extra_cell_shift(observer_cell_shift, n)
+
+    if orientation_seed is not None:
+        checked = check_orientation_tables(tables)
+        row = _observer_tile_row(len(checked["QuarterTurns"]), orientation_seed)
+        extra = np.mod(extra - cell_shifts_in_cells(checked["CellShifts"][row], n), n)
+
+    clashes = _ClashIndex(tables, nr_cells_axis, extra_cell_shift=extra)
     return int(
         sum(len(clashes.neighbours(row)) for row in range(len(check_orientation_tables(tables)["QuarterTurns"])))
     )
