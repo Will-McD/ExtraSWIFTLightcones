@@ -969,44 +969,14 @@ class SnapshotLightcone:
     @property
     def observer_snapshot_coords(self):
         """
-        Returns (observer_position, observer_corner): the observer position [Mpc] given in the snapshot box and the cell
-        corner the observer is placed at [Mpc].
+        Returns a tuple (observer_position, observer_corner), the observer position [Mpc] given in the snapshot box and
+        the cell corner the observer is placed at [Mpc].
 
-        without an observer position: (None, None).
-        The corner needs the snapshots' cell grid, so it is None until the first gather or placing call
-        (or Snapshot2Lightcone) reads cell metadata.
+        Without an observer position returns (None, None). The corner needs the snapshots' cell grid, so it is None
+        until the first gather or placing call (or Snapshot2Lightcone) reads cell metadata.
         """
         position = self.__observer_snapshot_coords
         return (None if position is None else tuple(float(x) for x in position), self.__observer_corner)
-
-    def _set_observer_position(self, observer_position):
-        """
-        Set the lightcone's observer position, kept for the later calls.
-
-        None keeps the current one and a position replaces it.
-
-        :param  observer_position:  (x, y, z) comoving position [Mpc] in the snapshot box, None or "default"
-        :type   observer_position:  array-like, shape (3,)
-        """
-        if observer_position is None:
-            return
-        if isinstance(observer_position, str):
-            raise ValueError(f"observer_position must be (x, y, z)or None or not {observer_position!r}")
-            position = None
-        else:
-            position = _check_observer_position(observer_position)
-
-        current = self.__observer_snapshot_coords
-
-        if position is None and current is None:
-            return
-        if position is not None and current is not None and np.array_equal(position, current):
-            return
-
-        self.__observer_snapshot_coords = position
-        self.__observer_corner = None  # found again with the next cell metadata read
-        self.__observer_cell_shift = None
-        self.__observer_grid = None
 
     @contextmanager
     def _mpi_call(self, comm) -> Iterator[None]:
