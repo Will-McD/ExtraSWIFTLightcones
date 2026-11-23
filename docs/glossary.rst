@@ -140,7 +140,7 @@ detail.
 
    orientation table
       The three tables (``QuarterTurns``, ``Reflections`` and ``CellShifts``) whose rows are the 
-      :term:`orientations <orientation>` the tiles take, stored as YAML files (see :term:`default tables`)
+      :term:`orientations <orientation>` the tiles take, stored as YAML files (see :term:`installed tables`)
 
    default tables
       See :term:`installed tables`

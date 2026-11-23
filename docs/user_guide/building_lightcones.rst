@@ -10,20 +10,21 @@ walkthrough of the main methods in the :class:`SnapshotLightcone` class that is 
 See :doc:`methods_overview` for an overview of the main ideas behind how lightcones are built in :mod:`swiftlet`. 
 
 All lightcones in :mod:`swiftlet` are classified as either an :term:`all-sky <all-sky lightcone>` or :term:`beam` 
-lightcone. The former are lightcones with a footprint that covers the whole sky (has a solid angle of :math:`4 \pi` 
-steradians) and are built with :class:`SnapshotAllSky` class. The latter, are lightcones whose footprint is given by a 
-circular beam (with an angular radius less than 60 degrees, a solid angle of :math:`\leq \pi` steradians) and are 
+lightcone. The former are lightcones whose footprint that covers the whole sky (i.e., a solid angle of :math:`4 \pi` 
+steradians) and are built with :class:`SnapshotAllSky` class. The latter, are lightcones given by a circular beam 
+with an angular radius less than 60 degrees (or a solid angle of :math:`\leq \pi` steradians) and are 
 constructed with the :class:`SnapshotBeam` class. 
-Both :class:`SnapshotAllSky` and :class:`SnapshotBeam` are subclasses of :class:`SnapshotLightcone`, which only contain 
-information specific to the geometry of the lightcone it builds: an all-sky or beam lightcone. 
-The methods used for building a lightcone are held by :class:`SnapshotLightcone` and shared by both subclasses.
-As shown in :doc:`methods_overview`, :mod:`swiftlet` builds lightcones by taking copies of the simulations snapshot box 
-and placing them into a lattice around the observer, before then populating the lattice using slices of particle and 
-haloes from snapshots chosen by their redshift (comoving distance from the observer). 
+
+Both :class:`SnapshotAllSky` and :class:`SnapshotBeam` are subclasses of :class:`SnapshotLightcone`, and only contain 
+information specific to the geometry of the lightcones they build. 
+The methods used for building a lightcone are held by :class:`SnapshotLightcone` and are therefore shared by both 
+subclasses. As shown in :doc:`methods_overview`, :mod:`swiftlet` builds lightcones by taking copies of the simulations 
+snapshot box and placing them into a lattice around the observer, before then populating the lattice using slices of 
+particle and haloes from snapshots chosen by their redshift (comoving distance from the observer). 
 
 .. _lightcone_building_step_list:
 
-In practice we use :class:`SnapshotLightcone` to build lightcones in main three steps:
+In practice :class:`SnapshotLightcone` builds lightcones in main three steps:
 
 #.  **Defining the lightcone**: choose the simulation, the lightcone's geometry (an :term:`all-sky lightcone` or 
     :term:`beam`) and its internal structure (how the copies of the snapshot box are :term:`oriented <orientation>`).
@@ -54,8 +55,7 @@ To define a lightcone it needs:
     :class:`SnapshotBeam`, which needs a direction (``beam_vector``) and angular radius (``ang_radius_deg``).
 *   **the orientation of its tiles**: the ``orientation_table`` (the default table is used if one is not specified), the
     ``orientation_lock`` (``none``, ``"cube"`` or ``"sphere"``) and the ``orientation_seed`` (see :doc:`orientation`
-    and :doc:`orientation_tables`).
-
+    and :doc:`orientation_tables`). 
 
 .. code-block:: python
 
@@ -63,21 +63,29 @@ To define a lightcone it needs:
 
     sim = Simulation.from_label("L0400N3008", "Thermal")   # COLIBRE L400_m7, Thermal AGN
 
-    # define an all-sky lightcone
-    all_sky = SnapshotAllSky(simulation=sim, orientation_lock="cube", orientation_seed=0)
+
     
     # define a beam lightcone
     beam = SnapshotBeam(
         simulation=sim, 
-        beam_vector=(1, 2, 3), 
-        ang_radius_deg=2.0, 
-        orientation_lock="cube", 
-        orientation_seed=0
+        beam_vector=(1., 2., 3.),       # pointing of the beam
+        ang_radius_deg=2.0,             # angular radius of the beam, in degree
+        orientation_table='default',    # use the default installed tables
+        orientation_lock="cube",        # how to configure layers tiles in the lightcones lattice
+        orientation_seed=0,             # order of reading the rows of the orientation tables
         )
 
-With the same internal structure (set by the :term:`orientation tables <orientation table>`, lock and seed: see 
-:doc:`orientation`), in the code block above ``beam`` gives the exact same lightcone as the same subvolume within 
-``all_sky`` (see :ref:`beams-are-part-of-the-all-sky-lightcone`).
+    # define an all-sky lightcone, the same as the beam but for the whole sky
+    all_sky = SnapshotAllSky(
+        simulation=sim, 
+        orientation_lock="cube", 
+        orientation_seed=0,
+        )
+
+With the same internal structure (set by the :term:`orientation tables <orientation table>`, 
+:term:`lock <orientation lock>` and :term:`seed <orientation seed>`; see :doc:`orientation`) and 
+:term:`observer position` (see :ref:`observer-position`), ``beam`` in the code block above gives the exact same 
+lightcone as the same cone shaped subvolume within ``all_sky`` (see :ref:`beams-are-part-of-the-all-sky-lightcone`).
 
 .. tip::
    Before building a large lightcone it is a good idea to check how close periodic replicas will be within the 
@@ -138,8 +146,8 @@ snapshots are less than 0.1 apart in redshift by default. Any time this occurs a
 
 .. _max-snapshot-spacing:
 
-Redshift between snapshots and missing snapshots
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Snapshot redshifts and missing snapshots
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A lightcone is filled by the snapshots whose redshift ranges cover the lightcones comoving distance, each filling the 
 redshifts between the midpoints to its neighbours (see :doc:`methods_overview` and :doc:`new_simulations_and_suites`). 
@@ -353,9 +361,23 @@ properties, via ``Lightcone/SnapshotNumber`` and ``InputHalos/SOAPIndex`` (see :
 Moving the observer
 ^^^^^^^^^^^^^^^^^^^
 
-By default the observer sits at the centre of the observer's :term:`tile`, ``(0, 0, 0)`` (see :doc:`orientation`). To 
-put the observer somewhere else in the snapshot box a new :term:`observer position` can be passed as 
-``observer_position``: a comoving position ``(x, y, z)`` in Mpc in the frame of the snapshot box. 
+The observers past lightcone is always centred on the observer, hence the observer sits at the centre of the first 
+:term:`tile` (with a :term:`lattice position` of :math:`(0, 0, 0)`) placed in the lightcone (see :doc:`orientation`).
+By default the observer sits at the centre the snapshots box :math:`(L/2, L/2, L/2)`, where :math:`L` is the side 
+length of the snapshots box. To centre of the lightcone on a different location within the snapshot box, 
+(i.e. place the observer somewhere else in the snapshot) a new :term:`observer position` can be passed to 
+:class:`SnapshotLightcone` (and its subclasses) with ``observer_position``: the a comoving position of the observer
+``(x, y, z)`` in the snapshot's box. 
+
+After passing an ``observer_position`` it is then adjusted to the location of the nearest corner of a cell in the 
+snapshot, so that the observer remains at the centre of the lightcone. The snapshots of each COLIBRE and FLAMINGO 
+simulation has an even number of cells per axis, hence the centre of the first tile in the lattice is a point where the 
+corners of four different cells meet. 
+The cells in tile of the lattice holding the lightcone is then shifted (periodically wrapped) so this new corner 
+position is at the centre of every tile. 
+
+As an example we can define a lightcone and reposition the observer specifically at the coordinates 
+``(330.0, 512.0, 760.0)`` [Mpc] in the snapshot box: 
 
 .. code-block:: python
 
@@ -363,24 +385,29 @@ put the observer somewhere else in the snapshot box a new :term:`observer positi
 
     sim = Simulation.from_label("L1000N0900", "HYDRO_FIDUCIAL")
     beam = SnapshotBeam(sim, beam_vector=(0, 0, 1), ang_radius_deg=2.5, observer_position=(330.0, 512.0, 760.0))
-    particles = beam.place_snapshot_particles_in_shell((0.05, 0.3), ["Masses"], particle_types="PartType0")
+    particles = beam.place_snapshot_particles_in_shell((0.05, 0.075), ["Masses"], particle_types="PartType0")
 
     position, corner = beam.observer_snapshot_coords  # the position given, and the cell corner the observer is at
 
+
+In the python code block above we can see that the given observer ``position`` was adjusted from 
+``(330.0, 512.0, 760.0)`` to the location of the nearest cell ``corner`` in the snapshot 
+``(343.75, 500.0, 750.0)``. 
+
 What you need to know about updating the observer position:
 
-*   **The observer is put at the nearest cell corner.** On each axis, the corner is
-    :math:`\lfloor p / d + 1/2 \rfloor\, d` for a position :math:`p` and cells of side length :math:`d`. A position at a
-    cell centre goes to the upper corner, and a position outside the box goes to the nearest corner of its periodic copy
-    in the box, with a warning. The position of the nearest corner used is printed and given by
+*   **The observer is put at the nearest cell corner.** On each axis, the nearest corner is given as
+    :math:`d \lfloor p / d + 1/2 \rfloor` for a position :math:`p` and cells with a side length :math:`d`. A position 
+    at a cell centre goes to the upper corner, and a position outside the box goes to the nearest corner of its periodic 
+    copy in the snapshots box, with a warning. The position of the nearest corner used is printed and given by
     :attr:`observer_snapshot_coords <SnapshotLightcone.observer_snapshot_coords>`, as ``(observer_position,
     observer_corner)``. The corner needs the snapshots' cell grid, so it is ``None`` until the first call reads one.
-*   **Every tile is shifted by the same whole number of cells**, before its rotation and reflection, so the corner is
-    at the observer. The shift is added to the total cell shift each tile takes from its row of the 
-    :term:`orientation table`, in one step, so it is the same for every tile, with every seed and every 
-    :term:`orientation lock`. Therefore even with the installed table to not make any changes to the orientation of the 
-    tiles (``orientation_table="no_reorientation"``) the lightcone is still made of exact periodic replicas of the box, 
-    continuous across the faces of every tile.
+*   **Every tile is shifted by the same number of cells**, before its rotation and reflection (see). The shift required 
+    to centre each tile in the lattice on the new observer position is added to the total cell shift each tile takes from 
+    its row of the :term:`orientation table`, in one step. This means that it is the same for every tile regardless of 
+    the :term:`orientation seed` and :term:`orientation lock`. Even with the installed table that does not alter the 
+    orientation of the tiles (``orientation_table="no_reorientation"``) the lightcone is still made of exact periodic 
+    replicas of the box, centred on the new observers position. 
 *   Particles and haloes placed in the same shell share the observer only if they're gathered with the same observer
     position.
 *   The lightcone's ``.metadata`` records the ``observer_position``, the ``observer_corner`` and the
@@ -397,14 +424,6 @@ What you need to know about updating the observer position:
 What a lightcone keeps between calls
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. dropdown:: Flowchart: the record each call makes, and what is kept
-   :icon: workflow
-   :animate: fade-in
-
-   .. mermaid:: mermaid/snapshot_lightcone_read_state.mmd
-      :align: center
-      :caption: Each gather step makes a new record of its shell; the lightcone keeps only the last one.
-
 Each call makes its own record of what its gather step found, so nothing is carried from one call to the next:
 
 *   :meth:`gather_files <SnapshotLightcone.gather_files>` and :meth:`place_snapshot_particles_in_shell
@@ -413,14 +432,15 @@ Each call makes its own record of what its gather step found, so nothing is carr
 *   The last record made is the lightcone's ``last_shell``. 
     :meth:`place_file_in_shell <SnapshotLightcone.place_file_in_shell>` places its files, 
     :meth:`Snapshot2Lightcone <SnapshotLightcone.Snapshot2Lightcone>` uses its cell metadata, and
-    :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` reads its pieces and cells.
+    :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` reads its pieces (snapshot number, 
+    file and tile) of the lightcone and cells.
 *   The last :class:`HaloShellRead` is also kept, so 
     :meth:`place_halos_in_shell <SnapshotLightcone.place_halos_in_shell>` called again with the same settings
     (including the observer position) doesn't repeat its gather step.
 *   Each record keeps the observer position it was gathered with, and the cell corner and shift that gave (see
     :ref:`observer-position`).
 *   The cell metadata of the snapshots is kept for one call only: 
-    :meth:`place_snapshot_particles_in_shell <SnapshotLightcone.place_snapshot_particles_in_shell>` empties it when it 
-    ends.
+    :meth:`place_snapshot_particles_in_shell <SnapshotLightcone.place_snapshot_particles_in_shell>` empties the cached 
+    record when it ends.
 *   The MPI communicator (``comm``) of a call is passed to the methods that use it and never stored, so a serial call
     after an MPI one is serial.
