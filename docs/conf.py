@@ -42,7 +42,6 @@ autosummary_context = {
         "swiftlet.snapshot_lightcone.message",
         "swiftlet.snapshot_lightcone.rank_message",
         "swiftlet.snapshot_lightcone.print_coord_ranges",
-        "swiftlet.snapshot_lightcone.FileReadSpec",
         "swiftlet.snapshot_lightcone.HaloCatalogueSpec",
         "swiftlet.snapshot_lightcone.HaloReadPiece",
         "swiftlet.snapshot_lightcone.SnapshotReadRecord",

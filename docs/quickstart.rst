@@ -1,15 +1,31 @@
 Quick start
 ===========
 
-This page walks through the steps, following installation, to build a pencil beam lightcone from both the snapshots and 
+This page walks through the steps to build a pencil beam lightcone from both the snapshots and 
 halo catalogues of the fiducial `L1_m10 FLAMINGO simulation <https://dataweb.cosma.dur.ac.uk:8443/flamingo/simulations/hydro.html#fiducial-models>`_.
 We will build a pencil beam with an angular radius of :math:`\theta=2.5^{\circ}` that extends out to redshift 
-:math:`z=0.3`.
+:math:`z=0.1`.
 
 A lightcone is built in three steps: **define** the lightcone, **gather** the files and cells to read, then **read and
-place** their particles or haloes. 
+place** their particles or haloes into the lightcone. 
 :doc:`user_guide/building_lightcones` and :doc:`user_guide/methods_overview`  explain each step and the ideas behind 
 them, respectively. 
+
+.. Note::
+    You will need the SOAP halo catalogues and snapshot gas particle data for snapshots 77, 76 and 75 of the  
+    `L1_m10 FLAMINGO simulation <https://dataweb.cosma.dur.ac.uk:8443/flamingo/simulations/hydro.html#fiducial-models>`_ 
+    available on disk to run code blocks included in this guide.     
+    To access the required data see:
+    `SOAP catalogues <https://dataweb.cosma.dur.ac.uk:8443/flamingo/viewer.html?path=FLAMINGO%2FL1_m10%2FL1_m10%2FSOAP-HBT>`_ 
+    and 
+    `Snapshots <https://dataweb.cosma.dur.ac.uk:8443/flamingo/viewer.html?path=FLAMINGO%2FL1_m10%2FL1_m10%2Fsnapshots>`_ 
+    . Be careful as downloading the complete snapshots requires 195 GB of disk space, whilst the SOAP catalogues only 
+    require 15 GB. 
+    We plant to integrate `hdf5stream <https://hdfstream-python.readthedocs.io/en/latest/>`_ in future 
+    updates so all files can be accessed remotley and do not need to be downloaded or stored on disk. 
+
+    You can swap out the use of the L1_m10 FLAMINGO simulation for any other SWIFT simulation on disk by updating the 
+    relevant paths in the code blocks below.
 
 
 Defining the lightcone 
@@ -80,7 +96,7 @@ the :term:`gather step` and, :term:`read and place step`.
     # Read catalogues and place haloes into the lightcone 
     halos = snap_beam.place_halos_in_shell(
         sim.soap_format,                            # formatted path to the SOAP halo catalogues
-        lightcone_redshift_range=(0.05, 0.3),       # redshift range of the lightcone
+        lightcone_redshift_range=(0.01, 0.1),       # redshift range of the lightcone
     )
 
     halos["Lightcone/HaloCentre"]           # lightcone positions, with the observer at the origin
@@ -168,7 +184,7 @@ Here we will place gas particles (``PartType0``), along with their masses and te
 
     # Read and place particles into the lightcone
     shell_particles = snap_beam.place_snapshot_particles_in_shell(
-        lightcone_redshift_range=(0.05, 0.3),
+        lightcone_redshift_range=(0.01, 0.1),
         property_names=["Masses", "Temperatures"],
         particle_types=["PartType0"],
     )

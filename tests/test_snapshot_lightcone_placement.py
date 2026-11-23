@@ -603,10 +603,13 @@ def test_snapshot_to_lightcone(fake_runs, beam_vector, ang_radius_deg):
         assert np.min(np.linalg.norm(np.array(moved_to[(n, particle_id)]) - position, axis=1)) < 1e-6
 
 
-def test_cell_data_only_of_the_current_call(fake_runs):
+def test_cell_data_kept_for_the_last_shell(fake_runs):
     """
-    Test that the cell metadata kept only holds the snapshots of the current call, so it doesn't grow with the number
-    of shells placed, gather_files keeps its snapshots for place_file_in_shell, and the placing methods free them.
+    Test that the cell metadata kept is that of the snapshots of the last shell gathered, so it doesn't grow with the
+    number of shells placed.
+
+    The cell metadata should be kept between calls for the snapshots the next shell uses, dropped for the others and
+    freed by clear_cache.
     """
     lightcone = new_lightcone(HALO_SIM, (1, 2, 3), "cube", ang_radius_deg=20.0)
     lightcone.gather_files(PTYPE, (0.05, 0.15))
@@ -614,19 +617,63 @@ def test_cell_data_only_of_the_current_call(fake_runs):
 
     lightcone.place_file_in_shell(0, PTYPE, ["ParticleIDs"])
     lightcone.gather_files(PTYPE, (0.15, 0.25))
-    assert set(lightcone.last_shell.cell_data) == {72, 73, 74}
+    assert set(lightcone.last_shell.cell_data) == {72, 73, 74}  # 74 kept, 75 and 76 dropped
 
     placed = lightcone.place_snapshot_particles_in_shell((0.25, 0.35), ["ParticleIDs"], particle_types=PTYPE)
-    assert len(placed[PTYPE]["ParticleIDs"]) > 0 and lightcone.last_shell.cell_data == {}
+    assert len(placed[PTYPE]["ParticleIDs"]) > 0
+    assert set(lightcone.last_shell.cell_data) == set(lightcone.last_shell.snapshots.tolist())
 
-    # the halo placement keeps the one snapshot it reads the box and cells from, to reuse its gather step
+    # the haloes read the box and cells from one snapshot, and keep only those of their shell's snapshots
     lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))
-    assert set(lightcone.last_shell.cell_data) == {lightcone.last_shell.cell_snapshot}
+    shell = lightcone.last_shell
+    assert shell.cell_snapshot in shell.cell_data
+    assert set(shell.cell_data) <= set(shell.snapshots.tolist()) | {shell.cell_snapshot}
     assert len(lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))["Lightcone/SnapshotNumber"]) > 0
 
     # Snapshot2Lightcone works for any snapshot, without keeping what it reads
+    kept = set(lightcone.last_shell.cell_data)
     moved = lightcone.Snapshot2Lightcone(70, np.zeros((1, 3)), tile=(0, 0, 0))
-    assert moved.shape == (1, 3) and set(lightcone.last_shell.cell_data) == {lightcone.last_shell.cell_snapshot}
+    assert moved.shape == (1, 3) and set(lightcone.last_shell.cell_data) == kept
+
+    lightcone.clear_cache()
+    assert lightcone.last_shell.cell_data == {}
+    assert len(lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))["Lightcone/SnapshotNumber"]) > 0
+
+
+def test_cell_data_read_once_across_calls(fake_runs):
+    """
+    Test that a snapshot's cell metadata is read once while consecutive calls use it, again after clear_cache, and that
+    reusing it changes nothing else.
+    """
+    from read_counter import ReadCounter
+
+    lightcone = new_lightcone(HALO_SIM, None, "cube")
+    with ReadCounter() as first:
+        placed = lightcone.place_snapshot_particles_in_shell((0.1, 0.2), ["ParticleIDs"], particle_types=PTYPE)[PTYPE]
+
+    snapshots = set(lightcone.last_shell.snapshots.tolist())
+    assert first.totals(ReadCounter.cell_datasets)["files"] == len(snapshots)
+
+    with ReadCounter() as again:
+        same = lightcone.place_snapshot_particles_in_shell((0.1, 0.2), ["ParticleIDs"], particle_types=PTYPE)[PTYPE]
+        lightcone.place_halos_in_shell(fake_runs, (0.1, 0.2))
+
+    assert again.totals(ReadCounter.cell_datasets)["requests"] == 0
+    np.testing.assert_array_equal(np.sort(same["ParticleIDs"].value), np.sort(placed["ParticleIDs"].value))
+
+    # the next shell shares a snapshot with this one: only its other snapshots are read
+    with ReadCounter() as next_shell:
+        lightcone.gather_files(PTYPE, (0.2, 0.3))
+
+    new_snapshots = set(lightcone.last_shell.snapshots.tolist())
+    assert new_snapshots & snapshots
+    assert next_shell.totals(ReadCounter.cell_datasets)["files"] == len(new_snapshots - snapshots)
+
+    lightcone.clear_cache()
+    with ReadCounter() as cleared:
+        lightcone.gather_files(PTYPE, (0.2, 0.3))
+
+    assert cleared.totals(ReadCounter.cell_datasets)["files"] == len(new_snapshots)
 
 
 @pytest.mark.parametrize("shell_z", [(0.0, 0.06), (0.05, 0.15), (0.1, 0.35)])
@@ -657,16 +704,17 @@ def test_each_call_has_its_own_read_state(fake_runs):
 
     numb_files, files = lightcone.gather_files(PTYPE, (0.05, 0.15))
     first = lightcone.last_shell
+
     # test first location, content of files, selected cells and snapshots + files
     assert isinstance(first, snapshot_lightcone.ShellRead)
-    assert (first.ptype, first.shell_z, first.files) == (PTYPE, (0.05, 0.15), files) and numb_files == len(files) > 0
+    assert (first.ptype, first.shell_z, first.plans) == (PTYPE, (0.05, 0.15), files) and numb_files == len(files) > 0
     assert set(first.tile_cells) == {(piece.snap_nr, piece.tile) for piece in first.pieces}
     assert {spec.snap_nr for spec in files} <= set(first.snapshots.tolist())
 
     lightcone.gather_halo_catalogues(fake_runs, (0.15, 0.25))
 
     assert isinstance(lightcone.last_shell, snapshot_lightcone.HaloShellRead)
-    assert first.shell_z == (0.05, 0.15) and first.files == files
+    assert first.shell_z == (0.05, 0.15) and first.plans == files
 
     # the files placed one at a time are those of the last gather_files, and of its particle type
     with pytest.raises(ValueError, match="must call gather_files"):
@@ -780,7 +828,7 @@ def test_missing_snapshot_given_with_use_snapshots(fake_run_dir, fake_runs):
     with pytest.warns(snapshot_lightcone.SnapshotGapWarning, match="0.175 < z < 0.225 \\(snapshot 73\\)"):
         lightcone.gather_files(PTYPE, (0.05, 0.3), use_snapshots=[71, 72, 74, 75, 76])
 
-    assert 73 not in {spec.snap_nr for spec in lightcone.last_shell.files}
+    assert 73 not in {plan.snap_nr for plan in lightcone.last_shell.plans}
 
 
 def test_missing_soap_catalogue_filled_with_a_warning(fake_run_dir, fake_runs):
@@ -1275,17 +1323,20 @@ def mpiexec_command():
     return str(local) if local.is_file() else shutil.which("mpiexec")
 
 
-@pytest.mark.parametrize("nr_ranks", [2, 3])
+@pytest.mark.parametrize("nr_ranks", [2, 3, 4])
 @pytest.mark.parametrize(
-    "sim_name, beam_vector, ang_radius_deg, redshift_range, orientation_lock, redistribute",
+    "sim_name, beam_vector, ang_radius_deg, redshift_range, orientation_lock, redistribute, max_particles_per_read",
     [
-        pytest.param(HALO_SIM, None, None, (0.1, 0.2), None, False, id="all_sky"),
-        pytest.param(HALO_SIM, None, None, (0.1, 0.2), "sphere", False, id="all_sky_sphere"),
-        pytest.param(HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), "cube", False, id="beam"),
-        pytest.param(HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), None, True, id="beam_redistributed"),
-        pytest.param(LATTICE_SIM, (0, 0, 1), 25.0, (0.05, 0.3), None, False, id="lattice_beam"),
+        pytest.param(HALO_SIM, None, None, (0.1, 0.2), None, False, None, id="all_sky"),
+        pytest.param(HALO_SIM, None, None, (0.1, 0.2), "sphere", False, None, id="all_sky_sphere"),
+        pytest.param(HALO_SIM, None, None, (0.1, 0.2), "cube", False, 150, id="all_sky_batches"),
+        pytest.param(HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), "cube", False, None, id="beam"),
+        pytest.param(HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), None, True, None, id="beam_redistributed"),
+        pytest.param(LATTICE_SIM, (0, 0, 1), 25.0, (0.05, 0.3), None, False, None, id="lattice_beam"),
         # one snapshot and at most two files, so some ranks are given no files to read
-        pytest.param(HALO_SIM, (0, 0, 1), 20.0, (0.06, 0.07), None, True, id="beam_redistributed_ranks_without_files"),
+        pytest.param(
+            HALO_SIM, (0, 0, 1), 20.0, (0.06, 0.07), None, True, None, id="beam_redistributed_ranks_without_files"
+        ),
     ],
 )
 def test_mpi_matches_serial(
@@ -1298,6 +1349,7 @@ def test_mpi_matches_serial(
     redshift_range,
     orientation_lock,
     redistribute,
+    max_particles_per_read,
 ):
     """
     Test that the mpi and serial methods achieve the same results.
@@ -1315,6 +1367,7 @@ def test_mpi_matches_serial(
         redshift_range=redshift_range,
         orientation_lock=orientation_lock,
         redistribute=redistribute,
+        max_particles_per_read=max_particles_per_read,
         output=str(tmp_path / "placed"),
     )
     env = dict(os.environ)
@@ -1611,15 +1664,18 @@ def placed_particles_by_tile(lightcone, redshift_range, ang_radius_deg):
     snap_nr, ids, tiles = [], [], []
 
     for file_number in range(numb_files):
-        particles = lightcone.place_file_in_shell(file_number, PTYPE, ["ParticleIDs", "Coordinates"])
+        # each file is placed in every tile that uses it, each particle labelled with its tile (TileIndex)
+        particles = lightcone.place_file_in_shell(file_number, PTYPE, ["ParticleIDs", "Coordinates", "TileIndex"])
 
         if not particles:
             continue
 
         n = len(particles["ParticleIDs"])
+
+        # store additional properties
         snap_nr.append(np.full(n, files[file_number].snap_nr))
         ids.append(particles["ParticleIDs"].value.astype(int))
-        tiles.append(np.tile(np.asarray(files[file_number].tile, dtype=int), (n, 1)))
+        tiles.append(particles["TileIndex"].value.astype(int))
 
     return np.concatenate(snap_nr), np.concatenate(ids), np.concatenate(tiles)
 

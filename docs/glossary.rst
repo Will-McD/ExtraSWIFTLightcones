@@ -27,7 +27,8 @@ detail.
    cell
       One of the cubes a SWIFT snapshot's box is divided into, with the same number of cells along each axis (a
       multiple of 8 for SWIFTLET), each with its particles stored together. SWIFTLET selects the cells inside a
-      lightcone before reading any particle, and a :term:`tile` moves its cells whole.
+      lightcone before reading any particle, and a :term:`tile` moves its cells whole. See the description of the top 
+      level cells in :doc:`user_guide/methods_overview`. 
 
    cell shift 
       Also referred to as a **shift** or **periodic (cell) shift**: The periodic shift of an :term:`orientation`, in 
@@ -158,8 +159,9 @@ detail.
       Listed in ``last_shell.pieces``.
 
    file to read
-      One snapshot file to read for one :term:`piece`: the snapshot, tile and file, and the offset and number of
-      particles of each selected :term:`cell` (a ``FileReadSpec``). Found by the :term:`gather step`, returned by
+      One snapshot file to read for a :term:`shell`, planned once for every :term:`piece` that uses it: the snapshot
+      and file, the offset and number of particles of each selected :term:`cell`, and the tiles that use them (a
+      ``FilePlan``). Found by the :term:`gather step`, returned by
       :meth:`gather_files <swiftlet.snapshot_lightcone.SnapshotLightcone.gather_files>` and listed in
       ``last_shell.files``.
 

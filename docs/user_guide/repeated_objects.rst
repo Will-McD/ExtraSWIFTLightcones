@@ -20,27 +20,15 @@ There are three scenarios of periodic replications that you should be aware of:
     structure repeats every box side length, use the installed ``"no_reorientation"`` tables 
     (see :doc:`orientation_tables`).
 
-#.  **Clashes due to different orientations** Where two neighbouring tiles are oriented differently, a 
-    :term:`SWIFT cell <cell>` can end up being in contact with **its own copy** (the same cell index of the snapshot 
-    box) in the other tile, resulting in the same structures sit side by side. The two copies can be filled by the 
-    **same snapshot**, or by **adjacent snapshots** where the boundary between their redshift ranges passes between 
-    them. Both are :term:`clashes <clash>`, and both are called :term:`clashing pairs <clashing pair>` in these docs. 
-    Which cells clash depends only on the orientation table, the ``orientation_lock``, the ``orientation_seed`` and the 
-    number of cells per axis. When the :term:`orientation lock` is either set as ``"cube"`` or ``"sphere"``  this cannot 
-    occur within the same layer (a layer is one continuous periodic boundary); without a lock it can happen at any tile 
-    face. Clashes can be avoided by the choice of orientation table (see 
-    :ref:`tables keeping copies apart <tables-keeping-copies-apart>`).
-
 #.  **Clashing pairs, from different orientations.** Where two neighbouring tiles are oriented differently, a
     :term:`SWIFT cell <cell>` can end up in contact with **its own copy** (the same cell, based on location in the 
     snapshot box) in the other tile, so the same structures sit side by side: a :term:`clashing pair`. The two copies 
     can be given particles or haloes by the **same snapshot**, or **adjacent snapshots** where the boundary between 
     their redshift ranges passes between them. Which cells :term:`clash` depends only on the :term:`orientation table`, 
     the :term:`orientation lock`, the :term:`orientation seed`, and the number of cells per axis. 
-    When the orientation lock is either ``"cube"`` or ``"sphere"`` this can't happen within a layer (a layer is 
-    periodically continuous) and only on the boundaries of two different layers. Without a lock it can happen at any 
-    tile face. The choice of orientation table can rule clashing pairs out (see 
-    :ref:`tables keeping copies apart <tables-keeping-copies-apart>`).
+    When the orientation lock is either ``"cube"`` or ``"sphere"`` this can't happen within a layer and only on the 
+    boundaries of two different layers. Without a lock it can happen at any tile face. The choice of orientation table 
+    can rule clashing pairs out (see :ref:`tables keeping copies apart <tables-keeping-copies-apart>`).
 
 #.  **Close replicas along a line of sight.** Where the orientation changes, instead of all objects being periodically 
     replicated each box side length, replicas of a given object can lie in **nearly the same direction, less than a box 

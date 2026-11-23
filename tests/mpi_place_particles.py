@@ -3,13 +3,7 @@
 Place the particles of a fake snapshot in a lightcone shell in parallel, run under mpiexec by
 test_snapshot_lightcone_placement.test_mpi_matches_serial.
 
-Each rank saves the particles it placed to
-<output>.<rank>.npz.
-
-    mpiexec -n 2 python mpi_place_particles.py '<json arguments>'
-
-The json arguments are run_dir, sim_name, beam_vector (null for all-sky), ang_radius_deg, redshift_range,
-orientation_lock, redistribute and output.
+Each rank saves the particles it placed to <output>.<rank>.npz.
 """
 
 import json
@@ -43,7 +37,7 @@ def main(args):
         ang_radius_deg=args["ang_radius_deg"],
         observer_position=args.get("observer_position"),
     )
-    kwargs = {"comm": comm}
+    kwargs = {"comm": comm, "max_particles_per_read": args.get("max_particles_per_read")}
 
     if args["beam_vector"] is not None:
         kwargs["redistribute_particles"] = args["redistribute"]

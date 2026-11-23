@@ -366,15 +366,15 @@ The observers past lightcone is always centred on the observer, hence the observ
 By default the observer sits at the centre the snapshots box :math:`(L/2, L/2, L/2)`, where :math:`L` is the side 
 length of the snapshots box. To centre of the lightcone on a different location within the snapshot box, 
 (i.e. place the observer somewhere else in the snapshot) a new :term:`observer position` can be passed to 
-:class:`SnapshotLightcone` (and its subclasses) with ``observer_position``: the a comoving position of the observer
+:class:`SnapshotLightcone` (and its subclasses) with ``observer_position``: the comoving coordinates of the observer
 ``(x, y, z)`` in the snapshot's box. 
 
-After passing an ``observer_position`` it is then adjusted to the location of the nearest corner of a cell in the 
-snapshot, so that the observer remains at the centre of the lightcone. The snapshots of each COLIBRE and FLAMINGO 
-simulation has an even number of cells per axis, hence the centre of the first tile in the lattice is a point where the 
-corners of four different cells meet. 
-The cells in tile of the lattice holding the lightcone is then shifted (periodically wrapped) so this new corner 
-position is at the centre of every tile. 
+After passing a ``observer_position``, the given position is adjusted so that it is the same as the nearest corner of a 
+cell in the snapshot. This is done so the observer remains at the centre of the lightcone. The snapshots of all 
+current COLIBRE and FLAMINGO simulations have an even number of cells per axis, hence the centre of the first tile in 
+the lattice is at a point where the corners of eight different cells meet. 
+The cells in each tile that the lightcone passes through are then :term:`shifted <cell shift>` (periodically) so this 
+new corner position is at the centre of every tile. 
 
 As an example we can define a lightcone and reposition the observer specifically at the coordinates 
 ``(330.0, 512.0, 760.0)`` [Mpc] in the snapshot box: 
