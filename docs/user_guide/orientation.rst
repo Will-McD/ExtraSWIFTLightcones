@@ -11,9 +11,9 @@ The observer sits at the centre of the first :term:`tile`, ``(0, 0, 0)``. The ti
 box whose centre is :math:`(n_x, n_y, n_z)\,L` from the observer, for a box of side length :math:`L`, so the tiles fill
 space exactly once, with no gaps or overlaps.
 Within the first tile, as the :term:`observers position <observer position>` is in the centre of the tile, it is always 
-a corner where eight cells meet and never at a cell centre as the number of cells per axis is a multiple of 8 
-(for all current COLIBRE and FLAMINGO simulations). By default the observer or centre of the lattice corresponds to 
-:math:`(L/2, L/2, L/2)` in the snapshots box, however to change the observers location in the snapshots box see 
+a point where the corners of cells meet and never at a cell centre given there are an even number of cells per axis 
+for all current COLIBRE and FLAMINGO simulations. By default the observer or centre of the lattice corresponds to 
+:math:`(L/2, L/2, L/2)` in the snapshots box, the observers location in the snapshots box can be changed; see 
 :ref:`observer-position`.
 
 In the lightcone each snapshot covers the range of redshifts given by the the midpoints to its neighbouring snapshots 
@@ -49,8 +49,8 @@ all-sky lightcone. Beams pointing in different directions are pieces of the one 
     the same positions, for every lock and none.
 
 
-Orientation of the tiles
-------------------------
+Locking the orientation of tiles
+--------------------------------
 
 Each tile's orientation is one row of the :term:`orientation tables <orientation table>`, chosen from the tile's 
 position on the lattice and the ``orientation_seed`` (see :ref:`how a tile picks its row <orientation-row>`). The 
@@ -83,8 +83,8 @@ there are no discontinuities between the tiles of the same layer. With ``"sphere
 two layers is used once for each layer, each piece taking its own layer's orientation and filling only its own layer's 
 distances; its tiles are labelled ``(nx, ny, nz, layer)``.
 
-The choice of lock changes where copies of the same objects lie, not how many there are. It decides where they can
-be in contact or be close along a line of sight (see :doc:`repeated_objects`):
+The choice of lock changes where copies of the same objects or cells in the lattice lie, not how many there are. It 
+decides where they can be in contact or how close they are along any given line of sight (see :doc:`repeated_objects`):
 
 *   ``None``: the most variety, as every tile is oriented differently, but every tile face is a change of orientation
 *   ``"cube"``: structures are only cut, and can only repeat closely, on the faces between layers
@@ -101,8 +101,9 @@ be in contact or be close along a line of sight (see :doc:`repeated_objects`):
    :alt: Slices through all-sky lightcones for each orientation lock, with the tiles coloured by orientation.
    
    A slice showing the xz plane of an all-sky lightcone for each of the different 
-   :term:`orientation locks <orientation lock>`. Different tile orientations are indicated by colour of the tiles.
-
+   :term:`orientation locks <orientation lock>`. The orientation of a tile is indicated by colour, so different tiles 
+   with the orientation are shaded with the same colour. Tiles that are not shaded are outside of the lightcones 
+   redshift range. 
 
 A beam with a diameter less than the side length of the box will cross very few tiles, so the choice of 
 orientation lock is not that important and instead, depending on the redshift range of the lightcone it may be 

@@ -1,14 +1,7 @@
 Main Ideas
 ==========
 
-
 .. currentmodule:: swiftlet.snapshot_lightcone
-
-The main functionality of :mod:`swiftlet` is to provide an easy to use post-processing pipeline for building lightcones 
-from the snapshots and halo catalogues of `SWIFT <https://swift.strw.leidenuniv.nl/docs/index.html>`_ cosmological 
-simulations. 
-This page provides as overview of the key concepts behind building lightcones with :mod:`swiftlet` and serves as an 
-introduction to this tool kit. 
 
 .. _fig-tile-cells-cube:
 
@@ -19,6 +12,13 @@ introduction to this tool kit.
    :alt: Diagram of a tile in the lightcone, i.e. a SWIFT simulation's comoving volume and top level cell structure
    
    Diagram of a :term:`tile` in the lightcone: a SWIFT simulation's comoving volume and top level cell structure
+
+
+The main functionality of :mod:`swiftlet` is to provide an easy to use post-processing pipeline for building lightcones 
+from the snapshots and halo catalogues of `SWIFT <https://swift.strw.leidenuniv.nl/docs/index.html>`_ cosmological 
+simulations. 
+This page provides as overview of the key concepts behind building lightcones with :mod:`swiftlet` and serves as an 
+introduction to this tool kit. 
 
 
 .. Note::

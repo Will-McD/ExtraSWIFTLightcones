@@ -158,6 +158,11 @@ The following describes the various tests within `test_snapshot_lightcone_placem
     ``ValueError`` naming the types there are.
 *   ``Snapshot2Lightcone`` needs the tile, and moves every particle of a snapshot to where the lightcone places it.
 *   The ``"fast"`` and ``"precise"`` redshift interpolations (``redshift_interp_method``) place the same particles.
+*   When a new observer position is given it is adjusted to the nearest cell corner, that with the unchanged table 
+    every lattice point is still placed exactly once, a beam is part of the all-sky lightcone, placing file by file 
+    gives the particles placed at once, the placement on 3 MPI ranks matches serial and the metadata records the
+    position, corner and shift. 
+
 
 MPI tests
 ---------
