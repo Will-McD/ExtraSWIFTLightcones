@@ -65,6 +65,11 @@ Lightcones from snapshots
      - makes an all-sky HEALPix map of the smoothed gas mass for :math:`0.05 < z < 0.1` from snapshot lightcones of
        COLIBRE L400_m7 and FLAMINGO L1_m9, with MPI
 
+   * - ``compare_flamingo_and_snapshot_halo.py`` / ``.sh``
+     - finds the same halo in FLAMINGO L2p8_m9's on-the-fly halo lightcone and in a 
+       :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` built using FLAMINGO's observer position 
+       (see :ref:`observer-position`), then plots the two side by side. 
+
    * - ``snapshot_number_density_comparison.py`` / ``.sh``
      - compares the number density of dark matter particles in the snapshot lightcones with the expected 
        number density from the initial snapshots
