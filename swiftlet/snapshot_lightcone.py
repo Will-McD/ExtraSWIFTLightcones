@@ -281,7 +281,7 @@ def _make_file_plan(snap_nr, file_nr, uses, offsets, lengths):
     return FilePlan(int(snap_nr), int(file_nr), cells, offsets[cells], lengths[cells], plan_uses)
 
 
-# repot classes: objects holding the information about the lightcone that are reported by the gather step and used in
+# report classes: objects holding the information about the lightcone that are reported by the gather step and used in
 # the read and placing of particles.
 @dataclass
 class ShellRead:
@@ -1069,7 +1069,7 @@ class SnapshotLightcone:
 
     def _cell_data(self, snap_nr, cache):
         """
-        Returns a dict with the cell metadata of a snapshot (__get_cell_data), read once and kept in the cache
+        Returns a dict with the cell metadata of a snapshot (__get_cell_data), read once and kept in the cache.
 
         :param  snap_nr:    snapshot number
         :type   snap_nr:    int
@@ -2196,7 +2196,7 @@ class SnapshotLightcone:
 
                 uses_of_file.setdefault(int(file_nr), []).append((tile, (z_sub_min, z_sub_max), infile_cell_idx))
 
-        # each file needs a plan for how to use the cells for all the tiles they are foudn in
+        # each file needs a plan for how to use the cells for all the tiles they are found in
         # make plans in order of the file numbers
         for file_nr in sorted(uses_of_file):
             shell.plans.append(

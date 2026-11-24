@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 r"""
-Count what particles are read from the snapshots when placing them in a lightcone and ouptut a markdown doc with the 
+Count what particles are read from the snapshots when placing them in a lightcone and output a markdown doc with the 
 results shown in a table.
 
 For each lightcone asked for, places one particle type in a shell while ReadCounter (tests/read_counter.py) records

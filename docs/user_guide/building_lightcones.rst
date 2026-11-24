@@ -191,8 +191,9 @@ Placing files one at a time
 
 A lightcone or even the shell populated by one snapshot can hold more particles than can be fit on the disks memory. 
 :meth:`SnapshotLightcone.gather_files` runs the gather step alone, for one particle type, and returns the files to read:
-one :class:`FileReadSpec` for each (snapshot, tile, file). :meth:`SnapshotLightcone.place_file_in_shell` then reads and 
-places one :term:`piece` at a time, so each can be added to a map and discarded:
+one :class:`FilePlan` for each snapshot file, read once for every tile that uses it.
+:meth:`SnapshotLightcone.place_file_in_shell` then reads and places one file at a time, so each can be added to a map
+and discarded:
 
 .. code-block:: python
 
@@ -280,23 +281,21 @@ Particles and haloes choose their snapshots in exactly the same way.
     seed. The periodic :term:`cell shift`, reflections and quarter turns are applied on each axis. 
 #.  The cell centres are transformed and moved to the tile's position, and the cells inside the tile's part of the
     lightcone are kept (with a buffer of one cell length).
-#.  A :class:`FileReadSpec` (snapshot, tile, file, offsets and lengths of the cells) is recorded for each file with
-    particles in those cells. A file needed by several tiles is read once for each tile (with ``"sphere"``, once for 
-    each layer of a tile crossing a sphere).
+#.  Each file with particles in those cells is planned once, as a :class:`FilePlan` (snapshot, file, the offsets and
+    lengths of its cells), with every tile that uses it (with ``"sphere"``, every layer of a tile crossing a sphere).
 
-Everything the gather step finds (the snapshots, the pieces, the files, the cells of each piece and the snapshots' cell
-metadata) is recorded in a new :class:`ShellRead`, kept as the lightcone's ``last_shell`` until the next call. Nothing
-else is kept from one call to the next.
+Everything the gather step finds (the snapshots, the pieces, the file plans, the cells of each piece and the snapshots' 
+cell metadata) is recorded in a new :class:`ShellRead`, kept as the lightcone's ``last_shell`` until the next call. 
+Nothing else is kept from one call to the next.
 
 :meth:`gather_files <SnapshotLightcone.gather_files>` stops here, and returns the 
-:class:`FileReadSpec`\ s for :meth:`place_file_in_shell <SnapshotLightcone.place_file_in_shell>` to 
+:class:`FilePlan`\ s for :meth:`place_file_in_shell <SnapshotLightcone.place_file_in_shell>` to 
 place one at a time.
 
 **Step 2, read and place**
 
-
-#.  The :class:`FileReadSpec`\ s are read on one process, or shared in blocks between the MPI ranks if ``comm`` is
-    given.
+#.  The planned files are read on one process, or shared between the MPI ranks if ``comm`` is given, each read by
+    one rank.
 #.  For each one, the ``Coordinates`` of the particles of its cells are read, and the tile's transform is applied to
     them.
 #.  The particles exactly inside the tile's part of the lightcone (and the beam) are kept.
