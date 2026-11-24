@@ -12,7 +12,7 @@ description = "SWIFTLET: SWIFT Lightcone Extension Tools. A set of generalised t
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "lightcone_io",
+    "lightcone_io>='0.10.0'",
     "swiftsimio",
     "numpy",
     "scipy",

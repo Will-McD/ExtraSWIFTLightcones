@@ -21,3 +21,12 @@ snapshot_format: 'snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_
 soap_format: 'SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5'
 # the SWIFT output list, read for the output redshifts of the snapshots
 output_list: 'output_list.txt'
+# other names of the boxes (e.g. on the hdfstream server): a simulation is found by either name, and keeps the label
+box_res_aliases:
+  'L1000N0900': 'L1_m10'
+  'L1000N1800': 'L1_m9'
+  'L1000N3600': 'L1_m8'
+  'L2800N5040': 'L2p8_m9'
+# other layouts of the snapshot files (e.g. on the hdfstream server), used when snapshot_format doesn't find them
+alternative_snapshot_formats:
+  - 'snapshots/flamingo_{snap_nr:04d}/swift_snapshot_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5'

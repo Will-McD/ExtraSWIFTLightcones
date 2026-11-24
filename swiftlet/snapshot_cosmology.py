@@ -24,7 +24,7 @@ import unyt
 import astropy.units as astropy_units
 from astropy.cosmology import FLRW, w0waCDM, z_at_value
 from . import snapshot_units as sw_units
-
+from .hdf5stream_reader import file_exists, open_file
 
 # snapshot files of the simulation suites: <suite>_<4 digits>.hdf5, or the files of a snapshot,
 # <suite>_<4 digits>.<file number>.hdf5
@@ -56,7 +56,7 @@ def find_snapshot_files(snapshot_dir, pattern=SNAPSHOT_FILE_PATTERN):
 def _attributes(snapshot, group_name):
     """Read the attributes of a group of a snapshot file, one-element arrays as numbers and bytes as strings."""
     if group_name not in snapshot:
-        raise KeyError(f"{snapshot.filename} doesn't have a group called {group_name}")
+        raise KeyError(f"{getattr(snapshot, 'filename', snapshot)} doesn't have a group called {group_name}")
     values = {}
     for name, value in snapshot[group_name].attrs.items():
         if isinstance(value, bytes):  # if byte format then decode to str
@@ -116,13 +116,16 @@ class SnapshotCosmology:
     :vartype unit_registry:     unyt.unit_registry.UnitRegistry
     """
 
-    def __init__(self, snapshot_filename):
+    def __init__(self, snapshot_filename, remote=None):
         """
         :param  snapshot_filename:  path of a SWIFT snapshot file (a virtual file or one file of a snapshot)
         :type   snapshot_filename:  str
+        :param  remote:             the remote directory the path is in (an hdfstream.RemoteDirectory). If None, the
+                                    file is on disk
+        :type   remote:             hdfstream.RemoteDirectory
         """
         self.snapshot_filename = str(snapshot_filename)
-        with h5py.File(self.snapshot_filename, "r") as snapshot:
+        with open_file(self.snapshot_filename, remote) as snapshot:
             self.unit_registry = sw_units.unit_registry_from_snapshot(snapshot)
             self.cosmology = _attributes(snapshot, "Cosmology")
             self.internal_units = _attributes(snapshot, "InternalCodeUnits")
@@ -170,8 +173,8 @@ class SnapshotCosmology:
                 simulation.snapshot_file(snap_nr, 0),
                 simulation.snapshot_format_whole.format(snap_nr=snap_nr),
             ):
-                if os.path.isfile(filename):
-                    return cls(filename)
+                if file_exists(filename, simulation.remote):
+                    return cls(filename, simulation.remote)
         raise FileNotFoundError(
             f"no snapshot of {simulation.box_res}/{simulation.name} found ({simulation.snapshot_file(0, 0)}, ..., "
             f"{simulation.snapshot_file(simulation.z0_snapshot, 0)})"

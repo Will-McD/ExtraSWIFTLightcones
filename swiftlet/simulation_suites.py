@@ -36,7 +36,7 @@ import re
 import numpy as np
 import string
 import yaml
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, field, fields, replace
 from functools import cached_property, lru_cache
 from importlib import resources
 from pathlib import Path
@@ -51,6 +51,9 @@ SOAP_FORMAT = "SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"
 
 # snapshot files of a suite that doesn't give its own snapshot_format
 SNAPSHOT_FORMAT = "snapshots/snap_{snap_nr:04d}/snap_{snap_nr:04d}.{file_nr}.hdf5"
+
+# the directory of a remote simulation, relative to the remote directory, unless base_dir_format is given
+REMOTE_DIR_FORMAT = "{box_res}/{sim_name}"
 
 # directories of suite files (.yaml files), separated by os.pathsep. A .yaml added to this directory adds a new suite or
 # replaces the installed one of the same name
@@ -118,7 +121,19 @@ def _read_output_list_file(path):
 
     # open file and read lines
     with open(path, "r") as infile:
-        lines = [line.strip() for line in infile]
+        return _parse_output_list(list(infile), path)
+
+
+def _parse_output_list(lines, path):
+    """
+    Returns the redshifts of an output list, as a tuple, from the lines of its file.
+
+    :param  lines:  the lines of the file
+    :type   lines:  list
+    :param  path:   path of the file, for the error messages
+    :type   path:   str
+    """
+    lines = [line.strip() for line in lines]
 
     lines = [line for line in lines if line]
 
@@ -148,6 +163,18 @@ def _read_output_list_file(path):
         raise ValueError(f"{path}: {error}") from None
 
     return tuple(redshifts)
+
+
+def _as_pairs(name, mapping):
+    """Returns a dict of names as a sorted tuple of (str, str) pairs, so a suite can be hashed."""
+    items = mapping.items() if isinstance(mapping, dict) else mapping
+    try:
+        pairs = tuple(sorted((str(key), str(value)) for key, value in items))
+    except (TypeError, ValueError):
+        raise TypeError(f"{name} must map names to names, not {mapping!r}") from None
+    if len({value for _, value in pairs}) != len(pairs):
+        raise ValueError(f"{name} gives two labels the same other name: {dict(pairs)}")
+    return pairs
 
 
 # outerlayer of redshift .txt file reader
@@ -231,6 +258,13 @@ class SimulationSuite:
     :vartype soap_format:           str
     :ivar description:              what the suite is, for people reading its file
     :vartype description:           str
+    :ivar box_res_aliases:          other names of the box size and resolution labels, e.g. on an hdfstream server, as
+                                    (label, other name) pairs, e.g. (("L1000N1800", "L1_m9"), ...); given as a dict.
+                                    A simulation is found by either name, and always has the label
+    :vartype box_res_aliases:       tuple
+    :ivar alternative_snapshot_formats: other layouts of the snapshot files, tried in order when the suite's
+                                        snapshot_format doesn't find them (see Simulation.from_label)
+    :vartype alternative_snapshot_formats: tuple
     """
 
     # define types of each element
@@ -242,6 +276,8 @@ class SimulationSuite:
     output_list: str = OUTPUT_LIST_NAME
     soap_format: str = SOAP_FORMAT
     description: str = ""
+    box_res_aliases: tuple = ()
+    alternative_snapshot_formats: tuple = ()
 
     def __post_init__(self):
         """Check the name, label pattern and path formats, so a mistake shows when the suite is made."""
@@ -274,6 +310,14 @@ class SimulationSuite:
         if not isinstance(self.output_list, (str, os.PathLike)):
             raise TypeError(f"output_list must be a path, not {self.output_list!r}")
 
+        # the other names of the labels, and the other snapshot layouts: as tuples, so the suite can be hashed
+        object.__setattr__(self, "box_res_aliases", _as_pairs("box_res_aliases", self.box_res_aliases or ()))
+        formats = self.alternative_snapshot_formats or ()
+        formats = (formats,) if isinstance(formats, (str, os.PathLike)) else formats
+        object.__setattr__(self, "alternative_snapshot_formats", tuple(os.fspath(path) for path in formats))
+        for path_format in self.alternative_snapshot_formats:
+            _check_path_format("snapshot_format", path_format)
+
     def with_paths(self, snapshot_format=None, soap_format=None, output_list=None):
         """
         Returns a SimulationSuite, taken for the labels of this suite.
@@ -297,7 +341,36 @@ class SimulationSuite:
         :param  boxsize_resolution: box size and resolution label, e.g. "L1000N1800"
         :type   boxsize_resolution: str
         """
-        return boxsize_resolution is not None and re.fullmatch(self.label_pattern, str(boxsize_resolution)) is not None
+        return self.label_of(boxsize_resolution) is not None
+
+    def label_of(self, boxsize_resolution):
+        """
+        Returns the box size and resolution label of a label or another name of one (e.g. "L1000N1800" or "L1_m9" ->
+        "L1000N1800"), or None if it is neither.
+
+        :param  boxsize_resolution: box size and resolution label, or another name of one
+        :type   boxsize_resolution: str
+        """
+        if boxsize_resolution is None:
+            return None
+
+        label = str(boxsize_resolution)
+
+        if re.fullmatch(self.label_pattern, label) is not None:
+            return label
+
+        return {alias: name for name, alias in self.box_res_aliases}.get(label)
+
+    def box_res_names(self, boxsize_resolution):
+        """
+        Returns the names of a box: the label, then its alias if it has one (e.g. ["L1000N1800", "L1_m9"]).
+
+        :param  boxsize_resolution: box size and resolution label, or another name of one
+        :type   boxsize_resolution: str
+        """
+        label = self.label_of(boxsize_resolution) or str(boxsize_resolution)
+        alias = dict(self.box_res_aliases).get(label)
+        return [label] if alias is None else [label, alias]
 
     def directory_format(self):
         """
@@ -401,7 +474,20 @@ def write_suite_file(suite, path):
         "# SWIFTLET simulation suite, see docs/user_guide/new_simulations_and_suites.rst",
         "",
     ]
-    lines += [f"{name}: {quoted(getattr(suite, name))}" for name in _SUITE_FIELDS]
+
+    for name in _SUITE_FIELDS:
+        value = getattr(suite, name)
+
+        if name == "box_res_aliases":
+            lines.append(f"{name}:" + ("" if value else " {}"))
+            lines += [f"  {quoted(label)}: {quoted(alias)}" for label, alias in value]
+
+        elif name == "alternative_snapshot_formats":
+            lines.append(f"{name}:" + ("" if value else " []"))
+            lines += [f"  - {quoted(path_format)}" for path_format in value]
+
+        else:
+            lines.append(f"{name}: {quoted(value)}")
 
     # ensure output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(os.fspath(path))), exist_ok=True)
@@ -585,14 +671,18 @@ class Simulation:
     :vartype box_res:   str
     :ivar name:         name of the simulation, e.g. "HYDRO_FIDUCIAL"
     :vartype name:      str
-    :ivar directory:    directory of the simulation
+    :ivar directory:    directory of the simulation (on disk, or relative to remote dir)
     :vartype directory: str
+    :ivar remote:       the remote directory (an hdfstream.RemoteDirectory) the simulation's files are read from, with
+                        directory and the snapshot paths relative to it. None for a simulation on disk
+    :vartype remote:    hdfstream.RemoteDirectory
     """
 
     suite: SimulationSuite
     box_res: str
     name: str
     directory: str
+    remote: object = field(default=None, compare=False, repr=False)
 
     @classmethod
     def from_label(
@@ -604,9 +694,14 @@ class Simulation:
         snapshot_format=None,
         soap_format=None,
         output_list=None,
+        remote=None,
+        find_directory=None,
     ):
         """
         Make the Simulation object of a box size and resolution label and a simulation name.
+
+        For a simulation stored remotely, give remote (a hdfstream.RemoteDirectory) and base_dir_format, the
+        simulation's directory relative to it, e.g. "FLAMINGO/{box_res}/{sim_name}".
 
         Returns a Simulation.
 
@@ -630,18 +725,76 @@ class Simulation:
         :param  output_list:            the SWIFT output list, relative to the simulation's directory (or absolute). If
                                         None, the suite's (output_list.txt)
         :type   output_list:            str
+        :param  remote:                 the remote directory to read the simulation's files from, e.g.
+                                        hdfstream.open(server, "/"). If None, the files are on disk
+        :type   remote:                 hdfstream.RemoteDirectory
+        :param  find_directory:         look for the simulation's directory with each name of the box, and for its
+                                        snapshot layout, as above. If None, only for a remote simulation
+        :type   find_directory:         bool
         """
-        # find the suite
-        suite = suite_for_label(boxsize_resolution, simulation_suite_name).with_paths(
-            snapshot_format, soap_format, output_list
-        )
+        # find the suite, and the box's label if another name of it was given
+        suite = suite_for_label(boxsize_resolution, simulation_suite_name)
+
+        given_box_res = str(boxsize_resolution)
+        boxsize_resolution = suite.label_of(boxsize_resolution) or given_box_res
+
+        suite = suite.with_paths(snapshot_format, soap_format, output_list)
+
         # make formatted path to base dir
         if base_dir_format is not None:
             _check_path_format("base_dir_format", base_dir_format)
-        directory_format = suite.directory_format() if base_dir_format is None else base_dir_format
-        directory = directory_format.format(box_res=boxsize_resolution, sim_name=simulation_name)
 
-        return cls(suite=suite, box_res=boxsize_resolution, name=simulation_name, directory=directory)
+        if base_dir_format is not None:
+            directory_format = base_dir_format
+
+        else:
+            # the boxes are in the remote directory
+            directory_format = REMOTE_DIR_FORMAT if remote is not None else suite.directory_format()
+
+        # the directory, with each name of the box (the label first, then the name given, then any other)
+        names = suite.box_res_names(boxsize_resolution)
+        names = list(dict.fromkeys([names[0], given_box_res] + names[1:]))
+
+        directories = list(
+            dict.fromkeys(directory_format.format(box_res=name, sim_name=simulation_name) for name in names)
+        )
+
+        find = remote is not None if find_directory is None else bool(find_directory)
+        directory = directories[0]
+
+        if find:
+            from .hdf5stream_reader import directory_exists
+
+            directory = next((path for path in directories if directory_exists(path, remote)), directory)
+
+        simulation = cls(
+            suite=suite, box_res=boxsize_resolution, name=simulation_name, directory=directory, remote=remote
+        )
+
+        if find and snapshot_format is None and suite.alternative_snapshot_formats:
+            simulation = simulation._with_snapshot_layout()
+
+        return simulation
+
+    def _with_snapshot_layout(self):
+        """Returns the simulation with the snapshot_format that finds its snapshot files."""
+        from .hdf5stream_reader import file_exists
+
+        try:
+            snap_nr = self.z0_snapshot
+
+        except (FileNotFoundError, ValueError):
+            return self
+
+        for path_format in (self.suite.snapshot_format,) + self.suite.alternative_snapshot_formats:
+            path = os.path.join(self.directory, path_format.format(snap_nr=snap_nr, file_nr=0))
+
+            if file_exists(path, self.remote):
+                return (
+                    self if path_format == self.suite.snapshot_format else self.with_paths(snapshot_format=path_format)
+                )
+
+        return self
 
     @classmethod
     def from_path(cls, path, simulation_suite_name=None, snapshot_format=None, soap_format=None, output_list=None):
@@ -669,18 +822,22 @@ class Simulation:
         directory = os.path.normpath(str(path))
         box_res = os.path.basename(os.path.dirname(directory))
         sim_name = os.path.basename(directory)
+
         if simulation_suite_name is None:
             in_path = [name for name in SUITES if re.search(rf"(^|/){name}(/|$)", directory.lower())]
             if len(in_path) == 1:
                 simulation_suite_name = in_path[0]
+
         suite = suite_for_label(box_res, simulation_suite_name).with_paths(snapshot_format, soap_format, output_list)
-        return cls(suite=suite, box_res=box_res, name=sim_name, directory=directory)
 
-    def with_paths(self, directory=None, snapshot_format=None, soap_format=None, output_list=None):
+        return cls(suite=suite, box_res=suite.label_of(box_res) or box_res, name=sim_name, directory=directory)
+
+    def with_paths(self, directory=None, snapshot_format=None, soap_format=None, output_list=None, remote=None):
         """
-        A copy of the simulation in another directory, or with other snapshot, SOAP catalogue or output list paths.
+        A copy of the simulation in another directory, or with other snapshot, SOAP catalogue or output list paths,
+        or read from a remote directory.
 
-        Keepp the paths that are not None.
+        Keepp the paths that are not None, and the remote directory if remote is None.
         The paths are relative to the simulation's directory (or absolute).
 
         Returns a Simulation.
@@ -693,11 +850,15 @@ class Simulation:
         :type   soap_format:        str
         :param  output_list:        the SWIFT output list
         :type   output_list:        str
+        :param  remote:             the remote directory to read the simulation's files from (a
+                                    hdfstream.RemoteDirectory), with directory relative to it
+        :type   remote:             hdfstream.RemoteDirectory
         """
         return replace(
             self,
             suite=self.suite.with_paths(snapshot_format, soap_format, output_list),
             directory=self.directory if directory is None else os.fspath(directory),
+            remote=self.remote if remote is None else remote,
         )
 
     @property
@@ -767,7 +928,21 @@ class Simulation:
     @cached_property
     def output_redshifts(self):
         """Output redshift of each snapshot (and snipshot), in order of snapshot number, from the output list."""
-        return read_output_list(self.output_list)
+        if self.remote is None:
+            return read_output_list(self.output_list)
+
+        from .hdf5stream_reader import read_text
+
+        try:
+            lines = read_text(self.output_list, self.remote)
+
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"no output list at {self.output_list} (remote): SWIFTLET reads the output redshifts "
+                f"from {OUTPUT_LIST_NAME}"
+            ) from None
+
+        return np.array(_parse_output_list(lines, self.output_list), dtype=float)
 
     def snapshot_redshifts(self):
         """
