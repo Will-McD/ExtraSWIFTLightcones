@@ -277,7 +277,8 @@ same as on disk, and the same particles and haloes are placed:
 
 The simulation's directory on the server is ``{box_res}/{sim_name}`` relative to the directory opened. Note that on
 the server FLAMINGOs **snapshot files are one directory deeper** (``snapshots/flamingo_0077/swift_snapshot_0077/...``).
-This is accounted for by :mod:`swiftlet`, unless ``snapshot_format`` is given when defining the :class:`Simulation`.
+This is accounted for by :mod:`swiftlet`, unless ``snapshot_format`` is given when defining the 
+:class:`Simulation <swiftlet.simulation_suites.Simulation>`.
 
 **Requests to the server.** Every dataset is read with one request for all the rows it needs (all its cells, or a
 batch of them), following the service's rules. The service asks for no more than 2 to 4 requests at once, so on MPI
