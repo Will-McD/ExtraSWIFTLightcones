@@ -291,7 +291,7 @@ class ShellRead:
 
     Each gather step makes a new one, :meth:`~SnapshotLightcone.gather_files` or
     :meth:`~SnapshotLightcone.place_snapshot_particles_in_shell` for each particle type, and keeps it as ``last_shell``,
-    so nothing is carried from one call to the next.
+    so nothing but the cell metadata (see clear_cache) is carried from one call to the next.
 
     :ivar shell_z:                  minimum and maximum redshift of the shell
     :vartype shell_z:               tuple
@@ -2904,7 +2904,9 @@ class SnapshotLightcone:
         Determine the snapshot files containing the particles needed to populate the lightcone.
 
         Each snapshot file is found and a plan (FilePlan) is created to map each tile the cells in the file fill.
-        The plan is kept in ``last_shell.plans`` and placed by place_file_in_shell.
+        The plan is kept in ``last_shell.plans`` and placed by place_file_in_shell or iter_file_pieces, one file at a
+        time. This method is serial only, to place the files on several MPI ranks, share them between the ranks (e.g.
+        by FilePlan.nr_placed)
 
         Returns a tuple (number of files found, a list FilePlan entries).
 
@@ -3073,7 +3075,16 @@ class SnapshotLightcone:
         """
         Read and place every particle of the given type(s) into a lightcone shell.
 
-        Returns a dict of particle data per particle type.
+        For each particle type, the gather step plans each snapshot file once (a FilePlan, kept in
+        ``last_shell.plans``), with every tile that uses it. Each file is then opened once and the particles in the
+        required cells are read in one request before being placed in every tile that uses them.
+
+        With comm, whole files are passed out to the MPI ranks so each has about the same number of particles to place
+        (FilePlan.nr_placed), and each rank returns the particles it placed.
+
+        Returns a :class:`LightconeOutput` ``{particle type: particle data}``, with the lightcone's metadata.
+        ``Coordinates``, ``ParticleIDs``, ``ExpansionFactors`` and ``SnapshotNumber`` are always in the particle data
+        (and ``SmoothingLengths`` for every type but ``PartType1``).
 
         :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
         :type   lightcone_redshift_range:   sequence of two floats

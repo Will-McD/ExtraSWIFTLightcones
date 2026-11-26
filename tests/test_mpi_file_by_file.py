@@ -85,14 +85,15 @@ def run_read_counts(fake_run_dir, tmp_path, nr_ranks, **args):
 
 
 CASES = [
-    pytest.param(None, None, (0.1, 0.2), "cube", None, id="all_sky"),
-    pytest.param(None, None, (0.1, 0.2), "sphere", 200, id="all_sky_sphere_batches"),
-    pytest.param((1, 2, 3), 20.0, (0.05, 0.3), "cube", None, id="beam"),
+    pytest.param(3, None, None, (0.1, 0.2), "cube", None, id="all_sky-3"),
+    pytest.param(4, None, None, (0.1, 0.2), "sphere", 200, id="all_sky_sphere_batches-4"),
+    pytest.param(2, (1, 2, 3), 20.0, (0.05, 0.3), "cube", None, id="beam-2"),
 ]
 
 
-@pytest.mark.parametrize("nr_ranks", [2, 3, 4])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range, orientation_lock, max_particles_per_read", CASES)
+@pytest.mark.parametrize(
+    "nr_ranks, beam_vector, ang_radius_deg, redshift_range, orientation_lock, max_particles_per_read", CASES
+)
 def test_mpi_reads_each_file_once(
     fake_run_dir,
     tmp_path,

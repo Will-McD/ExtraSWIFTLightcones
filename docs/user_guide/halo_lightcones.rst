@@ -13,9 +13,10 @@ files that LightconeIO can read.
 Placing haloes
 --------------
 
-:meth:`SnapshotLightcone.place_halos_in_shell` places the haloes of a redshift shell. It takes the paths of the SOAP
-catalogues as a format string with a ``{snap_nr}`` field, usually the simulation's ``soap_format`` (see
-:ref:`simulation parameter <table-of-values>`).
+:meth:`SnapshotLightcone.place_halos_in_shell` places the haloes of a redshift shell, from the simulation's SOAP
+catalogues (its ``soap_format``, see :ref:`simulation parameter <table-of-values>`). To place the haloes of other
+catalogues of the same snapshots, give their paths as ``halo_format``, a format string with a ``{snap_nr}`` field (on
+disk, or relative to the server's directory for a remote simulation).
 
 With an ``observer_position`` (see :ref:`observer-position`), the haloes are moved with the same shift of every tile as
 the particles. Particles and haloes placed in the same shell share the observer only if they're gathered with the same 
@@ -29,11 +30,11 @@ the particles. Particles and haloes placed in the same shell share the observer 
 
     # all-sky
     all_sky = SnapshotAllSky(simulation=sim, orientation_lock="cube")
-    halos = all_sky.place_halos_in_shell(sim.soap_format, (0.001, 0.1)) # place haloes into all-sky lightcone
+    halos = all_sky.place_halos_in_shell((0.001, 0.1))  # place haloes into all-sky lightcone
 
     # beam with a radius of 5 degrees
     beam = SnapshotBeam(simulation=sim, beam_vector=(1, 2, 3),  ang_radius_deg=5., orientation_lock="cube")
-    beam_halos = beam.place_halos_in_shell(sim.soap_format, (0.001, 0.3)) # place haloes into the beam lightcone
+    beam_halos = beam.place_halos_in_shell((0.001, 0.3))  # place haloes into the beam lightcone
 
 The result is a :class:`LightconeOutput`, one row per halo placed, holding only what is needed to place the haloes in 
 the lightcones and to map them back to their position in the SOAP catalogue:

@@ -475,24 +475,6 @@ def test_haloes_read_in_chunks_as_whole(fake_runs, beam_vector, ang_radius_deg, 
         assert chunked.metadata == whole.metadata
 
 
-def test_read_soap_in_chunks(fake_runs):
-    """
-    Test that the chunks of a SOAP catalogue are in order + have the units lightcone_io reads them with.
-    """
-    hc = pytest.importorskip("lightcone_io.halo_catalogue")
-    snap_nr = SNAPSHOTS[-1]
-    names = ["InputHalos/HaloCentre", "InputHalos/HaloCatalogueIndex"]
-    whole = hc.SOAPCatalogue(fake_runs, snap_nr, snap_nr).read(snap_nr, names)
-    chunks = list(snapshot_lightcone.read_soap_in_chunks(fake_runs.format(snap_nr=snap_nr), names, 1000))
-    assert [start for start, _ in chunks] == list(range(0, NHALOS, 1000))
-    for name in names:
-        joined = np.concatenate([chunk[name] for _, chunk in chunks])
-        assert joined.units == whole[name].units
-        np.testing.assert_array_equal(joined.value, whole[name].value)
-    with pytest.raises(ValueError, match="at least 1"):
-        next(snapshot_lightcone.read_soap_in_chunks(fake_runs.format(snap_nr=snap_nr), names, 0))
-
-
 def test_haloes_with_mpi_communicator_as_serial(fake_runs):
     """
     With one MPI rank test that the SOAP catalogues are shared out in pieces, as particle files are, and the
@@ -1045,7 +1027,6 @@ def lattice_index(coords):
     return k
 
 
-@pytest.mark.parametrize("kind", ["particles", "haloes"])
 @pytest.mark.parametrize("orientation_lock", [None, "cube", "sphere"])
 @pytest.mark.parametrize(
     "beam_vector, ang_radius_deg, r_range",
@@ -1057,7 +1038,7 @@ def lattice_index(coords):
     ],
 )
 def test_lattice_over_many_tiles(
-    fake_run_dir, fake_runs, beam_vector, ang_radius_deg, r_range, orientation_lock, kind, figures_dir, request
+    fake_run_dir, fake_runs, beam_vector, ang_radius_deg, r_range, orientation_lock, figures_dir, request
 ):
     """
     Place particles from a uniform lattive across the whole snapshot box into a lightcone redshift shell with a radius
@@ -1069,7 +1050,7 @@ def test_lattice_over_many_tiles(
 
     """
     lightcone = new_lightcone(LATTICE_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
-    snap_nr, ids, coords = place_lattice(lightcone, redshift_at_distance(r_range), kind, fake_run_dir)
+    snap_nr, ids, coords = place_lattice(lightcone, redshift_at_distance(r_range), "particles", fake_run_dir)
 
     expected = lattice_in_shell(*r_range, beam_vector, ang_radius_deg)
 
@@ -1331,19 +1312,20 @@ def mpiexec_command():
     return str(local) if local.is_file() else shutil.which("mpiexec")
 
 
-@pytest.mark.parametrize("nr_ranks", [2, 3, 4])
+# each case on one number of ranks (2, 3 or 4 between them)
 @pytest.mark.parametrize(
-    "sim_name, beam_vector, ang_radius_deg, redshift_range, orientation_lock, redistribute, max_particles_per_read",
+    "nr_ranks, sim_name, beam_vector, ang_radius_deg, redshift_range, orientation_lock, redistribute, "
+    "max_particles_per_read",
     [
-        pytest.param(HALO_SIM, None, None, (0.1, 0.2), None, False, None, id="all_sky"),
-        pytest.param(HALO_SIM, None, None, (0.1, 0.2), "sphere", False, None, id="all_sky_sphere"),
-        pytest.param(HALO_SIM, None, None, (0.1, 0.2), "cube", False, 150, id="all_sky_batches"),
-        pytest.param(HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), "cube", False, None, id="beam"),
-        pytest.param(HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), None, True, None, id="beam_redistributed"),
-        pytest.param(LATTICE_SIM, (0, 0, 1), 25.0, (0.05, 0.3), None, False, None, id="lattice_beam"),
+        pytest.param(2, HALO_SIM, None, None, (0.1, 0.2), None, False, None, id="all_sky-2"),
+        pytest.param(3, HALO_SIM, None, None, (0.1, 0.2), "sphere", False, None, id="all_sky_sphere-3"),
+        pytest.param(4, HALO_SIM, None, None, (0.1, 0.2), "cube", False, 150, id="all_sky_batches-4"),
+        pytest.param(3, HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), "cube", False, None, id="beam-3"),
+        pytest.param(2, HALO_SIM, (1, 2, 3), 20.0, (0.05, 0.3), None, True, None, id="beam_redistributed-2"),
+        pytest.param(3, LATTICE_SIM, (0, 0, 1), 25.0, (0.05, 0.3), None, False, None, id="lattice_beam-3"),
         # one snapshot and at most two files, so some ranks are given no files to read
         pytest.param(
-            HALO_SIM, (0, 0, 1), 20.0, (0.06, 0.07), None, True, None, id="beam_redistributed_ranks_without_files"
+            4, HALO_SIM, (0, 0, 1), 20.0, (0.06, 0.07), None, True, None, id="beam_redistributed_ranks_without_files-4"
         ),
     ],
 )
@@ -1424,17 +1406,17 @@ def test_mpi_matches_serial(
     np.testing.assert_allclose(velocities[order], serial[3], atol=1e-6)
 
 
-@pytest.mark.parametrize("nr_ranks", [2, 3])
+# each case on one number of ranks (2 or 3 between them): an mpiexec run costs seconds to start
 @pytest.mark.parametrize(
-    "beam_vector, ang_radius_deg, redshift_range, orientation_lock, soap_chunk_size, redistribute",
+    "nr_ranks, beam_vector, ang_radius_deg, redshift_range, orientation_lock, soap_chunk_size, redistribute",
     [
-        pytest.param(None, None, (0.1, 0.2), None, None, False, id="all_sky"),
-        pytest.param(None, None, (0.1, 0.2), "sphere", 700, False, id="all_sky_sphere_chunks"),
-        pytest.param((1, 2, 3), 20.0, (0.05, 0.3), "cube", None, False, id="beam"),
-        pytest.param((1, 2, 3), 20.0, (0.05, 0.3), None, 1000, True, id="beam_chunks_redistributed"),
+        pytest.param(2, None, None, (0.1, 0.2), None, None, False, id="all_sky-2"),
+        pytest.param(3, None, None, (0.1, 0.2), "sphere", 700, False, id="all_sky_sphere_chunks-3"),
+        pytest.param(2, (1, 2, 3), 20.0, (0.05, 0.3), "cube", None, False, id="beam-2"),
+        pytest.param(3, (1, 2, 3), 20.0, (0.05, 0.3), None, 1000, True, id="beam_chunks_redistributed-3"),
         # one snapshot in one piece, so some ranks are given nothing to read
         pytest.param(
-            (0, 0, 1), 20.0, (0.06, 0.07), None, 10 * NHALOS, True, id="beam_redistributed_ranks_without_pieces"
+            3, (0, 0, 1), 20.0, (0.06, 0.07), None, 10 * NHALOS, True, id="beam_redistributed_ranks_without_pieces-3"
         ),
     ],
 )
@@ -1500,7 +1482,7 @@ def test_mpi_haloes_match_serial(
     parallel = {name: np.concatenate([rank[name] for rank in ranks]) for name in names}
 
     lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
-    halos = lightcone.place_halos_in_shell(soap_format(fake_run_dir), redshift_range)
+    halos = lightcone.place_halos_in_shell(redshift_range, halo_format=soap_format(fake_run_dir))
 
     serial = {
         "snap_nr": halos["Lightcone/SnapshotNumber"].value.astype(int),

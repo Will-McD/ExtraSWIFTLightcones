@@ -108,6 +108,19 @@ def test_readers_give_the_same_rows(catalogue):
     with pytest.raises(ValueError, match="sorted and unique"):
         soap_reader.read_soap_selected_rows(filename, names, rows[::-1])
 
+    # the chunks start where they should, and a chunk with size < 1 is refused
+    assert [start for start, _ in chunks] == list(range(0, NHALOS, 777))
+    with pytest.raises(ValueError, match="at least 1"):
+        next(soap_reader.read_soap_in_chunks(filename, names, 0))
+
+    # the units are those lightcone_io reads the catalogue with
+    hc = pytest.importorskip("lightcone_io.halo_catalogue")
+    soap_format = filename.replace(f"{SNAP_NR:04d}", "{snap_nr:04d}")
+    theirs = hc.SOAPCatalogue(soap_format, SNAP_NR, SNAP_NR).read(SNAP_NR, ["InputHalos/HaloCentre"])
+
+    assert whole["InputHalos/HaloCentre"].units == theirs["InputHalos/HaloCentre"].units
+    np.testing.assert_array_equal(whole["InputHalos/HaloCentre"].value, theirs["InputHalos/HaloCentre"].value)
+
 
 @pytest.mark.parametrize("chunk_size", [1000, NHALOS - 1, 10 * NHALOS])
 def test_select_soap_rows(catalogue, chunk_size):

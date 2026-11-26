@@ -52,7 +52,7 @@ def test_sky_coordinates():
 @pytest.mark.parametrize("beam_vector, ang_radius_deg", BEAMS)
 def test_edge_is_at_the_angular_radius(beam_vector, ang_radius_deg):
     """
-    test that every point of the edge is the beam's angular radius from its axis and the edge is closed.
+    Test that every point of the edge is the beam's angular radius from its axis and the edge is closed.
     """
     longitude, latitude = beam_sky_outline(beam_vector, ang_radius_deg)
     axis = np.asarray(beam_vector) / np.linalg.norm(beam_vector)

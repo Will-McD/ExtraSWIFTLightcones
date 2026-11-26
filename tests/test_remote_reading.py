@@ -273,9 +273,15 @@ def test_remote_cosmology(tmp_path):
     assert remote.remote.log.opens[remote_cosmology.snapshot_filename] == 1
 
 
-@pytest.mark.parametrize("max_particles_per_read", [None, 100])
-@pytest.mark.parametrize("orientation_lock", [None, "sphere"])
-@pytest.mark.parametrize("beam_vector, ang_radius_deg, redshift_range", LIGHTCONES)
+@pytest.mark.parametrize(
+    "beam_vector, ang_radius_deg, redshift_range, orientation_lock, max_particles_per_read",
+    [  # the remote reading doesn't depend on the lock or the lightcone: each case once
+        pytest.param(None, None, (0.1, 0.2), None, None, id="all_sky"),
+        pytest.param(None, None, (0.1, 0.2), "sphere", 100, id="all_sky_sphere_batches"),
+        pytest.param((1, 2, 3), 20.0, (0.05, 0.3), "cube", None, id="beam_cube"),
+        pytest.param((1, 2, 3), 20.0, (0.05, 0.3), None, 100, id="beam_batches"),
+    ],
+)
 def test_remote_places_the_same_particles(
     remote_halo_sim, monkeypatch, beam_vector, ang_radius_deg, redshift_range, orientation_lock, max_particles_per_read
 ):

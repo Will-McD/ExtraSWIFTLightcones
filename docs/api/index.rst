@@ -19,6 +19,8 @@ documentation in :mod:`swiftlet.snapshot_lightcone`.
    ~snapshot_lightcone.LightconeOutput
    ~snapshot_lightcone.ShellRead
    ~snapshot_lightcone.HaloShellRead
+   ~snapshot_lightcone.FilePlan
+   ~snapshot_lightcone.TileUse
 
 Simulations 
 -----------

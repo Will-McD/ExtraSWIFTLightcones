@@ -67,6 +67,54 @@ Run every style check:
    bash tools/style_check.sh --docs     # also build the docs with -W -n
 
 
+
+Testing how snapshots are read
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The tests check not only what is placed but how files are read: each file is opened once, each cell is read
+once, and that there is a cap of 4 concurrent requests for accessing remote data. 
+The tests of not need to access any simulation data on disk or remotely:
+``test_snapshot_lightcone_placement.py`` writes small fake simulation data products (snapshots, SOAP catalogues and 
+output lists) to a temporary directory for each test session, and these helpers in ``tests/`` do the rest.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Helper
+     - Use
+
+   * - ``read_counter.py``: ``ReadCounter``
+     - records every HDF5 file opened for reading and every dataset read on disk, by any method
+       (h5py's reads, and SWIFTLET's one read of many slices, ``hdf5stream_reader.read_slices``), as the rows read
+       along each dataset's first axis. ``rows()``, ``totals()`` and ``format_table()`` report the opens, requests,
+       rows read, distinct rows and rows read again, per (file, dataset) or in total. ``ReadCounter.particle_datasets``
+       and ``ReadCounter.cell_datasets`` select the particle data or the cell metadata.
+
+   * - ``read_counter.py``: ``FakeRemoteDirectory``
+     - a stand-in for an ``hdfstream.RemoteDirectory``: its datasets have ``request_slices``,
+       which checks the slices of one request (``check_request_slices``), and every file
+       opened, request made and directory listed is logged in its ``log`` (a ``RequestLog``), with each request's start
+       and end times. ``max_in_flight`` finds the most in flight at once, to test the :term:`request cap`.
+
+   * - ``lightcone_helpers.py``
+     - ``remote_simulation`` makes a fake simulation read through a ``FakeRemoteDirectory``. ``rows_of`` and
+       ``assert_same_rows`` compare placed particles whatever their order. ``tile_file_pieces`` lists a shell's
+       (snapshot, tile, file) pieces without the file plans, as an independent reference for them.
+
+
+For example, to test that each row of particles in a file is only read once when building a lightcone:
+
+.. code-block:: python
+
+    from read_counter import ReadCounter
+
+    with ReadCounter() as counter:
+        lightcone.place_snapshot_particles_in_shell((0.1, 0.2), ["Coordinates"], "PartType1")
+    totals = counter.totals(ReadCounter.particle_datasets)
+    assert totals["rows_read_again"] == 0, counter.format_table(ReadCounter.particle_datasets)
+
+
 Changing the installed orientation tables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -83,4 +131,5 @@ take care to update where they are mentioned in the documentation:
 *   ``docs/glossary.rst``: the :term:`orientation table` entry
 *   ``docs/user_guide/repeated_objects.rst``, ``docs/user_guide/orientation.rst`` and ``docs/quickstart.rst``: anything
     that names the default or a table
+
 

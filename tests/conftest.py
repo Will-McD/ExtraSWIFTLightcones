@@ -15,9 +15,22 @@ TEST_MAX_THREADS = 8
 
 def pytest_configure(config):
     """
-    set max threads for the tests
+    set max threads for the tests, and register the slow marker
     """
     os.environ["SWIFTLET_MAX_THREADS"] = str(TEST_MAX_THREADS)
+    config.addinivalue_line("markers", "slow: takes long and only matters when what it checks changes (--run-slow)")
+
+
+def pytest_collection_modifyitems(config, items):
+    """
+    Skip the tests marked slow, unless --run-slow is given.
+    """
+    if config.getoption("--run-slow"):
+        return
+    skip = pytest.mark.skip(reason="slow: give --run-slow to run it")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip)
 
 
 def pytest_addoption(parser):
@@ -26,6 +39,7 @@ def pytest_addoption(parser):
         default=None,
         help="directory to save figures of the tests to. No figures are made if not given",
     )
+    parser.addoption("--run-slow", action="store_true", help="also run the tests marked slow")
 
 
 @pytest.fixture

@@ -110,7 +110,7 @@ The particles and haloes placed are the same whichever way they are read, serial
 check this, see :doc:`../tests/index`). The communicator is used for that call only and is not kept, so a later call
 without ``comm`` runs in serial.
 
-**Reading remotely on MPI ranks** (see :ref:`reading-remotely`): we cap the number of simultanous requests to read 
+**Reading remotely on MPI ranks** (see :ref:`reading-remotely`): we cap the number of simultaneous requests to read 
 remote data to a maximum of ``max_concurrent_requests`` requests (2 by default and ``None`` for no cap). There should be 
 no more than 4 requests at once. Therefore, we only every allow up to ``max_concurrent_requests`` ranks to remotley read 
 particles and the SOAP catalogues at once. If there are more MPI ranks than ``max_concurrent_requests`` then a rank will 

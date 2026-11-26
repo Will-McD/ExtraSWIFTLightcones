@@ -370,7 +370,7 @@ place one at a time.
 
 
 #.  The planned files are read on one process, or shared whole between the MPI ranks. Each file is
-    read by one rank, and the files are shared so each rank has approximatly the same number of particles to place
+    read by one rank, and the files are shared so each rank has approximately the same number of particles to place
     (``FilePlan.nr_placed``, see :doc:`parallel_and_hpc`).
 
 #.  Each file is opened once and its cells are read once for each dataset (one request when reading
