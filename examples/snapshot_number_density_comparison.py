@@ -275,11 +275,11 @@ def count_in_bins(coords, edges, vector=None, ang_radius_rad=None):
     return np.histogram(r, bins=edges)[0].astype(np.int64)
 
 
-def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radius_deg, ptype="PartType1"):
+def count_snapshot_lightcone(lightcone, redshift_range, edges, ptype="PartType1"):
     """
-    Count the particles of a lightcone in each bin and share the snapshot pieces between the ranks.
+    Count the particles of a lightcone in each bin, sharing its snapshot files between the ranks.
 
-    Returns the counts summed over the ranks (on every rank), and the number of particles in the largest piece.
+    Returns the counts summed over the ranks (on every rank), and the number of particles placed from the largest file.
 
     :param  lightcone:      serial SnapshotBeam or SnapshotAllSky, one on each rank
     :type   lightcone:      SnapshotLightcone
@@ -287,27 +287,22 @@ def count_snapshot_lightcone(lightcone, redshift_range, edges, vector, ang_radiu
     :type   redshift_range: tuple
     :param  edges:          edges of the bins [Mpc]
     :type   edges:          np.ndarray
-    :param  vector:         unit vector of the beam, or None for the full sky
-    :type   vector:         np.ndarray
-    :param  ang_radius_deg: angular radius [deg] of the beam, or None for the full sky
-    :type   ang_radius_deg: float
     :param  ptype:          particle type
     :type   ptype:          str
     """
-    beam_args = {} if vector is None else {"ang_radius_deg": ang_radius_deg}
-    _, pieces = lightcone.gather_files(ptype, redshift_range, **beam_args)
-    npart_per_piece = np.array([int(np.sum(piece.lengths)) for piece in pieces], dtype=np.int64)
-    my_pieces = share_pieces(npart_per_piece, comm_size)[comm_rank]
-    largest_piece = int(npart_per_piece.max()) if len(npart_per_piece) else 0
+    _, files = lightcone.gather_files(ptype, redshift_range)
+    npart_per_file = np.array([plan.nr_placed for plan in files], dtype=np.int64)  # each file's expected placed
+    my_files = share_pieces(npart_per_file, comm_size)[comm_rank]
+    largest_file = int(npart_per_file.max()) if len(npart_per_file) else 0
 
     counts = np.zeros(len(edges) - 1, dtype=np.int64)
-    for piece in my_pieces:
-        particles = lightcone.place_file_in_shell(piece, ptype, ["Coordinates"], **beam_args)
+    for file_number in my_files:
+        particles = lightcone.place_file_in_shell(file_number, ptype, ["Coordinates"])
         if len(particles) == 0:
             continue
-        # place_file_in_shell keeps only the particles in the beam and the redshift range of their snapshot
+        # place_file_in_shell keeps only the particles in the lightcone and the redshift range of their snapshot
         counts += count_in_bins(particles["Coordinates"].to_value("Mpc"), edges)
-    return comm.allreduce(counts, op=MPI.SUM), largest_piece
+    return comm.allreduce(counts, op=MPI.SUM), largest_file
 
 
 def write_counts(filename, rows, header):
@@ -383,12 +378,12 @@ def run_seeds(args):
         # compute counts in thinner redshift shells when indicated
         counts = np.zeros(args.nr_bins, dtype=np.int64)
         for shell_nr, shell_z in enumerate(shells):
-            shell_counts, largest_piece = count_snapshot_lightcone(lightcone, shell_z, edges, None, None)
+            shell_counts, largest_file = count_snapshot_lightcone(lightcone, shell_z, edges)
             counts += shell_counts
             if len(shells) > 1:
                 update_str = (
                     f"\t[shell {shell_nr + 1}/{len(shells)}], {shell_z[0]:.4f} < z <= {shell_z[1]:.4f}:"
-                    f"\t{np.sum(shell_counts):.3e} particles\t(largest piece: {largest_piece:.3e} particles)"
+                    f"\t{np.sum(shell_counts):.3e} particles\t(largest file: {largest_file:.3e} particles)"
                 )
                 message(comm_rank, update_str, time_date_update=True)
         message(

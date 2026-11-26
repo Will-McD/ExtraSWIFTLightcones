@@ -10,7 +10,7 @@ import unyt
 from pathlib import Path
 from lightcone_io.units import units_from_attributes
 from .simulation_suites import OUTPUT_LIST_NAME, output_redshifts
-from .flamingo_lightcones import flamingo_box_resolution, flamingo_shell_redshift_file, flamingo_simulation_directory
+from .flamingo_lightcones import flamingo_shell_redshift_file, flamingo_simulation_directory
 from .snapshot_redshifts import snapshots_in_range
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
@@ -34,7 +34,7 @@ def message(m):
     if comm_rank == 0:
         current_time = dt.datetime.now()
         time_str = current_time.strftime("%H:%M:%S")
-        print("[@{print_time}]:\t".format(print_time=time_str) + m)
+        print(f"[@{time_str}]:\t" + m)
 
 
 def rank_message(m, rank):
@@ -48,7 +48,7 @@ def rank_message(m, rank):
     """
     current_time = dt.datetime.now()
     time_str = current_time.strftime("%H:%M:%S")
-    print("[Rank {rank_nr:03d}] [@{print_time}]".format(rank_nr=rank, print_time=time_str) + m)
+    print(f"[Rank {rank:03d}] [@{time_str}]" + m)
 
 
 def get_num(x):
@@ -207,7 +207,6 @@ def read_shell_halo_properties(
     :type   comm:               mpi4py.MPI.Comm
     """
     comm_rank = comm.Get_rank()
-    comm_size = comm.Get_size()
 
     # halo lightcone properties to read
     halo_lightcone_datasets = (
@@ -274,7 +273,8 @@ def read_shell_halo_properties(
 
         # Ensure radius is comoving
         radius_a_exponent = float(attr_scalar(radius_attrs["a-scale exponent"]))
-        radius_physical = bool(attr_scalar(mass_attrs.get("Value stored as physical", 0)))
+        radius_physical = bool(attr_scalar(radius_attrs.get("Value stored as physical", 0)))
+
         if radius_physical:
             soap_data[radius_prop] = soap_data[radius_prop] / a
         else:
@@ -434,8 +434,8 @@ _UNSET = object()
 def write_binary_masks(
     halo_cat_format,
     soap_cat_format,
-    mass_poperty,
-    radius_poperty,
+    mass_property,
+    radius_property,
     nshell,
     nside,
     latitudes,
@@ -459,12 +459,12 @@ def write_binary_masks(
     :type   halo_cat_format:    str
     :param  soap_cat_format:    formatted path to the SOAP catalogues, with a {snap_nr} field
     :type   soap_cat_format:    str
-    :param  mass_poperty:       path to SOAP catalogue values to use for the selection of haloes on the sky
-                                    e.g. 'SO/500_crit/TotalMass' for M500c
-    :type   mass_poperty:       str
-    :param  radius_poperty:     path to values to use as the radius of each halo in the SOAP catalogue
-                                    e.g. 'SO/500_crit/SORadius' for R500c
-    :type   radius_poperty:     str
+    :param  mass_property:      path to SOAP catalogue values to use for the selection of haloes on the sky
+                                e.g. 'SO/500_crit/TotalMass' for M500c
+    :type   mass_property:      str
+    :param  radius_property:    path to values to use as the radius of each halo in the SOAP catalogue
+                                e.g. 'SO/500_crit/SORadius' for R500c
+    :type   radius_property:    str
     :param  nshell:             number of shells to make masks for
     :type   nshell:             int
     :param  nside:              nside of the masks
@@ -492,8 +492,8 @@ def write_binary_masks(
     :type   bin_method:         str
     :param  mass_units:         units of the mass property given. Default is solar masses 'Msun'
     :type   mass_units:         str
-    :param  log_mass_bin_range: log10 min and max values of the mass_poperty to bin haloes by.
-                                    If None, then use default range of 12-16
+    :param  log_mass_bin_range: log10 min and max values of the mass_property to bin haloes by.
+                                If None, then use default range of 12-16
     :type   log_mass_bin_range: tuple
     :param  log_mass_bin_width: log10 width of the log10 mass bins. If None, then default is 0.5
     :type   log_mass_bin_width: float
@@ -525,8 +525,6 @@ def write_binary_masks(
         hdf5_dset_kwargs = {}
 
     mass_unit_str = mass_units
-    mass_prop = mass_poperty
-    radius_prop = radius_poperty
 
     def radius_values(r_soap, scale_radius=None):
         if scale_radius is None:
@@ -616,9 +614,9 @@ def write_binary_masks(
                 meta_data.attrs["nside"] = [nside]
                 meta_data.attrs["log_mass_bins"] = log_mass_bins
                 meta_data.attrs["radius_coef"] = radius_scalings
-                meta_data.attrs["mass_property"] = [mass_prop]
+                meta_data.attrs["mass_property"] = [mass_property]
                 meta_data.attrs["mass_units"] = [mass_unit_str]
-                meta_data.attrs["radius_property"] = [radius_prop]
+                meta_data.attrs["radius_property"] = [radius_property]
                 meta_data.attrs["bin_method"] = [method_name]
 
                 mask_data = outfile.create_group("mask")
@@ -662,14 +660,20 @@ def write_binary_masks(
 
                 # shared reading of all catalogues for this shell
                 halo_data = read_shell_halo_properties(
-                    halo_filenames, soap_filenames, snapshot_numbers, radius_prop, mass_prop, mass_unit_str, comm
+                    halo_filenames,
+                    soap_filenames,
+                    snapshot_numbers,
+                    radius_property,
+                    mass_property,
+                    mass_unit_str,
+                    comm,
                 )
 
                 # get local redshifts and central masks
                 local_redshift = np.asarray(halo_data["Lightcone/Redshift"])
 
                 # if SO properties use centrals only
-                if ("SO/" in mass_prop) or ("SO/" in radius_prop):
+                if ("SO/" in mass_property) or ("SO/" in radius_property):
                     message("SO property detected, using centrals only in redshift range")
                     local_central = np.asarray(halo_data["InputHalos/IsCentral"])
                 else:
@@ -685,7 +689,8 @@ def write_binary_masks(
                     # No kept halos anywhere in this shell so skip the
                     # rotation, routing and mass-bin work
                     ones = np.ones(nr_local_pixels, dtype=np.int32)
-                    for method_name, log_mass_bins, prefix in method_specs:
+
+                    for method_name, log_mass_bins, _prefix in method_specs:
                         n_mass = np.shape(log_mass_bins)[0]
                         MASK = MASKS[method_name]
                         for ri in range(n_radius):
@@ -697,8 +702,8 @@ def write_binary_masks(
 
                 # store local halo centres on the sky
                 local_centre = np.asarray(halo_data["Lightcone/HaloCentre"])[m_redshift]
-                local_radius_1d = np.asarray(halo_data[radius_prop])[m_redshift]
-                local_mass = np.asarray(halo_data[mass_prop])[m_redshift]
+                local_radius_1d = np.asarray(halo_data[radius_property])[m_redshift]
+                local_mass = np.asarray(halo_data[mass_property])[m_redshift]
 
                 # if no need to rotate coordinates on the sky then skip this step, i.e., theta==phi==0
                 if latitudes[shell_nr] == 0 and longitudes[shell_nr] == 0:
@@ -721,7 +726,7 @@ def write_binary_masks(
                     )
 
                     # iterate through mass bins per bin method
-                    for method_name, log_mass_bins, prefix in method_specs:
+                    for method_name, log_mass_bins, _prefix in method_specs:
                         n_mass = np.shape(log_mass_bins)[0]
                         MASK = MASKS[method_name]
                         for mj in range(n_mass):
@@ -742,11 +747,11 @@ def write_binary_masks(
                     rank_message(
                         (
                             f"lightcone {lightcone_nr},\t{ri + 1:d}/{n_radius:d} masks "
-                            "completed [radius < {radius_scalings[ri]} {radius_prop}]"
+                            f"completed [radius < {radius_scalings[ri]} {radius_property}]"
                         ),
                         comm_rank,
                     )
 
                 comm.barrier()  # use barrier to collect ranks per shell iteration
 
-            rank_message(f"Completed {mass_prop} masks for lightcone {lightcone_nr} shells 0 - {nshell}", comm_rank)
+            rank_message(f"Completed {mass_property} masks for lightcone {lightcone_nr} shells 0 - {nshell}", comm_rank)

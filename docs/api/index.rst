@@ -19,6 +19,8 @@ documentation in :mod:`swiftlet.snapshot_lightcone`.
    ~snapshot_lightcone.LightconeOutput
    ~snapshot_lightcone.ShellRead
    ~snapshot_lightcone.HaloShellRead
+   ~snapshot_lightcone.FilePlan
+   ~snapshot_lightcone.TileUse
 
 Simulations 
 -----------
@@ -76,6 +78,7 @@ Lightcones and simulations
    snapshot_redshifts
    snapshot_cosmology
    snapshot_units
+   hdf5stream_reader
    soap_reader
 
 .. _visualisation:

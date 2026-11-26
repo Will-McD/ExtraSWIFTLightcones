@@ -1,16 +1,19 @@
 Quick start
 ===========
 
-This page walks through the steps, following installation, to build a pencil beam lightcone from both the snapshots and 
+This page walks through the steps to build a pencil beam lightcone from both the snapshots and 
 halo catalogues of the fiducial `L1_m10 FLAMINGO simulation <https://dataweb.cosma.dur.ac.uk:8443/flamingo/simulations/hydro.html#fiducial-models>`_.
 We will build a pencil beam with an angular radius of :math:`\theta=2.5^{\circ}` that extends out to redshift 
-:math:`z=0.3`.
+:math:`z=0.1`.
+
+The simulation is read from FLAMINGO's `hdfstream <https://dataweb.cosma.dur.ac.uk:8443/hdfstream>`_ server, so the
+quick start runs without the data on disk: it only needs access to ``dataweb.cosma.dur.ac.uk``. Only the cells of the 
+snapshots the lightcone needs are read, and nothing is copied to disk (see :ref:`reading-remotely`).
 
 A lightcone is built in three steps: **define** the lightcone, **gather** the files and cells to read, then **read and
-place** their particles or haloes. 
+place** their particles or haloes into the lightcone. 
 :doc:`user_guide/building_lightcones` and :doc:`user_guide/methods_overview`  explain each step and the ideas behind 
 them, respectively. 
-
 
 Defining the lightcone 
 ----------------------
@@ -35,21 +38,33 @@ of a snapshot box (see :doc:`user_guide/orientation`).
 For further reading on defining a lightcone see :ref:`Defining a lightcone <define-lightcone>`.
 
 .. code-block:: python
-
+    
+    import hdfstream
     from swiftlet import SnapshotBeam
     from swiftlet import Simulation
     
-    # path to root (base) directory of the FLAMINGO L1_m10 fiducial simulation
-    base_dir = "path/to/flamingo/data/L1000N1800/HYDRO_FIDUCIAL" 
+    # FLAMINGO's directory on the hdfstream server ("cosma" is its name in hdfstream)
+    remote_dir = hdfstream.open("cosma", "/FLAMINGO")
 
-    # define the Simulation object by where its snapshots, SOAP catalogues and output list are
-    sim = Simulation.from_path(base_dir)
-    
+    # the fiducial L1_m10 run on the server: its snapshots, SOAP catalogues and output list are read from the server
+    sim = Simulation.from_label("L1000N0900", "L1_m10", remote=remote_dir)
+
     snap_beam = SnapshotBeam(
         simulation=sim,       # the Simulation to build the lightcone from
         beam_vector=(0,0,1),  # unit vector giving the beams pointing on the sky
         ang_radius_deg=2.5,   # angular radius in degrees
     )
+
+
+.. Hint::
+    **With the simulation on disk**, e.g. on COSMA, make the :class:`Simulation <swiftlet.simulation_suites.Simulation>`
+    from its directory instead, and everything below is the same:
+
+    .. code-block:: python
+
+        sim = Simulation.from_path("path/to/flamingo/L1000N0900/HYDRO_FIDUCIAL")  # or
+        sim = Simulation.from_label("L1000N0900", "HYDRO_FIDUCIAL")                # with the suite's directory set
+
 
 
 With the lightcone defined it can now be populated with haloes and particles. The same general pipeline is used for 
@@ -79,8 +94,7 @@ the :term:`gather step` and, :term:`read and place step`.
     
     # Read catalogues and place haloes into the lightcone 
     halos = snap_beam.place_halos_in_shell(
-        sim.soap_format,                            # formatted path to the SOAP halo catalogues
-        lightcone_redshift_range=(0.05, 0.3),       # redshift range of the lightcone
+        lightcone_redshift_range=(0.01, 0.1),       # redshift range of the lightcone
     )
 
     halos["Lightcone/HaloCentre"]           # lightcone positions, with the observer at the origin
@@ -119,9 +133,11 @@ catalogues, and then store the selected central haloes in HDF5 files with one fi
         # the rows of the catalogue to read, and where each halo of the lightcone is among them
         rows, where = np.unique(soap_index[keep], return_inverse=True) 
 
-        # "InputHalos/IsCentral" is 1 for central haloes and 0 otherwise 
-        is_central = read_soap_selected_rows(soap_filename, ["InputHalos/IsCentral"], rows)["InputHalos/IsCentral"][where]
-        
+        # "InputHalos/IsCentral" is 1 for central haloes and 0 otherwise         
+        is_central = read_soap_selected_rows(
+            soap_filename, ["InputHalos/IsCentral"], rows, remote=sim.remote  # sim.remote: None on disk
+        )["InputHalos/IsCentral"][where]
+
         # write halo lightcone file for snapshot 
         halo_filename = f"./lightcone_halos_{snap:04d}.hdf5" # the file to write
         write_halo_lightcone_file(
@@ -143,7 +159,7 @@ the same as any of FLAMINGO's halo lightcones.
     
     # read the file back with lightcone_io
     halo_filename = f"./lightcone_halos_{np.unique(snap_nr)[0]:04d}.hdf5"
-    halo_file = HaloLightconeFile(halo_filename, soap_filename=soap_filename)
+    halo_file = HaloLightconeFile(halo_filename)
     read_properties=[                   
         "Lightcone/HaloCentre",
         "Lightcone/Redshift",
@@ -168,7 +184,7 @@ Here we will place gas particles (``PartType0``), along with their masses and te
 
     # Read and place particles into the lightcone
     shell_particles = snap_beam.place_snapshot_particles_in_shell(
-        lightcone_redshift_range=(0.05, 0.3),
+        lightcone_redshift_range=(0.01, 0.1),
         property_names=["Masses", "Temperatures"],
         particle_types=["PartType0"],
     )

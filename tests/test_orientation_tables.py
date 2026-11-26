@@ -158,6 +158,7 @@ def test_default_is_clash_free(nr_cells_axis):
     assert so.tables_are_clash_free(clashing, nr_cells_axis) > 0
 
 
+@pytest.mark.slow
 def test_generator_makes_the_installed_default():
     """
     generate_clash_free_tables, as tools/make_default_orientation_tables.py calls it, makes exactly the installed

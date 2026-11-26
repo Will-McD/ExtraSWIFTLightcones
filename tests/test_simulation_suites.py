@@ -468,6 +468,7 @@ def test_paths_given_to_a_simulation(tmp_path):
 
     # the built-in suite is unchanged, and the paths not given are the suite's
     assert COLIBRE.output_list == "output_list.txt"
+
     plain = Simulation.from_label("L0025N0376", "MY_RUN", soap_format="SOAP/halo_properties_{snap_nr:04d}.hdf5")
     assert plain.suite.snapshot_format == COLIBRE.snapshot_format and plain.suite.output_list == COLIBRE.output_list
 
@@ -476,6 +477,7 @@ def test_paths_given_to_a_simulation(tmp_path):
     assert found.suite.name == "flamingo" and found.soap_file(7) == str(
         tmp_path / "L1000N1800" / "HYDRO_FIDUCIAL" / "SOAP" / "7.hdf5"
     )
+
     moved = found.with_paths(directory=tmp_path / "copy", output_list="outputs.txt")
     assert (
         moved.directory == str(tmp_path / "copy") and moved.box_res == "L1000N1800" and moved.name == "HYDRO_FIDUCIAL"
@@ -504,7 +506,7 @@ def test_paths_given_to_a_simulation(tmp_path):
     ],
 )
 def test_path_formats_checked(paths, match):
-    """A path format without the fields it needs, or with others, is refused when the simulation is made."""
+    """Test that a path format without the fields it needs, or with others, is refused when the simulation is made."""
     with pytest.raises(ValueError, match=match):
         Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL", **paths)
 
@@ -540,6 +542,10 @@ def test_snapshot_dir(snapshot_format, snapshot_dir):
 
 # simulation suites read from YAML files
 
+# FLAMINGO's boxes on the hdfstream server, and the layout of its snapshots there
+FLAMINGO_ALIASES = {"L1000N0900": "L1_m10", "L1000N1800": "L1_m9", "L1000N3600": "L1_m8", "L2800N5040": "L2p8_m9"}
+SERVER_SNAPSHOTS = "snapshots/flamingo_{snap_nr:04d}/swift_snapshot_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5"
+
 
 def test_installed_suite_files():
     """
@@ -554,6 +560,8 @@ def test_installed_suite_files():
         base_dir_env="SWIFTLET_FLAMINGO_DIR",
         snapshot_format="snapshots/flamingo_{snap_nr:04d}/flamingo_{snap_nr:04d}.{file_nr}.hdf5",
         description="FLAMINGO simulations on COSMA",
+        box_res_aliases=FLAMINGO_ALIASES,
+        alternative_snapshot_formats=[SERVER_SNAPSHOTS],
     )
 
     assert COLIBRE == SimulationSuite(
@@ -706,3 +714,132 @@ def test_suite_directory_errors(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="is not a directory"):
         load_suites()
+
+
+# test with remote reading
+
+
+def server(tmp_path, box="L1_m9", sim="L1_m9", snapshots=SERVER_SNAPSHOTS):
+    """
+    Return a FLAMINGO simulation as a FakeRemoteDirectory laid out as on the hdfstream cosma6 server, in tmp_path: its
+    directory <box>/<sim> with the output list and file 0 of the redshift 0 snapshot (empty: only found, not read).
+    """
+    from read_counter import FakeRemoteDirectory
+
+    directory = tmp_path / box / sim
+    write_output_list(directory / "output_list.txt", read_output_list(OUTPUT_LISTS / "flamingo_L1.txt"))
+    z0 = len(read_output_list(directory / "output_list.txt")) - 1
+    if snapshots is not None:
+        snapshot = directory / snapshots.format(snap_nr=z0, file_nr=0)
+        snapshot.parent.mkdir(parents=True)
+        snapshot.write_bytes(b"")
+
+    return FakeRemoteDirectory(tmp_path)
+
+
+@pytest.mark.parametrize("box_res", ["L1000N1800", "L1_m9"])
+def test_remote_simulation_found_by_either_box_name(tmp_path, box_res):
+    """
+    Test that a remote simulation is found by the box's label or alias, its directory is the one on
+    the server, and its snapshot_format is the layout its snapshots have there.
+    """
+    remote = server(tmp_path)
+    sim = Simulation.from_label(box_res, "L1_m9", remote=remote)  # the boxes in the remote directory
+    assert (sim.suite.name, sim.box_res, sim.name, sim.directory) == ("flamingo", "L1000N1800", "L1_m9", "L1_m9/L1_m9")
+    assert sim.snapshot_file(77, 63) == "L1_m9/L1_m9/snapshots/flamingo_0077/swift_snapshot_0077/flamingo_0077.63.hdf5"
+    assert sim.soap_file(77) == "L1_m9/L1_m9/SOAP-HBT/halo_properties_0077.hdf5"
+    assert sim.output_redshifts[-1] == 0.0
+
+
+def test_remote_simulation_directory_not_found(tmp_path):
+    """
+    A directory that isn't there is no error here (the lightcone checks it): the directory is the label's, and the
+    snapshot layout the suite's.
+    """
+    remote = server(tmp_path)
+    sim = Simulation.from_label("L1_m9", "HYDRO_FIDUCIAL", remote=remote)  # the name not as on the server
+    assert sim.directory == "L1000N1800/HYDRO_FIDUCIAL"
+    assert sim.suite.snapshot_format == FLAMINGO.snapshot_format
+
+
+@pytest.mark.parametrize(
+    "snapshots, given, expected",
+    [
+        (SERVER_SNAPSHOTS, None, SERVER_SNAPSHOTS),  # the alternative layout, found
+        (FLAMINGO.snapshot_format, None, FLAMINGO.snapshot_format),  # the suite's own, found first
+        (None, None, FLAMINGO.snapshot_format),  # no snapshots: the suite's, so the missing files are named as usual
+        (SERVER_SNAPSHOTS, "snaps/{snap_nr}.{file_nr}.hdf5", "snaps/{snap_nr}.{file_nr}.hdf5"),  # given: used
+    ],
+)
+def test_snapshot_layout_found(tmp_path, snapshots, given, expected):
+    """Test that unless snapshot_format is given, the simulation's defaults are used to finds its snapshots."""
+    remote = server(tmp_path, snapshots=snapshots)
+    sim = Simulation.from_label(
+        "L1000N1800", "L1_m9", remote=remote, base_dir_format="{box_res}/{sim_name}", snapshot_format=given
+    )
+    assert sim.suite.snapshot_format == expected
+
+
+def test_box_names_on_disk(tmp_path):
+    """
+    Check that simulations stored on disk are found with the box's name and/or alias, the directory is looked for only
+    if asked, and then found with either name.
+    """
+    sim = Simulation.from_label("L1_m9", "HYDRO_FIDUCIAL")
+    assert (sim.box_res, sim.name) == ("L1000N1800", "HYDRO_FIDUCIAL")
+    assert sim.directory == "/cosma8/data/dp004/flamingo/Runs/L1000N1800/HYDRO_FIDUCIAL"  # not checked
+
+    server(tmp_path)  # laid out with the other names
+
+    base = str(tmp_path) + "/{box_res}/{sim_name}"
+    found = Simulation.from_label("L1000N1800", "L1_m9", base_dir_format=base, find_directory=True)
+    assert (found.box_res, found.directory) == ("L1000N1800", str(tmp_path / "L1_m9" / "L1_m9"))
+    assert found.suite.snapshot_format == SERVER_SNAPSHOTS
+
+    missing = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL", base_dir_format=base, find_directory=True)
+    assert missing.directory == str(tmp_path / "L1000N1800" / "HYDRO_FIDUCIAL")  # not there: the label's
+
+    from_path = Simulation.from_path("/mirror/flamingo/L1_m9/fgas-8sigma")
+    assert (from_path.suite.name, from_path.box_res, from_path.name) == ("flamingo", "L1000N1800", "fgas-8sigma")
+
+
+def test_box_res_aliases_by_hand():
+    """Test that both names of a box (the regular name and alias) are kept as tuples for a suite."""
+
+    assert suite_for_label("L1_m9") is FLAMINGO and suite_for_label("L2p8_m9") is FLAMINGO
+
+    assert FLAMINGO.label_of("L1_m8") == "L1000N3600" and FLAMINGO.label_of("L1000N3600") == "L1000N3600"
+    assert FLAMINGO.label_of("L1_m11") is None and COLIBRE.label_of("L1_m9") is None
+    assert FLAMINGO.box_res_names("L1_m10") == ["L1000N0900", "L1_m10"]
+    assert COLIBRE.box_res_names("L200_m6") == ["L200_m6"]
+
+    hash(FLAMINGO)
+
+    with pytest.raises(ValueError, match="same other name"):
+        SimulationSuite(
+            name="x", label_pattern="A|B", base_dir_format="/d/{box_res}", box_res_aliases={"A": "C", "B": "C"}
+        )
+
+    with pytest.raises(ValueError, match="snapshot_format"):
+        SimulationSuite(name="x", label_pattern="A", base_dir_format="/d", alternative_snapshot_formats=["snaps.hdf5"])
+
+
+def test_suite_file_with_aliases(tmp_path):
+    """Test a suite file's box_res_aliases and alternative_snapshot_formats are read the same."""
+    suite = SimulationSuite(
+        name="mirror",
+        label_pattern=r"L\d{4}N\d{4}_x",
+        base_dir_format="/data/{box_res}/{sim_name}",
+        box_res_aliases={"L1000N1800_x": "big"},
+        alternative_snapshot_formats=["a/{snap_nr}.{file_nr}.hdf5", "b/{snap_nr}.hdf5"],
+    )
+    path = tmp_path / "mirror.yaml"
+    write_suite_file(suite, path)
+
+    assert read_suite_file(path) == suite
+    assert "box_res_aliases:\n  'L1000N1800_x': 'big'\n" in path.read_text()
+
+    plain = tmp_path / "plain.yaml"
+
+    write_suite_file(SimulationSuite(name="plain", label_pattern="A", base_dir_format="/d"), plain)
+    assert read_suite_file(plain).box_res_aliases == ()

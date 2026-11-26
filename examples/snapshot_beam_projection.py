@@ -134,7 +134,7 @@ def beam_projection_lock_comparison(
         BP = BeamProjection(
             vector=beam_vector,
             angular_diameter=2 * ang_radius_deg,
-            redshift_range=redshift_range,
+            lightcone_redshift_range=redshift_range,
             slice_thickness=slice_thickness,
             cosmology=snap_beam.cosmo,
             store_snapshot_filename=re.sub(r"\.0\.hdf5$", ".hdf5", snapshot_filename),

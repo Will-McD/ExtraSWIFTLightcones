@@ -42,7 +42,6 @@ autosummary_context = {
         "swiftlet.snapshot_lightcone.message",
         "swiftlet.snapshot_lightcone.rank_message",
         "swiftlet.snapshot_lightcone.print_coord_ranges",
-        "swiftlet.snapshot_lightcone.FileReadSpec",
         "swiftlet.snapshot_lightcone.HaloCatalogueSpec",
         "swiftlet.snapshot_lightcone.HaloReadPiece",
         "swiftlet.snapshot_lightcone.SnapshotReadRecord",
@@ -154,6 +153,7 @@ nitpick_ignore_regex = [
     # private module paths that the projects' own inventories don't list
     ("py:class", r"matplotlib\.axes\._axes\..*|astropy\.cosmology\.flrw\..*"),
     ("py:class", r"lightcone_io\..*"),
+    ("py:class", r"hdfstream\..*"),
 ]
 
 nitpick_ignore = [

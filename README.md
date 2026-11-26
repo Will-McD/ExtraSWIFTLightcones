@@ -37,12 +37,15 @@ On COSMA, use `venv_scripts/make_cosma_env.sh` instead, which uses COSMA's MPI b
 
 ## Quick example
 
-A pencil beam of gas particles, 2.5° in radius, out to redshift 0.3, from FLAMINGO L1_m10:
+A pencil beam of gas particles, 2.5° in radius, out to redshift 0.3, from FLAMINGO L1_m10, read from FLAMINGO's
+hdfstream server (no data on disk needed, only access to `dataweb.cosma.dur.ac.uk`):
 
 ```python
+import hdfstream
 from swiftlet import Simulation, SnapshotBeam
 
-sim = Simulation.from_label("L1000N0900", "HYDRO_FIDUCIAL")
+remote_dir = hdfstream.open("cosma", "/FLAMINGO")
+sim = Simulation.from_label("L1000N0900", "L1_m10", remote=remote_dir)  # on disk: ("L1000N0900", "HYDRO_FIDUCIAL")
 beam = SnapshotBeam(simulation=sim, beam_vector=(0, 0, 1), ang_radius_deg=2.5)
 
 particles = beam.place_snapshot_particles_in_shell(

@@ -435,7 +435,7 @@ def place_lattice(lightcone, redshift_range, kind, halo_format):
         snap_nr, ids, coords = particles["SnapshotNumber"], particles["ParticleIDs"], particles["Coordinates"]
     else:
         # place haloes
-        haloes = lightcone.place_halos_in_shell(halo_format, redshift_range)
+        haloes = lightcone.place_halos_in_shell(redshift_range, halo_format=halo_format)
         snap_nr = haloes["Lightcone/SnapshotNumber"]
         ids = haloes["InputHalos/HaloCatalogueIndex"]
         coords = haloes["Lightcone/HaloCentre"]

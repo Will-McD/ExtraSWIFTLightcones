@@ -41,11 +41,11 @@ def main(args):
         observer_position=args.get("observer_position"),
     )
     halos = lightcone.place_halos_in_shell(
-        placement.soap_format(run_dir),
         tuple(args["redshift_range"]),
         soap_chunk_size=args["soap_chunk_size"],
         comm=comm,
         redistribute_halos=args["redistribute"],
+        halo_format=placement.soap_format(run_dir),
     )
 
     np.savez(

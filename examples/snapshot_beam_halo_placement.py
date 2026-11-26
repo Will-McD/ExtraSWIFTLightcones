@@ -4,9 +4,7 @@ Example script to show the placement of haloes from the SOAP catalogues into a S
 """
 
 import os
-import warnings
 import numpy as np
-import h5py
 import argparse
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -25,25 +23,18 @@ MARKER_SIZE_POWER = 2.0  #
 
 # remote server and FLAMINGO's directory for use when the simulation is not on local disk.
 REMOTE_SERVER = "cosma"
-REMOTE_BASE_DIR = "FLAMINGO/L1_m10/L1_m10"
-REMOTE_CACHE_DIR = "example_outputs/remote_cache"
-
-# the SOAP datasets the example reads: by place_halos_in_shell, and the mass looked up for the plot
-SOAP_PROPERTIES = ["InputHalos/HaloCentre", "InputHalos/HaloCatalogueIndex", MASS_PROPERTY]
-
-# the groups of a SOAP catalogue its units are made from (see virgo.formats.swift.soap_unit_registry_from_snapshot)
-SOAP_METADATA_GROUPS = ["Header", "Cosmology", "Units", "InternalCodeUnits", "PhysicalConstants"]
+REMOTE_DIR = "/FLAMINGO"
 
 
-def lookup_soap_property(halo_format, snap_numbers, soap_index, property_name):
+def lookup_soap_property(simulation, snap_numbers, soap_index, property_name):
     """
     For haloes in the lightcone, look up a properties in the SOAP catalogue by matching
     their InputHalos/SOAPIndex.
 
     Returns the property of each halo, in the units given by SOAP.
 
-    :param  halo_format:    format string for SOAP catalogue filenames (using {snap_nr})
-    :type   halo_format:    str
+    :param  simulation:     the simulation the haloes were placed from, on disk or remote
+    :type   simulation:     swiftlet.simulation_suites.Simulation
     :param  snap_numbers:   Lightcone/SnapshotNumber of each halo from place_halos_in_shell
     :type   snap_numbers:   np.ndarray
     :param  soap_index:     InputHalos/SOAPIndex of each halo from place_halos_in_shell
@@ -51,143 +42,20 @@ def lookup_soap_property(halo_format, snap_numbers, soap_index, property_name):
     :param  property_name:  SOAP property, e.g. "SO/200_crit/TotalMass"
     :type   property_name:  str
     """
-    # halo_cat = hc.SOAPCatalogue(halo_format, int(snap_numbers.min()), int(snap_numbers.max()))
     values = None
     for snap_nr in np.unique(snap_numbers):
         in_snap = np.flatnonzero(snap_numbers == snap_nr)
         rows, where = np.unique(soap_index[in_snap], return_inverse=True)
         column = comoving(
-            read_soap_selected_rows(halo_format.format(snap_nr=int(snap_nr)), [property_name], rows)[property_name]
+            read_soap_selected_rows(simulation.soap_file(snap_nr), [property_name], rows, remote=simulation.remote)[
+                property_name
+            ]
         )
 
         if values is None:
             values = np.zeros(len(snap_numbers)) * column.units
         values[in_snap] = column[where]
     return values
-
-
-def copy_remote_snapshot_metadata(remote_file, local_filename):
-    """
-    Copy the metadata of a remote snapshot file (hdfstream) to a local HDF5 file for every group but the particles
-    (PartType*), so the cosmology, units, box and cell grid can be read from it.
-
-    :param  remote_file:    the remote snapshot file
-    :type   remote_file:    hdfstream.RemoteFile
-    :param  local_filename: path of the local copy
-    :type   local_filename: str
-    """
-    Path(local_filename).parent.mkdir(parents=True, exist_ok=True)
-    partial = local_filename + ".partial"
-    with h5py.File(partial, "w") as outfile:
-        for name in remote_file.keys():
-            if not name.startswith("PartType"):
-                remote_file.copy(name, outfile)
-    os.replace(partial, local_filename)
-
-
-def copy_remote_soap_catalogue(remote_file, local_filename, property_names):
-    """
-    Copy part of a remote SOAP catalogue (hdfstream) to a local HDF5 file for the datasets given, with their attributes,
-    and the groups the SOAP units are made from (SOAP_METADATA_GROUPS).
-
-    :param  remote_file:    the remote SOAP catalogue
-    :type   remote_file:    hdfstream.RemoteFile
-    :param  local_filename: path of the local copy
-    :type   local_filename: str
-    :param  property_names: the datasets to copy, e.g. "InputHalos/HaloCentre"
-    :type   property_names: list of str
-    """
-    Path(local_filename).parent.mkdir(parents=True, exist_ok=True)
-    partial = local_filename + ".partial"
-    with h5py.File(partial, "w") as outfile:
-        for name in SOAP_METADATA_GROUPS:
-            if name in remote_file:
-                remote_file.copy(name, outfile)
-        for name in property_names:
-            group, _, dataset = name.rpartition("/")
-            remote_file.copy(name, outfile.require_group(group) if group else outfile, name=dataset)
-    os.replace(partial, local_filename)
-
-
-def fetch_remote_simulation(
-    box_res,
-    sim_name,
-    redshift_range,
-    property_names,
-    remote_base_dir=REMOTE_BASE_DIR,
-    server=REMOTE_SERVER,
-    cache_dir=REMOTE_CACHE_DIR,
-):
-    """
-    Copy what placing the haloes of a redshift range needs from the remote server (hdfstream) into a local cache,
-    laid out as the simulation's directory, the SOAP catalogues of the snapshots covering the redshift range, and
-    the metadata of one snapshot file.
-
-    Files already in the cache are not copied again.
-
-    Returns (base_dir_format, halo_format) of the local copy, for Simulation.from_label and place_halos_in_shell.
-
-    :param  box_res:            box size and resolution label, e.g. "L1000N0900"
-    :type   box_res:            str
-    :param  sim_name:           name of the simulation, e.g. "HYDRO_FIDUCIAL"
-    :type   sim_name:           str
-    :param  redshift_range:     minimum and maximum redshift of the lightcone shell
-    :type   redshift_range:     tuple
-    :param  property_names:     SOAP datasets to copy
-    :type   property_names:     list of str
-    :param  remote_base_dir:    directory of the simulation on the server
-    :type   remote_base_dir:    str
-    :param  server:             hdfstream server
-    :type   server:             str
-    :param  cache_dir:          local directory to copy the files to
-    :type   cache_dir:          str
-    """
-    import hdfstream
-
-    root = hdfstream.open(server, "/")
-    remote_sim = Simulation.from_label(box_res, sim_name, base_dir_format=remote_base_dir)
-    local_base_dir = f"{cache_dir}/{remote_base_dir}"
-    local_sim = Simulation.from_label(box_res, sim_name, base_dir_format=local_base_dir)
-    soap_path = "SOAP-HBT/halo_properties_{snap_nr:04d}.hdf5"
-
-    # the SOAP catalogues of the snapshots covering the shell, skipping those not on the server
-    for snap_nr in remote_sim.snapshots_in_range(redshift_range, range_tol=1e-6):
-        local_filename = f"{local_base_dir}/{soap_path.format(snap_nr=snap_nr)}"
-        if os.path.exists(local_filename):
-            with h5py.File(local_filename, "r") as f:
-                if all(name in f for name in property_names):
-                    continue
-        try:
-            remote_file = root[f"{remote_base_dir}/{soap_path.format(snap_nr=snap_nr)}"]
-        except KeyError:
-            print(f"\tsnapshot {snap_nr}: no SOAP catalogue on the server, skipped")
-            continue
-        print(f"\tcopying {property_names} of the SOAP catalogue of snapshot {snap_nr}", flush=True)
-        copy_remote_soap_catalogue(remote_file, local_filename, property_names)
-
-    # the metadata of one snapshot: the redshift 0 snapshot, or the lowest redshift snapshot on the server
-    snapshot_numbers = range(len(remote_sim.output_redshifts))
-    if not any(os.path.exists(local_sim.snapshot_file(n, 0)) for n in snapshot_numbers):
-        try:
-            on_server = set(root[f"{remote_base_dir}/snapshots"].keys())
-        except KeyError:
-            raise FileNotFoundError(
-                f"no snapshots directory {remote_base_dir}/snapshots on the {server} server: check REMOTE_BASE_DIR"
-            ) from None
-        on_server = [
-            n
-            for n in snapshot_numbers
-            if os.path.basename(os.path.dirname(remote_sim.snapshot_file(n, 0))) in on_server
-        ]
-        if not on_server:
-            raise FileNotFoundError(
-                f"no snapshots of {box_res}/{sim_name} in {remote_base_dir}/snapshots on the {server} server"
-            )
-        snap_nr = on_server[-1]
-        print(f"\tcopying the metadata of snapshot {snap_nr}", flush=True)
-        copy_remote_snapshot_metadata(root[remote_sim.snapshot_file(snap_nr, 0)], local_sim.snapshot_file(snap_nr, 0))
-
-    return local_base_dir, f"{local_base_dir}/{soap_path}"
 
 
 def plot_halos_in_beam_3panel(
@@ -324,6 +192,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Place SOAP haloes in a SnapshotBeam and plot them.")
     parser.add_argument("--box_res", default="L1000N1800", help="box size and resolution label")
     parser.add_argument("--sim_name", default="HYDRO_FIDUCIAL", help="name of the simulation")
+    parser.add_argument(
+        "--remote_sim_name",
+        default="L1_m9",
+        help="name of the simulation's directory on the server (default L1_m9, for L1000N1800/HYDRO_FIDUCIAL)",
+    )
+    parser.add_argument("--remote", action="store_true", help="read from the server even if the simulation is on disk")
     parser.add_argument("--output_dir", default="example_outputs/snapshot_lightcone", help="output directory")
     args = parser.parse_args()
 
@@ -342,33 +216,24 @@ if __name__ == "__main__":
     beam_vector = (0, 0, 1)
     print(f"beam unit vector: ({beam_vector[0]}, {beam_vector[1]}, {beam_vector[2]})\n", flush=True)
 
-    # read the SOAP catalogues and snapshot metadata locally if they are there, otherwise copy what is needed from
-    # the remote server
-    sim_dir = Simulation.from_label(args.box_res, args.sim_name).directory
-    missing = [d for d in (f"{sim_dir}/SOAP-HBT", f"{sim_dir}/snapshots") if not os.path.isdir(d)]
-    if not missing:
-        base_dir_format = None
-        halo_format = f"{sim_dir}/SOAP-HBT/halo_properties_{{snap_nr:04d}}.hdf5"
-    else:
-        warning_str = (
-            f"{' and '.join(missing)} not found locally: the SOAP catalogues and snapshot metadata will be accessed "
-            f"remotely, from {REMOTE_BASE_DIR} on the {REMOTE_SERVER} server with hdfstream to {REMOTE_CACHE_DIR}."
-        )
-        warnings.warn(warning_str)
-        base_dir_format, halo_format = fetch_remote_simulation(
-            args.box_res, args.sim_name, redshift_range, SOAP_PROPERTIES
-        )
-    print(f"SOAP catalogues: {halo_format}")
+    # the simulation on disk if it is there, otherwise on the hdfstream server: the box's name on the server (L1_m9
+    # for L1000N1800) is found by either name, and the snapshot layout of the server is detected
+    simulation = Simulation.from_label(args.box_res, args.sim_name)
+    if args.remote or not os.path.isdir(simulation.directory):
+        import hdfstream
 
-    snap_beam = SnapshotBeam(
-        Simulation.from_label(args.box_res, args.sim_name, base_dir_format=base_dir_format),
-        beam_vector=beam_vector,
-        ang_radius_deg=ang_radius_deg,
-    )
+        print(f"reading {args.remote_sim_name} remotely, from {REMOTE_DIR} on the {REMOTE_SERVER} server")
+        remote_dir = hdfstream.open(REMOTE_SERVER, REMOTE_DIR)
+        simulation = Simulation.from_label(args.box_res, args.remote_sim_name, remote=remote_dir)
+    print(f"SOAP catalogues: {simulation.soap_format}")
 
-    halos = snap_beam.place_halos_in_shell(halo_format=halo_format, lightcone_redshift_range=redshift_range)
+    snap_beam = SnapshotBeam(simulation, beam_vector=beam_vector, ang_radius_deg=ang_radius_deg)
+
+    # use the simulation's own SOAP catalogues (simulation.soap_format), on disk or on the server
+    halos = snap_beam.place_halos_in_shell(lightcone_redshift_range=redshift_range)
 
     n_halos = halos["Lightcone/HaloCentre"].shape[0]
+
     print(f"\nPlaced {n_halos} halos in the lightcone beam")
 
     if n_halos > 0:
@@ -380,7 +245,7 @@ if __name__ == "__main__":
 
         # look up the mass of each halo in the SOAP catalogue of its snapshot, from its row there
         soap_index = halos["InputHalos/SOAPIndex"].value.astype(int)
-        halo_mass = lookup_soap_property(halo_format, snap_numbers, soap_index, MASS_PROPERTY).to_value("Msun")
+        halo_mass = lookup_soap_property(simulation, snap_numbers, soap_index, MASS_PROPERTY).to_value("Msun")
 
         print(f"\n{np.count_nonzero(halo_mass > 0)} of the halos have a {MASS_PROPERTY}")
 

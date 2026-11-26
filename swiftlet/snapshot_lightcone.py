@@ -13,8 +13,9 @@ For example, the dark matter particles of a shell of an all-sky lightcone::
 
     simulation = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
     lightcone = SnapshotAllSky(simulation, orientation_lock="cube")
-    redshift_range= (0.05, 0.1) # redshift range of the lightcone
-    particles = lightcone.place_snapshot_particles_in_shell(redshift_range, ["Masses"], particle_types=["PartType1"])
+    particles = lightcone.place_snapshot_particles_in_shell(
+        lightcone_redshift_range=(0.05, 0.1), property_names=["Masses"], particle_types=["PartType1"]
+    )
     particles["PartType1"]["Coordinates"]  # positions in the lightcone, with the observer at the origin
 
 """
@@ -34,9 +35,9 @@ from scipy.optimize import brentq
 import virgo.mpi.parallel_hdf5 as phdf5
 import virgo.mpi.parallel_sort as psort
 from lightcone_io.particle_reader import merge_cells
-import lightcone_io.halo_catalogue as hc
 from . import snapshot_orientation as box_structure
 from . import snapshot_units as sw_units
+from . import hdf5stream_reader
 from .simulation_suites import Simulation
 from .snapshot_cosmology import SnapshotCosmology, as_astropy_cosmology
 from .soap_reader import soap_catalogue_length, read_soap_rows, read_soap_in_chunks, soap_unit_attributes  # noqa: F401
@@ -130,33 +131,6 @@ def print_coord_ranges(x, indent=0, rank=None):
 
 
 # classes for holding the internal state of SnapshotLightcone
-# changed from named tuples to improve the documentations clarity
-
-
-class FileReadSpec(NamedTuple):
-    """
-    The particles to read from one snapshot file for one tile of the lightcone.
-
-    Finding the files of a shell (e.g. with :meth:`~SnapshotLightcone.gather_files`) makes one for each file holding
-    cells that are in the tile, and keeps them in ``last_shell.files``.
-
-    :ivar snap_nr:      snapshot number
-    :vartype snap_nr:   int
-    :ivar tile:         index of the periodic replica tile
-    :vartype tile:      tuple
-    :ivar file_nr:      number of the snapshot file
-    :vartype file_nr:   int
-    :ivar offsets:      offset in the file of the first particle of each cell to read
-    :vartype offsets:   numpy.ndarray
-    :ivar lengths:      number of particles to read from each cell
-    :vartype lengths:   numpy.ndarray
-    """
-
-    snap_nr: int
-    tile: tuple
-    file_nr: int
-    offsets: np.ndarray
-    lengths: np.ndarray
 
 
 class SnapshotReadRecord(NamedTuple):
@@ -169,13 +143,13 @@ class SnapshotReadRecord(NamedTuple):
     :vartype snap_nr:   int
     :ivar tile:         index of the periodic replica tile
     :vartype tile:      tuple
-    :ivar z_updated:    minimum and maximum redshift of the shell filled by this snapshot tile
-    :vartype z_updated: tuple
+    :ivar z_range:      minimum and maximum redshift of the shell filled by this snapshot tile
+    :vartype z_range:   tuple
     """
 
     snap_nr: int
     tile: tuple
-    z_updated: tuple
+    z_range: tuple
 
 
 class HaloCatalogueSpec(NamedTuple):
@@ -217,6 +191,99 @@ class HaloReadChunk(NamedTuple):
     stop: int
 
 
+# planning classes and function for snapshot files
+class TileUse(NamedTuple):
+    """
+    A tile (and, with the "sphere" lock, a layer) that needs some of the file's planned cells.
+
+    :ivar tile:         index of the periodic replica tile, as the gather step gives it: (nx, ny, nz), or
+                        (nx, ny, nz, layer) with the "sphere" lock
+    :vartype tile:      tuple
+    :ivar z_range:      minimum and maximum redshift of the shell filled by this tile
+    :vartype z_range:   tuple
+    :ivar cells:        positions in the FilePlan's cells of the cells this use needs, in the order the gather step
+                        found them
+    :vartype cells:     numpy.ndarray
+    """
+
+    tile: tuple
+    z_range: tuple
+    cells: np.ndarray
+
+
+class FilePlan(NamedTuple):
+    """
+    What to read from one snapshot file for every tile that uses the cells stored in it.
+
+    Each cell needed by any tile is. A tile that uses the file is a TileUse, naming its cells by their
+    positions in the plan, so a cell shared by several tiles is read once and placed once per tile. The gather step
+    makes one plan per file with particles in the selected cells, and keeps them in ``last_shell.plans``.
+
+    :ivar snap_nr:      snapshot number
+    :vartype snap_nr:   int
+    :ivar file_nr:      number of the snapshot file
+    :vartype file_nr:   int
+    :ivar cells:        indices in the snapshot of the cells needed by any use, each once, in the order of their
+                        offsets in the file
+    :vartype cells:     numpy.ndarray
+    :ivar offsets:      offset in the file of the first particle of each cell
+    :vartype offsets:   numpy.ndarray
+    :ivar lengths:      number of particles of each cell
+    :vartype lengths:   numpy.ndarray
+    :ivar uses:         the tiles that take particles from the file, a TileUse each, in the order the gather step found
+                        them
+    :vartype uses:      tuple
+    """
+
+    snap_nr: int
+    file_nr: int
+    cells: np.ndarray
+    offsets: np.ndarray
+    lengths: np.ndarray
+    uses: tuple
+
+    @property
+    def nr_particles(self):
+        """Number of particles to read from the file."""
+        return int(np.sum(self.lengths))
+
+    @property
+    def nr_placed(self):
+        """Number of particles to place from the file, includes copies of each cell in the lightcone."""
+        return int(sum(np.sum(self.lengths[use.cells]) for use in self.uses))
+
+
+def _make_file_plan(snap_nr, file_nr, uses, offsets, lengths):
+    """
+    Returns the FilePlan of one snapshot file, from the cells each tile needs from it.
+
+    :param  snap_nr:    snapshot number
+    :type   snap_nr:    int
+    :param  file_nr:    number of the snapshot file
+    :type   file_nr:    int
+    :param  uses:       (tile, z_range, cell indices in the snapshot) of each tile that uses the file, in order
+    :type   uses:       list
+    :param  offsets:    offset in its file of each cell of the snapshot, for the particle type
+    :type   offsets:    numpy.ndarray
+    :param  lengths:    number of particles of each cell of the snapshot, for the particle type
+    :type   lengths:    numpy.ndarray
+    """
+    use_cells = [np.asarray(cells, dtype=np.int64) for _, _, cells in uses]  # all cells to read from file
+    cells = np.unique(np.concatenate(use_cells))  # get only the unique cells to read
+    cells = cells[np.argsort(offsets[cells], kind="stable")]  # in the order of the particles in the file
+    by_index = np.argsort(cells)
+
+    # find the cells that are needed from each file to build the lightcone
+    plan_uses = tuple(
+        TileUse(tile, tuple(z_range), by_index[np.searchsorted(cells[by_index], tile_cells)])
+        for (tile, z_range, _), tile_cells in zip(uses, use_cells)
+    )
+
+    return FilePlan(int(snap_nr), int(file_nr), cells, offsets[cells], lengths[cells], plan_uses)
+
+
+# report classes: objects holding the information about the lightcone that are reported by the gather step and used in
+# the read and placing of particles.
 @dataclass
 class ShellRead:
     """
@@ -224,7 +291,7 @@ class ShellRead:
 
     Each gather step makes a new one, :meth:`~SnapshotLightcone.gather_files` or
     :meth:`~SnapshotLightcone.place_snapshot_particles_in_shell` for each particle type, and keeps it as ``last_shell``,
-    so nothing is carried from one call to the next.
+    so nothing but the cell metadata (see clear_cache) is carried from one call to the next.
 
     :ivar shell_z:                  minimum and maximum redshift of the shell
     :vartype shell_z:               tuple
@@ -238,14 +305,18 @@ class ShellRead:
     :ivar pieces:                   the (snapshot, tile) pieces of the shell, with the redshift range each fills, as
                                     SnapshotReadRecord
     :vartype pieces:                list
-    :ivar files:                    the files to read, a FileReadSpec per (snapshot, tile, file) with particles in the
-                                    selected cells
-    :vartype files:                 list
+    :ivar plans:                    the files to read, each planned once: a FilePlan per (snapshot, file) with
+                                    particles in the selected cells, with the tiles that use it, in the order of the
+                                    snapshots, then of the file numbers
+    :vartype plans:                 list
     :ivar tile_cells:               the cells of each piece that overlap the shell, {(snapshot, tile): cell indices}
     :vartype tile_cells:            dict
-    :ivar cell_data:                the cell metadata of the call's snapshots, {snapshot number: cell metadata}. Shared
-                                    by the particle types of one call, and emptied when the call ends
+    :ivar cell_data:                the cell metadata of the call's snapshots, {snapshot number: cell metadata}, shared
+                                    with the lightcone's cache
     :vartype cell_data:             dict
+    :ivar max_requests_in_flight:   the most read requests in flight at once across the MPI ranks while placing, if
+                                    they were capped by max_concurrent_requests, otherwise None
+    :vartype max_requests_in_flight: int
     """
 
     # properties tracked by the internal shell read states are now be recorded here instead
@@ -254,9 +325,10 @@ class ShellRead:
     snapshots: np.ndarray
     z_ranges: dict
     pieces: list = field(default_factory=list)
-    files: list = field(default_factory=list)
+    plans: list = field(default_factory=list)
     tile_cells: dict = field(default_factory=dict)
     cell_data: dict = field(default_factory=dict)
+    max_requests_in_flight: int = None
 
 
 @dataclass
@@ -286,6 +358,8 @@ class HaloShellRead:
     :vartype cell_snapshot:         int
     :ivar cell_data:                its cell metadata, {cell_snapshot: cell metadata}
     :vartype cell_data:             dict
+    :ivar max_requests_in_flight:   the most read requests at once across the MPI ranks
+    :vartype max_requests_in_flight: int
     """
 
     # properties tracked by the internal shell read states are now be recorded here instead
@@ -298,29 +372,32 @@ class HaloShellRead:
     catalogue_lengths: dict = field(default_factory=dict)
     cell_snapshot: int = None
     cell_data: dict = field(default_factory=dict)
+    max_requests_in_flight: int = None
 
     @staticmethod
-    def settings_of(halo_format, shell_z, ang_radius_deg, use_snapshots, snapshot_number, observer_position=None):
+    def settings_of(
+        halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots, snapshot_number, observer_position=None
+    ):
         """
         Returns the arguments of :meth:`~SnapshotLightcone.gather_halo_catalogues` as a tuple.
 
-        :param  halo_format:        see gather_halo_catalogues
-        :type   halo_format:        str
-        :param  shell_z:            minimum and maximum redshift of the shell
-        :type   shell_z:            sequence of two floats
-        :param  ang_radius_deg:     angular radius [deg] of the beam, None for all-sky
-        :type   ang_radius_deg:     float
-        :param  use_snapshots:      see gather_halo_catalogues
-        :type   use_snapshots:      list or numpy.ndarray
-        :param  snapshot_number:    see gather_halo_catalogues
-        :type   snapshot_number:    int
-        :param  observer_position:  the observer position [Mpc] in the snapshot box, or None
-        :type   observer_position:  array-like, shape (3,)
+        :param  halo_format:              see gather_halo_catalogues
+        :type   halo_format:              str
+        :param  lightcone_redshift_range: minimum and maximum redshift of the shell
+        :type   lightcone_redshift_range: sequence of two floats
+        :param  ang_radius_deg:           angular radius [deg] of the beam, None for all-sky
+        :type   ang_radius_deg:           float
+        :param  use_snapshots:            see gather_halo_catalogues
+        :type   use_snapshots:            list or numpy.ndarray
+        :param  snapshot_number:          see gather_halo_catalogues
+        :type   snapshot_number:          int
+        :param  observer_position:        the observer position [Mpc] in the snapshot box, or None
+        :type   observer_position:        array-like, shape (3,)
         """
         # halo_settings internal read state now given here
         return (
             str(halo_format),
-            tuple(float(z) for z in shell_z),
+            tuple(float(z) for z in lightcone_redshift_range),
             ang_radius_deg,
             None if use_snapshots is None else tuple(int(n) for n in np.atleast_1d(use_snapshots)),
             None if snapshot_number is None else int(snapshot_number),
@@ -558,7 +635,9 @@ def read_lightcone_metadata(hdf5_object):
     return metadata
 
 
-def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metadata, nside=16, order="nest"):
+def write_halo_lightcone_file(
+    filename, haloes, soap_filename, properties, metadata, nside=16, order="nest", remote=None
+):
     """
     Write the halo lightcone data to a .hdf5 file.
 
@@ -583,10 +662,14 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
     :type   nside:          int
     :param  order:          HEALPix pixel ordering of the index, "nest" or "ring"
     :type   order:          str
+    :param  remote:         the remote directory soap_filename is in (e.g. the simulation's remote). If None, it is
+                            stored on disk
+    :type   remote:         hdfstream.RemoteDirectory
     """
     # remove units and convert to regular numpy arrays.
     centre = haloes["Lightcone/HaloCentre"].to_value("Mpc")
     expansion_factor = haloes["Lightcone/ExpansionFactor"].value
+
     # find pixels that each halo is found in low nside map
     pixel = (
         hp.vec2pix(nside, centre[:, 0], centre[:, 1], centre[:, 2], nest=(order == "nest"))
@@ -604,7 +687,7 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
         **{f"{dim} exponent": [0.0] for dim in ("U_I", "U_L", "U_M", "U_T", "U_t", "a-scale", "h-scale")},
     }
 
-    with h5py.File(soap_filename, "r") as soap, h5py.File(filename, "w") as outfile:
+    with hdf5stream_reader.open_file(soap_filename, remote) as soap, h5py.File(filename, "w") as outfile:
         for group_name in ("Cosmology", "Units"):
             if group_name in soap:
                 group = outfile.create_group(group_name)
@@ -627,9 +710,12 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
         # the halo centres in the units of SOAP's InputHalos/HaloCentre (comoving), with its attributes
         centre_attrs = soap_unit_attributes(soap, "InputHalos/HaloCentre")
         centre_units = soap_comoving(
-            read_soap_rows(soap_filename, ["InputHalos/HaloCentre"], 0, 0)["InputHalos/HaloCentre"]
+            read_soap_rows(soap_filename, ["InputHalos/HaloCentre"], 0, 0, remote=remote)["InputHalos/HaloCentre"]
         ).units
+
         file_units_in_mpc = unyt.unyt_quantity(1.0, centre_units).to_value("Mpc")
+
+        # write outputs
         write(
             "Lightcone/HaloCentre",
             centre / file_units_in_mpc,
@@ -660,6 +746,7 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
             soap_unit_attributes(soap, "InputHalos/HaloCatalogueIndex"),
             "Index of the halo in the input halo catalogue",
         )
+
         # store attrs names
         if properties is None:
             lightcone = outfile["Lightcone"]
@@ -806,6 +893,13 @@ class SnapshotLightcone:
         # How much to print the individual outputs
         self.verbose = int(verbose)
 
+        # the simulation's directory must exist, and a snapshot for the cosmology
+        self.__check_simulation_directory()
+
+        # which snapshot files and SOAP catalogues exist, found now without raising an error.
+        self._available_snapshots()
+        self._available_snapshots(self.simulation.soap_format)
+
         # Define the cosmology from the snapshots
         self.snapshot_cosmology = SnapshotCosmology.from_simulation(self.simulation)
         self.cosmo = self.snapshot_cosmology.COSMO
@@ -854,17 +948,25 @@ class SnapshotLightcone:
         if observer_position is not None:
             self.__observer_snapshot_coords = _check_observer_position(observer_position)
 
-        # The snapshots' units, the same for every snapshot of the simulation: read once, from the first file read
+        # The snapshots' units, the same for every snapshot of the simulation, read and set once
         self.unit_registry = None  # place holder
-        self._unit_metadata = None  # place holder
 
         # Record what the last gather step found: ShellRead for particles and HaloShellRead for haloes
         # Each call makes its own records, so nothing is carried from one call to the next
         self.last_shell = None
 
-        self._halo_shell = None  # place_halos_in_shell reuses the last HaloShellRead when called with the same settings
+        # place_halos_in_shell reuses the last HaloShellRead when called with the same settings
+        self._halo_shell = None
 
-        self._log_rank = None  # MPI rank of the current call, only rank 0 prints. None in serial
+        # the cap on read requests of the current MPI call
+        self._request_cap = None
+
+        # the cell metadata of the snapshots of the last shell gathered, {snapshot number: cell metadata}, kept across
+        # calls so consecutive shells, particle types and haloes reuse it; see _keep_cell_data and clear_cache
+        self._cell_cache = {}
+
+        # MPI rank of the current call, only rank 0 prints. None in serial
+        self._log_rank = None
 
         # Define grid to interpolate redshift from comoving distance.
         if redshift_interp_method not in ("fast", "precise"):
@@ -907,7 +1009,7 @@ class SnapshotLightcone:
 
         return summary
 
-    def lightcone_metadata(self, redshift_range=None):
+    def lightcone_metadata(self, lightcone_redshift_range=None):
         """
         Returns the lightcone metadata, a dict with the names LIGHTCONE_METADATA_NAMES.
 
@@ -923,8 +1025,8 @@ class SnapshotLightcone:
 
         Given the same settings and snapshots, the same exact lightcone can be made again.
 
-        :param  redshift_range: minimum and maximum redshift of the shell placed
-        :type   redshift_range: sequence of two floats
+        :param  lightcone_redshift_range: minimum and maximum redshift of the shell placed
+        :type   lightcone_redshift_range: sequence of two floats
         """
         from . import __version__ as package_version
 
@@ -939,7 +1041,9 @@ class SnapshotLightcone:
             "orientation_table_fingerprint": self.orientation_table_fingerprint,
             "beam_vector": None if self.beam_vec is None else [float(x) for x in np.ravel(self.beam_vec)],
             "ang_radius_deg": None if self.ang_radius_deg is None else float(self.ang_radius_deg),
-            "redshift_range": None if redshift_range is None else [float(z) for z in redshift_range],
+            "redshift_range": None
+            if lightcone_redshift_range is None
+            else [float(z) for z in lightcone_redshift_range],
             "observer_position": None,
             "observer_corner": None,
             "observer_cell_shift": None,
@@ -999,17 +1103,42 @@ class SnapshotLightcone:
 
     def _cell_data(self, snap_nr, cache):
         """
-        Returns a dict with the cell metadata of a snapshot (__get_cell_data), read once per call and kept in the cache.
+        Returns a dict with the cell metadata of a snapshot (__get_cell_data), read once and kept in the cache.
 
         :param  snap_nr:    snapshot number
         :type   snap_nr:    int
-        :param  cache:      the call's cell metadata, {snapshot number: cell metadata}, e.g. ShellRead.cell_data
+        :param  cache:      the cell metadata kept, {snapshot number: cell metadata}, e.g. ShellRead.cell_data
         :type   cache:      dict
         """
         snap_nr = int(snap_nr)
         if snap_nr not in cache:
             cache[snap_nr] = self.__get_cell_data(snap_nr)
         return cache[snap_nr]
+
+    def _keep_cell_data(self, snapshots):
+        """
+        Returns the lightcone's cell metadata cache, keeping only the snapshots given.
+
+        Each gather step keeps the cell metadata of its shell's snapshots that is already cached and drops the rest.
+        The cache never holds more than one shell's snapshots.
+
+        :param  snapshots:  the snapshot numbers of the shell being gathered
+        :type   snapshots:  iterable of int
+        """
+        keep = {int(n) for n in snapshots}
+        for snap_nr in [n for n in self._cell_cache if n not in keep]:
+            del self._cell_cache[snap_nr]
+        return self._cell_cache
+
+    def clear_cache(self):
+        """
+        Free the cell metadata kept from earlier calls.
+
+        The lightcone keeps the cell metadata of the snapshots of the last shell it gathered (particles or haloes), so
+        the next shell, particle type or halo call reuses what it shares with it and never holds more than one shell's
+        snapshots.
+        """
+        self._cell_cache.clear()
 
     @staticmethod
     def __define_beam_vector(beam_vector):
@@ -1044,20 +1173,80 @@ class SnapshotLightcone:
         return property_names + [name for name in needed if name not in property_names]
 
     @staticmethod
-    def _observer_metadata(metadata, shell):
+    def _cell_batches(lengths, max_particles_per_read=None):
         """
-        Returns the metadata with the observer of the shell placed, as recorded by its gather step.
+        Returns the cells split, in order, into batches of at most max_particles_per_read particles.
 
-        :param  metadata:   lightcone metadata, see lightcone_metadata
-        :type   metadata:   dict
-        :param  shell:      the shell placed
-        :type   shell:      ShellRead or HaloShellRead
+        The batches are a list of index arrays into lengths. A cell is never split: a cell with more particles than
+        the limit is a batch on its own.
+
+        :param  lengths:                number of particles of each cell, in file order
+        :type   lengths:                numpy.ndarray
+        :param  max_particles_per_read: largest number of particles in a batch. If None, one batch of all the cells
+        :type   max_particles_per_read: int
         """
-        metadata = dict(metadata)
-        metadata["observer_position"] = None if shell.observer_position is None else list(shell.observer_position)
-        metadata["observer_corner"] = None if shell.observer_corner is None else list(shell.observer_corner)
-        metadata["observer_cell_shift"] = None if shell.observer_cell_shift is None else list(shell.observer_cell_shift)
-        return metadata
+        lengths = np.asarray(lengths, dtype=np.int64)
+        if max_particles_per_read is None or len(lengths) == 0:
+            return [np.arange(len(lengths))]
+        if max_particles_per_read < 1:
+            raise ValueError(f"max_particles_per_read must be at least 1, not {max_particles_per_read}")
+        batches, first, in_batch = [], 0, 0
+        for cell, length in enumerate(lengths):
+            if in_batch > 0 and in_batch + length > max_particles_per_read:
+                batches.append(np.arange(first, cell))
+                first, in_batch = cell, 0
+            in_batch += length
+        batches.append(np.arange(first, len(lengths)))
+        return batches
+
+    @staticmethod
+    def _needed_cells(plan, uses=None):
+        """
+        Returns the positions in the plan of the cells needed (all if None) in file order.
+
+        :param  plan:   the file's plan
+        :type   plan:   FilePlan
+        :param  uses:   the uses (TileUse). If None, all of the plan's
+        :type   uses:   list
+        """
+        uses = plan.uses if uses is None else uses
+        if not uses:
+            return np.zeros(0, dtype=np.int64)
+        return np.unique(np.concatenate([use.cells for use in uses]))
+
+    def __read_cell_ranges(self, infile, ptype, prop, starts, lengths):
+        """
+        Returns one property of the particles in ranges of rows of an open snapshot file, as a unyt array in the
+        snapshot's units (without the expansion factor of comoving properties).
+
+        :param  infile:     the open snapshot file
+        :type   infile:     h5py.File
+        :param  ptype:      particle type, e.g. "PartType1"
+        :type   ptype:      str
+        :param  prop:       the property, e.g. "Coordinates"
+        :type   prop:       str
+        :param  starts:     first row of each range, e.g. of each set of adjacent cells
+        :type   starts:     numpy.ndarray
+        :param  lengths:    number of rows of each range
+        :type   lengths:    numpy.ndarray
+        """
+        if prop not in infile[ptype]:
+            raise ValueError(f"{prop} not found")
+
+        dataset = infile[ptype][prop]
+
+        values = hdf5stream_reader.read_slices(
+            dataset, starts, lengths, np.int64 if prop == "ParticleIDs" else None, cap=self._request_cap
+        )
+
+        units = sw_units.units_from_attributes(dict(dataset.attrs), self.unit_registry)
+        values = unyt.unyt_array(values, units)
+
+        # remote scale factor symbol from units
+        if "a*" in str(units) or "*a" in str(units):
+            values = sw_units.drop_a_from_comoving_property(values)
+
+        return values
 
     def __get_cell_data(self, snap_nr):
         """
@@ -1065,22 +1254,24 @@ class SnapshotLightcone:
 
         IMPORTANT: ALL CELL METADATA IS IN SNAPSHOT UNITS
 
-        Returns a dict of the number of cells, cell size, cell centres, box size, number of files
-        and the file, offsets and lengths of each cell per particle type.
+        Returns a dict of the number of cells, cell size, cell centres, box size, number of files, the file, offsets
+        and lengths of each cell per particle type, and the snapshot's unit metadata.
 
         :param  snap_nr:    snapshot number
         :type   snap_nr:    int
         """
         cell_data = {}
-        # with h5py.File(self.snapshot_format.format(snap_nr=snap_nr, file_nr=0), "r") as f:
-        with h5py.File(self.simulation.snapshot_file(snap_nr, 0), "r") as f:
+
+        with self._open_snapshot_file(snap_nr, 0) as f:
             # IMPORTANT: CELL METADATA IS IN SNAPSHOT UNITS
             # The cell sizes, cell centres and box size are in the snapshot's length unit.
             # The same as the particle coordinates.
-            # Give them the same units, so they are converted to Mpc exactly as the coordinates are and points on
-            # the cell and box faces stay on them when the snapshot is re-oriented
+            # Therefore, cells have the same units as coords before they are converted to Mpc exactly and points on the
+            # faces of cells and the snapshot box stay on them when the snapshot is re-oriented
 
-            snap_length_registry = sw_units.unit_registry_from_metadata(sw_units.snapshot_unit_metadata(f))
+            # the snapshot's units, also for its particles (see _set_unit_registry)
+            cell_data["unit_metadata"] = sw_units.snapshot_unit_metadata(f)
+            snap_length_registry = sw_units.unit_registry_from_metadata(cell_data["unit_metadata"])
 
             def snap_length(values):
                 return unyt.unyt_array(values, "snap_length", registry=snap_length_registry)
@@ -1111,6 +1302,30 @@ class SnapshotLightcone:
             cell_data["lengths"] = snap_lengths
 
         return cell_data
+
+    def _open_snapshot_file(self, snap_nr, file_nr):
+        """
+        Returns a snapshot file, open for reading.
+
+        Every snapshot file is opened here, for its cell metadata or its particles: on disk, or with hdfstream if the
+        simulation is remote (Simulation.remote).
+
+        :param  snap_nr:    snapshot number
+        :type   snap_nr:    int
+        :param  file_nr:    number of the file of the snapshot
+        :type   file_nr:    int
+        """
+        return hdf5stream_reader.open_file(self.simulation.snapshot_file(snap_nr, file_nr), self.simulation.remote)
+
+    def _set_unit_registry(self, unit_metadata):
+        """
+        Make the lightcone's unit registry from a snapshot's unit metadata.
+
+        :param  unit_metadata:  the snapshot's unit metadata, e.g. the cell metadata's "unit_metadata"
+        :type   unit_metadata:  dict
+        """
+        if self.unit_registry is None:
+            self.unit_registry = sw_units.unit_registry_from_metadata(unit_metadata)
 
     def __comoving_distance_to_scalefactor(self, r, cosmo=None):
         """
@@ -1176,16 +1391,21 @@ class SnapshotLightcone:
             self._available_snapshot_cache = {}
         if halo_format not in self._available_snapshot_cache:
             nr_snapshots = len(self.simulation.output_redshifts)
+
             if halo_format is None:
+                # the snapshots paths
                 paths = [self.simulation.snapshot_file(n, 0) for n in range(nr_snapshots)]
             else:
+                # the halo catalogues paths
                 paths = [halo_format.format(snap_nr=n) for n in range(nr_snapshots)]
-            self._available_snapshot_cache[halo_format] = np.array(
-                [n for n, path in enumerate(paths) if os.path.exists(path)], dtype=int
-            )
+
+            remote = self.simulation.remote  # on disk or remote
+            available = [n for n, path in enumerate(paths) if hdf5stream_reader.file_exists(path, remote)]
+            self._available_snapshot_cache[halo_format] = np.array(available, dtype=int)
+
         return self._available_snapshot_cache[halo_format]
 
-    def snapshots_for_shell(self, shell_z, halo_format=None, range_tol=0.0):
+    def snapshots_for_shell(self, lightcone_redshift_range, halo_format=None, range_tol=0.0):
         """
         Returns the snapshot numbers for the redshift range of the lightcone shell, from high to low redshift.
 
@@ -1195,14 +1415,14 @@ class SnapshotLightcone:
 
         Raise a ValueError if the redshift spacing between the snapshots is greater than MAX_SNAPSHOT_SPACING.
 
-        :param  shell_z:        minimum and maximum redshift of the lightcone shell [z_min, z_max]
-        :type   shell_z:        sequence of two floats
-        :param  halo_format:    see gather_halo_catalogues. If None, the snapshot files are looked for
-        :type   halo_format:    str
-        :param  range_tol:      a snapshot edge within range_tol of the shell counts as touching it
-        :type   range_tol:      float
+        :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
+        :type   lightcone_redshift_range:   sequence of two floats
+        :param  halo_format:                see gather_halo_catalogues. If None, the snapshot files are looked for
+        :type   halo_format:                str
+        :param  range_tol:                  a snapshot edge within range_tol of the shell counts as touching it
+        :type   range_tol:                  float
         """
-        return self.__snapshot_coverage(shell_z, halo_format, range_tol)[0]
+        return self.__snapshot_coverage(lightcone_redshift_range, halo_format, range_tol)[0]
 
     def __snapshot_coverage(self, shell_z, halo_format, range_tol, stacklevel=4):
         """
@@ -1285,6 +1505,36 @@ class SnapshotLightcone:
             self.__warn_use_snapshots_gaps(shell_z, snapshots)
 
         return snapshots, z_ranges
+
+    def __check_simulation_directory(self):
+        """Raise FileNotFoundError if the simulation's directory doesn't exist (on disk, or remotely)."""
+        remote = self.simulation.remote
+
+        if not hdf5stream_reader.directory_exists(self.simulation.directory, remote):
+            where = "in the remote directory" if remote is not None else "on disk"
+            names = " or ".join(self.simulation.suite.box_res_names(self.simulation.box_res))
+
+            raise FileNotFoundError(
+                f"{self.simulation.box_res}/{self.simulation.name}: no simulation directory "
+                f"{self.simulation.directory} {where}."
+            )
+
+    def __require_files(self, halo_format=None):
+        """
+        Raise FileNotFoundError, at the start of a gather step, if there are no snapshot files, or no SOAP catalogues
+        of halo_format, at all; snapshots missing from a shell are checked later (see __check_snapshots_exist).
+
+        :param  halo_format:    see gather_halo_catalogues. If None, the snapshot files
+        :type   halo_format:    str
+        """
+        if len(self._available_snapshots(halo_format)) > 0:
+            return
+        snap_nr = self.simulation.z0_snapshot
+        if halo_format is None:
+            what, example = "snapshot files", self.simulation.snapshot_file(snap_nr, 0)
+        else:
+            what, example = "SOAP catalogues", halo_format.format(snap_nr=snap_nr)
+        raise FileNotFoundError(f"{self.simulation.box_res}/{self.simulation.name}: {what} not found (e.g. {example})")
 
     def __check_snapshots_exist(self, snapshot_numbers, halo_format=None):
         """
@@ -1638,7 +1888,7 @@ class SnapshotLightcone:
         n_cells_per_axis = np.broadcast_to(np.asarray(n_cells_per_axis), (3,)).astype(np.int64)
 
         # the shift in whole cells, from the unit of the tables
-        cell_shift = box_structure.cell_shifts_in_cells(cell_shift, n_cells_per_axis)
+        shift_in_cells = box_structure.cell_shifts_in_cells(cell_shift, n_cells_per_axis)
 
         cell_sidelength = np.broadcast_to(np.asarray(cell_sidelength, dtype=np.float64), (3,))
         snapshot_sidelength = np.broadcast_to(np.asarray(snapshot_sidelength, dtype=np.float64), (3,))
@@ -1655,10 +1905,10 @@ class SnapshotLightcone:
             )
 
         # the observer's periodic shift, the same for every tile, added before the tile's rotation and reflection
-        cell_shift += self._observer_cell_shift(n_cells_per_axis, snapshot_sidelength)
+        shift_in_cells += self._observer_cell_shift(n_cells_per_axis, snapshot_sidelength)
 
         # wrap around the box
-        wrapped_cell_shift = np.mod(cell_shift, n_cells_per_axis)
+        wrapped_cell_shift = np.mod(shift_in_cells, n_cells_per_axis)
 
         return wrapped_cell_shift.astype(np.float64) * cell_sidelength
 
@@ -1780,33 +2030,41 @@ class SnapshotLightcone:
         particle_data["ExpansionFactors"] = unyt.unyt_array(np.zeros(npart_in_beam), units=unyt.dimensionless)
         particle_data["ExpansionFactors"][:] = self.__comoving_distance_to_scalefactor(r_comoving) * unyt.dimensionless
 
-    def _gather_files_for_ptype(self, current_ptype, shell_z, use_snapshots=None, cell_data=None):
+    def _gather_files_for_ptype(self, particle_type, shell_z, use_snapshots=None, comm=None):
         """
-        Identify every (snapshot, tile, file) needed to populate a lightcone for a single particle type.
+        Plan out every snapshot file needed to populate a lightcone for a single particle type and the tiles each file
+        is mapped too.
 
-        Without reading any particle data record the pieces of the shell and the files to read in a new ShellRead, kept
+        Without reading any particle data record the pieces of the shell and the file plans in a new ShellRead, kept
         as self.last_shell.
 
         Returns the ShellRead.
 
-        :param  current_ptype:  particle type to gather, e.g. "PartType1"
-        :type   current_ptype:  str
+        :param  particle_type:  particle type to gather, e.g. "PartType1"
+        :type   particle_type:  str
         :param  shell_z:        minimum and maximum redshift of the shell [z_min, z_max]
         :type   shell_z:        sequence of two floats
         :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
         :type   use_snapshots:  list or numpy.ndarray
-        :param  cell_data:      the cell metadata cache, shared by its particle types. If None, a new one
-        :type   cell_data:      dict
+        :param  comm:           MPI communicator: the cell metadata is read on rank 0 and given to every rank. If None,
+                                read where it is needed
+        :type   comm:           mpi4py.MPI.Comm
         """
         self.last_shell = None  # until this shell is gathered
+        self.__require_files()  # ensure files do exist before trying to read
+
         snapshots, z_ranges = self._shell_snapshots(shell_z, use_snapshots)
+
         shell = ShellRead(
             shell_z=tuple(shell_z),
-            ptype=current_ptype,
+            ptype=particle_type,
             snapshots=snapshots,
             z_ranges=z_ranges,
-            cell_data={} if cell_data is None else cell_data,
+            cell_data=self._keep_cell_data(snapshots),  # reusing what earlier calls read for these snapshots
         )
+
+        if comm is not None:
+            self.__broadcast_cell_data(shell.snapshots, shell.cell_data, comm)
 
         # each snapshot's tile pieces (snapshot, tile) and their files (a single snapshot may need more than one piece)
         for snap_nr in shell.snapshots:
@@ -1817,45 +2075,55 @@ class SnapshotLightcone:
 
         # sanity check a particle types that are not in the snapshots. These are is most likely a typo, e.g. "PartType9"
         in_snapshots = [int(n) for n in shell.snapshots]
-        if in_snapshots and not any(current_ptype in shell.cell_data[n]["cells_in_file"] for n in in_snapshots):
+        if in_snapshots and not any(particle_type in shell.cell_data[n]["cells_in_file"] for n in in_snapshots):
             types = sorted(shell.cell_data[in_snapshots[0]]["cells_in_file"])
             raise ValueError(
-                f"{self.simulation.box_res}/{self.simulation.name}: no snapshots {in_snapshots} have {current_ptype}, "
+                f"{self.simulation.box_res}/{self.simulation.name}: no snapshots {in_snapshots} have {particle_type}, "
                 f"they have {', '.join(types)}"
             )
 
         self.last_shell = shell
 
         # check for no particles existing in identified cells
-        if not shell.files:
-            self._log(f"\n{current_ptype}: no particles in the selected cells\n", level=1)
+        if not shell.plans:
+            self._log(f"\n{particle_type}: no particles in the selected cells\n", level=1)
             return shell
 
-        snapshots_used = sorted({int(spec.snap_nr) for spec in shell.files})
-        npart_in_cells = sum(int(np.sum(spec.lengths)) for spec in shell.files)
+        snapshots_used = sorted({int(plan.snap_nr) for plan in shell.plans})
+        npart_to_read = sum(plan.nr_particles for plan in shell.plans)  # total numb of particles in file to read
+        npart_to_place = sum(plan.nr_placed for plan in shell.plans)  # total numb of particles in files, cells to read
 
         self._log(
             (
-                f"\n{current_ptype}: {len(shell.files)} files to read for "
-                f"snapshots {snapshots_used} and {npart_in_cells} particles expected in selected cells"
+                f"\n{particle_type}: {len(shell.plans)} files to read for snapshots {snapshots_used}, with "
+                f"{npart_to_read:.3e} particles in the selected cells and {npart_to_place} particles to place in the"
+                " lightcone."
             ),
             level=1,
         )
 
         # print of all files to read from
-        for spec in shell.files:
-            npart = int(np.sum(spec.lengths))
+        for plan in shell.plans:
             self._log(
                 (
-                    f"\tsnap: {spec.snap_nr:<2}, \ttile: {spec.tile},\tfile: {spec.file_nr:<3}: \tnumb particles in"
-                    f"cells:{npart:<6},\tnumb particles from snapshot:{npart}"
+                    f"\tsnap: {plan.snap_nr:<2},\tfile: {plan.file_nr:<3},\tcells: {len(plan.cells):3e},\ttiles: "
+                    f"{len(plan.uses)}\tnumb part to read:{plan.nr_particles:.3e},\tnumb part to place: "
+                    f"{plan.nr_placed:.3e}\nuse tiles: {[use.tile for use in plan.uses]}"
                 ),
                 level=2,
             )
         return shell
 
     def __populate_lightcone_with_ptype(
-        self, particle_type, property_names, shell_z, use_snapshots=None, cell_data=None, comm=None, redistribute=False
+        self,
+        particle_type,
+        property_names,
+        shell_z,
+        use_snapshots=None,
+        comm=None,
+        redistribute=False,
+        max_particles_per_read=None,
+        max_concurrent_requests=None,
     ):
         """
         Read and place all particles of one type into the lightcone shell.
@@ -1870,17 +2138,21 @@ class SnapshotLightcone:
         :type   shell_z:        sequence of two floats
         :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
         :type   use_snapshots:  list or numpy.ndarray
-        :param  cell_data:      the call's cell metadata cache, shared by its particle types
-        :type   cell_data:      dict
         :param  comm:           MPI communicator. If None, read in serial
         :type   comm:           mpi4py.MPI.Comm
         :param  redistribute:   If True, redistribute particles evenly across MPI ranks
         :type   redistribute:   bool
+        :param  max_particles_per_read: largest number of particles read from a file at once. If None, all
+                                        of a file's needed cells at once
+        :type   max_particles_per_read: int
+        :param  max_concurrent_requests: with comm, the most read requests in flight at once across the ranks. If
+                                         None, no cap
+        :type   max_concurrent_requests: int
         """
-        shell = self._gather_files_for_ptype(particle_type, shell_z, use_snapshots, cell_data)
+        shell = self._gather_files_for_ptype(particle_type, shell_z, use_snapshots, comm=comm)
 
         # check for no particles existing in identified cells
-        if not shell.files:
+        if not shell.plans:
             return {}
 
         property_names = self._with_required_properties(particle_type, property_names)
@@ -1889,10 +2161,16 @@ class SnapshotLightcone:
         method = "serial" if comm is None else "parallel"
 
         if method == "serial":
-            particle_data = self.__read_and_place_particles(shell, shell.files, property_names)
+            # each file read once, its particles placed in every tile that uses it
+            particle_data = self.__read_and_place_plans(
+                shell, [(plan, None) for plan in shell.plans], property_names, max_particles_per_read
+            )
             self._attach_expansion_factors(particle_data)
+
         elif method == "parallel":
-            particle_data = self.__parallel_read_and_place_particles(shell, property_names, comm)
+            particle_data = self.__parallel_read_and_place_particles(
+                shell, property_names, comm, max_particles_per_read, max_concurrent_requests
+            )
             if redistribute:
                 # evenly distribute particles across all ranks
                 self.__redistribute_particles_evenly(particle_data, property_names, comm)
@@ -1928,7 +2206,7 @@ class SnapshotLightcone:
         """
         Find the cells and files of a snapshot, for every tile, that fall within the lightcone shell.
 
-        Adds the snapshot's pieces (snapshot number, tile), files and cells to the ShellRead.
+        Use the file plan to add the snapshot's pieces (snapshot number, tile) and cells to the ShellRead.
 
         :param  shell:              the shell being gathered
         :type   shell:              ShellRead
@@ -1947,6 +2225,9 @@ class SnapshotLightcone:
         has_ptype = ptype in cell_data["cells_in_file"]
         if not has_ptype:
             self._log(f"\tno {ptype} particles in snapshot {snapshot_number}", level=2)
+
+        #  for its plan each file uses, {file number: [(tile, z range, cells of the tile in the file), ...]}
+        uses_of_file = {}
 
         # iterate through tiles pieces and add transverse tiles when the beam's diameter exceeds one box sidelength.
         for tile, z_sub_min, z_sub_max in self._snapshot_tile_idx(snap_shell_z_range, cell_data):
@@ -1968,10 +2249,21 @@ class SnapshotLightcone:
                 lengths = cell_data["lengths"][ptype][infile_cell_idx]  # numb of particles in cells to read per file
                 if np.sum(lengths) == 0:  # no particles in the cells
                     continue
-                offsets = cell_data["offsets"][ptype][infile_cell_idx]  # starting point of particles in cells per file
 
-                # update the files with indexes of which range of particles to read
-                shell.files.append(FileReadSpec(snapshot_number, tile, file_nr, offsets, lengths))
+                uses_of_file.setdefault(int(file_nr), []).append((tile, (z_sub_min, z_sub_max), infile_cell_idx))
+
+        # each file needs a plan for how to use the cells for all the tiles they are found in
+        # make plans in order of the file numbers
+        for file_nr in sorted(uses_of_file):
+            shell.plans.append(
+                _make_file_plan(
+                    snapshot_number,
+                    file_nr,
+                    uses_of_file[file_nr],
+                    cell_data["offsets"][ptype],
+                    cell_data["lengths"][ptype],
+                )
+            )
 
     def __cells_in_tile(self, cell_data, tile, z_sub_min, z_sub_max):
         """
@@ -2045,207 +2337,468 @@ class SnapshotLightcone:
 
         return beam_idx
 
-    def __read_and_place_particles(self, shell, files_to_read, property_names, comm=None):
+    def __iter_file_pieces(self, shell, plan, property_names, uses=None, max_particles_per_read=None):
         """
-        Returns a dict of the particles kept per property (None for a property if no file was read), with their
-        coordinates in the lightcone and initial snapshot number (SnapshotNumber).
+        Read one snapshot file once and yield its particles placed in each tile that uses it, a batch of cells at a
+        time.
 
-        :param  shell:          the shell the files are of
-        :type   shell:          ShellRead
-        :param  files_to_read:  files to read
-        :type   files_to_read:  list of FileReadSpec
-        :param  property_names: particle properties to read
-        :type   property_names: list
-        :param  comm:           MPI communicator, to add up the numbers of particles of every rank for the log
-        :type   comm:           mpi4py.MPI.Comm
+        The cells needed by the uses are split, in file order, into batches of at most max_particles_per_read
+        particles (all in one if None). The file is opened once; for each batch, the coordinates of its cells are read
+        once, each use gets its own copy of its cells' particles, moved into its tile and cut to its part of the shell
+        (in the order the gather step found its cells), and the other properties are read once for the cells holding
+        a particle kept by any use.
+
+        Yields a tuple (batch number, use, particles kept: a dict of arrays per property, with SnapshotNumber, and
+        TileIndex if it is in property_names) per (batch, use) with cells in the batch.
+
+        :param  shell:                  the shell the file is planned for
+        :type   shell:                  ShellRead
+        :param  plan:                   the file's plan, from shell.plans
+        :type   plan:                   FilePlan
+        :param  property_names:         particle properties to read (TileIndex is filled in, not read)
+        :type   property_names:         list
+        :param  uses:                   the uses (TileUse) of the plan to place. If None, all of them
+        :type   uses:                   list
+        :param  max_particles_per_read: largest number of particles read at once (whole cells). If None, all the
+                                        needed cells of the file at once
+        :type   max_particles_per_read: int
         """
-        # determine the current particle type being used and the snapshots redshift range in the lightcone.
-        current_ptype = shell.ptype
-        snap_z_range = {(piece.snap_nr, piece.tile): piece.z_updated for piece in shell.pieces}
+        uses = list(plan.uses if uses is None else uses)
+
+        needed_all = self._needed_cells(plan, uses)
+        if len(needed_all) == 0:
+            return
+
+        file_properties = [prop for prop in property_names if prop not in ("Coordinates", "TileIndex")]
+
         kept_parts = {prop: [] for prop in property_names}
-        kept_parts["SnapshotNumber"] = []  # store snapshot of each particle.
-        npart_read_total = 0
-        npart_kept_total = 0
+        kept_parts["SnapshotNumber"] = []
+        if not uses:
+            return kept_parts, 0, 0
 
-        # iterate through files to read
-        for file_data in files_to_read:
-            # set snapshot and file info
-            snap_nr = file_data.snap_nr
-            tile = file_data.tile
-            file_nr = file_data.file_nr
-            filename = self.simulation.snapshot_file(snap_nr, file_nr)
+        cell_data = self._cell_data(plan.snap_nr, shell.cell_data)
+        self._set_unit_registry(cell_data["unit_metadata"])
 
-            # indices of cells to read in the files
-            infile_offset, infile_lengths = merge_cells(file_data.offsets, file_data.lengths)
+        with self._open_snapshot_file(plan.snap_nr, plan.file_nr) as infile:
+            nr_in_file = int(np.sum(infile["Header"].attrs["NumPart_ThisFile"][:]))
+            if np.any(plan.offsets[needed_all] + plan.lengths[needed_all] > nr_in_file):
+                filename = self.simulation.snapshot_file(plan.snap_nr, plan.file_nr)
+                raise ValueError(
+                    f"{filename}: the cell metadata asks for more rows than particles in the file"
+                    f"({plan.offsets[needed_all] + plan.lengths[needed_all]} > {nr_in_file})"
+                )
 
-            # numb of particles to read from cells in file
-            npart_infile = int(np.sum(file_data.lengths))
+            for batch_number, batch in enumerate(self._cell_batches(plan.lengths[needed_all], max_particles_per_read)):
+                # the batch's cells, each once, read as ranges of adjacent cells
+                needed = needed_all[batch]
+                range_offsets, range_lengths = merge_cells(plan.offsets[needed].copy(), plan.lengths[needed].copy())
 
-            cell_data = self._cell_data(snap_nr, shell.cell_data)  # cell metadata of snapshot
+                # the coordinates, read once; each use's copy of its cells moved into its tile and cut to the shell
+                coordinates = self.__read_cell_ranges(infile, shell.ptype, "Coordinates", range_offsets, range_lengths)
+                coordinate_units = coordinates.units
+                placed = self.__place_batch_in_tiles(
+                    plan, uses, needed, coordinates.to_value("Mpc"), cell_data, batch_number
+                )
+                del coordinates
 
-            # update the output particle data using the coordinates first and then testing if the particles fall within
-            # the lightcone needs only them
-            file_particle_data = self.__read_particles_from_cells(
-                current_ptype, filename, infile_offset, infile_lengths, ["Coordinates"], npart_infile
-            )
+                # the other properties, read once for the ranges holding a particle kept by any use
+                other, indices = self.__read_kept_ranges(
+                    infile, shell.ptype, file_properties, range_offsets, range_lengths, [rows for _, rows, _ in placed]
+                )
 
-            # instructions on how to adjust cells in a tile: quarter turns, reflections and periodic cell shifts
-            # along each axis
-            snapshot_rotation_angles, snapshot_rotation_reflections, snapshot_periodic_shifts = (
-                self._snapshot_reorientation(tile)
-            )
+                # each batches copies of its kept particles, hand out one batch at a time
+                for (use, _, new_coords), index in zip(placed, indices):
+                    yield (
+                        batch_number,
+                        use,
+                        self.__piece_data(
+                            plan.snap_nr, use, new_coords, coordinate_units, other, index, property_names
+                        ),
+                    )
+                del other, placed
 
-            new_coords = np.empty((npart_infile, 3))
-            __ = self._transform_snapshot_coordinates(
-                file_particle_data["Coordinates"].to_value("Mpc"),
-                snapshot_rotation_angles,
-                reflections=snapshot_rotation_reflections,
-                periodic_cell_shift=snapshot_periodic_shifts,
+    def __place_batch_in_tiles(self, plan, uses, needed, coordinates_mpc, cell_data, batch_number):
+        """
+        Place each batch of cells copy of the particles in to the corresponding tile, cut to its part of the shell.
+
+
+        Returns a list (use, rows of the batch kept, their coordinates in the lightcone [Mpc]), for each use with
+        cells in the batch. The rows are in the order that the gather step found the cells.
+
+        :param  plan:               the file's plan
+        :type   plan:               FilePlan
+        :param  uses:               the uses (TileUse) to place
+        :type   uses:               list
+        :param  needed:             positions in the plan of the batch's cells, in file order
+        :type   needed:             numpy.ndarray
+        :param  coordinates_mpc:    coordinates of the batch's particles [Mpc], its cells one after the other
+        :type   coordinates_mpc:    numpy.ndarray
+        :param  cell_data:          the snapshot's cell metadata
+        :type   cell_data:          dict
+        :param  batch_number:       number of the batch in the file, for the log
+        :type   batch_number:       int
+        """
+        lengths = plan.lengths[needed]
+        cell_block_start = np.cumsum(lengths) - lengths  # where each cell starts in the batch
+        boxsize = cell_data["snap_boxsize"].to_value("Mpc")
+
+        placed = []
+        for use in uses:
+            use_cells = use.cells[np.isin(use.cells, needed)]  # in the order the gather step found them
+
+            if len(use_cells) == 0:
+                continue
+
+            cell = np.searchsorted(needed, use_cells)
+            cell_lengths = lengths[cell]
+
+            rows = np.repeat(
+                cell_block_start[cell] - (np.cumsum(cell_lengths) - cell_lengths), cell_lengths
+            ) + np.arange(int(np.sum(cell_lengths)))
+
+            # get instructions on how to re-orient the tiles
+            angles, reflections, cell_shifts = self._snapshot_reorientation(use.tile)
+
+            new_coords = np.empty((len(rows), 3))  # empty array to update with new lightcone coords
+
+            # apply coords transformation for tile re-orientation
+            self._transform_snapshot_coordinates(
+                coordinates_mpc[rows],
+                angles,
+                reflections=reflections,
+                periodic_cell_shift=cell_shifts,
                 cell_data=cell_data,
                 order="xyz",
                 degrees=True,
                 out=new_coords,
                 inplace=False,
             )
+            new_coords += self.get_snapshot_reposition_coords(use.tile, boxsize)  # add tile location to coords
 
-            # convert cell and boxsize metadata from snapshot_lengths to Mpc for consistency.
-            new_coords += self.get_snapshot_reposition_coords(tile, cell_data["snap_boxsize"].to_value("Mpc"))
-
-            # replace coordinates
-            file_particle_data["Coordinates"] = (new_coords * unyt.Mpc).to(file_particle_data["Coordinates"].units)
-
-            del new_coords
-
-            # give update of coords of particles read in
+            # printout update on new coords
             self._log_coord_ranges(
-                f"snap: {snap_nr},\ttile:{tile},\tfile:{file_nr}\n\t\tcoordinates of the particles read from file",
-                file_particle_data["Coordinates"],
+                f"snap: {plan.snap_nr},\ttile:{use.tile},\tfile:{plan.file_nr},\tbatch:{batch_number}\n\t\t"
+                "coordinates of the particles read from file",
+                new_coords,
                 indent=3,
             )
 
-            zmin, zmax = snap_z_range[(snap_nr, tile)]
-            local_beam_idx, __ = self.__select_particles_in_shell(
-                file_particle_data["Coordinates"].to_value("Mpc"),
-                zmin=zmin,
-                zmax=zmax,
-                method="exact",
-                r_tol=0 * unyt.Mpc,
+            # particles kept in lightcone
+            kept, __ = self.__select_particles_in_shell(
+                new_coords, zmin=use.z_range[0], zmax=use.z_range[1], method="exact", r_tol=0 * unyt.Mpc
             )
 
-            # read in the other properties, but only for the particles kept in the lightcone,
-            # read only for the merged cells holding one
-            file_particle_data["Coordinates"] = file_particle_data["Coordinates"][local_beam_idx]
-            other_properties = [prop for prop in property_names if prop != "Coordinates"]
-            file_particle_data.update(
-                self.__read_kept_particles(
-                    current_ptype, filename, infile_offset, infile_lengths, other_properties, local_beam_idx
+            # particles placed in lightcone
+            placed.append((use, rows[kept], new_coords[kept]))
+
+        return placed
+
+    def __read_kept_ranges(self, infile, ptype, properties, range_offsets, range_lengths, kept_rows):
+        """
+        Read properties once for the ranges of a batch that hold a kept particle.
+
+        Returns a tuple (a dict of the values read per property, the ranges used one after the other; for each set of
+        kept rows, where its particles are in those values).
+
+        :param  infile:         the open snapshot file
+        :type   infile:         h5py.File
+        :param  ptype:          particle type, e.g. "PartType1"
+        :type   ptype:          str
+        :param  properties:     the properties to read
+        :type   properties:     list
+        :param  range_offsets:  first row in the file of each range of the batch
+        :type   range_offsets:  numpy.ndarray
+        :param  range_lengths:  number of rows of each range of the batch
+        :type   range_lengths:  numpy.ndarray
+        :param  kept_rows:      rows of the batch kept, a set per use
+        :type   kept_rows:      list
+        """
+        range_block_start = np.cumsum(range_lengths) - range_lengths  # where each range starts in the batch
+        all_kept = np.concatenate(kept_rows) if kept_rows else np.zeros(0, dtype=np.int64)
+
+        used = np.unique(np.searchsorted(range_block_start, all_kept, side="right") - 1)
+        used_block_start = np.cumsum(range_lengths[used]) - range_lengths[used]
+        # dict to fill with particle properties
+        values = {
+            prop: self.__read_cell_ranges(infile, ptype, prop, range_offsets[used], range_lengths[used])
+            for prop in properties
+        }
+
+        # iterate through kept particles
+        indices = []
+        for rows in kept_rows:
+            in_range = np.searchsorted(range_block_start, rows, side="right") - 1
+            indices.append(rows - range_block_start[in_range] + used_block_start[np.searchsorted(used, in_range)])
+
+        return values, indices
+
+    def __piece_data(self, snap_nr, use, new_coords, coordinate_units, other, index, property_names):
+        """
+        Returns the particles one batch of cells kept as a dict of arrays per property, with SnapshotNumber.
+
+        :param  snap_nr:            snapshot number
+        :type   snap_nr:            int
+        :param  use:                the use (TileUse)
+        :type   use:                TileUse
+        :param  new_coords:         coordinates of the kept particles in the lightcone [Mpc]
+        :type   new_coords:         numpy.ndarray
+        :param  coordinate_units:   units of the coordinates in the snapshot, to give the coordinates in
+        :type   coordinate_units:   unyt.Unit
+        :param  other:              the other properties of the batch, see __read_kept_ranges
+        :type   other:              dict
+        :param  index:              where the kept particles are in other
+        :type   index:              numpy.ndarray
+        :param  property_names:     particle properties to return (TileIndex is filled in, not read)
+        :type   property_names:     list
+        """
+        data = {}
+        for prop in property_names:
+            if prop == "Coordinates":
+                data[prop] = (new_coords * unyt.Mpc).to(coordinate_units)
+
+            elif prop == "TileIndex":
+                data[prop] = unyt.unyt_array(
+                    np.tile(np.asarray(use.tile, dtype=np.int32), (len(new_coords), 1)), "dimensionless"
                 )
+
+            elif prop == "Velocities":  # the same rotation and reflection as the coordinates, no shift
+                values = other[prop][index]
+                data[prop] = unyt.unyt_array(self._transform_snapshot_vectors(values.value, use.tile), values.units)
+
+            else:
+                data[prop] = other[prop][index]
+
+        # add snapshot number of particle can be traced back to the redshift it was found at in the simulation
+        data["SnapshotNumber"] = unyt.unyt_array(np.full(len(new_coords), snap_nr, dtype=int), units=unyt.dimensionless)
+
+        return data
+
+    def __read_and_place_plans(self, shell, plans, property_names, max_particles_per_read=None, comm=None):
+        """
+        Read and place the planned files, each once, in serial.
+
+        Returns a dict of the particles kept per property (None for a property if no file was read), with their
+        coordinates in the lightcone and initial snapshot number (SnapshotNumber).
+
+        :param  shell:                  the shell the files are planned for
+        :type   shell:                  ShellRead
+        :param  plans:                  the files to read and place, each with the uses to place, as
+                                        (FilePlan, uses or None)
+        :type   plans:                  list
+        :param  property_names:         particle properties to read
+        :type   property_names:         list
+        :param  max_particles_per_read: largest number of particles read at once from a file (whole cells). If None,
+                                        all the needed cells of a file at once
+        :type   max_particles_per_read: int
+        :param  comm:                   MPI communicator, to add up the numbers of particles of every rank for the log
+        :type   comm:                   mpi4py.MPI.Comm
+        """
+        kept_parts = {prop: [] for prop in property_names}
+        kept_parts["SnapshotNumber"] = []
+        nr_read, nr_kept = 0, 0
+
+        for plan, uses in plans:
+            needed = self._needed_cells(plan, uses)
+            file_read = int(np.sum(plan.lengths[needed]))
+            file_kept, nr_batches = 0, 0
+
+            for batch_number, _, data in self.__iter_file_pieces(
+                shell, plan, property_names, uses, max_particles_per_read
+            ):
+                for prop, values in data.items():
+                    kept_parts[prop].append(values)
+
+                file_kept += len(data["SnapshotNumber"])
+                nr_batches = batch_number + 1
+
+            nr_uses = len(plan.uses if uses is None else uses)
+
+            self._log(
+                f"\t\tsnap: {plan.snap_nr}, file: {plan.file_nr}, {nr_uses} tiles, {nr_batches} batches: {file_read} "
+                f"particles read, {file_kept} kept in the lightcone",
+                level=2,
             )
 
-            # if there are velocities apply the same rotation and reflection as the coordinates (no shift or offset)
-            if "Velocities" in file_particle_data:
-                velocities = file_particle_data["Velocities"]
-                file_particle_data["Velocities"] = unyt.unyt_array(
-                    self._transform_snapshot_vectors(velocities.value, tile), velocities.units
-                )
+            nr_read += file_read
+            nr_kept += file_kept
 
-            npart_read_total += npart_infile
-            npart_kept_total += len(local_beam_idx)
-
-            if len(files_to_read) > 1:  # otherwise the same as the total below
-                self._log(f"\t\t{npart_infile} particles read, {len(local_beam_idx)} kept in the lightcone", level=2)
-
-            for prop in property_names:
-                kept_parts[prop].append(file_particle_data[prop])  # only the particles kept in the lightcone
-
-            # store the snapshot numbers of particles in the lightcone
-            kept_parts["SnapshotNumber"].append(
-                unyt.unyt_array(np.full_like(local_beam_idx, fill_value=snap_nr, dtype=int), units=unyt.dimensionless)
-            )
-
-        # give update printout on number of particles read in and kept in the the lightcone
         if comm is not None:
-            npart_read_global = comm.allreduce(npart_read_total)
-            npart_kept_global = comm.allreduce(npart_kept_total)
-        else:
-            npart_read_global = npart_read_total
-            npart_kept_global = npart_kept_total
+            self._log(f"{shell.ptype}: {nr_read} particles read, {nr_kept} kept on this rank", level=2, every_rank=True)
+            nr_read, nr_kept = comm.allreduce(nr_read), comm.allreduce(nr_kept)
 
-        if npart_read_global > 0:
+        if nr_read > 0:
             self._log(
                 (
-                    f"\n{current_ptype}: {npart_read_global} particles read, {npart_kept_global} kept in the lightcone "
-                    f"({npart_kept_global / npart_read_global * 100:.3f}%)"
+                    f"\n{shell.ptype}: {nr_read} particles read, {nr_kept} kept in the lightcone "
+                    f"({nr_kept / nr_read * 100:.3f}%)"
                 ),
                 level=1,
             )
         else:
             self._log("no particles found in selected cells", level=1)
 
-        # set up output dictionary of particle data
         particle_data = {name: None for name in property_names}
 
-        # add kept particles to output particle data dict
-        for prop in property_names:
-            if len(kept_parts[prop]) > 0:
-                particle_data[prop] = np.concatenate(kept_parts[prop])
-
-        if len(kept_parts["SnapshotNumber"]) > 0:
-            particle_data["SnapshotNumber"] = np.concatenate(kept_parts["SnapshotNumber"])
+        for prop, parts in kept_parts.items():
+            if parts:
+                particle_data[prop] = np.concatenate(parts)
 
         return particle_data
 
-    def __parallel_read_and_place_particles(self, shell, property_names, comm):
+    @staticmethod
+    def _assign_files_to_ranks(weights, nr_ranks):
         """
-        Returns a dict of the particles this rank placed; the parallel counterpart to the serial method.
+        Returns the files each MPI rank reads, sharing them so every rank has about the same total weight.
 
-        MPI ranks are assigned distinct entries with one (snapshot, file) per rank where possible.
-        Each rank reads only its own files and places them in the beam, filtering also occurs locally.
+        The files are taken by decreasing weight (ties in file order) and each is given to the
+        rank with the least total weight so far (ties to the lowest rank). Every rank computes the same assignment.
+        Each rank's files are returned in file order, as a list of index arrays, one per rank.
 
-        Note: each rank contains its own local slice of the shell's particles.
-
-        :param  shell:          the shell gathered
-        :type   shell:          ShellRead
-        :param  property_names: particle properties to read
-        :type   property_names: list
-        :param  comm:           MPI communicator
-        :type   comm:           mpi4py.MPI.Comm
+        :param  weights:    weight of each file, e.g. its expected placed particles (FilePlan.nr_placed)
+        :type   weights:    sequence of int
+        :param  nr_ranks:   number of MPI ranks
+        :type   nr_ranks:   int
         """
-        # distribute the files to read across ranks, one file per rank for when there are as many files as ranks
-        nr_files = len(shell.files)
-        rank = comm.Get_rank()  # local rank
-        files_on_rank = phdf5.assign_files(nr_files, comm.Get_size())  # assign files per rank with phdf5
-        first = (np.cumsum(files_on_rank) - files_on_rank)[rank]  # first file per rank
+        # determine the current particle type being used and the snapshots redshift range in the lightcone.
+        weights = np.asarray(weights, dtype=np.int64)
+        totals = np.zeros(nr_ranks, dtype=np.int64)
+        files = [[] for _ in range(nr_ranks)]
 
-        my_files = shell.files[first : first + files_on_rank[rank]]  # each ranks own files
+        for file_index in np.argsort(-weights, kind="stable"):
+            rank = int(np.argmin(totals))  # the first of the least loaded ranks
+            files[rank].append(int(file_index))
+            totals[rank] += weights[file_index]
 
-        # local total for just the files this rank owns
-        total_ptype_to_read = sum(int(np.sum(spec.lengths)) for spec in my_files)
+        return [np.sort(np.asarray(rank_files, dtype=np.int64)) for rank_files in files]
+
+    def __broadcast_cell_data(self, snapshots, cache, comm):
+        """
+        Read the cell metadata of the snapshots on rank 0 only and give it to every rank, adding it to the cache.
+
+        :param  snapshots:  snapshot numbers
+        :type   snapshots:  sequence of int
+        :param  cache:      the cell metadata kept, {snapshot number: cell metadata}, filled in place
+        :type   cache:      dict
+        :param  comm:       MPI communicator
+        :type   comm:       mpi4py.MPI.Comm
+        """
+        missing_here = [int(n) for n in snapshots if int(n) not in cache]
+        missing = sorted({n for rank_missing in comm.allgather(missing_here) for n in rank_missing})
+
+        if not missing:
+            return
+
+        data, error, failure = None, None, None
+
+        if comm.Get_rank() == 0:
+            try:
+                data = {snap_nr: self._cell_data(snap_nr, cache) for snap_nr in missing}
+            except Exception as exc:  # raised again below, on every rank
+                failure = exc
+                error = f"{type(exc).__name__}: {exc}"
+        data, error = comm.bcast((data, error), root=0)
+
+        if failure is not None:
+            raise failure
+
+        if error is not None:
+            raise RuntimeError(f"rank 0 could not read the cell metadata of snapshots {missing}: {error}")
+
+        cache.update(data)
+
+    def __parallel_read_and_place_particles(
+        self, shell, property_names, comm, max_particles_per_read=None, max_concurrent_requests=None
+    ):
+        """
+        Read and place the planned files over multiple MPI ranks.
+
+        The snapshot files are shared between the ranks, never split: each is read by one rank, which places its
+        particles in every tile that uses it. Files are shared so each rank has about the same number of particles to
+        place (FilePlan.nr_placed: each cell's particles once per tile that uses it), see _assign_files_to_ranks.
+
+        :param  shell:                  the shell gathered
+        :type   shell:                  ShellRead
+        :param  property_names:         particle properties to read
+        :type   property_names:         list
+        :param  comm:                   MPI communicator
+        :type   comm:                   mpi4py.MPI.Comm
+        :param  max_particles_per_read: largest number of particles read from a file at once (whole cells). If
+                                        None, all of a file's needed cells at once
+        :type   max_particles_per_read: int
+        :param  max_concurrent_requests: the most read requests in flight at once across the ranks, see
+                                         hdf5stream_reader.RequestCap. If None, no cap
+        :type   max_concurrent_requests: int
+        """
+        rank = comm.Get_rank()
+        assigned = self._assign_files_to_ranks([plan.nr_placed for plan in shell.plans], comm.Get_size())[rank]
+        my_plans = [shell.plans[i] for i in assigned]
 
         self._log(
-            f"{shell.ptype}: reading {len(my_files)} / {nr_files} files, {total_ptype_to_read} particles expected",
+            (
+                f"{shell.ptype}: reading {len(my_plans)} / {len(shell.plans)} files, "
+                f"{sum(plan.nr_particles for plan in my_plans)} particles to read and "
+                f"{sum(plan.nr_placed for plan in my_plans)} to place"
+            ),
             level=1,
             every_rank=True,
         )
 
-        particle_data = self.__read_and_place_particles(shell, my_files, property_names, comm)
+        # check if there is a cap on the most number of requests for remote snapshot data
+        cap = None
+
+        # never apply cap if data is on disk
+        if max_concurrent_requests is not None and self.simulation.remote is not None:
+            cap = hdf5stream_reader.RequestCap(comm, max_concurrent_requests)
+
+        self._request_cap = cap
+        shell.max_requests_in_flight = None
+
+        # try read remote data
+        try:
+            particle_data = self.__read_and_place_plans(
+                shell, [(plan, None) for plan in my_plans], property_names, max_particles_per_read, comm=comm
+            )
+
+        finally:
+            self._request_cap = None
+            if cap is not None:
+                comm.Barrier()  # every rank's requests are done
+                shell.max_requests_in_flight = cap.most_in_flight()
+                cap.free()
+
+        # give updates on the queue for requests to read remote snapshot
+        if cap is not None:
+            self._log(
+                f"{shell.ptype}: {cap.requests} read requests, {cap.wait:.3f} s waiting for one of the "
+                f"{cap.max_requests} request slots",
+                level=2,
+                every_rank=True,
+            )
+            self._log(
+                f"{shell.ptype}: at most {shell.max_requests_in_flight} read requests in flight at once (cap "
+                f"{cap.max_requests})",
+                level=1,
+            )
 
         # Fill space for when rank has no files assigned.
-        self.__fill_missing_particle_data(particle_data, property_names, comm)
+        self.__fill_missing_particle_data(shell, particle_data, property_names, comm)
 
         # compute lightcone redshift expansion factors (1/(redshift+1)) for each particle based on its comoving distance
         self._attach_expansion_factors(particle_data)
 
         return particle_data
 
-    def __fill_missing_particle_data(self, particle_data, property_names, comm):
+    def __fill_missing_particle_data(self, shell, particle_data, property_names, comm):
         """
         Fill in a correct zero-length unyt_array for a rank assigned zero files.
 
-        Use the unit registry and each property's dtype + units from a rank that did read something.
+        Usse each property's dtype + units from a rank that did read something, with the units of the shell's snapshots
+        (every rank has their cell metadata).
 
         Note: SnapshotNumber is always included in particle properties.
 
+        :param  shell:          the shell placed
+        :type   shell:          ShellRead
         :param  particle_data:  the particles this rank placed, filled in place
         :type   particle_data:  dict
         :param  property_names: particle properties read
@@ -2253,14 +2806,8 @@ class SnapshotLightcone:
         :param  comm:           MPI communicator
         :type   comm:           mpi4py.MPI.Comm
         """
-        all_unit_metadata = comm.allgather(self._unit_metadata)
-        if self.unit_registry is None:
-            # for metadata in comm.allgather(self._unit_metadata):
-            for metadata in all_unit_metadata:
-                if metadata is not None:
-                    self._unit_metadata = metadata
-                    self.unit_registry = sw_units.unit_registry_from_metadata(metadata)
-                    break
+        # call unit registry
+        self._set_unit_registry(shell.cell_data[int(shell.plans[0].snap_nr)]["unit_metadata"])
 
         for prop in list(property_names) + ["SnapshotNumber"]:
             arr = particle_data.get(prop)
@@ -2277,114 +2824,6 @@ class SnapshotLightcone:
                         break
                 else:
                     raise RuntimeError(f"no rank read any {prop} particles; cannot determine its dtype/units")
-
-    def __read_particles_from_cells(
-        self, ptype, filename, infile_offset, infile_lengths, property_names, numb_part_infile
-    ):
-        """
-        Read the particles in the selected cells of a snapshot file.
-
-        Returns a dict of unyt arrays per property.
-
-        :param  ptype:              particle type, e.g. "PartType1"
-        :type   ptype:              str
-        :param  filename:           path to the snapshot file
-        :type   filename:           str
-        :param  infile_offset:      offset of each set of adjacent cells in the file, i.e. the first row of each
-                                    (merged) range of cells in the file.
-        :type   infile_offset:      numpy.ndarray
-        :param  infile_lengths:     number of particles in each set of adjacent cells
-        :type   infile_lengths:     numpy.ndarray
-        :param  property_names:     particle properties to read
-        :type   property_names:     list
-        :param  numb_part_infile:   total number of particles to read
-        :type   numb_part_infile:   int
-        """
-        file_particle_data = {}
-
-        with h5py.File(filename, "r") as infile:
-            # set max number of particles that can be read from file
-            numb_all_infile = np.sum(infile["Header"].attrs["NumPart_ThisFile"][:])
-
-            if self.unit_registry is None:
-                self._unit_metadata = sw_units.snapshot_unit_metadata(infile)
-                self.unit_registry = sw_units.unit_registry_from_metadata(self._unit_metadata)
-            for prop in property_names:
-                # Find the dataset for this property
-                if prop not in infile[ptype]:
-                    raise ValueError(f"{prop} not found")
-                else:
-                    infile_dset = infile[ptype][prop]
-                    prop_dtype = np.int64 if prop == "ParticleIDs" else infile_dset.dtype
-                    values = np.empty((numb_part_infile,) + infile_dset.shape[1:], dtype=prop_dtype)
-
-                # track that total added to file matches input total to read
-                num_added = 0
-                offset = 0
-
-                for clen, coff in zip(infile_lengths, infile_offset):
-                    # the starting index for infile data, either at start of file or offset further within the file if
-                    # there are multiple sets of adjacent cells
-                    i1 = max((coff, 0))
-
-                    # final index for infile data, either for all particles within the file if all cells need to be read
-                    # , or to end of where adjacent cells are within file
-                    i2 = min((coff + clen), int(numb_all_infile))
-
-                    num = i2 - i1  # number of particles to be read from the file
-
-                    if num > 0:
-                        values[offset : offset + num] = infile_dset[i1:i2, ...]
-                        offset += num
-                        num_added += num
-
-                assert num_added == numb_part_infile
-                units = sw_units.units_from_attributes(dict(infile_dset.attrs), self.unit_registry)
-                arr = unyt.unyt_array(values, units)
-                if "a*" in str(units) or "*a" in str(units):
-                    arr = sw_units.drop_a_from_comoving_property(arr)
-                file_particle_data[prop] = arr
-
-            del num_added
-
-        return file_particle_data
-
-    def __read_kept_particles(self, ptype, filename, infile_offset, infile_lengths, property_names, kept):
-        """
-        Read properties of only the particles kept, from the merged ranges of cells holding one or more of them.
-
-        Returns a dict of unyt arrays per property, one row per particle kept, in the order of kept.
-
-        :param  ptype:          particle type, e.g. "PartType1"
-        :type   ptype:          str
-        :param  filename:       path of the snapshot file
-        :type   filename:       str
-        :param  infile_offset:  first row of each range of cells in the file
-        :type   infile_offset:  numpy.ndarray
-        :param  infile_lengths: number of rows of each range
-        :type   infile_lengths: numpy.ndarray
-        :param  property_names: particle properties to read
-        :type   property_names: list
-        :param  kept:           the particles kept, as their positions in all the rows of the ranges
-        :type   kept:           numpy.ndarray
-        """
-        offsets = np.asarray(infile_offset, dtype=np.int64)
-        lengths = np.asarray(infile_lengths, dtype=np.int64)
-        nonempty = lengths > 0
-        offsets, lengths = offsets[nonempty], lengths[nonempty]
-        kept = np.asarray(kept, dtype=np.int64)
-
-        # the range each kept particle is in, and its position among the rows of the ranges read
-        starts = np.cumsum(lengths) - lengths
-        range_of = np.searchsorted(starts, kept, side="right") - 1
-        used = np.unique(range_of)
-        used_starts = np.cumsum(lengths[used]) - lengths[used]
-        rows = kept - starts[range_of] + used_starts[np.searchsorted(used, range_of)]
-
-        data = self.__read_particles_from_cells(
-            ptype, filename, offsets[used], lengths[used], property_names, int(np.sum(lengths[used]))
-        )
-        return {prop: values[rows] for prop, values in data.items()}
 
     def __select_particles_in_shell(self, coords, zmin, zmax, method="exact", r_tol=2 * unyt.Mpc):
         """
@@ -2462,55 +2901,109 @@ class SnapshotLightcone:
         # give update to show redistribution has happened.
         self._log(f"redistributed {ntot} particles evenly across {size} ranks", level=1)
 
-    def gather_files(self, current_ptype, shell_z, use_snapshots=None):
+    def gather_files(self, particle_type, lightcone_redshift_range, use_snapshots=None):
         """
         Determine the snapshot files containing the particles needed to populate the lightcone.
 
-        Returns a tuple (number of files found, the list of FileReadSpec entries)
+        Each snapshot file is found and a plan (FilePlan) is created to map each tile the cells in the file fill.
+        The plan is kept in ``last_shell.plans`` and placed by place_file_in_shell or iter_file_pieces, one file at a
+        time. This method is serial only, to place the files on several MPI ranks, share them between the ranks (e.g.
+        by FilePlan.nr_placed)
 
-        :param  current_ptype:  particle type to gather, e.g. "PartType1"
-        :type   current_ptype:  str
-        :param  shell_z:        minimum and maximum redshift of the lightcone shell [z_min, z_max]
-        :type   shell_z:        sequence of two floats
-        :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
-        :type   use_snapshots:  list or numpy.ndarray
+        Returns a tuple (number of files found, a list FilePlan entries).
+
+        :param  particle_type:              particle type to gather, e.g. "PartType1"
+        :type   particle_type:              str
+        :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
+        :type   lightcone_redshift_range:   sequence of two floats
+        :param  use_snapshots:              snapshot numbers to use instead of the ones auto-selected from shell_z
+        :type   use_snapshots:              list or numpy.ndarray
         """
-        shell = self._gather_files_for_ptype(current_ptype, shell_z, use_snapshots)
-        return len(shell.files), shell.files
+        shell = self._gather_files_for_ptype(particle_type, lightcone_redshift_range, use_snapshots)
+        return len(shell.plans), shell.plans
 
-    def place_file_in_shell(self, file_number, current_ptype, property_names):
+    def __file_and_uses(self, file_number, particle_type, tile):
         """
-        Read and place a single file, selected by index, into the beam.
-
-        The file is placed with the observer position of the gather_files call that found it (kept in ``last_shell``),
-        even if the lightcone's has changed since.
-
-        Returns the same per property particle data as place_snapshot_particles_in_shell, but containing
-        only the particles kept in the selected file. An empty dictionary is returned if there are no particles from
-        the file inside the lightcone.
+        Returns the shell gathered, the plan of one of its files, the uses to place (None for all) and the tile as a
+        tuple (or None), checking that gather_files found that particle type and, if given, the tile.
 
         :param  file_number:    index of the files found by gather_files
         :type   file_number:    int
-        :param  current_ptype:  particle type being placed, e.g. "PartType1"
-                                    (must match the ptype passed to gather_files)
-        :type   current_ptype:  str
-        :param  property_names: particle properties to read, e.g. ["ParticleIDs", "Coordinates"]
-        :type   property_names: list
+        :param  particle_type:  particle type being placed, e.g. "PartType1"
+        :type   particle_type:  str
+        :param  tile:           (nx, ny, nz) or (nx, ny, nz, layer), or None for every tile that uses the file
+        :type   tile:           tuple
         """
+        # read data from the last lightcone shell gathered
         shell = self.last_shell
 
         # sanity check files have been gathered and particle types have been found
         if not isinstance(shell, ShellRead):
             raise ValueError("must call gather_files before place_file_in_shell")
-        if current_ptype != shell.ptype:
-            raise ValueError(f"gather_files found the files of {shell.ptype}, not {current_ptype}")
+
+        if particle_type != shell.ptype:
+            raise ValueError(f"gather_files found the files of {shell.ptype}, not {particle_type}")
 
         # get property names and populate lightcone
-        property_names = self._with_required_properties(current_ptype, property_names)
-        particle_data = self.__read_and_place_particles(shell, [shell.files[file_number]], property_names)
+
+        plan = shell.plans[file_number]
+        if tile is None:
+            return shell, plan, None, None
+        tile = tuple(int(i) for i in tile)
+        uses = [use for use in plan.uses if use.tile == tile or use.tile[: len(tile)] == tile]
+
+        if not uses:
+            shell_tiles = sorted({piece.tile for piece in shell.pieces})
+
+            if not any(piece_tile[: len(tile)] == tile for piece_tile in shell_tiles):
+                raise ValueError(f"tile {tile} is not in the shell; its tiles are {shell_tiles}")
+
+        return shell, plan, uses, tile
+
+    def place_file_in_shell(self, file_number, particle_type, property_names, tile=None, max_particles_per_read=None):
+        """
+        Read one snapshot file, selected by index, and place its particles in the lightcone.
+
+        The file is read once: a cell used by several tiles is read once and its particles are placed in each of them.
+        If a tile is specified, only the particles in that tile are read and returned. The file is placed with the
+        observer position given to gather_files.
+
+        Returns the same per property particle data as place_snapshot_particles_in_shell, but containing only the
+        particles kept from the selected file (and tile), with the snapshot, file number and tile stored as metadata
+        (``snapshot_number``, ``file_number``, ``tile``). The output is empty if no particles from the file (or tile)
+        are inside the lightcone.
+
+        :param  file_number:            index of the files found by gather_files
+        :type   file_number:            int
+        :param  particle_type:          particle type being placed, e.g. "PartType1" (must match the ptype's passed to
+                                        gather_files)
+        :type   particle_type:          str
+        :param  property_names:         particle properties to read, e.g. ["ParticleIDs", "Coordinates"]; "TileIndex"
+                                        adds each particle's tile, (nx, ny, nz), or (nx, ny, nz, layer) with the
+                                        "sphere" lock
+        :type   property_names:         list
+        :param  tile:                   the tile to place the file's particles in, (nx, ny, nz) for every layer of it
+                                        with the "sphere" lock, or (nx, ny, nz, layer) for one. If None, every tile
+                                        that uses the file
+        :type   tile:                   tuple
+        :param  max_particles_per_read: largest number of particles read from the file at once (whole cells, so a
+                                        cell with more is read on its own); lowers the peak memory, the particles
+                                        placed are the same. If None, all the file's needed cells at once
+        :type   max_particles_per_read: int
+        """
+        shell, plan, uses, tile = self.__file_and_uses(file_number, particle_type, tile)
 
         # record metadata
         metadata = self.lightcone_metadata(shell.shell_z)
+        metadata.update(snapshot_number=int(plan.snap_nr), file_number=int(plan.file_nr), tile=tile)
+
+        if uses == []:
+            self._log(f"\nfile {file_number} has no particles for tile {tile}\n", level=2)
+            return LightconeOutput({}, metadata)
+
+        # get property names and populate lightcone
+        property_names = self._with_required_properties(particle_type, property_names)
+        particle_data = self.__read_and_place_plans(shell, [(plan, uses)], property_names, max_particles_per_read)
 
         if particle_data["Coordinates"] is None:
             self._log(f"\nNo particles kept from file {file_number}\n", level=2)
@@ -2521,6 +3014,55 @@ class SnapshotLightcone:
 
         return LightconeOutput(particle_data, metadata)  # return lightcone with metadata.
 
+    def iter_file_pieces(self, file_number, particle_type, property_names, tile=None, max_particles_per_read=None):
+        """
+        Read one snapshot file, selected by index, and yield its particles placed in the lightcone, one piece at a time.
+
+        A piece is the particles of one batch of cells found in a file. Each file is read once, one batch of
+        max_particles_per_read particles at a time. The particles read in each batch are copied for each time they
+        appear in the lightcone and placed straight away, so they can be written out and dropped before the next read
+        is made. Together, the pieces of a file are the particles of place_file_in_shell with the same arguments.
+
+        Yields a LightconeOutput per (batch, tile) keeping particles, with the snapshot, file number, tile and batch
+        number in its metadata (``snapshot_number``, ``file_number``, ``tile``, ``batch``).
+
+        :param  file_number:            index of the files found by gather_files
+        :type   file_number:            int
+        :param  particle_type:          particle type being placed (must match the ptype passed to gather_files)
+        :type   particle_type:          str
+        :param  property_names:         particle properties to read, e.g. ["ParticleIDs", "Coordinates"]; "TileIndex"
+                                        adds each particle's tile
+        :type   property_names:         list
+        :param  tile:                   the tile to place the file's particles in, as for place_file_in_shell. If
+                                        None, every tile that uses the file
+        :type   tile:                   tuple
+        :param  max_particles_per_read: largest number of particles read from the file at once (whole cells). If
+                                        None, all the file's needed cells at once (one batch)
+        :type   max_particles_per_read: int
+        """
+        shell, plan, uses, tile = self.__file_and_uses(file_number, particle_type, tile)
+        if uses == []:
+            return
+
+        property_names = self._with_required_properties(particle_type, property_names)
+        metadata = self.lightcone_metadata(shell.shell_z)
+
+        for batch_number, use, data in self.__iter_file_pieces(
+            shell, plan, property_names, uses, max_particles_per_read
+        ):
+            if len(data["SnapshotNumber"]) == 0:
+                continue
+
+            self._attach_expansion_factors(data)
+
+            piece_metadata = dict(
+                metadata, snapshot_number=int(plan.snap_nr), file_number=int(plan.file_nr), tile=use.tile
+            )
+
+            piece_metadata["batch"] = int(batch_number)
+
+            yield LightconeOutput(data, piece_metadata)
+
     def place_snapshot_particles_in_shell(
         self,
         lightcone_redshift_range,
@@ -2529,11 +3071,22 @@ class SnapshotLightcone:
         use_snapshots=None,
         comm=None,
         redistribute_particles=False,
+        max_particles_per_read=None,
+        max_concurrent_requests=2,
     ):
         """
         Read and place every particle of the given type(s) into a lightcone shell.
 
-        Returns a dict of particle data per particle type.
+        For each particle type, the gather step plans each snapshot file once (a FilePlan, kept in
+        ``last_shell.plans``), with every tile that uses it. Each file is then opened once and the particles in the
+        required cells are read in one request before being placed in every tile that uses them.
+
+        With comm, whole files are passed out to the MPI ranks so each has about the same number of particles to place
+        (FilePlan.nr_placed), and each rank returns the particles it placed.
+
+        Returns a :class:`LightconeOutput` ``{particle type: particle data}``, with the lightcone's metadata.
+        ``Coordinates``, ``ParticleIDs``, ``ExpansionFactors`` and ``SnapshotNumber`` are always in the particle data
+        (and ``SmoothingLengths`` for every type but ``PartType1``).
 
         :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
         :type   lightcone_redshift_range:   sequence of two floats
@@ -2547,6 +3100,13 @@ class SnapshotLightcone:
         :type   comm:                       mpi4py.MPI.Comm
         :param  redistribute_particles:     If True, redistribute the particles evenly across the MPI ranks
         :type   redistribute_particles:     bool
+        :param  max_particles_per_read:     largest number of particles read from a snapshot file at once (whole
+                                            cells). This can lower the peak memory of reading  particle data. If None,
+                                            all of a file's needed cells at once. Serial only for now
+        :type   max_particles_per_read:     int
+        :param  max_concurrent_requests:    with comm, the most read requests of remote data at once across the ranks.
+                                            Serial calls or accessing data on disk is never capped
+        :type   max_concurrent_requests:    int, str or None
         """
         if property_names is None:
             raise TypeError('place_snapshot_particles_in_shell needs property_names, e.g. ["Coordinates"]')
@@ -2558,7 +3118,6 @@ class SnapshotLightcone:
             if comm is not None:
                 self._log(f"\nreading snapshot files in parallel on {comm.Get_size()} MPI ranks\n", level=1)
 
-            cell_data = {}  # the cell metadata of this call's snapshots, shared by its particle types
             combined_dset = {}
 
             # iterate through particle types,
@@ -2576,35 +3135,19 @@ class SnapshotLightcone:
                     property_names=property_names,
                     shell_z=lightcone_redshift_range,
                     use_snapshots=use_snapshots,
-                    cell_data=cell_data,
                     comm=comm,
                     redistribute=redistribute_particles,
+                    max_particles_per_read=max_particles_per_read,
+                    max_concurrent_requests=max_concurrent_requests,
                 )
 
             # record the settings that made the lightcone as metadata
             metadata = self.lightcone_metadata(lightcone_redshift_range)
 
-            # free the cell metadata of this call's snapshots
-            cell_data.clear()
-
         # Return the lightcone and its metadata
         return LightconeOutput(
             {ptype: LightconeOutput(data, metadata) for ptype, data in combined_dset.items()}, metadata
         )
-
-    def __cell_data_for_snapshot(self, snap_nr):
-        """
-        Cache cell data.
-
-        Shared cache lookup used by Snapshot2Lightcone and Lightcone2Snapshot.
-        Same cache as __reset_cell_read_state, therefore repeated calls reuse it.
-
-        :param  snap_nr:    snapshot number
-        :type   snap_nr:    int
-        """
-        if snap_nr not in self._cell_data_cache:
-            self._cell_data_cache[snap_nr] = self.__get_cell_data(snap_nr)
-        return self._cell_data_cache[snap_nr]
 
     def Snapshot2Lightcone(self, snapshot_number, coords, tile):
         """
@@ -2628,9 +3171,8 @@ class SnapshotLightcone:
         if coords.ndim != 2 or coords.shape[1] != 3:
             raise ValueError("coords must be a vector with shape (N, 3)")
 
-        # the cell metadata of the last shell gathered (e.g. after gather_files), otherwise read without keeping it
-        cached = {} if self.last_shell is None else self.last_shell.cell_data
-        cell_data = cached.get(int(snapshot_number))
+        # the cell metadata kept (the snapshots of the last shell gathered), otherwise read without keeping it
+        cell_data = self._cell_cache.get(int(snapshot_number))
 
         if cell_data is None:
             cell_data = self.__get_cell_data(snapshot_number)
@@ -2663,12 +3205,14 @@ class SnapshotLightcone:
         )
         return oriented + self.get_snapshot_reposition_coords(tile, cell_data["snap_boxsize"].to_value("Mpc"))
 
-    def gather_halo_catalogues(self, halo_format, shell_z, use_snapshots=None, snapshot_number=None):
+    def gather_halo_catalogues(
+        self, lightcone_redshift_range, use_snapshots=None, snapshot_number=None, halo_format=None
+    ):
         """
         Halo counterpart of gather_files.
 
-        For every snapshot that populates the shell, find the tiles and snapshot it's moved into, as done for the
-        particles.
+        Find the tiles in the lightcone that are populated by every snapshot within the lightcones redshift range, as
+        done for the particles.
         Note that SOAP catalogues are not sorted by cells like the snapshot particle data, so unlike for particles no
         cells are selected and every halo of a catalogue is tested.
         Each SOAP catalogue to read is recorded with its tile and the tile's redshift range as a HaloCatalogueSpec.
@@ -2676,27 +3220,32 @@ class SnapshotLightcone:
 
         Returns the list of HaloCatalogueSpec.
 
-        :param  halo_format:        format string of the SOAP catalogue filenames, using {snap_nr}
-        :type   halo_format:        str
-        :param  shell_z:            minimum and maximum redshift of the lightcone shell [z_min, z_max]
-        :type   shell_z:            sequence of two floats
-        :param  use_snapshots:      snapshot numbers to use instead of the ones auto-selected from shell_z
-        :type   use_snapshots:      list or numpy.ndarray
-        :param  snapshot_number:    the snapshot to read the box and cell metadata from. If None, the lowest redshift
-                                        snapshot used
-        :type   snapshot_number:    int
+        :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
+        :type   lightcone_redshift_range:   sequence of two floats
+        :param  use_snapshots:              snapshot numbers to use instead of the ones auto-selected from
+                                            lightcone_redshift_range
+        :type   use_snapshots:              list or numpy.ndarray
+        :param  snapshot_number:            the snapshot to read the box and cell metadata from. If None, the lowest
+                                            redshift snapshot used
+        :type   snapshot_number:            int
+        :param  halo_format:                format string of the SOAP catalogue filenames, using {snap_nr}. On disk, or
+                                            relative to the simulation's remote directory. If None, use the Simulations
+                                            set path (Simulation.soap_format)
+        :type   halo_format:                str
         """
         self.last_shell = None  # None until a shell is gathered
+        halo_format = self.simulation.soap_format if halo_format is None else halo_format
+        self.__require_files(halo_format)  # check SOAP catalogues can be found
 
         # the snapshots, chosen as for the particles, with missing SOAP catalogues filled by the available ones
-        snapshots, z_ranges = self._shell_snapshots(shell_z, use_snapshots, halo_format=halo_format)
+        snapshots, z_ranges = self._shell_snapshots(lightcone_redshift_range, use_snapshots, halo_format=halo_format)
 
         # read in halo shell, with settings
         shell = HaloShellRead(
             settings=HaloShellRead.settings_of(
-                halo_format, shell_z, self.ang_radius_deg, use_snapshots, snapshot_number
+                halo_format, lightcone_redshift_range, self.ang_radius_deg, use_snapshots, snapshot_number
             ),
-            shell_z=tuple(shell_z),
+            shell_z=tuple(lightcone_redshift_range),
             snapshots=snapshots,
             z_ranges=z_ranges,
         )
@@ -2726,6 +3275,7 @@ class SnapshotLightcone:
             shell.cell_snapshot = int(snapshot_number)
 
         # get cell metadata
+        shell.cell_data = self._keep_cell_data(list(shell.snapshots) + [shell.cell_snapshot])
         cell_data = self._cell_data(shell.cell_snapshot, shell.cell_data)
 
         # the observer's cell corner, from the cell grid
@@ -2750,7 +3300,7 @@ class SnapshotLightcone:
                 shell.catalogues.append(HaloCatalogueSpec(snap_nr, tile, filename, (z_sub_min, z_sub_max)))
 
             if tiles and snap_nr not in shell.catalogue_lengths:
-                shell.catalogue_lengths[snap_nr] = soap_catalogue_length(filename)
+                shell.catalogue_lengths[snap_nr] = soap_catalogue_length(filename, remote=self.simulation.remote)
 
         # update last lightcone shell used
         self.last_shell = self._halo_shell = shell
@@ -2827,13 +3377,20 @@ class SnapshotLightcone:
             specs_of_snapshot.setdefault(spec.snap_nr, []).append((spec_nr, spec))
 
         kept = {spec_nr: [] for spec_nr in range(len(shell.catalogues))}
-        cell_data = shell.cell_data[shell.cell_snapshot]
+        cell_data = self._cell_data(shell.cell_snapshot, shell.cell_data)  # read again if a later call dropped it
         nr_read = 0
 
         # iterate through chunks of the snapshot
         for chunk in chunks:
             specs = specs_of_snapshot[chunk.snap_nr]
-            halo_data = read_soap_rows(specs[0][1].filename, to_read, chunk.start, chunk.stop)
+            halo_data = read_soap_rows(
+                specs[0][1].filename,
+                to_read,
+                chunk.start,
+                chunk.stop,
+                remote=self.simulation.remote,
+                cap=self._request_cap,
+            )
             halo_index = halo_data["InputHalos/HaloCatalogueIndex"].value.astype(int)
 
             if halo_index.shape[0] == 0:
@@ -2897,13 +3454,14 @@ class SnapshotLightcone:
 
     def place_halos_in_shell(
         self,
-        halo_format,
         lightcone_redshift_range,
         use_snapshots=None,
         soap_chunk_size=None,
         comm=None,
         redistribute_halos=False,
         snapshot_number=None,
+        max_concurrent_requests=2,
+        halo_format=None,
     ):
         """
         Halo counterpart of place_snapshot_particles_in_shell.
@@ -2935,14 +3493,12 @@ class SnapshotLightcone:
 
         Returns a :class:`LightconeOutput` of these properties, one row per halo placed.
 
-        :param  halo_format:                format string for SOAP catalogue filenames (using {snap_nr})
-        :type   halo_format:                str
         :param  lightcone_redshift_range:   minimum and maximum redshift of the shell to populate [z_min, z_max]
         :type   lightcone_redshift_range:   sequence of two floats
         :param  use_snapshots:              snapshot numbers to use, as in gather_files, bypassing the usual
                                             redshift-range lookup
         :type   use_snapshots:              list or numpy.ndarray
-        :param  soap_chunk_size:            number of rows of a SOAP catalogue read at a time. If None, see above
+        :param  soap_chunk_size:            number of rows of a SOAP catalogue read at a time.
         :type   soap_chunk_size:            int
         :param  comm:                       MPI communicator. If None, MPI.COMM_WORLD when more than one rank is
                                             running, otherwise serial
@@ -2951,7 +3507,18 @@ class SnapshotLightcone:
         :type   redistribute_halos:         bool
         :param  snapshot_number:            snapshot to read the box and cell metadata from, see gather_halo_catalogues
         :type   snapshot_number:            int
+        :param  max_concurrent_requests:    with MPI, the most read requests allowed at once across the ranks.
+                                            The default is 2 for a remote simulation and doesn't apply to data stored on
+                                            on disk or when operating in serial.
+        :type   max_concurrent_requests:    int or None
+        :param  halo_format:                format string for SOAP catalogue filenames (using {snap_nr}). The path must
+                                            point to files that are either on disk, or be relative to the simulation's
+                                            remote directory. If None, the Simulation defined path is used
+                                            (Simulation.soap_format)
+        :type   halo_format:                str
         """
+        halo_format = self.simulation.soap_format if halo_format is None else halo_format
+
         if comm is None and MPI.COMM_WORLD.Get_size() > 1:
             comm = MPI.COMM_WORLD
 
@@ -2964,6 +3531,7 @@ class SnapshotLightcone:
                 comm,
                 redistribute_halos,
                 snapshot_number,
+                max_concurrent_requests,
             )
 
     def __place_halos(
@@ -2975,6 +3543,7 @@ class SnapshotLightcone:
         comm,
         redistribute_halos,
         snapshot_number,
+        max_concurrent_requests=None,
     ):
         """
         Returns a LightconeOutput, as the inner layer of place_halos_in_shell.
@@ -2993,16 +3562,18 @@ class SnapshotLightcone:
         :type   redistribute_halos:         bool
         :param  snapshot_number:            see place_halos_in_shell
         :type   snapshot_number:            int
+        :param  max_concurrent_requests:    with comm, the most read requests in flight at once. If None, no cap
+        :type   max_concurrent_requests:    int or None
         """
         settings = HaloShellRead.settings_of(
             halo_format, lightcone_redshift_range, self.ang_radius_deg, use_snapshots, snapshot_number
         )
         if self._halo_shell is None or self._halo_shell.settings != settings:
             self.gather_halo_catalogues(
-                halo_format,
                 lightcone_redshift_range,
                 use_snapshots=use_snapshots,
                 snapshot_number=snapshot_number,
+                halo_format=halo_format,
             )
 
         shell = self.last_shell = self._halo_shell
@@ -3024,7 +3595,29 @@ class SnapshotLightcone:
             )
             self._log(update_str, level=1, every_rank=True)
 
-        centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(shell, my_chunks)
+        cap = None
+
+        if comm is not None and max_concurrent_requests is not None and self.simulation.remote is not None:
+            cap = hdf5stream_reader.RequestCap(comm, max_concurrent_requests)  # never capped on disk
+
+        self._request_cap = cap
+        shell.max_requests_in_flight = None  # the shell may be reused
+
+        try:
+            centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(shell, my_chunks)
+        finally:
+            self._request_cap = None
+            if cap is not None:
+                comm.Barrier()  # every rank's requests are done
+                shell.max_requests_in_flight = cap.most_in_flight()
+                cap.free()
+
+        if cap is not None:
+            self._log(
+                f"Haloes: at most {shell.max_requests_in_flight} read requests at once (cap "
+                f"{cap.max_requests}). This rank waited {cap.wait:.3f} s for available slots to remote read the data",
+                level=1,
+            )
 
         nr_kept = len(snap_nr)
         if comm is not None:

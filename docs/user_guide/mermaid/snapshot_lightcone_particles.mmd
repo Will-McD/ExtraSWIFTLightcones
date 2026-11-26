@@ -1,17 +1,17 @@
 %%{init: {"htmlLabels": false, "themeVariables": {"fontFamily": "arial, helvetica, sans-serif", "fontSize": "14px"}, "flowchart": {"htmlLabels": false, "wrappingWidth": 400, "padding": 30, "nodeSpacing": 40, "rankSpacing": 45}}}%%
 flowchart TD
-    L0("SnapshotBeam(simulation,<br/>beam_vector, ang_radius_deg)<br/>or SnapshotAllSky(simulation)") --> L1
-    L1["the beam's direction and<br/>angular radius are set together:<br/>ang_radius_deg checked once,<br/>by _validate_ang_radius_deg<br/>(TypeError if missing,<br/>ValueError above the maximum)"] --> A    
+    L0("SnapshotBeam(simulation,<br/>beam_vector, ang_radius_deg)<br/>or SnapshotAllSky(simulation)<br/>(simulation on disk, or remote)") --> L1
+    L1["the simulation's directory must<br/>be there (FileNotFoundError);<br/>which snapshots and SOAP<br/>catalogues exist is noted"] --> A
     L1 --> A2
-    A("place_snapshot_particles_in_shell(<br/>z_range, property_names,<br/>particle_types, use_snapshots,<br/>comm, redistribute_particles)") --> C
-    A2("gather_files(ptype, z_range,<br/>use_snapshots)<br/>serial only") --> E0
-    C["property_names needed<br/>(TypeError if None);<br/>particle_types: one or a list.<br/>Serial if comm is None, otherwise<br/>MPI: comm is passed to the read<br/>step, not kept, and only its<br/>rank 0 prints (_mpi_call)"] --> C2
+    A("place_snapshot_particles_in_shell(<br/>lightcone_redshift_range,<br/>property_names, particle_types,<br/>use_snapshots, comm,<br/>redistribute_particles,<br/>max_particles_per_read,<br/>max_concurrent_requests)") --> C
+    A2("gather_files(particle_type,<br/>lightcone_redshift_range,<br/>use_snapshots)<br/>serial only") --> E0
+    C["property_names needed<br/>(TypeError if None);<br/>particle_types: one or a list.<br/>Serial if comm is None, otherwise<br/>MPI: comm is passed to the read<br/>step, not kept, and only its<br/>rank 0 prints (_mpi_call)"] --> D
     C2["one cell metadata cache<br/>for the call, shared by<br/>its particle types"] --> D
     
     D{{"for each<br/>particle type"}} --> E0
 
     subgraph SNAPS ["Choose the snapshots: _shell_snapshots, the same for haloes"]
-        E0{"use_<br/>snapshots?"} -- no --> E1["output redshifts from the<br/>simulation's output_list.txt,<br/>and which snapshots are on disk<br/>(file 0, looked for once);<br/>an edge within SNAPSHOT_<br/>RANGE_TOL counts as touching"]
+        E0{"use_<br/>snapshots?"} -- no --> E1["output redshifts from the<br/>simulation's output_list.txt,<br/>and which snapshots exist<br/>(file 0, noted when the<br/>lightcone was made)"]
         E1 --> E2{"gap above the<br/>max spacing?<br/>(0.1, or SWIFTLET_MAX_<br/>SNAPSHOT_SPACING)"}
         E2 -- "yes: snapshots too<br/>far apart" --> EX["ValueError,<br/>before anything is read"]
         E2 -- no --> E3{"any<br/>missing?"}
@@ -26,41 +26,38 @@ flowchart TD
 
     SR --> F
 
-    subgraph GATHER ["Stage 1, gather: fills the ShellRead"]
+    subgraph GATHER ["Step 1, gather: fills the ShellRead (no particle data read)"]
         F{{"for each<br/>snapshot"}} --> G
-        G["clip its redshift range to the<br/>shell; its cell metadata from<br/>the call's cache (file 0,<br/>read once per call)"] --> G2{"particle type<br/>in the snapshot?"}
-        G2 -- "no, e.g. no stars<br/>at high redshift" --> G3["its tiles are found and<br/>recorded, but no files<br/>(a message at verbose=2)"] --> H
+        G["clip its redshift range to the<br/>shell; its cell metadata from the<br/>lightcone's cache, or read from<br/>file 0 (with MPI: on rank 0,<br/>sent to the others) and kept"] --> G2{"particle type<br/>in the snapshot?"}
+        G2 -- "no, e.g. no stars<br/>at high redshift" --> G3["no files from it<br/>(a message at verbose=2)"] --> H
         G2 -- yes --> H
-        H["find the box tiles<br/>(nx, ny, nz) the shell, or<br/>the beam of the lightcone's<br/>ang_radius_deg, crosses"] --> H2
-        H2{"sphere<br/>lock?"} -- yes --> H3["split the tiles<br/>into spherical layers,<br/>each with its own<br/>redshift range"] --> I
-        H2 -- no --> I
-        I{{"for each<br/>tile"}} --> J
+        H["find the box tiles<br/>(nx, ny, nz) the shell, or<br/>the beam, crosses; with the<br/>sphere lock, split them into<br/>layers, each with its own<br/>redshift range"] --> I
+        I{{"for each tile<br/>(or layer)"}} --> J
         J["tile orientation from a hash<br/>of (lattice position or layer,<br/>seed): rotation, reflection,<br/>periodic cell shift"] --> K
-        K["transform the cell centres<br/>and move them to<br/>the tile's position"] --> L
-        L["keep the cells inside<br/>the tile's part of the shell<br/>(buffer of one cell length)"] --> M
-        M["record the piece (snapshot,<br/>tile, redshift range) and its<br/>cells, and a FileReadSpec<br/>(snapshot, tile, file, offsets,<br/>lengths) for each file whose<br/>cells have particles"]
+        K["transform the cell centres,<br/>move them to the tile's position,<br/>keep the cells inside the tile's<br/>part of the shell (buffer of<br/>one cell length)"]
     end
 
+    K --> M["plan each file once: a FilePlan<br/>(snapshot, file, the offsets and<br/>lengths of its needed cells) with a<br/>TileUse for every tile that uses it"]
     M --> M2{"the type in<br/>any snapshot?"}
     M2 -- "no, e.g. a typo" --> MX["ValueError naming<br/>the types there are"]
-    M2 -- yes --> M3["kept as last_shell"] --> N{"any<br/>particles?"}
     N -- no --> Z0["empty dict for<br/>this particle type<br/>(gather_files: (0, []))"]
-    N -- "yes, from<br/>gather_files" --> FB["return (number, FileReadSpecs),<br/>then place_file_in_shell(i,<br/>ptype, property_names) places<br/>last_shell.files[i]: ValueError<br/>if ptype isn't last_shell's"]
+    N -- "yes, from<br/>gather_files" --> FB["return (number, FilePlans);<br/>then place_file_in_shell(i, ...,<br/>tile, max_particles_per_read)<br/>or iter_file_pieces(i, ...)<br/>places last_shell.plans[i]"]
     N -- "yes, whole<br/>shell" --> O{"comm<br/>given?"}
 
-    subgraph READ ["Stage 2, read and place"]
-        O -- "no (serial)" --> P["all the shell's<br/>FileReadSpecs<br/>on one process"]
-        O -- "yes (MPI)" --> P2["a block of FileReadSpecs<br/>on each rank<br/>(phdf5.assign_files)"]
+    subgraph READ ["Step 2, read and place"]
+        O -- "no (serial)" --> P["every FilePlan<br/>on one process"]
+        O -- "yes (MPI)" --> P2["the files shared whole<br/>between the ranks, by their<br/>particles to place (nr_placed);<br/>remote: a cap of max_concurrent_<br/>requests in flight (2)"]
         P --> Q
         P2 --> Q
-        Q{{"for each<br/>FileReadSpec"}} --> R
-        R["read the Coordinates of<br/>its cells (merged ranges),<br/>apply the tile transform"] --> T
-        T["keep the particles exactly<br/>inside the tile's part<br/>of the shell"] --> T2
-        T2["read ParticleIDs,<br/>SmoothingLengths (not DM) and<br/>property_names only for the<br/>ranges keeping a particle;<br/>rotate Velocities, if read, of<br/>the kept particles (turns and<br/>reflections only); add<br/>SnapshotNumber"]
+        Q{{"for each file,<br/>opened once"}} --> R
+        R["read the Coordinates of its<br/>needed cells: all at once, or in<br/>batches of max_particles_per_read;<br/>one read (one request remotely)<br/>per dataset per batch"] --> S
+        S{{"for each tile<br/>using the file"}} --> T
+        T["apply the tile's transform to<br/>its cells, keep the particles<br/>exactly inside its part of<br/>the shell"] --> T2
+        T2["read ParticleIDs,<br/>SmoothingLengths (not DM) and<br/>property_names only for the<br/>ranges keeping a particle;<br/>rotate Velocities, if read<br/>(turns and reflections only);<br/>add SnapshotNumber (and<br/>TileIndex, if asked for)"]
     end
 
     FB --> Q
-    T2 --> U["concatenate the kept particles<br/>(MPI: totals added over the<br/>ranks for the message, empty<br/>arrays on ranks without files)"]
+    T2 --> U["join the kept particles<br/>(MPI: totals added over the<br/>ranks for the message, empty<br/>arrays on ranks without files)"]
     U --> V["attach ExpansionFactors<br/>from comoving distance"]
     V --> W{"rebalance<br/>ranks?"}
     W -- "yes: redistribute_<br/>particles (MPI)" --> W2["repartition the particles<br/>evenly between the ranks"] --> X
@@ -68,15 +65,15 @@ flowchart TD
     Z0 --> X
     X["particle data<br/>for this type"] --> D
 
-    D -- "all types<br/>done" --> Y["lightcone_metadata(z_range):<br/>the settings that made it,<br/>with the lightcone's<br/>beam_vector and ang_radius_deg"]
-    Y --> Y2["empty the call's cell<br/>metadata cache (last_shell<br/>keeps its pieces and files)"]
+    D -- "all types<br/>done" --> Y["lightcone_metadata(<br/>lightcone_redshift_range):<br/>the settings that made it"]
+    Y --> Z("return<br/>LightconeOutput<br/>{particle type: data}<br/>with its .metadata")
     Y2 --> Z("return<br/>LightconeOutput<br/>{ptype: data}<br/>with its .metadata")
 
     classDef loop fill:#F1EFE8,stroke:#333;
     classDef out fill:#d6eeee,stroke:darkcyan;
     classDef err fill:#f6dcdc,stroke:#a33;
     classDef record fill:#e8e4f4,stroke:#5b4a99;
-    class D,F,I,Q loop;
+    class D,F,I,Q,S loop;
     class A,A2,Z,FB,L0 out;
     class EX,MX err;
     class SR,M3 record;

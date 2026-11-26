@@ -177,7 +177,7 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, cell_data, tile_cells=No
 
         # get lightcone coords from last run
         r = np.linalg.norm(coords, axis=1)
-        r_in, r_out = lightcone.cosmo.comoving_distance(list(record.z_updated)).to_value("Mpc")
+        r_in, r_out = lightcone.cosmo.comoving_distance(list(record.z_range)).to_value("Mpc")
 
         # make mask to keep cells close to the lightcones footprint
         keep = (r >= r_in - half_diagonal) & (r <= r_out + half_diagonal)
@@ -217,7 +217,7 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, cell_data, tile_cells=No
 
 def find_close_cell_repeats(
     lightcone,
-    redshift_range,
+    lightcone_redshift_range,
     angle_deg=1.0,
     max_los_separation=None,
     max_separation=None,
@@ -242,8 +242,8 @@ def find_close_cell_repeats(
 
     :param  lightcone:                  the lightcone (SnapshotAllSky or SnapshotBeam), without an MPI communicator
     :type   lightcone:                  SnapshotLightcone
-    :param  redshift_range:             minimum and maximum redshift of the shell [z_min, z_max]
-    :type   redshift_range:             tuple
+    :param  lightcone_redshift_range:   minimum and maximum redshift of the shell [z_min, z_max]
+    :type   lightcone_redshift_range:   tuple
     :param  angle_deg:                  two copies of the same cell within this angle [deg] on the sky are considered to
                                         be in the same line of sight.
     :type   angle_deg:                  float
@@ -280,7 +280,7 @@ def find_close_cell_repeats(
     from .threads import thread_limit
 
     # find the pieces of the shell, the cells of each piece that overlap it, and the cell metadata of its snapshots
-    lightcone.gather_files(ptype, redshift_range)
+    lightcone.gather_files(ptype, lightcone_redshift_range)
     shell = lightcone.last_shell
     tile_cells, cell_data = shell.tile_cells, shell.cell_data
 
@@ -547,7 +547,7 @@ def find_close_cell_repeats(
     )
 
     if output_file is not None:
-        write_close_repeats(output_file, report, lightcone, redshift_range, lightcone.ang_radius_deg)
+        write_close_repeats(output_file, report, lightcone, lightcone_redshift_range, lightcone.ang_radius_deg)
 
     if warn and (nr_touching > 0 or nr_line_of_sight > 0):
         warnings.warn(
@@ -559,7 +559,7 @@ def find_close_cell_repeats(
     return report
 
 
-def write_close_repeats(filename, report, lightcone, redshift_range, ang_radius_deg=None):
+def write_close_repeats(filename, report, lightcone, lightcone_redshift_range, ang_radius_deg=None):
     """
     Write a report on the number of repeated or clashing cell pairs (CloseRepeatReport) to a HDF5 file.
 
@@ -570,16 +570,16 @@ def write_close_repeats(filename, report, lightcone, redshift_range, ang_radius_
     -   The file's attributes store the counts, the settings of the check, and the lightcone's metadata
         (simulation, orientation seed, lock and table).
 
-    :param  filename:       path of the HDF5 file
-    :type   filename:       str
-    :param  report:         the report from find_close_cell_repeats
-    :type   report:         CloseRepeatReport
-    :param  lightcone:      the lightcone checked
-    :type   lightcone:      SnapshotLightcone
-    :param  redshift_range: minimum and maximum redshift of the shell
-    :type   redshift_range: tuple
-    :param  ang_radius_deg: angular radius [deg] of the beam, None for all-sky
-    :type   ang_radius_deg: float
+    :param  filename:                   path of the HDF5 file
+    :type   filename:                   str
+    :param  report:                     the report from find_close_cell_repeats
+    :type   report:                     CloseRepeatReport
+    :param  lightcone:                  the lightcone checked
+    :type   lightcone:                  SnapshotLightcone
+    :param  lightcone_redshift_range:   minimum and maximum redshift of the shell
+    :type   lightcone_redshift_range:   tuple
+    :param  ang_radius_deg:             angular radius [deg] of the beam, None for all-sky
+    :type   ang_radius_deg:             float
     """
     import h5py
     from .snapshot_lightcone import write_lightcone_metadata
@@ -626,4 +626,4 @@ def write_close_repeats(filename, report, lightcone, redshift_range, ang_radius_
 
         f.attrs["max_snapshot_difference"] = max_diff_attr
 
-        write_lightcone_metadata(f.create_group("lightcone"), lightcone.lightcone_metadata(redshift_range))
+        write_lightcone_metadata(f.create_group("lightcone"), lightcone.lightcone_metadata(lightcone_redshift_range))

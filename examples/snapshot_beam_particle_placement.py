@@ -829,8 +829,7 @@ if __name__ == "__main__":
                 if not particle_data:  # no particles from this file fall in the beam
                     continue
                 # keep only particles that were read
-                read = particle_data["ParticleIDs"].value >= 0
-                chunk_coords.append(particle_data["Coordinates"][read, :].to_value("Mpc"))
+                chunk_coords.append(particle_data["Coordinates"].to_value("Mpc"))
 
             if len(chunk_coords) > 0:
                 beam_coords.append(np.concatenate(chunk_coords))

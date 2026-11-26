@@ -1,12 +1,12 @@
 #!/bin/env python
-"""Read SOAP halo catalogues with h5py."""
+"""Read SOAP halo catalogues , on disk or remotely with hdfstream."""
 
 import builtins
 from collections.abc import Iterator
-import h5py
 import numpy as np
 import unyt
 import virgo.formats.swift as virgo_swift
+from .hdf5stream_reader import open_file, read_slices
 
 
 # FORCE A PATCH FOR VIRGODC WITH NUMPY>2.4
@@ -37,7 +37,7 @@ def _soap_datasets(infile, property_names):
 
     Returns (unit registry, {name: dataset}, {name: units}, number of rows).
 
-    :param  infile:         open SOAP catalogue
+    :param  infile:         open SOAP catalogue, on disk or remote
     :type   infile:         h5py.File
     :param  property_names: names of the datasets, e.g. "InputHalos/HaloCentre"
     :type   property_names: list of str
@@ -49,7 +49,8 @@ def _soap_datasets(infile, property_names):
     }
     nr_rows = {dataset.shape[0] for dataset in datasets.values()}
     if len(nr_rows) != 1:
-        raise ValueError(f"{infile.filename}: {property_names} have different numbers of rows")
+        raise ValueError(f"{getattr(infile, 'filename', infile)}: {property_names} have different numbers of rows")
+
     return registry, datasets, units, nr_rows.pop()
 
 
@@ -71,7 +72,7 @@ def comoving(arr):
     return unyt.unyt_array(arr.value, apply_units)
 
 
-def soap_catalogue_length(filename, property_name="InputHalos/HaloCatalogueIndex"):
+def soap_catalogue_length(filename, property_name="InputHalos/HaloCatalogueIndex", remote=None):
     """
     Returns the length of catalogue.
 
@@ -79,12 +80,19 @@ def soap_catalogue_length(filename, property_name="InputHalos/HaloCatalogueIndex
     :type   filename:       str
     :param  property_name:  property name to read from a SOAP catalogue
     :type   property_name:  str
+    :param  remote:         the remote directory the catalogue is in. If None, on disk
+    :type   remote:         hdfstream.RemoteDirectory
     """
-    with h5py.File(filename, "r") as infile:
+    with open_file(filename, remote) as infile:
         return infile[property_name].shape[0]
 
 
-def read_soap_rows(filename, property_names, start=0, stop=None):
+def _rows(dataset, start, stop, cap=None):
+    """Returns rows [start, stop) of a dataset, with one read (see hdf5stream_reader.read_slices)."""
+    return read_slices(dataset, [int(start)], [max(int(stop) - int(start), 0)], cap=cap)
+
+
+def read_soap_rows(filename, property_names, start=0, stop=None, remote=None, cap=None):
     """
     Returns rows [start, stop) of properties of a SOAP catalogue.
 
@@ -98,17 +106,21 @@ def read_soap_rows(filename, property_names, start=0, stop=None):
     :type   start:          int
     :param  stop:           row after the last one to read. If None, the end of the catalogue
     :type   stop:           int
+    :param  remote:         the remote directory the catalogue is in. If None, on disk
+    :type   remote:         hdfstream.RemoteDirectory
+    :param  cap:            held for each read, see hdf5stream_reader.RequestCap. If None, no cap
+    :type   cap:            swiftlet.hdf5stream_reader.RequestCap
     """
-    with h5py.File(filename, "r") as infile:
+    with open_file(filename, remote) as infile:
         registry, datasets, units, nr_rows = _soap_datasets(infile, property_names)
         stop = nr_rows if stop is None else min(int(stop), nr_rows)
         return {
-            name: unyt.unyt_array(dataset[int(start) : stop], units=units[name], registry=registry)
+            name: unyt.unyt_array(_rows(dataset, start, stop, cap), units=units[name], registry=registry)
             for name, dataset in datasets.items()
         }
 
 
-def read_soap_in_chunks(filename, property_names, chunk_size) -> Iterator[tuple]:
+def read_soap_in_chunks(filename, property_names, chunk_size, remote=None) -> Iterator[tuple]:
     """
     Read properties of a SOAP catalogue chunk_size rows at a time, in serial, so only one chunk is in memory at once.
 
@@ -122,6 +134,8 @@ def read_soap_in_chunks(filename, property_names, chunk_size) -> Iterator[tuple]
     :type   property_names: list of str
     :param  chunk_size:     number of rows read at a time
     :type   chunk_size:     int
+    :param  remote:         the remote directory the catalogue is in. If None, on disk
+    :type   remote:         hdfstream.RemoteDirectory
     :yield:                 for each chunk, the index of its first row in the catalogue and {name: unyt.unyt_array of
                             its rows}
     :ytype:                 tuple
@@ -129,14 +143,14 @@ def read_soap_in_chunks(filename, property_names, chunk_size) -> Iterator[tuple]
     chunk_size = int(chunk_size)
     if chunk_size < 1:
         raise ValueError(f"chunk_size must be at least 1, not {chunk_size}")
-    with h5py.File(filename, "r") as infile:
+    with open_file(filename, remote) as infile:
         registry, datasets, units, nr_rows = _soap_datasets(infile, property_names)
         for start in range(0, nr_rows, chunk_size):
             stop = min(start + chunk_size, nr_rows)
             yield (
                 start,
                 {
-                    name: unyt.unyt_array(dataset[start:stop], units=units[name], registry=registry)
+                    name: unyt.unyt_array(_rows(dataset, start, stop), units=units[name], registry=registry)
                     for name, dataset in datasets.items()
                 },
             )
@@ -148,7 +162,7 @@ def _read_rows(dataset, rows, batch_size):
 
     Returns the values of the rows.
 
-    :param  dataset:    dataset
+    :param  dataset:    dataset, on disk or remote
     :type   dataset:    h5py.Dataset
     :param  rows:       sorted, unique row indices
     :type   rows:       numpy.ndarray
@@ -157,10 +171,18 @@ def _read_rows(dataset, rows, batch_size):
     """
     if len(rows) == 0:
         return np.zeros((0,) + dataset.shape[1:], dtype=dataset.dtype)
-    return np.concatenate([dataset[rows[i : i + batch_size]] for i in range(0, len(rows), batch_size)])
+
+    parts = []
+    for first in range(0, len(rows), batch_size):
+        batch = rows[first : first + batch_size]
+        run_starts = np.flatnonzero(np.diff(batch, prepend=batch[0] - 2) != 1)  # where each run of rows begins
+        lengths = np.diff(np.append(run_starts, len(batch)))
+        parts.append(read_slices(dataset, batch[run_starts], lengths))
+
+    return np.concatenate(parts)
 
 
-def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
+def read_soap_selected_rows(filename, property_names, rows, batch_size=100000, remote=None):
     """
     Read only the given rows of properties of a SOAP catalogue, in batches of `batch_size` rows.
 
@@ -174,11 +196,15 @@ def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
     :type   rows:           numpy.ndarray
     :param  batch_size:     number of rows read at a time
     :type   batch_size:     int
+    :param  remote:         the remote directory the catalogue is in. If None, on disk
+    :type   remote:         hdfstream.RemoteDirectory
     """
     rows = np.asarray(rows, dtype=np.int64)
+
     if np.any(np.diff(rows) <= 0):
         raise ValueError("rows must be sorted and unique")
-    with h5py.File(filename, "r") as infile:
+
+    with open_file(filename, remote) as infile:
         registry, datasets, units, _ = _soap_datasets(infile, property_names)
         return {
             name: unyt.unyt_array(_read_rows(dataset, rows, batch_size), units=units[name], registry=registry)
@@ -186,7 +212,7 @@ def read_soap_selected_rows(filename, property_names, rows, batch_size=100000):
         }
 
 
-def select_soap_rows(filename, select_name, select, property_names, chunk_size=2**22, units=None):
+def select_soap_rows(filename, select_name, select, property_names, chunk_size=2**22, units=None, remote=None):
     """
     Read the rows of a SOAP catalogue selected by one of its properties.
 
@@ -209,17 +235,23 @@ def select_soap_rows(filename, select_name, select, property_names, chunk_size=2
     :param  units:          units to return each property in, {name: unit}. If given, the kept rows are returned as
                             plain arrays of their comoving values in these units, instead of unyt arrays
     :type   units:          dict
+    :param  remote:         the remote directory the catalogue is in. If None, on disk
+    :type   remote:         hdfstream.RemoteDirectory
     """
     # build list of row starting points to slice catalogue with.
     rows = [
         start + np.flatnonzero(select(comoving(chunk[select_name])))
-        for start, chunk in read_soap_in_chunks(filename, [select_name], chunk_size)
+        for start, chunk in read_soap_in_chunks(filename, [select_name], chunk_size, remote=remote)
     ]
+
     rows = np.concatenate(rows) if rows else np.zeros(0, dtype=np.int64)
-    found = read_soap_selected_rows(filename, list(dict.fromkeys([select_name, *property_names])), rows)
+    found = read_soap_selected_rows(filename, list(dict.fromkeys([select_name, *property_names])), rows, remote=remote)
+
     if units is not None:
         found = {name: comoving(values).to_value(units[name]) for name, values in found.items()}
+
     found["row"] = rows
+
     return found
 
 
@@ -233,7 +265,7 @@ def soap_unit_attributes(soap, name):
 
     Returns a dict of the attributes.
 
-    :param  soap:   open SOAP catalogue
+    :param  soap:   open SOAP catalogue, on disk or remote
     :type   soap:   h5py.File
     :param  name:   name of the dataset, e.g. "InputHalos/HaloCentre"
     :type   name:   str

@@ -47,7 +47,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install ruff
         # stop the build if there are Python syntax errors or undefined names
-        ruff check . --select E9,F63,F7,F82 --output-format=github --statistics
+        ruff check . --select E9,F63,F7,F82 --output-format=github
 
     - name: Install MPI (needed to build mpi4py)
       run: |
@@ -68,4 +68,4 @@ jobs:
         OMPI_MCA_rmaps_base_oversubscribe: "1"                    # Open MPI 4
         PRTE_MCA_rmaps_default_mapping_policy: ":oversubscribe"   # Open MPI 5 (PRRTE)
       run: |
-        pytest -v tests/
+        pytest -v --run-slow tests/

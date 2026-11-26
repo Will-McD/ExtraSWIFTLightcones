@@ -48,7 +48,8 @@ Lightcones from snapshots
 
    * - ``snapshot_beam_halo_placement.py`` / ``.sh``
      - places the haloes from SOAP catalogues in a :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>`
-       lightcone for a set redshift shell
+       lightcone for a set redshift shell, reading FLAMINGO from disk or, if it isn't there (or with ``--remote``),
+       from the hdfstream server (see :ref:`reading-remotely`)
 
    * - ``make_colibre_halo_lightcone.py`` / ``.sh``
      - builds an all-sky halo lightcone of COLIBRE L400_m7 (``L0400N3008/Thermal``) for :math:`0.001 < z < 0.1`, with
@@ -64,6 +65,11 @@ Lightcones from snapshots
    * - ``snapshot_smoothed_map.py`` / ``.sh``
      - makes an all-sky HEALPix map of the smoothed gas mass for :math:`0.05 < z < 0.1` from snapshot lightcones of
        COLIBRE L400_m7 and FLAMINGO L1_m9, with MPI
+
+   * - ``compare_flamingo_and_snapshot_halo.py`` / ``.sh``
+     - finds the same halo in FLAMINGO L2p8_m9's on-the-fly halo lightcone and in a 
+       :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` built using FLAMINGO's observer position 
+       (see :ref:`observer-position`), then plots the two side by side. 
 
    * - ``snapshot_number_density_comparison.py`` / ``.sh``
      - compares the number density of dark matter particles in the snapshot lightcones with the expected 

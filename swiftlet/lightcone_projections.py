@@ -74,30 +74,30 @@ class BeamProjection:
         self,
         vector,
         angular_diameter,
-        redshift_range,
+        lightcone_redshift_range,
         cosmology=None,
         slice_thickness=None,
         store_snapshot_filename=None,
     ):
         """
-        :param  vector:                     direction vector as an array of 3 floats
-        :type   vector:                     numpy.ndarray
-        :param  angular_diameter:           angular diameter [deg] of the beam
-        :type   angular_diameter:           float
-        :param  redshift_range:             redshift range to read [z_min, z_max]
-        :type   redshift_range:             sequence of two floats
-        :param  cosmology:                  cosmology of the simulation, or a path to a snapshot to read it from
-        :type   cosmology:                  astropy.cosmology.FLRW or str
-        :param  slice_thickness:            thickness [Mpc] of the slice of particles, its length along the z-axis
-        :type   slice_thickness:            float or unyt.array.unyt_quantity
-        :param  store_snapshot_filename:    path to a snapshot to keep for the projections (its metadata and cosmology),
-                                            so it doesn't need to be given to project_properties
-        :type   store_snapshot_filename:    str
+        :param  vector:                   direction vector as an array of 3 floats
+        :type   vector:                   numpy.ndarray
+        :param  angular_diameter:         angular diameter [deg] of the beam
+        :type   angular_diameter:         float
+        :param  lightcone_redshift_range: redshift range to read [z_min, z_max]
+        :type   lightcone_redshift_range: sequence of two floats
+        :param  cosmology:                cosmology of the simulation, or a path to a snapshot to read it from
+        :type   cosmology:                astropy.cosmology.FLRW or str
+        :param  slice_thickness:          thickness [Mpc] of the slice of particles, its length along the z-axis
+        :type   slice_thickness:          float or unyt.array.unyt_quantity
+        :param  store_snapshot_filename:  path to a snapshot to keep for the projections (its metadata and cosmology),
+                                          so it doesn't need to be given to project_properties
+        :type   store_snapshot_filename:  str
         """
         self._beam_vec = tuple(vector)
         self._diameter_deg = angular_diameter
         self._radius = np.deg2rad(angular_diameter / 2)
-        self._redshift_range = tuple(redshift_range)
+        self._redshift_range = tuple(lightcone_redshift_range)
 
         self.slice_thickness = (
             None if slice_thickness is None else apply_expected_units(slice_thickness, unyt.Mpc)
@@ -328,7 +328,7 @@ class BeamProjection:
         lightcone = pr.IndexedLightcone(lightcone_filename)
         particle_data = lightcone[ptype].read(
             property_names=property_names,
-            redshift_range=self._redshift_range,
+            lightcone_redshift_range=self._redshift_range,
             vector=self._beam_vec,
             radius=self._radius,
         )
@@ -765,7 +765,7 @@ class BeamProjection:
         filename=None,
         angular_diameter=None,
         cosmology=None,
-        redshift_range=None,
+        lightcone_redshift_range=None,
         axes_extent=None,
         update_badcol=True,
         figsize=(7, 7),
@@ -778,43 +778,42 @@ class BeamProjection:
 
         Returns list of each projected wedge.
 
-
-        :param  numb_wedges:        number of wedges or different projections to show in the beam
-        :type   numb_wedges:        int
-        :param  projection_data:    nested list of the segments of the beam: the 2D array to plot and a tuple of the
-                                        minimum and maximum values shown in the image, [2D array, (min, max)]
-        :type   projection_data:    list
-        :param  colour_maps:        colour map of each segment of the beam
-        :type   colour_maps:        list
-        :param  axs:                axes to plot onto. If None, create new axes for the plot
-        :type   axs:                matplotlib.axes.Axes
-        :param  filename:           if given, write the plot to this file
-        :type   filename:           str
-        :param  angular_diameter:   total angular diameter [deg] of the beam
-        :type   angular_diameter:   float
-        :param  cosmology:          the simulation's cosmology
-        :type   cosmology:          astropy.cosmology.FLRW
-        :param  redshift_range:     minimum and maximum redshift of the beam shown
-        :type   redshift_range:     sequence of two floats
-        :param  axes_extent:        extent of the plot's axes, in coordinate space. If None, use the extent of the
-                                        coordinates of the particles added to the slice
-        :type   axes_extent:        list
-        :param  update_badcol:      If True, modify all colour maps so that the minimum, nan and None values are black
-        :type   update_badcol:      bool
-
-        :param  figsize:            size of the figure, used if axs is None
-        :type   figsize:            tuple
-        :param  titles:             title of each wedge
-        :type   titles:             list
-        :param  norms:              colour normalisation of each wedge: "log", "linear" or a
-                                        matplotlib.colors.Normalize. If None, all are "log"
-        :type   norms:              list
+        :param  numb_wedges:              number of wedges or different projections to show in the beam
+        :type   numb_wedges:              int
+        :param  projection_data:          nested list of the segments of the beam: the 2D array to plot and a tuple of
+                                          the minimum and maximum values shown in the image, [2D array, (min, max)]
+        :type   projection_data:          list
+        :param  colour_maps:              colour map of each segment of the beam
+        :type   colour_maps:              list
+        :param  axs:                      axes to plot onto. If None, create new axes for the plot
+        :type   axs:                      matplotlib.axes.Axes
+        :param  filename:                 if given, write the plot to this file
+        :type   filename:                 str
+        :param  angular_diameter:         total angular diameter [deg] of the beam
+        :type   angular_diameter:         float
+        :param  cosmology:                the simulation's cosmology
+        :type   cosmology:                astropy.cosmology.FLRW
+        :param  lightcone_redshift_range: minimum and maximum redshift of the beam shown
+        :type   lightcone_redshift_range: sequence of two floats
+        :param  axes_extent:              extent of the plot's axes, in coordinate space. If None, use the extent of the
+                                          coordinates of the particles added to the slice
+        :type   axes_extent:              list
+        :param  update_badcol:            If True, modify all colour maps so that the minimum, nan and None values are
+                                          black
+        :type   update_badcol:            bool
+        :param  figsize:                  size of the figure, used if axs is None
+        :type   figsize:                  tuple
+        :param  titles:                   title of each wedge
+        :type   titles:                   list
+        :param  norms:                    colour normalisation of each wedge: "log", "linear" or a
+                                          matplotlib.colors.Normalize. If None, all are "log"
+        :type   norms:                    list
         :param  \*\*kwargs:         all additional arguments, passed on to add_wedge and add_beam_axes
         :type   \*\*kwargs:         dict
         """
         # update slice information and call predefined values where needed
-        if redshift_range is not None:
-            self._redshift_range = tuple(redshift_range)
+        if lightcone_redshift_range is not None:
+            self._redshift_range = tuple(lightcone_redshift_range)
         elif self._redshift_range is None:
             raise ValueError("Redshift range is not defined")
 

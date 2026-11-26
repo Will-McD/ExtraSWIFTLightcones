@@ -22,8 +22,8 @@ As shown in the example below, to make a projection:
 
 * **Define the projected slice:** defining a slice through the lightcone requires:
 
-  1.    A beam within the lightcone (i.e. pass a ``vector``, ``angular_diameter`` and ``redshift_range`` that define the
-        beam).
+  1.    A beam within the lightcone (i.e. pass a ``vector``, ``angular_diameter`` and ``lightcone_redshift_range``
+        that define the beam).
   2.    The thickness of the slice through the beam (``slice_thickness``).
   3.    Either a cosmology object for the simulation corresponding to the intended lightcone data, or a path to a 
         snapshot of the same simulation.
@@ -68,7 +68,7 @@ As shown in the example below, to make a projection:
     lc_slice = BeamProjection(
         vector=(0, 0, 1),                           # direction of the beam
         angular_diameter=15,                        # [deg]
-        redshift_range=(0.01, 0.11),                # redshift range of the lightcone
+        lightcone_redshift_range=(0.01, 0.11),      # redshift range of the lightcone
         slice_thickness=10,                         # [Mpc]
         cosmology=cosmo,                            # Cosmology specific to simulation used to build projection
         store_snapshot_filename=sim.snapshot_format_whole.format(snap_nr=sim.z0_snapshot)

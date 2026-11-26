@@ -27,7 +27,8 @@ detail.
    cell
       One of the cubes a SWIFT snapshot's box is divided into, with the same number of cells along each axis (a
       multiple of 8 for SWIFTLET), each with its particles stored together. SWIFTLET selects the cells inside a
-      lightcone before reading any particle, and a :term:`tile` moves its cells whole.
+      lightcone before reading any particle, and a :term:`tile` moves its cells whole. See the description of the top 
+      level cells in :doc:`user_guide/methods_overview`. 
 
    cell shift 
       Also referred to as a **shift** or **periodic (cell) shift**: The periodic shift of an :term:`orientation`, in 
@@ -140,7 +141,7 @@ detail.
 
    orientation table
       The three tables (``QuarterTurns``, ``Reflections`` and ``CellShifts``) whose rows are the 
-      :term:`orientations <orientation>` the tiles take, stored as YAML files (see :term:`default tables`)
+      :term:`orientations <orientation>` the tiles take, stored as YAML files (see :term:`installed tables`)
 
    default tables
       See :term:`installed tables`
@@ -155,20 +156,53 @@ detail.
    piece
       One (snapshot, tile) part of a lightcone :term:`shell`, found by the :term:`gather step`. The part of a
       snapshot's redshift range that covers one :term:`tile` (with ``"sphere"``, one layer of a tile). 
-      Listed in ``last_shell.pieces``.
+      Listed in ``last_shell.pieces``. (The pieces of
+      :meth:`iter_file_pieces <swiftlet.snapshot_lightcone.SnapshotLightcone.iter_file_pieces>` are smaller: the
+      particles of one :term:`batch` of a file placed in one tile.)
 
+   file plan
    file to read
-      One snapshot file to read for one :term:`piece`: the snapshot, tile and file, and the offset and number of
-      particles of each selected :term:`cell` (a ``FileReadSpec``). Found by the :term:`gather step`, returned by
+      One snapshot file to read for a :term:`shell`, planned once for every :term:`piece` that uses it: the snapshot
+      and file, the offset and number of particles of each selected :term:`cell` (each cell once), and a
+      :term:`tile use` for every tile that takes particles from it (a
+      :class:`FilePlan <swiftlet.snapshot_lightcone.FilePlan>`). Found by the :term:`gather step`, returned by
       :meth:`gather_files <swiftlet.snapshot_lightcone.SnapshotLightcone.gather_files>` and listed in
-      ``last_shell.files``.
+      ``last_shell.plans``. Its ``nr_particles`` are the particles to read (each cell once) and its ``nr_placed`` those
+      to place (each cell once per tile using it), by which files are shared between MPI ranks.
+
+   tile use
+      One :term:`tile` (with ``"sphere"``, one layer of a tile) that takes particles from a :term:`file plan`: the
+      tile, the redshift range it fills and which of the plan's cells it needs (a
+      :class:`TileUse <swiftlet.snapshot_lightcone.TileUse>`). A cell needed by several tiles is read once and placed in
+      each of them.
+
+   batch
+      The particles of a whole :term:`cells <cell>` of a file, read at once: at most ``max_particles_per_read``
+      particles (a cell with more is read on its own), or all the file's needed cells if ``max_particles_per_read`` is
+      ``None``. Reading a file in batches lowers the peak memory of reading it; the particles placed are the same.
+
+   cell metadata
+      What the :term:`gather step` reads from a snapshot's file 0 to select cells without reading particles: the
+      number of cells, their size and centres, the box size, and for each particle type the file, offset and number of
+      particles of every cell. A lightcone keeps that of the snapshots of the last shell it gathered (read on rank 0 with
+      MPI), for the next call to reuse, until
+      :meth:`clear_cache <swiftlet.snapshot_lightcone.SnapshotLightcone.clear_cache>`.
+
+   request cap
+      The most read requests to an hdfstream server in flight at once across MPI ranks, ``max_concurrent_requests``
+      (2 by default), as the service asks (see :doc:`user_guide/parallel_and_hpc`). Snapshots on disk are never
+      capped.
+
+   TileIndex
+      The :term:`tile` each particle was placed in, ``(nx, ny, nz)``, or ``(nx, ny, nz, layer)`` with the ``"sphere"``
+      lock: returned when ``"TileIndex"`` is in ``property_names``.
 
    last_shell
       What the last :term:`gather step` of a lightcone found: a
       :class:`ShellRead <swiftlet.snapshot_lightcone.ShellRead>` for particles or a
       :class:`HaloShellRead <swiftlet.snapshot_lightcone.HaloShellRead>` for haloes, with its snapshots, 
-      :term:`pieces <piece>`, :term:`files to read <file to read>` and cells. Each call makes a new one, so nothing is
-      carried from one call to the next (see :doc:`user_guide/building_lightcones`).
+      :term:`pieces <piece>`, :term:`files to read <file to read>` and cells. Each call makes a new one; only the
+      :term:`cell metadata` is kept from one call to the next (see :doc:`user_guide/building_lightcones`).
 
    read and place step
       The second step of populating a lightcone: reading the particles (or haloes) of each :term:`file to read`, moving

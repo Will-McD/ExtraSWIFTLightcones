@@ -96,6 +96,21 @@ The following table summarises the test files and what they check.
         :func:`swiftlet.snapshot_orientation.check_neighbouring_tiles` finds; the example runs; the warning and the HDF5
         file.
 
+   * - ``test_read_counts.py``
+     - ``tests/read_counter.py`` counts each dataset read in one request for a file from a fake simulation. Check that 
+       placing particles into a lightcone reads exactly the cells planned from each file and each snapshot's cell 
+       metadata once, opens each snapshot file once per call and reads no particle row twice.
+
+   * -  ``test_remote_reading.py``
+     -  Reading snapshots remotely with hdfstream (``swiftlet.hdf5stream_reader``), against the stand-in for the remote
+        service, check that ``read_slices`` gives the same rows from local and remote datasets with one request for all 
+        of the slices and refuses bad slices (out of order, overlapping,
+        negative, unmatched) on disk and remotely before any request. Ensure that files and text (the output list)
+        are found and read remotely. For the reading, check each particle file is opened once and read through before 
+        the next, with one request per dataset per batch. Moreover, with MPI, only 2-4 ranks (``mpi_remote_reads.py``), 
+        at most are making requests to read the remote data at once and the ranks place exactly the same particles as 
+        if this was done in serial. Repeat the same checks for SOAP catalogues. 
+
 .. note::
     All contributions to SWIFTLET need to pass the whole automated ``pytest`` suite (see :doc:`developers`).
 
@@ -158,6 +173,11 @@ The following describes the various tests within `test_snapshot_lightcone_placem
     ``ValueError`` naming the types there are.
 *   ``Snapshot2Lightcone`` needs the tile, and moves every particle of a snapshot to where the lightcone places it.
 *   The ``"fast"`` and ``"precise"`` redshift interpolations (``redshift_interp_method``) place the same particles.
+*   When a new observer position is given it is adjusted to the nearest cell corner, that with the unchanged table 
+    every lattice point is still placed exactly once, a beam is part of the all-sky lightcone, placing file by file 
+    gives the particles placed at once, the placement on 3 MPI ranks matches serial and the metadata records the
+    position, corner and shift. 
+
 
 MPI tests
 ---------
