@@ -48,10 +48,13 @@ def write_snapshot(path, time_unit_s=TIME_UNITS["Mpc/(km/s)"], parameters=None, 
         constants.attrs["solar_mass"] = [1.98841e33]
         constants.attrs["newton_G"] = [6.6743e-8]
         group = f.create_group("Cosmology")
+
         # H0 in the code's own units: 100 h km/s/Mpc times the time unit
         group.attrs["H0 [internal units]"] = [100.0 * H * 1e5 / MPC_CM * time_unit_s]
+
         for name, value in cosmology.items():
             group.attrs[name] = np.atleast_1d(value)
+
         for group_name in ("Units", "InternalCodeUnits"):
             units = f.create_group(group_name)
             units.attrs["Unit length in cgs (U_L)"] = [MPC_CM]
@@ -60,6 +63,7 @@ def write_snapshot(path, time_unit_s=TIME_UNITS["Mpc/(km/s)"], parameters=None, 
             units.attrs["Unit temperature in cgs (U_T)"] = [1.0]
             units.attrs["Unit current in cgs (U_I)"] = [1.0]
         params = f.create_group("Parameters")
+
         for name, value in (parameters or {}).items():
             params.attrs[name] = np.bytes_(value)
     return path
@@ -68,9 +72,11 @@ def write_snapshot(path, time_unit_s=TIME_UNITS["Mpc/(km/s)"], parameters=None, 
 @pytest.mark.parametrize("time_unit", TIME_UNITS)
 def test_Hubble_const_from_the_code_units(tmp_path, time_unit):
     cosmo = SnapshotCosmology(write_snapshot(tmp_path / "flamingo_0077.hdf5", TIME_UNITS[time_unit]))
+
     # the same H0 whatever the code's time unit, in the snapshot's megaparsec
     assert cosmo.Hubble_const.to_value("km/s/swift_mpc") == pytest.approx(100.0 * H, rel=1e-12)
     assert cosmo.COSMO.H0.to_value("km/(Mpc s)") == pytest.approx(100.0 * H, rel=1e-12)
+
     # the unit registry is the snapshot's, with its code units, a and h
     assert unyt.unyt_quantity(1.0, "code_time", registry=cosmo.unit_registry).to_value("s") == TIME_UNITS[time_unit]
     assert unyt.unyt_quantity(1.0, "h", registry=cosmo.unit_registry).to_value("dimensionless") == pytest.approx(H)
@@ -82,6 +88,7 @@ def test_cosmology_parameters(tmp_path):
     z = np.linspace(0.0, 5.0, 51)
     assert np.allclose(cosmo.COSMO.comoving_distance(z).value, expected.comoving_distance(z).value, rtol=1e-10)
     assert np.allclose(cosmo.comoving_distance(z).to_value("Mpc"), expected.comoving_distance(z).value, rtol=1e-10)
+
     # dt before z = 0.5 is the redshift where the universe is dt younger
     z_earlier = cosmo.redshift_with_time_offset(0.5, 100.0)
     assert cosmo.redshift_with_time_offset(0.5, 0.1 * unyt.Gyr) == pytest.approx(z_earlier, rel=1e-8)
@@ -221,7 +228,9 @@ def test_swiftlet_takes_any_cosmology(tmp_path):
     expected = define_redshift_at_comoving_distance_function(cosmo.COSMO, 0.001, 1.2)(r)
     for given in (cosmo, cosmo.COSMO, str(tmp_path / "flamingo_0077.hdf5")):
         assert np.allclose(define_redshift_at_comoving_distance_function(given, 0.001, 1.2)(r), expected)
-        assert BeamPlot(given, angular_diameter=10.0, redshift_range=(0.1, 0.5)).cosmology.H0 == cosmo.COSMO.H0
+        assert (
+            BeamPlot(given, angular_diameter=10.0, lightcone_redshift_range=(0.1, 0.5)).cosmology.H0 == cosmo.COSMO.H0
+        )
 
 
 # FLAMINGO-like neutrinos: one massive species of 0.06 eV and 2.0328 massless ones, N_eff = 3.044. SWIFT's Omega_m is

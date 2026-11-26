@@ -418,24 +418,24 @@ AXES_LOW_LEVEL = 10
 class BeamPlot:
     """Plot 2D projections of a beam as wedges, with redshift, comoving distance and angular axes."""
 
-    def __init__(self, cosmology, angular_diameter=None, redshift_range=None, axes_extent=None):
+    def __init__(self, cosmology, angular_diameter=None, lightcone_redshift_range=None, axes_extent=None):
         """
-        :param  cosmology:          the simulation's cosmology
-        :type   cosmology:          astropy.cosmology.FLRW
-        :param  angular_diameter:   total angular diameter [deg] of the beam. Required by split_beam_plot
-        :type   angular_diameter:   float
-        :param  redshift_range:     minimum and maximum redshift of the beam shown, [z_min, z_max], required by
-                                    split_beam_plot
-        :type   redshift_range:     sequence of two floats
-        :param  axes_extent:        extent of the projected images, in coordinate space, [xmin, xmax, ymin, ymax],
-                                    required by :func:`split_beam_plot` and :func:`add_wedge`
-        :type   axes_extent:        list
+        :param  cosmology:                the simulation's cosmology
+        :type   cosmology:                astropy.cosmology.FLRW
+        :param  angular_diameter:         total angular diameter [deg] of the beam. Required by split_beam_plot
+        :type   angular_diameter:         float
+        :param  lightcone_redshift_range: minimum and maximum redshift of the beam shown, [z_min, z_max], required by
+                                          split_beam_plot
+        :type   lightcone_redshift_range: sequence of two floats
+        :param  axes_extent:              extent of the projected images, in coordinate space, [xmin, xmax, ymin, ymax],
+                                          required by :func:`split_beam_plot` and :func:`add_wedge`
+        :type   axes_extent:              list
         """
-        self.cosmology = as_astropy_cosmology(
-            cosmology
-        )  # ensure cosmology is correctly handled in swiftlet with the right classes.
+        # ensure cosmology is correctly handled in swiftlet with the right classes.
+        self.cosmology = as_astropy_cosmology(cosmology)
+
         self.angular_diameter = angular_diameter
-        self.redshift_range = redshift_range
+        self.redshift_range = lightcone_redshift_range
         self.axes_extent = axes_extent
 
     def split_beam_plot(

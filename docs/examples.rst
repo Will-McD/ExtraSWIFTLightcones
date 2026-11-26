@@ -48,7 +48,8 @@ Lightcones from snapshots
 
    * - ``snapshot_beam_halo_placement.py`` / ``.sh``
      - places the haloes from SOAP catalogues in a :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>`
-       lightcone for a set redshift shell
+       lightcone for a set redshift shell, reading FLAMINGO from disk or, if it isn't there (or with ``--remote``),
+       from the hdfstream server (see :ref:`reading-remotely`)
 
    * - ``make_colibre_halo_lightcone.py`` / ``.sh``
      - builds an all-sky halo lightcone of COLIBRE L400_m7 (``L0400N3008/Thermal``) for :math:`0.001 < z < 0.1`, with

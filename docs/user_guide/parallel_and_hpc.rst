@@ -95,9 +95,11 @@ place particles or haloes take an MPI communicator:
      - With ``comm``
 
    * - :meth:`SnapshotLightcone.place_snapshot_particles_in_shell`
-     - every rank only reads and places particles from the (snapshots, tiles, files) that it is allocated. Each rank 
-       returns the particles it placed; with ``redistribute=True`` they are shared evenly between the ranks 
-       before being returned. 
+     - whole snapshot files are shared between the ranks: each file is read by one rank, once, and its particles
+       placed in every tile that uses it. The files are distributed such that each rank has about the same number of 
+       particles to place (each file's ``FilePlan.nr_placed``: its cells' particles, once per tile using them). The 
+       snapshots' cell metadata is read on rank 0 and sent to the others. Each rank returns the particles it placed, but 
+       with ``redistribute_particles=True`` they are shared evenly between the ranks before being returned.
 
    * - :meth:`SnapshotLightcone.place_halos_in_shell`
      - the SOAP catalogues are split into chunks of ``soap_chunk_size`` rows (if ``None``, one chunks per rank), shared
@@ -108,10 +110,13 @@ The particles and haloes placed are the same whichever way they are read, serial
 check this, see :doc:`../tests/index`). The communicator is used for that call only and is not kept, so a later call
 without ``comm`` runs in serial.
 
-:meth:`SnapshotLightcone.gather_files` and :meth:`SnapshotLightcone.place_file_in_shell` are serial only. To place a 
-large lightcone file by file on several ranks, give each rank its own share of files from 
-:meth:`gather_files <SnapshotLightcone.gather_files>` (every rank finds the same pieces).
-
+**Reading remotely on MPI ranks** (see :ref:`reading-remotely`): we cap the number of simultanous requests to read 
+remote data to a maximum of ``max_concurrent_requests`` requests (2 by default and ``None`` for no cap). There should be 
+no more than 4 requests at once. Therefore, we only every allow up to ``max_concurrent_requests`` ranks to remotley read 
+particles and the SOAP catalogues at once. If there are more MPI ranks than ``max_concurrent_requests`` then a rank will 
+wait for a free slot before each request. Ranks only wait to make a request, placing the read particles or haloes into
+the lightcone was read is not held up. After the call, ``last_shell.max_requests_in_flight`` is the most requests that 
+were in flight at once.
 
 .. code-block:: python
 
@@ -125,7 +130,7 @@ large lightcone file by file on several ranks, give each rank its own share of f
     particles = lightcone.place_snapshot_particles_in_shell(
         (0.05, 0.1), ["Masses"], particle_types="PartType1", comm=comm,
     )
-    haloes = lightcone.place_halos_in_shell(sim.soap_format, (0.05, 0.1), comm=comm)
+    haloes = lightcone.place_halos_in_shell((0.05, 0.1), comm=comm)
 
 
 .. caution::

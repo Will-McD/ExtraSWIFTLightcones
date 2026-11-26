@@ -13,7 +13,7 @@ Every snapshot file is opened with :func:`open_file` and every slice of particle
         coordinates = read_slices(dataset, starts=[0, 1000], lengths=[10, 20])
 
 A remote dataset is read with one ``request_slices`` call for all the slices.
-:func:`read_slices` works for read simualtions and SOAP catalogues that are disk and remote.
+:func:`read_slices` works for read simulations and SOAP catalogues that are disk and remote.
 
 When reading remote datasets :class:`RequestCap` holds the number of read requests across the MPI ranks to a maximum of
 2 - 4 simultaneous requests.
@@ -179,38 +179,16 @@ def read_slices(dataset, starts, lengths, dtype=None, cap=None):
                 dataset.request_slices(slices, dest=values)
             else:
                 values[...] = dataset.request_slices(slices)
-
-        # on disk: one read for every slice
-        else:
-            _read_local(dataset, starts, lengths, values)
-
+        else:  # on disk: one read of the union of the slices
+            file_space = dataset.id.get_space()
+            trailing = tuple(int(n) for n in file_space.get_simple_extent_dims()[1:])
+            file_space.select_none()
+            for start, length in zip(starts, lengths):
+                file_space.select_hyperslab(
+                    (int(start),) + (0,) * len(trailing), (int(length),) + trailing, op=h5py.h5s.SELECT_OR
+                )
+            dataset.id.read(h5py.h5s.create_simple(values.shape), file_space, values)
     return values
-
-
-def _read_local(dataset, starts, lengths, values):
-    """
-    Read slices of an h5py dataset with one HDF5 read (H5Dread) using a union of hyperslabs.
-
-    :param  dataset:    the dataset to read, along its first axis
-    :type   dataset:    h5py.Dataset
-    :param  starts:     first row of each slice, ascending, the slices not overlapping and of at least one row
-    :type   starts:     numpy.ndarray
-    :param  lengths:    number of rows of each slice
-    :type   lengths:    numpy.ndarray
-    :param  values:     the array to read into, of the rows' shape: C contiguous
-    :type   values:     numpy.ndarray
-    """
-    file_space = dataset.id.get_space()
-    trailing = tuple(int(n) for n in file_space.get_simple_extent_dims()[1:])
-    file_space.select_none()
-
-    # collect indices for hyperslab
-    for start, length in zip(starts, lengths):
-        file_space.select_hyperslab(
-            (int(start),) + (0,) * len(trailing), (int(length),) + trailing, op=h5py.h5s.SELECT_OR
-        )
-    # dataset using hyperslab
-    dataset.id.read(h5py.h5s.create_simple(values.shape), file_space, values)
 
 
 @contextmanager

@@ -157,7 +157,6 @@ def units_from_attributes(attrs, registry):
     """
     # Determine unyt unit for this quantity
     u = unyt.dimensionless
-    unit_system = registry.unit_system
     base = registry.unit_system.base_units
     for symbol, baseunit in (
         ("I", base[dim.current_mks]),
