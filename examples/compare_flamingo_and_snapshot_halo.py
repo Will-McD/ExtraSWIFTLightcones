@@ -359,7 +359,7 @@ def swiftlet_shell(
         particle_types=sorted({settings["ptype"] for settings in MAPS.values()}),
     )
 
-    haloes = beam.place_halos_in_shell(soap_format, tuple(wide_z))
+    haloes = beam.place_halos_in_shell(tuple(wide_z), halo_format=soap_format)
 
     shift = -offset  # corner - observer position
 

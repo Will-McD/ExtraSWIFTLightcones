@@ -191,16 +191,16 @@ if __name__ == "__main__":
     longitudes = ROTATIONS_L1[1, :] * 180 / np.pi
 
     # mask M500c and use apatures of R500c
-    mass_poperty = "SO/500_crit/TotalMass"
-    radius_poperty = "SO/500_crit/SORadius"
+    mass_property = "SO/500_crit/TotalMass"
+    radius_property = "SO/500_crit/SORadius"
     mass_units = "Msun"
 
     # create masks using the same methods as make smoothed maps
     write_binary_masks(
         halo_cat_format,
         soap_cat_format,
-        mass_poperty,
-        radius_poperty,
+        mass_property,
+        radius_property,
         nshell=args.nshell,
         nside=args.nside,
         latitudes=colatitiudes,

@@ -211,7 +211,7 @@ if __name__ == "__main__":
     BP = BeamProjection(
         vector=vector,
         angular_diameter=np.rad2deg(2 * radius),
-        redshift_range=redshift_range,
+        lightcone_redshift_range=redshift_range,
         slice_thickness=slice_z_width,
         cosmology=snapshot_dir,  # can pass snapshot base directory instead of cosmology object.
         store_snapshot_filename=snapshot_filename,  # store for later to generate metadata and mock snapshot objects.

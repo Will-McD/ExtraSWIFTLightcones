@@ -56,10 +56,12 @@ def adjust_redshift_range(simulation, snap_nr, zmin, zmax):
     """Update the redshift range to always include the redshift range of the snapshot."""
     # get snapshot redshift range
     snap_redshift_range = simulation.snapshot_redshift_range(snap_nr)
+
     # adjust min
     if snap_redshift_range[0] < zmin:
         print(f"\tadjusting redshift range to fit snapshot, zmin: {zmin:.4f} -> {snap_redshift_range[0]:.4f}")
         zmin = snap_redshift_range[0]
+
     # adjust max
     if snap_redshift_range[1] > zmax:
         print(f"\tadjusting redshift range to fit snapshot, zmax: {zmax:.4f} -> {snap_redshift_range[1]:.4f}")
@@ -130,7 +132,7 @@ if __name__ == "__main__":
     )
 
     # collect all haloes and place them into the lightcone
-    halos = snap_all_sky.place_halos_in_shell(soap_format, redshift_range, comm=comm)
+    halos = snap_all_sky.place_halos_in_shell(redshift_range, comm=comm, halo_format=soap_format)
 
     # write the haloes of the selected snapshot to a in a lightcone_io halo lightcone file
     local_snapshots = halos["Lightcone/SnapshotNumber"].value.astype(int)
