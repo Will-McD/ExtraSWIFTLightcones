@@ -12,12 +12,11 @@ Every snapshot file is opened with :func:`open_file` and every slice of particle
         dataset = snapshot["PartType1/Coordinates"]
         coordinates = read_slices(dataset, starts=[0, 1000], lengths=[10, 20])
 
-A remote dataset is read with one ``request_slices`` call for all the slices, following the rules of the hdfstream
-service: the starts ascend, the slices don't overlap, each slice is whole rows, and the slices are joined in order.
-:func:`read_slices` checks these rules for local reads too, so both behave the same.
+A remote dataset is read with one ``request_slices`` call for all the slices.
+:func:`read_slices` works for read simualtions and SOAP catalogues that are disk and remote.
 
-The service asks users to keep to 2-4 simultaneous requests.
-:class:`RequestCap` holds the number of read requests across the MPI ranks to a maximum, with a counter on rank 0.
+When reading remote datasets :class:`RequestCap` holds the number of read requests across the MPI ranks to a maximum of
+2 - 4 simultaneous requests.
 """
 
 import os
@@ -33,8 +32,9 @@ def open_file(path, remote=None):
     """
     Open a snapshot file for reading, on disk or remotely: an h5py.File, or the hdfstream remote file ``remote[path]``.
 
-    Both are context managers: ``with open_file(path, remote) as snapshot: ...``. Raises FileNotFoundError if there is
-    no remote file at the path.
+    Both are context managers: ``with open_file(path, remote) as snapshot: ...``.
+
+    Raises FileNotFoundError if there is no remote file at the path.
 
     :param  path:   path of the file: on disk, or relative to the remote directory
     :type   path:   str
@@ -121,7 +121,7 @@ def check_slices(starts, lengths):
     """
     Check slices start in ascending order and have no overlap.
 
-    Returns the (starts, lengths) of the slices with rows, as int64 arrays.
+    Returns (starts, lengths) of the slices with rows, as int64 arrays.
 
     Raises a ValueError naming the broken rule.
 
@@ -149,9 +149,7 @@ def read_slices(dataset, starts, lengths, dtype=None, cap=None):
     """
     Returns the rows [start, start + length) of a dataset for each slice given, joined in order along the first axis.
 
-    A remote dataset is read with one request for all the slices (request_slices), a local one with one read per
-    slice into one array. The slices must follow the rules of the hdfstream service whether the dataset is local or
-    remote.
+    A remote dataset is read with one request for all the slices and a local dataset is read per slice into one array.
     Slices with no assigned rows are skipped.
 
     :param  dataset:    the dataset to read, along its first axis: an h5py.Dataset or a remote dataset
@@ -191,7 +189,7 @@ def read_slices(dataset, starts, lengths, dtype=None, cap=None):
 
 def _read_local(dataset, starts, lengths, values):
     """
-    Read slices of an h5py dataset into values with one HDF5 read (H5Dread) of a union of hyperslabs.
+    Read slices of an h5py dataset with one HDF5 read (H5Dread) using a union of hyperslabs.
 
     :param  dataset:    the dataset to read, along its first axis
     :type   dataset:    h5py.Dataset
@@ -224,12 +222,12 @@ class RequestCap:
     """
     At most max_requests read requests at once across the MPI ranks.
 
-    An MPI window on rank 0 holding two integers: the ongoing requests and the most request allowed.
+    An MPI window on rank 0 holding two integers (the ongoing requests, the most request allowed).
     Before a request a rank takes a slot (adds 1, if that keeps the count below the limit; otherwise it
-    waits and tries again), and gives it back after finishing the request or on an error. Only the requests hold slots:
-    placing the particles read is not capped.
+    waits and tries again), and gives it back after finishing the request or on an error. The number of ranks placing
+    the particles is not capped.
 
-    Making and freeing the cap are collective: every rank of the communicator takes part.
+    Making and freeing the cap is done collectively, i.e. every rank takes part.
 
     :ivar max_requests: the most requests in flight at once
     :vartype max_requests: int
@@ -282,7 +280,7 @@ class RequestCap:
     def _add(self, value, disp=0):
         """Add value to the integer in the window and returns the value before."""
         old = np.zeros(1, dtype=np.int64)
-        # make sure rank operations are not simulatanious.
+        # make sure rank operations are not simultaneous.
         self._win.Fetch_and_op(self._buffer([value]), [old, self._MPI.INT64_T], 0, disp, self._MPI.SUM)
         self._win.Flush(0)  # always complete at rank 0
 

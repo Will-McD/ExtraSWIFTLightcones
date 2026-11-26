@@ -105,6 +105,7 @@ _SUBMODULES = (
     "config",
     "snapshot_cosmology",
     "flamingo_lightcones",
+    "hdf5stream_reader",
     "healpix_map_utils",
     "lightcone_projections",
     "mask_haloes",

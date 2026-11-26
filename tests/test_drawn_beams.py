@@ -52,7 +52,7 @@ def test_sky_coordinates():
 @pytest.mark.parametrize("beam_vector, ang_radius_deg", BEAMS)
 def test_edge_is_at_the_angular_radius(beam_vector, ang_radius_deg):
     """
-    Every point of the edge is the beam's angular radius from its axis, and the edge is closed.
+    test that every point of the edge is the beam's angular radius from its axis and the edge is closed.
     """
     longitude, latitude = beam_sky_outline(beam_vector, ang_radius_deg)
     axis = np.asarray(beam_vector) / np.linalg.norm(beam_vector)
@@ -66,13 +66,13 @@ def test_edge_is_at_the_angular_radius(beam_vector, ang_radius_deg):
 @pytest.mark.parametrize("beam_vector, ang_radius_deg", BEAMS)
 def test_area_drawn_is_the_beam(beam_vector, ang_radius_deg):
     """
-    A direction is inside the area drawn (in one of its copies shifted by 2 pi) exactly if it is inside the beam,
-    away from the edge.
+    Test that a given pointing is inside the area drawn
     """
     fig = plt.figure()
     ax = fig.add_subplot(projection="mollweide")
     drawn = plot_beam_on_sky(ax, beam_vector, ang_radius_deg)
     areas = [Path(artist.get_xy()) for artist in drawn if isinstance(artist, Polygon)]
+
     assert len(areas) == 3 and len(drawn) == 6
     plt.close(fig)
 
@@ -82,10 +82,13 @@ def test_area_drawn_is_the_beam(beam_vector, ang_radius_deg):
     axis = np.asarray(beam_vector) / np.linalg.norm(beam_vector)
     angle = np.degrees(np.arccos(np.clip(directions(longitude, latitude) @ axis, -1.0, 1.0)))
     inside = np.zeros(len(longitude), dtype=bool)
+
     for area in areas:
         inside |= area.contains_points(np.column_stack([longitude, latitude]))
+
     # a margin around the edge, which the polygon follows only to within the spacing of its points
     margin = 0.05 * ang_radius_deg
+
     assert np.all(inside[angle < ang_radius_deg - margin])
     assert not np.any(inside[angle > ang_radius_deg + margin])
 

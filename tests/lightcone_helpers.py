@@ -3,9 +3,10 @@ Helpers shared by the tests of reading snapshot files (test_read_plan, test_read
 test_read_counts).
 """
 
-from typing import NamedTuple
-
 import numpy as np
+import os
+from typing import NamedTuple
+from read_counter import FakeRemoteDirectory
 
 
 class TileFilePiece(NamedTuple):
@@ -16,6 +17,22 @@ class TileFilePiece(NamedTuple):
     file_nr: int
     offsets: np.ndarray
     lengths: np.ndarray
+
+
+def remote_simulation(simulation, run_dir, delay=0.0):
+    """
+    Returns a copy of a fake simulation read remotely: from a FakeRemoteDirectory over run_dir, with the simulation's
+    directory relative to it. Its requests are logged in simulation.remote.log.
+
+    :param  simulation: a fake simulation in run_dir
+    :type   simulation: swiftlet.simulation_suites.Simulation
+    :param  run_dir:    the directory of the fake simulations, the root of the remote directory
+    :type   run_dir:    str or pathlib.Path
+    :param  delay:      seconds each data request takes, see FakeRemoteDirectory
+    :type   delay:      float
+    """
+    directory = os.path.relpath(simulation.directory, run_dir)
+    return simulation.with_paths(directory=directory, remote=FakeRemoteDirectory(run_dir, delay=delay))
 
 
 def tile_file_pieces(shell):

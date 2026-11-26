@@ -76,6 +76,7 @@ Lightcones and simulations
    snapshot_redshifts
    snapshot_cosmology
    snapshot_units
+   hdf5stream_reader
    soap_reader
 
 .. _visualisation:

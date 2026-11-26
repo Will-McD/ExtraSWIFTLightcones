@@ -13,8 +13,9 @@ For example, the dark matter particles of a shell of an all-sky lightcone::
 
     simulation = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
     lightcone = SnapshotAllSky(simulation, orientation_lock="cube")
-    redshift_range= (0.05, 0.1) # redshift range of the lightcone
-    particles = lightcone.place_snapshot_particles_in_shell(redshift_range, ["Masses"], particle_types=["PartType1"])
+    particles = lightcone.place_snapshot_particles_in_shell(
+        lightcone_redshift_range=(0.05, 0.1), property_names=["Masses"], particle_types=["PartType1"]
+    )
     particles["PartType1"]["Coordinates"]  # positions in the lightcone, with the observer at the origin
 
 """
@@ -130,7 +131,6 @@ def print_coord_ranges(x, indent=0, rank=None):
 
 
 # classes for holding the internal state of SnapshotLightcone
-# changed from named tuples to improve the documentations clarity
 
 
 class SnapshotReadRecord(NamedTuple):
@@ -143,13 +143,13 @@ class SnapshotReadRecord(NamedTuple):
     :vartype snap_nr:   int
     :ivar tile:         index of the periodic replica tile
     :vartype tile:      tuple
-    :ivar z_updated:    minimum and maximum redshift of the shell filled by this snapshot tile
-    :vartype z_updated: tuple
+    :ivar z_range:      minimum and maximum redshift of the shell filled by this snapshot tile
+    :vartype z_range:   tuple
     """
 
     snap_nr: int
     tile: tuple
-    z_updated: tuple
+    z_range: tuple
 
 
 class HaloCatalogueSpec(NamedTuple):
@@ -199,7 +199,7 @@ class TileUse(NamedTuple):
     :ivar tile:         index of the periodic replica tile, as the gather step gives it: (nx, ny, nz), or
                         (nx, ny, nz, layer) with the "sphere" lock
     :vartype tile:      tuple
-    :ivar z_range:      minimum and maximum redshift of the shell filled by this tile (the piece's z_updated)
+    :ivar z_range:      minimum and maximum redshift of the shell filled by this tile
     :vartype z_range:   tuple
     :ivar cells:        positions in the FilePlan's cells of the cells this use needs, in the order the gather step
                         found them
@@ -358,6 +358,8 @@ class HaloShellRead:
     :vartype cell_snapshot:         int
     :ivar cell_data:                its cell metadata, {cell_snapshot: cell metadata}
     :vartype cell_data:             dict
+    :ivar max_requests_in_flight:   the most read requests at once across the MPI ranks
+    :vartype max_requests_in_flight: int
     """
 
     # properties tracked by the internal shell read states are now be recorded here instead
@@ -370,29 +372,32 @@ class HaloShellRead:
     catalogue_lengths: dict = field(default_factory=dict)
     cell_snapshot: int = None
     cell_data: dict = field(default_factory=dict)
+    max_requests_in_flight: int = None
 
     @staticmethod
-    def settings_of(halo_format, shell_z, ang_radius_deg, use_snapshots, snapshot_number, observer_position=None):
+    def settings_of(
+        halo_format, lightcone_redshift_range, ang_radius_deg, use_snapshots, snapshot_number, observer_position=None
+    ):
         """
         Returns the arguments of :meth:`~SnapshotLightcone.gather_halo_catalogues` as a tuple.
 
-        :param  halo_format:        see gather_halo_catalogues
-        :type   halo_format:        str
-        :param  shell_z:            minimum and maximum redshift of the shell
-        :type   shell_z:            sequence of two floats
-        :param  ang_radius_deg:     angular radius [deg] of the beam, None for all-sky
-        :type   ang_radius_deg:     float
-        :param  use_snapshots:      see gather_halo_catalogues
-        :type   use_snapshots:      list or numpy.ndarray
-        :param  snapshot_number:    see gather_halo_catalogues
-        :type   snapshot_number:    int
-        :param  observer_position:  the observer position [Mpc] in the snapshot box, or None
-        :type   observer_position:  array-like, shape (3,)
+        :param  halo_format:              see gather_halo_catalogues
+        :type   halo_format:              str
+        :param  lightcone_redshift_range: minimum and maximum redshift of the shell
+        :type   lightcone_redshift_range: sequence of two floats
+        :param  ang_radius_deg:           angular radius [deg] of the beam, None for all-sky
+        :type   ang_radius_deg:           float
+        :param  use_snapshots:            see gather_halo_catalogues
+        :type   use_snapshots:            list or numpy.ndarray
+        :param  snapshot_number:          see gather_halo_catalogues
+        :type   snapshot_number:          int
+        :param  observer_position:        the observer position [Mpc] in the snapshot box, or None
+        :type   observer_position:        array-like, shape (3,)
         """
         # halo_settings internal read state now given here
         return (
             str(halo_format),
-            tuple(float(z) for z in shell_z),
+            tuple(float(z) for z in lightcone_redshift_range),
             ang_radius_deg,
             None if use_snapshots is None else tuple(int(n) for n in np.atleast_1d(use_snapshots)),
             None if snapshot_number is None else int(snapshot_number),
@@ -630,7 +635,9 @@ def read_lightcone_metadata(hdf5_object):
     return metadata
 
 
-def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metadata, nside=16, order="nest"):
+def write_halo_lightcone_file(
+    filename, haloes, soap_filename, properties, metadata, nside=16, order="nest", remote=None
+):
     """
     Write the halo lightcone data to a .hdf5 file.
 
@@ -655,10 +662,14 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
     :type   nside:          int
     :param  order:          HEALPix pixel ordering of the index, "nest" or "ring"
     :type   order:          str
+    :param  remote:         the remote directory soap_filename is in (e.g. the simulation's remote). If None, it is
+                            stored on disk
+    :type   remote:         hdfstream.RemoteDirectory
     """
     # remove units and convert to regular numpy arrays.
     centre = haloes["Lightcone/HaloCentre"].to_value("Mpc")
     expansion_factor = haloes["Lightcone/ExpansionFactor"].value
+
     # find pixels that each halo is found in low nside map
     pixel = (
         hp.vec2pix(nside, centre[:, 0], centre[:, 1], centre[:, 2], nest=(order == "nest"))
@@ -676,7 +687,7 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
         **{f"{dim} exponent": [0.0] for dim in ("U_I", "U_L", "U_M", "U_T", "U_t", "a-scale", "h-scale")},
     }
 
-    with h5py.File(soap_filename, "r") as soap, h5py.File(filename, "w") as outfile:
+    with hdf5stream_reader.open_file(soap_filename, remote) as soap, h5py.File(filename, "w") as outfile:
         for group_name in ("Cosmology", "Units"):
             if group_name in soap:
                 group = outfile.create_group(group_name)
@@ -699,9 +710,12 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
         # the halo centres in the units of SOAP's InputHalos/HaloCentre (comoving), with its attributes
         centre_attrs = soap_unit_attributes(soap, "InputHalos/HaloCentre")
         centre_units = soap_comoving(
-            read_soap_rows(soap_filename, ["InputHalos/HaloCentre"], 0, 0)["InputHalos/HaloCentre"]
+            read_soap_rows(soap_filename, ["InputHalos/HaloCentre"], 0, 0, remote=remote)["InputHalos/HaloCentre"]
         ).units
+
         file_units_in_mpc = unyt.unyt_quantity(1.0, centre_units).to_value("Mpc")
+
+        # write outputs
         write(
             "Lightcone/HaloCentre",
             centre / file_units_in_mpc,
@@ -732,6 +746,7 @@ def write_halo_lightcone_file(filename, haloes, soap_filename, properties, metad
             soap_unit_attributes(soap, "InputHalos/HaloCatalogueIndex"),
             "Index of the halo in the input halo catalogue",
         )
+
         # store attrs names
         if properties is None:
             lightcone = outfile["Lightcone"]
@@ -994,7 +1009,7 @@ class SnapshotLightcone:
 
         return summary
 
-    def lightcone_metadata(self, redshift_range=None):
+    def lightcone_metadata(self, lightcone_redshift_range=None):
         """
         Returns the lightcone metadata, a dict with the names LIGHTCONE_METADATA_NAMES.
 
@@ -1010,8 +1025,8 @@ class SnapshotLightcone:
 
         Given the same settings and snapshots, the same exact lightcone can be made again.
 
-        :param  redshift_range: minimum and maximum redshift of the shell placed
-        :type   redshift_range: sequence of two floats
+        :param  lightcone_redshift_range: minimum and maximum redshift of the shell placed
+        :type   lightcone_redshift_range: sequence of two floats
         """
         from . import __version__ as package_version
 
@@ -1026,7 +1041,9 @@ class SnapshotLightcone:
             "orientation_table_fingerprint": self.orientation_table_fingerprint,
             "beam_vector": None if self.beam_vec is None else [float(x) for x in np.ravel(self.beam_vec)],
             "ang_radius_deg": None if self.ang_radius_deg is None else float(self.ang_radius_deg),
-            "redshift_range": None if redshift_range is None else [float(z) for z in redshift_range],
+            "redshift_range": None
+            if lightcone_redshift_range is None
+            else [float(z) for z in lightcone_redshift_range],
             "observer_position": None,
             "observer_corner": None,
             "observer_cell_shift": None,
@@ -1156,22 +1173,6 @@ class SnapshotLightcone:
         return property_names + [name for name in needed if name not in property_names]
 
     @staticmethod
-    def _observer_metadata(metadata, shell):
-        """
-        Returns the metadata with the observer of the shell placed, as recorded by its gather step.
-
-        :param  metadata:   lightcone metadata, see lightcone_metadata
-        :type   metadata:   dict
-        :param  shell:      the shell placed
-        :type   shell:      ShellRead or HaloShellRead
-        """
-        metadata = dict(metadata)
-        metadata["observer_position"] = None if shell.observer_position is None else list(shell.observer_position)
-        metadata["observer_corner"] = None if shell.observer_corner is None else list(shell.observer_corner)
-        metadata["observer_cell_shift"] = None if shell.observer_cell_shift is None else list(shell.observer_cell_shift)
-        return metadata
-
-    @staticmethod
     def _cell_batches(lengths, max_particles_per_read=None):
         """
         Returns the cells split, in order, into batches of at most max_particles_per_read particles.
@@ -1261,7 +1262,6 @@ class SnapshotLightcone:
         """
         cell_data = {}
 
-        # with h5py.File(self.snapshot_format.format(snap_nr=snap_nr, file_nr=0), "r") as f:
         with self._open_snapshot_file(snap_nr, 0) as f:
             # IMPORTANT: CELL METADATA IS IN SNAPSHOT UNITS
             # The cell sizes, cell centres and box size are in the snapshot's length unit.
@@ -1393,21 +1393,19 @@ class SnapshotLightcone:
             nr_snapshots = len(self.simulation.output_redshifts)
 
             if halo_format is None:
-                # the snapshots: on disk or remote
-                remote = self.simulation.remote
+                # the snapshots paths
                 paths = [self.simulation.snapshot_file(n, 0) for n in range(nr_snapshots)]
-                available = [n for n, path in enumerate(paths) if hdf5stream_reader.file_exists(path, remote)]
-
             else:
-                # the halo catalogues, on disk
+                # the halo catalogues paths
                 paths = [halo_format.format(snap_nr=n) for n in range(nr_snapshots)]
-                available = [n for n, path in enumerate(paths) if os.path.exists(path)]
 
+            remote = self.simulation.remote  # on disk or remote
+            available = [n for n, path in enumerate(paths) if hdf5stream_reader.file_exists(path, remote)]
             self._available_snapshot_cache[halo_format] = np.array(available, dtype=int)
 
         return self._available_snapshot_cache[halo_format]
 
-    def snapshots_for_shell(self, shell_z, halo_format=None, range_tol=0.0):
+    def snapshots_for_shell(self, lightcone_redshift_range, halo_format=None, range_tol=0.0):
         """
         Returns the snapshot numbers for the redshift range of the lightcone shell, from high to low redshift.
 
@@ -1417,14 +1415,14 @@ class SnapshotLightcone:
 
         Raise a ValueError if the redshift spacing between the snapshots is greater than MAX_SNAPSHOT_SPACING.
 
-        :param  shell_z:        minimum and maximum redshift of the lightcone shell [z_min, z_max]
-        :type   shell_z:        sequence of two floats
-        :param  halo_format:    see gather_halo_catalogues. If None, the snapshot files are looked for
-        :type   halo_format:    str
-        :param  range_tol:      a snapshot edge within range_tol of the shell counts as touching it
-        :type   range_tol:      float
+        :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
+        :type   lightcone_redshift_range:   sequence of two floats
+        :param  halo_format:                see gather_halo_catalogues. If None, the snapshot files are looked for
+        :type   halo_format:                str
+        :param  range_tol:                  a snapshot edge within range_tol of the shell counts as touching it
+        :type   range_tol:                  float
         """
-        return self.__snapshot_coverage(shell_z, halo_format, range_tol)[0]
+        return self.__snapshot_coverage(lightcone_redshift_range, halo_format, range_tol)[0]
 
     def __snapshot_coverage(self, shell_z, halo_format, range_tol, stacklevel=4):
         """
@@ -1511,13 +1509,14 @@ class SnapshotLightcone:
     def __check_simulation_directory(self):
         """Raise FileNotFoundError if the simulation's directory doesn't exist (on disk, or remotely)."""
         remote = self.simulation.remote
+
         if not hdf5stream_reader.directory_exists(self.simulation.directory, remote):
-            where = "on the remote directory" if remote is not None else "on disk"
+            where = "in the remote directory" if remote is not None else "on disk"
             names = " or ".join(self.simulation.suite.box_res_names(self.simulation.box_res))
+
             raise FileNotFoundError(
                 f"{self.simulation.box_res}/{self.simulation.name}: no simulation directory "
-                f"{self.simulation.directory} {where}. Check the simulation's name as its directory is named (the box "
-                f"can be {names})"
+                f"{self.simulation.directory} {where}."
             )
 
     def __require_files(self, halo_format=None):
@@ -1535,7 +1534,7 @@ class SnapshotLightcone:
             what, example = "snapshot files", self.simulation.snapshot_file(snap_nr, 0)
         else:
             what, example = "SOAP catalogues", halo_format.format(snap_nr=snap_nr)
-        raise FileNotFoundError(f"{self.simulation.box_res}/{self.simulation.name}: no {what} found (e.g. {example})")
+        raise FileNotFoundError(f"{self.simulation.box_res}/{self.simulation.name}: {what} not found (e.g. {example})")
 
     def __check_snapshots_exist(self, snapshot_numbers, halo_format=None):
         """
@@ -1889,7 +1888,7 @@ class SnapshotLightcone:
         n_cells_per_axis = np.broadcast_to(np.asarray(n_cells_per_axis), (3,)).astype(np.int64)
 
         # the shift in whole cells, from the unit of the tables
-        cell_shift = box_structure.cell_shifts_in_cells(cell_shift, n_cells_per_axis)
+        shift_in_cells = box_structure.cell_shifts_in_cells(cell_shift, n_cells_per_axis)
 
         cell_sidelength = np.broadcast_to(np.asarray(cell_sidelength, dtype=np.float64), (3,))
         snapshot_sidelength = np.broadcast_to(np.asarray(snapshot_sidelength, dtype=np.float64), (3,))
@@ -1906,10 +1905,10 @@ class SnapshotLightcone:
             )
 
         # the observer's periodic shift, the same for every tile, added before the tile's rotation and reflection
-        cell_shift += self._observer_cell_shift(n_cells_per_axis, snapshot_sidelength)
+        shift_in_cells += self._observer_cell_shift(n_cells_per_axis, snapshot_sidelength)
 
         # wrap around the box
-        wrapped_cell_shift = np.mod(cell_shift, n_cells_per_axis)
+        wrapped_cell_shift = np.mod(shift_in_cells, n_cells_per_axis)
 
         return wrapped_cell_shift.astype(np.float64) * cell_sidelength
 
@@ -2031,7 +2030,7 @@ class SnapshotLightcone:
         particle_data["ExpansionFactors"] = unyt.unyt_array(np.zeros(npart_in_beam), units=unyt.dimensionless)
         particle_data["ExpansionFactors"][:] = self.__comoving_distance_to_scalefactor(r_comoving) * unyt.dimensionless
 
-    def _gather_files_for_ptype(self, current_ptype, shell_z, use_snapshots=None, comm=None):
+    def _gather_files_for_ptype(self, particle_type, shell_z, use_snapshots=None, comm=None):
         """
         Plan out every snapshot file needed to populate a lightcone for a single particle type and the tiles each file
         is mapped too.
@@ -2041,8 +2040,8 @@ class SnapshotLightcone:
 
         Returns the ShellRead.
 
-        :param  current_ptype:  particle type to gather, e.g. "PartType1"
-        :type   current_ptype:  str
+        :param  particle_type:  particle type to gather, e.g. "PartType1"
+        :type   particle_type:  str
         :param  shell_z:        minimum and maximum redshift of the shell [z_min, z_max]
         :type   shell_z:        sequence of two floats
         :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
@@ -2058,7 +2057,7 @@ class SnapshotLightcone:
 
         shell = ShellRead(
             shell_z=tuple(shell_z),
-            ptype=current_ptype,
+            ptype=particle_type,
             snapshots=snapshots,
             z_ranges=z_ranges,
             cell_data=self._keep_cell_data(snapshots),  # reusing what earlier calls read for these snapshots
@@ -2076,10 +2075,10 @@ class SnapshotLightcone:
 
         # sanity check a particle types that are not in the snapshots. These are is most likely a typo, e.g. "PartType9"
         in_snapshots = [int(n) for n in shell.snapshots]
-        if in_snapshots and not any(current_ptype in shell.cell_data[n]["cells_in_file"] for n in in_snapshots):
+        if in_snapshots and not any(particle_type in shell.cell_data[n]["cells_in_file"] for n in in_snapshots):
             types = sorted(shell.cell_data[in_snapshots[0]]["cells_in_file"])
             raise ValueError(
-                f"{self.simulation.box_res}/{self.simulation.name}: no snapshots {in_snapshots} have {current_ptype}, "
+                f"{self.simulation.box_res}/{self.simulation.name}: no snapshots {in_snapshots} have {particle_type}, "
                 f"they have {', '.join(types)}"
             )
 
@@ -2087,7 +2086,7 @@ class SnapshotLightcone:
 
         # check for no particles existing in identified cells
         if not shell.plans:
-            self._log(f"\n{current_ptype}: no particles in the selected cells\n", level=1)
+            self._log(f"\n{particle_type}: no particles in the selected cells\n", level=1)
             return shell
 
         snapshots_used = sorted({int(plan.snap_nr) for plan in shell.plans})
@@ -2096,7 +2095,7 @@ class SnapshotLightcone:
 
         self._log(
             (
-                f"\n{current_ptype}: {len(shell.plans)} files to read for snapshots {snapshots_used}, with "
+                f"\n{particle_type}: {len(shell.plans)} files to read for snapshots {snapshots_used}, with "
                 f"{npart_to_read:.3e} particles in the selected cells and {npart_to_place} particles to place in the"
                 " lightcone."
             ),
@@ -2742,13 +2741,15 @@ class SnapshotLightcone:
             every_rank=True,
         )
 
-        # particle_data = self.__read_and_place_plans(
-        #    shell, [(plan, None) for plan in my_plans], property_names, max_particles_per_read, comm=comm
-        # )
-
         # check if there is a cap on the most number of requests for remote snapshot data
-        cap = None if max_concurrent_requests is None else hdf5stream_reader.RequestCap(comm, max_concurrent_requests)
+        cap = None
+
+        # never apply cap if data is on disk
+        if max_concurrent_requests is not None and self.simulation.remote is not None:
+            cap = hdf5stream_reader.RequestCap(comm, max_concurrent_requests)
+
         self._request_cap = cap
+        shell.max_requests_in_flight = None
 
         # try read remote data
         try:
@@ -2898,7 +2899,7 @@ class SnapshotLightcone:
         # give update to show redistribution has happened.
         self._log(f"redistributed {ntot} particles evenly across {size} ranks", level=1)
 
-    def gather_files(self, current_ptype, shell_z, use_snapshots=None):
+    def gather_files(self, particle_type, lightcone_redshift_range, use_snapshots=None):
         """
         Determine the snapshot files containing the particles needed to populate the lightcone.
 
@@ -2907,25 +2908,25 @@ class SnapshotLightcone:
 
         Returns a tuple (number of files found, a list FilePlan entries).
 
-        :param  current_ptype:  particle type to gather, e.g. "PartType1"
-        :type   current_ptype:  str
-        :param  shell_z:        minimum and maximum redshift of the lightcone shell [z_min, z_max]
-        :type   shell_z:        sequence of two floats
-        :param  use_snapshots:  snapshot numbers to use instead of the ones auto-selected from shell_z
-        :type   use_snapshots:  list or numpy.ndarray
+        :param  particle_type:              particle type to gather, e.g. "PartType1"
+        :type   particle_type:              str
+        :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
+        :type   lightcone_redshift_range:   sequence of two floats
+        :param  use_snapshots:              snapshot numbers to use instead of the ones auto-selected from shell_z
+        :type   use_snapshots:              list or numpy.ndarray
         """
-        shell = self._gather_files_for_ptype(current_ptype, shell_z, use_snapshots)
+        shell = self._gather_files_for_ptype(particle_type, lightcone_redshift_range, use_snapshots)
         return len(shell.plans), shell.plans
 
-    def __file_and_uses(self, file_number, current_ptype, tile):
+    def __file_and_uses(self, file_number, particle_type, tile):
         """
         Returns the shell gathered, the plan of one of its files, the uses to place (None for all) and the tile as a
         tuple (or None), checking that gather_files found that particle type and, if given, the tile.
 
         :param  file_number:    index of the files found by gather_files
         :type   file_number:    int
-        :param  current_ptype:  particle type being placed, e.g. "PartType1"
-        :type   current_ptype:  str
+        :param  particle_type:  particle type being placed, e.g. "PartType1"
+        :type   particle_type:  str
         :param  tile:           (nx, ny, nz) or (nx, ny, nz, layer), or None for every tile that uses the file
         :type   tile:           tuple
         """
@@ -2936,8 +2937,8 @@ class SnapshotLightcone:
         if not isinstance(shell, ShellRead):
             raise ValueError("must call gather_files before place_file_in_shell")
 
-        if current_ptype != shell.ptype:
-            raise ValueError(f"gather_files found the files of {shell.ptype}, not {current_ptype}")
+        if particle_type != shell.ptype:
+            raise ValueError(f"gather_files found the files of {shell.ptype}, not {particle_type}")
 
         # get property names and populate lightcone
 
@@ -2955,29 +2956,24 @@ class SnapshotLightcone:
 
         return shell, plan, uses, tile
 
-    def place_file_in_shell(self, file_number, current_ptype, property_names, tile=None, max_particles_per_read=None):
+    def place_file_in_shell(self, file_number, particle_type, property_names, tile=None, max_particles_per_read=None):
         """
         Read one snapshot file, selected by index, and place its particles in the lightcone.
 
-        The file is read once: a cell used by several tiles is read once and its particles placed in each of them.
-        With tile, only the particles placed in that tile are read and returned. The file is placed with the observer
-        position of the gather_files call that found it (kept in ``last_shell``), even if the lightcone's has changed
-        since.
+        The file is read once: a cell used by several tiles is read once and its particles are placed in each of them.
+        If a tile is specified, only the particles in that tile are read and returned. The file is placed with the
+        observer position given to gather_files.
 
         Returns the same per property particle data as place_snapshot_particles_in_shell, but containing only the
-        particles kept from the selected file (and tile), with the snapshot, file number and tile in its metadata
-        (``snapshot_number``, ``file_number``, ``tile``). It is empty if no particles of the file (or tile) are inside
-        the lightcone.
-
-        Calling it once per tile reads the cells those tiles share once for each: use tile=None (the default) to read
-        each file once, e.g. from remote files. To hand the particles out a batch and a tile at a time instead of
-        returning them all, see iter_file_pieces.
+        particles kept from the selected file (and tile), with the snapshot, file number and tile stored as metadata
+        (``snapshot_number``, ``file_number``, ``tile``). The output is empty if no particles from the file (or tile)
+        are inside the lightcone.
 
         :param  file_number:            index of the files found by gather_files
         :type   file_number:            int
-        :param  current_ptype:          particle type being placed, e.g. "PartType1"
-                                            (must match the ptype passed to gather_files)
-        :type   current_ptype:          str
+        :param  particle_type:          particle type being placed, e.g. "PartType1" (must match the ptype's passed to
+                                        gather_files)
+        :type   particle_type:          str
         :param  property_names:         particle properties to read, e.g. ["ParticleIDs", "Coordinates"]; "TileIndex"
                                         adds each particle's tile, (nx, ny, nz), or (nx, ny, nz, layer) with the
                                         "sphere" lock
@@ -2991,7 +2987,7 @@ class SnapshotLightcone:
                                         placed are the same. If None, all the file's needed cells at once
         :type   max_particles_per_read: int
         """
-        shell, plan, uses, tile = self.__file_and_uses(file_number, current_ptype, tile)
+        shell, plan, uses, tile = self.__file_and_uses(file_number, particle_type, tile)
 
         # record metadata
         metadata = self.lightcone_metadata(shell.shell_z)
@@ -3002,7 +2998,7 @@ class SnapshotLightcone:
             return LightconeOutput({}, metadata)
 
         # get property names and populate lightcone
-        property_names = self._with_required_properties(current_ptype, property_names)
+        property_names = self._with_required_properties(particle_type, property_names)
         particle_data = self.__read_and_place_plans(shell, [(plan, uses)], property_names, max_particles_per_read)
 
         if particle_data["Coordinates"] is None:
@@ -3014,22 +3010,22 @@ class SnapshotLightcone:
 
         return LightconeOutput(particle_data, metadata)  # return lightcone with metadata.
 
-    def iter_file_pieces(self, file_number, current_ptype, property_names, tile=None, max_particles_per_read=None):
+    def iter_file_pieces(self, file_number, particle_type, property_names, tile=None, max_particles_per_read=None):
         """
-        Read one snapshot file, selected by index, and yield its particles placed in the lightcone a piece at a time.
+        Read one snapshot file, selected by index, and yield its particles placed in the lightcone, one piece at a time.
 
-        A piece is the particles of one batch of the file's cells for one tile. The file is read once, a batch
-        of at most max_particles_per_read particles at a time, and each batch's particles are handed out tile by tile
-        as soon as they are placed, so they can be written out and dropped before the next read is made. Together, the
-        pieces of a file are the particles of place_file_in_shell with the same arguments.
+        A piece is the particles of one batch of cells found in a file. Each file is read once, one batch of
+        max_particles_per_read particles at a time. The particles read in each batch are copied for each time they
+        appear in the lightcone and placed straight away, so they can be written out and dropped before the next read
+        is made. Together, the pieces of a file are the particles of place_file_in_shell with the same arguments.
 
         Yields a LightconeOutput per (batch, tile) keeping particles, with the snapshot, file number, tile and batch
         number in its metadata (``snapshot_number``, ``file_number``, ``tile``, ``batch``).
 
         :param  file_number:            index of the files found by gather_files
         :type   file_number:            int
-        :param  current_ptype:          particle type being placed (must match the ptype passed to gather_files)
-        :type   current_ptype:          str
+        :param  particle_type:          particle type being placed (must match the ptype passed to gather_files)
+        :type   particle_type:          str
         :param  property_names:         particle properties to read, e.g. ["ParticleIDs", "Coordinates"]; "TileIndex"
                                         adds each particle's tile
         :type   property_names:         list
@@ -3040,11 +3036,11 @@ class SnapshotLightcone:
                                         None, all the file's needed cells at once (one batch)
         :type   max_particles_per_read: int
         """
-        shell, plan, uses, tile = self.__file_and_uses(file_number, current_ptype, tile)
+        shell, plan, uses, tile = self.__file_and_uses(file_number, particle_type, tile)
         if uses == []:
             return
 
-        property_names = self._with_required_properties(current_ptype, property_names)
+        property_names = self._with_required_properties(particle_type, property_names)
         metadata = self.lightcone_metadata(shell.shell_z)
 
         for batch_number, use, data in self.__iter_file_pieces(
@@ -3095,16 +3091,12 @@ class SnapshotLightcone:
                                             cells). This can lower the peak memory of reading  particle data. If None,
                                             all of a file's needed cells at once. Serial only for now
         :type   max_particles_per_read:     int
-        :param  max_concurrent_requests:    with comm, the most read requests in flight at once across the ranks.
-                                            2 if the simulation is remote (Simulation.remote), as the hdfstream service
-                                            asks, otherwise no cap. None: no cap. Serial calls are never capped
+        :param  max_concurrent_requests:    with comm, the most read requests of remote data at once across the ranks.
+                                            Serial calls or accessing data on disk is never capped
         :type   max_concurrent_requests:    int, str or None
         """
         if property_names is None:
             raise TypeError('place_snapshot_particles_in_shell needs property_names, e.g. ["Coordinates"]')
-
-        if self.simulation.remote is None:
-            max_concurrent_requests = None
 
         # make sure particle types is iterable if a list is given
         particle_types = [particle_types] if isinstance(particle_types, str) else list(particle_types)
@@ -3200,12 +3192,14 @@ class SnapshotLightcone:
         )
         return oriented + self.get_snapshot_reposition_coords(tile, cell_data["snap_boxsize"].to_value("Mpc"))
 
-    def gather_halo_catalogues(self, halo_format, shell_z, use_snapshots=None, snapshot_number=None):
+    def gather_halo_catalogues(
+        self, lightcone_redshift_range, use_snapshots=None, snapshot_number=None, halo_format=None
+    ):
         """
         Halo counterpart of gather_files.
 
-        For every snapshot that populates the shell, find the tiles and snapshot it's moved into, as done for the
-        particles.
+        Find the tiles in the lightcone that are populated by every snapshot within the lightcones redshift range, as
+        done for the particles.
         Note that SOAP catalogues are not sorted by cells like the snapshot particle data, so unlike for particles no
         cells are selected and every halo of a catalogue is tested.
         Each SOAP catalogue to read is recorded with its tile and the tile's redshift range as a HaloCatalogueSpec.
@@ -3213,28 +3207,32 @@ class SnapshotLightcone:
 
         Returns the list of HaloCatalogueSpec.
 
-        :param  halo_format:        format string of the SOAP catalogue filenames, using {snap_nr}
-        :type   halo_format:        str
-        :param  shell_z:            minimum and maximum redshift of the lightcone shell [z_min, z_max]
-        :type   shell_z:            sequence of two floats
-        :param  use_snapshots:      snapshot numbers to use instead of the ones auto-selected from shell_z
-        :type   use_snapshots:      list or numpy.ndarray
-        :param  snapshot_number:    the snapshot to read the box and cell metadata from. If None, the lowest redshift
-                                        snapshot used
-        :type   snapshot_number:    int
+        :param  lightcone_redshift_range:   minimum and maximum redshift of the lightcone shell [z_min, z_max]
+        :type   lightcone_redshift_range:   sequence of two floats
+        :param  use_snapshots:              snapshot numbers to use instead of the ones auto-selected from
+                                            lightcone_redshift_range
+        :type   use_snapshots:              list or numpy.ndarray
+        :param  snapshot_number:            the snapshot to read the box and cell metadata from. If None, the lowest
+                                            redshift snapshot used
+        :type   snapshot_number:            int
+        :param  halo_format:                format string of the SOAP catalogue filenames, using {snap_nr}. On disk, or
+                                            relative to the simulation's remote directory. If None, use the Simulations
+                                            set path (Simulation.soap_format)
+        :type   halo_format:                str
         """
         self.last_shell = None  # None until a shell is gathered
+        halo_format = self.simulation.soap_format if halo_format is None else halo_format
         self.__require_files(halo_format)  # check SOAP catalogues can be found
 
         # the snapshots, chosen as for the particles, with missing SOAP catalogues filled by the available ones
-        snapshots, z_ranges = self._shell_snapshots(shell_z, use_snapshots, halo_format=halo_format)
+        snapshots, z_ranges = self._shell_snapshots(lightcone_redshift_range, use_snapshots, halo_format=halo_format)
 
         # read in halo shell, with settings
         shell = HaloShellRead(
             settings=HaloShellRead.settings_of(
-                halo_format, shell_z, self.ang_radius_deg, use_snapshots, snapshot_number
+                halo_format, lightcone_redshift_range, self.ang_radius_deg, use_snapshots, snapshot_number
             ),
-            shell_z=tuple(shell_z),
+            shell_z=tuple(lightcone_redshift_range),
             snapshots=snapshots,
             z_ranges=z_ranges,
         )
@@ -3289,7 +3287,7 @@ class SnapshotLightcone:
                 shell.catalogues.append(HaloCatalogueSpec(snap_nr, tile, filename, (z_sub_min, z_sub_max)))
 
             if tiles and snap_nr not in shell.catalogue_lengths:
-                shell.catalogue_lengths[snap_nr] = soap_catalogue_length(filename)
+                shell.catalogue_lengths[snap_nr] = soap_catalogue_length(filename, remote=self.simulation.remote)
 
         # update last lightcone shell used
         self.last_shell = self._halo_shell = shell
@@ -3372,7 +3370,14 @@ class SnapshotLightcone:
         # iterate through chunks of the snapshot
         for chunk in chunks:
             specs = specs_of_snapshot[chunk.snap_nr]
-            halo_data = read_soap_rows(specs[0][1].filename, to_read, chunk.start, chunk.stop)
+            halo_data = read_soap_rows(
+                specs[0][1].filename,
+                to_read,
+                chunk.start,
+                chunk.stop,
+                remote=self.simulation.remote,
+                cap=self._request_cap,
+            )
             halo_index = halo_data["InputHalos/HaloCatalogueIndex"].value.astype(int)
 
             if halo_index.shape[0] == 0:
@@ -3436,13 +3441,14 @@ class SnapshotLightcone:
 
     def place_halos_in_shell(
         self,
-        halo_format,
         lightcone_redshift_range,
         use_snapshots=None,
         soap_chunk_size=None,
         comm=None,
         redistribute_halos=False,
         snapshot_number=None,
+        max_concurrent_requests=2,
+        halo_format=None,
     ):
         """
         Halo counterpart of place_snapshot_particles_in_shell.
@@ -3474,14 +3480,12 @@ class SnapshotLightcone:
 
         Returns a :class:`LightconeOutput` of these properties, one row per halo placed.
 
-        :param  halo_format:                format string for SOAP catalogue filenames (using {snap_nr})
-        :type   halo_format:                str
         :param  lightcone_redshift_range:   minimum and maximum redshift of the shell to populate [z_min, z_max]
         :type   lightcone_redshift_range:   sequence of two floats
         :param  use_snapshots:              snapshot numbers to use, as in gather_files, bypassing the usual
                                             redshift-range lookup
         :type   use_snapshots:              list or numpy.ndarray
-        :param  soap_chunk_size:            number of rows of a SOAP catalogue read at a time. If None, see above
+        :param  soap_chunk_size:            number of rows of a SOAP catalogue read at a time.
         :type   soap_chunk_size:            int
         :param  comm:                       MPI communicator. If None, MPI.COMM_WORLD when more than one rank is
                                             running, otherwise serial
@@ -3490,7 +3494,18 @@ class SnapshotLightcone:
         :type   redistribute_halos:         bool
         :param  snapshot_number:            snapshot to read the box and cell metadata from, see gather_halo_catalogues
         :type   snapshot_number:            int
+        :param  max_concurrent_requests:    with MPI, the most read requests allowed at once across the ranks.
+                                            The default is 2 for a remote simulation and doesn't apply to data stored on
+                                            on disk or when operating in serial.
+        :type   max_concurrent_requests:    int or None
+        :param  halo_format:                format string for SOAP catalogue filenames (using {snap_nr}). The path must
+                                            point to files that are either on disk, or be relative to the simulation's
+                                            remote directory. If None, the Simulation defined path is used
+                                            (Simulation.soap_format)
+        :type   halo_format:                str
         """
+        halo_format = self.simulation.soap_format if halo_format is None else halo_format
+
         if comm is None and MPI.COMM_WORLD.Get_size() > 1:
             comm = MPI.COMM_WORLD
 
@@ -3503,6 +3518,7 @@ class SnapshotLightcone:
                 comm,
                 redistribute_halos,
                 snapshot_number,
+                max_concurrent_requests,
             )
 
     def __place_halos(
@@ -3514,6 +3530,7 @@ class SnapshotLightcone:
         comm,
         redistribute_halos,
         snapshot_number,
+        max_concurrent_requests=None,
     ):
         """
         Returns a LightconeOutput, as the inner layer of place_halos_in_shell.
@@ -3532,16 +3549,18 @@ class SnapshotLightcone:
         :type   redistribute_halos:         bool
         :param  snapshot_number:            see place_halos_in_shell
         :type   snapshot_number:            int
+        :param  max_concurrent_requests:    with comm, the most read requests in flight at once. If None, no cap
+        :type   max_concurrent_requests:    int or None
         """
         settings = HaloShellRead.settings_of(
             halo_format, lightcone_redshift_range, self.ang_radius_deg, use_snapshots, snapshot_number
         )
         if self._halo_shell is None or self._halo_shell.settings != settings:
             self.gather_halo_catalogues(
-                halo_format,
                 lightcone_redshift_range,
                 use_snapshots=use_snapshots,
                 snapshot_number=snapshot_number,
+                halo_format=halo_format,
             )
 
         shell = self.last_shell = self._halo_shell
@@ -3563,7 +3582,29 @@ class SnapshotLightcone:
             )
             self._log(update_str, level=1, every_rank=True)
 
-        centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(shell, my_chunks)
+        cap = None
+
+        if comm is not None and max_concurrent_requests is not None and self.simulation.remote is not None:
+            cap = hdf5stream_reader.RequestCap(comm, max_concurrent_requests)  # never capped on disk
+
+        self._request_cap = cap
+        shell.max_requests_in_flight = None  # the shell may be reused
+
+        try:
+            centres, snap_nr, halo_index, soap_index, nr_read = self.__read_and_place_halos(shell, my_chunks)
+        finally:
+            self._request_cap = None
+            if cap is not None:
+                comm.Barrier()  # every rank's requests are done
+                shell.max_requests_in_flight = cap.most_in_flight()
+                cap.free()
+
+        if cap is not None:
+            self._log(
+                f"Haloes: at most {shell.max_requests_in_flight} read requests at once (cap "
+                f"{cap.max_requests}). This rank waited {cap.wait:.3f} s for available slots to remote read the data",
+                level=1,
+            )
 
         nr_kept = len(snap_nr)
         if comm is not None:

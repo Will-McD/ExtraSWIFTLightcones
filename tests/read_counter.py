@@ -1,9 +1,5 @@
 #!/bin/env python
-"""
-Count the ranks reading remote files and the expected number of particles added to the lightcone per file read.
-
-Include an option to make fake remote files of snapshots to test against reading local fake snapshots.
-"""
+"""Count the ranks reading remote files and the expected number of particles added to the lightcone per file read."""
 
 import os
 import threading
@@ -109,6 +105,11 @@ def _is_filename(name):
     return isinstance(name, (str, bytes, os.PathLike))
 
 
+def _nr_rows(dataset):
+    """Length of a dataset's first axis (1 for a scalar dataset)."""
+    return dataset.shape[0] if dataset.shape else 1
+
+
 class ReadCounter:
     """
     Record every HDF5 file opened for reading and every dataset read, while active (as a context manager).
@@ -122,7 +123,7 @@ class ReadCounter:
             lightcone.place_snapshot_particles_in_shell((0.1, 0.2), ["Coordinates"], "PartType1")
         print(counter.format_table(select=ReadCounter.particle_datasets))
 
-    :ivar opens:    number of times each file (real path) was opened for reading
+    :ivar opens:    number of times each file (real path, or path on the server) was opened for reading
     :vartype opens: collections.Counter
     :ivar reads:    the reads of each dataset, {(file, dataset name): DatasetReads}
     :vartype reads: dict
@@ -133,9 +134,9 @@ class ReadCounter:
         self.reads = {}
         self._lock = threading.Lock()
         self._local = threading.local()
-        self._originals = None
+        self._patched = []  # (object, attribute name, original), restored on exit
 
-    # ---- which datasets ----
+    # datasets
 
     @staticmethod
     def particle_datasets(filename, dataset):
@@ -147,7 +148,7 @@ class ReadCounter:
         """Select the cell metadata of snapshots, e.g. /Cells/OffsetsInFile/PartType1."""
         return dataset.startswith("/Cells/")
 
-    # ---- patching ----
+    # patching
 
     def __enter__(self):  # noqa: D105
         counter = self
@@ -158,56 +159,83 @@ class ReadCounter:
 
         def counted_file_init(file, name, *args, **kwargs):
             file_init(file, name, *args, **kwargs)
-            # h5py also makes File objects from open file ids (e.g. dataset.file): those are not opens
+
+            # h5py also makes File objects from open file ids
             if _is_filename(name) and file.mode == "r":
-                counter._record_open(file.filename)
+                counter._record_open(os.path.realpath(file.filename))
 
         def counted_getitem(dataset, key, *args, **kwargs):
-            if not getattr(counter._local, "busy", False):
-                counter._record_read(dataset, key)
-            counter._local.busy = True
-            try:
-                return getitem(dataset, key, *args, **kwargs)
-            finally:
-                counter._local.busy = False
+            return counter._counted(
+                dataset, lambda: _rows_of_key(key, _nr_rows(dataset)), getitem, dataset, key, *args, **kwargs
+            )
 
         def counted_read_direct(dataset, dest, source_sel=None, dest_sel=None):
-            if not getattr(counter._local, "busy", False):
-                counter._record_read(dataset, Ellipsis if source_sel is None else source_sel)
-            counter._local.busy = True
-            try:
-                return read_direct(dataset, dest, source_sel, dest_sel)
-            finally:
-                counter._local.busy = False
+            key = Ellipsis if source_sel is None else source_sel
+            return counter._counted(
+                dataset, lambda: _rows_of_key(key, _nr_rows(dataset)), read_direct, dataset, dest, source_sel, dest_sel
+            )
 
-        h5py.File.__init__ = counted_file_init
-        h5py.Dataset.__getitem__ = counted_getitem
-        h5py.Dataset.read_direct = counted_read_direct
+        from swiftlet import hdf5stream_reader, snapshot_cosmology, soap_reader
+
+        read_slices = hdf5stream_reader.read_slices
+
+        def counted_read_slices(dataset, starts, lengths, *args, **kwargs):
+            ranges = [(int(a), int(a + n)) for a, n in zip(np.ravel(starts), np.ravel(lengths)) if n > 0]
+            if not ranges or hasattr(dataset, "request_slices"):  # no rows (no request), or remote: not counted
+                return read_slices(dataset, starts, lengths, *args, **kwargs)
+            return counter._counted(dataset, lambda: ranges, read_slices, dataset, starts, lengths, *args, **kwargs)
+
+        self._patch(h5py.File, "__init__", counted_file_init)
+        self._patch(h5py.Dataset, "__getitem__", counted_getitem)
+        self._patch(h5py.Dataset, "read_direct", counted_read_direct)
+
+        for module in (hdf5stream_reader, soap_reader):  # also where it is imported by name
+            self._patch(module, "read_slices", counted_read_slices)
         return self
 
+    def _patch(self, owner, name, replacement):
+        self._patched.append((owner, name, getattr(owner, name)))
+        setattr(owner, name, replacement)
+
     def __exit__(self, *exc):  # noqa: D105
-        h5py.File.__init__, h5py.Dataset.__getitem__, h5py.Dataset.read_direct = self._originals
-        self._originals = None
+        for owner, name, original in reversed(self._patched):
+            setattr(owner, name, original)
+        self._patched = []
         return False
+
+    def _busy(self):
+        return getattr(self._local, "busy", False)
+
+    def _counted(self, dataset, ranges_of, read, *args, **kwargs):
+        """
+        Make one read, read(*args, **kwargs), and record it as one request of the dataset with the rows ranges_of()
+        gives, unless inside another counted read (whose own reads are not requests of their own).
+        """
+        if self._busy():
+            return read(*args, **kwargs)
+        self._local.busy = True  # the dataset's shape, file, ... and the read's own reads must not count
+
+        try:
+            ranges = ranges_of()
+            result = read(*args, **kwargs)
+            self._record_ranges(dataset, ranges)
+        finally:
+            self._local.busy = False
+        return result
 
     def _record_open(self, filename):
         with self._lock:
-            self.opens[os.path.realpath(filename)] += 1
+            self.opens[filename] += 1
 
-    def _record_read(self, dataset, key):
-        self._local.busy = True  # dataset.file and dataset.shape must not count as reads or opens
-        try:
-            filename = os.path.realpath(dataset.file.filename)
-            nr_rows = dataset.shape[0] if dataset.shape else 1
-            ranges = _rows_of_key(key, nr_rows)
-        finally:
-            self._local.busy = False
+    def _record_ranges(self, dataset, ranges):
+        """Record one request of a dataset, reading the (start, stop) row ranges given (call with _local.busy set)."""
+        filename = os.path.realpath(dataset.file.filename)
         with self._lock:
             entry = self.reads.setdefault((filename, dataset.name), DatasetReads())
             entry.requests += 1
             entry.ranges.extend(ranges)
 
-    # ---- reports ----
+    # reports
 
     def rows(self, select=None):
         """
@@ -381,11 +409,14 @@ class RequestLog:
     :vartype opens:     collections.Counter
     :ivar requests:     every data request, in order, as RemoteRequest
     :vartype requests:  list
+    :ivar listings:     number of directories listed
+    :vartype listings:  int
     """
 
     def __init__(self):
         self.opens = Counter()
         self.requests = []
+        self.listings = 0
         self._lock = threading.Lock()
 
     def add(self, request):
@@ -439,12 +470,14 @@ class FakeRemoteDataset:
         self._log.add(RemoteRequest(self._relpath, self.name, 1, rows, start, time.time()))
         return values
 
-    def request_slices(self, slices):
+    def request_slices(self, slices, dest=None):
         """
         Returns the slices, joined along the first dimension, in one request.
 
         :param  slices: slice objects following the rules of check_request_slices
         :type   slices: sequence
+        :param  dest:   array to write the result to, of the result's shape and the dataset's dtype
+        :type   dest:   numpy.ndarray
         """
         ranges = check_request_slices(slices, self.ndim)
         start = time.time()
@@ -453,7 +486,16 @@ class FakeRemoteDataset:
         time.sleep(self._delay)
         rows = sum(b - a for a, b in ranges)
         self._log.add(RemoteRequest(self._relpath, self.name, len(ranges), rows, start, time.time()))
-        return values
+
+        if dest is None:
+            return values
+
+        if dest.shape != values.shape or dest.dtype != values.dtype:
+            raise ValueError(f"dest of {dest.shape} {dest.dtype} for a result of {values.shape} {values.dtype}")
+
+        dest[...] = values
+
+        return None
 
 
 class FakeRemoteGroup:
@@ -476,6 +518,25 @@ class FakeRemoteGroup:
         if isinstance(member, h5py.Dataset):
             return FakeRemoteDataset(member, self._relpath, self._log, self._delay)
         return FakeRemoteGroup(member, self._relpath, self._log, self._delay)
+
+
+class FakeRemoteTextFile:
+    """A file of a FakeRemoteDirectory that isn't HDF5: open("r") reads it, as hdfstream's RemoteFile.open."""
+
+    def __init__(self, path):  # noqa: D107
+        self._path = path
+
+    def open(self, mode="r"):
+        """Returns the file, open for reading."""
+        return open(self._path, mode)
+
+
+class FakeRemoteListing:
+    """A directory of a FakeRemoteDirectory: its files by name, as hdfstream's RemoteDirectory.files."""
+
+    def __init__(self, path, log):  # noqa: D107
+        self.files = {entry.name: entry for entry in Path(path).iterdir() if entry.is_file()}
+        log.listings += 1
 
 
 class FakeRemoteFile(FakeRemoteGroup):
@@ -515,4 +576,19 @@ class FakeRemoteDirectory:
 
     def __getitem__(self, path):  # noqa: D105
         relpath = str(Path(path).relative_to(self.root)) if Path(path).is_absolute() else str(path)
-        return FakeRemoteFile(self.root / relpath, relpath, self.log, self.delay)
+        local = self.root / relpath
+        if local.is_dir():
+            return FakeRemoteListing(local, self.log)
+
+        if not local.is_file():
+            raise KeyError(f"Invalid path: {path}")
+
+        if not h5py.is_hdf5(local):
+            return FakeRemoteTextFile(local)
+
+        return FakeRemoteFile(local, relpath, self.log, self.delay)
+
+    @property
+    def files(self):
+        """The files at the top of the directory, by name."""
+        return FakeRemoteListing(self.root, self.log).files

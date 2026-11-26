@@ -30,7 +30,7 @@ def place_tile_by_tile(lightcone, redshift_range):
     """
     lightcone.gather_files(PTYPE, redshift_range)
     shell = lightcone.last_shell
-    z_range = {(piece.snap_nr, piece.tile): piece.z_updated for piece in shell.pieces}
+    z_range = {(piece.snap_nr, piece.tile): piece.z_range for piece in shell.pieces}
     cut_to_shell = lightcone._SnapshotLightcone__select_particles_in_shell
     to_mpc = unyt.unyt_quantity(MPC_CM, "cm").to_value("Mpc")  # the fake snapshots' length unit
     placed = {"SnapshotNumber": [], "TileIndex": [], "ParticleIDs": [], "Coordinates": []}

@@ -60,7 +60,7 @@ def test_batch_size_changes_nothing_placed(fake_runs, beam_vector, ang_radius_de
 
 def test_batches_still_read_each_cell_once(fake_runs):
     """
-    Ensure that batches, each file is still opened once and no particle row read twice; there are more, smaller reads.
+    Ensure that when reading in batches that each file is still opened once and no particle row read twice.
     """
     lightcone = new_lightcone(HALO_SIM, None, "cube")
 
@@ -87,6 +87,7 @@ def test_batches_still_read_each_cell_once(fake_runs):
 def test_batches_lower_the_peak_memory(fake_runs):
     """Check that placing the largest file of the all-sky shell a quarter at a time takes less memory at its peak."""
     lightcone = new_lightcone(HALO_SIM, None, "cube")
+
     _, plans = lightcone.gather_files(PTYPE, (0.1, 0.2))
     file_number, plan = max(enumerate(plans), key=lambda item: item[1].nr_placed)
     assert plan.nr_placed > plan.nr_particles  # shared cells: copies in several tiles
@@ -106,6 +107,7 @@ def test_batches_lower_the_peak_memory(fake_runs):
     peak(None)  # the first read sets up the units
     whole, kept_whole = peak(None)
     quarter, kept_quarter = peak(plan.nr_particles // 4)
+
     assert kept_quarter == kept_whole > 0
     assert quarter < 0.75 * whole, (quarter, whole)
 
@@ -127,8 +129,8 @@ def test_mpi_batches_on_one_rank(fake_runs):
 @pytest.mark.parametrize("max_particles_per_read", [None, 100])
 def test_pieces_are_the_file(fake_runs, max_particles_per_read):
     """
-    The pieces of each file are, together, the particles of place_file_in_shell; each piece is one tile of one batch,
-    as its metadata and TileIndex say, and only pieces keeping particles are yielded.
+    Check that the pieces of each file are the particles of place_file_in_shell where each piece is one tile from a
+    batch and only pieces keeping particles are yielded.
     """
     lightcone = new_lightcone(HALO_SIM, None, "sphere")
     nr_files, plans = lightcone.gather_files(PTYPE, (0.1, 0.2))
@@ -170,7 +172,7 @@ def test_pieces_are_the_file(fake_runs, max_particles_per_read):
 
 
 def test_pieces_of_one_tile(fake_runs):
-    """With tile, only that tile's pieces; a tile the file doesn't use yields none."""
+    """Test that for a tile that a file doesn't use yields none."""
     lightcone = new_lightcone(HALO_SIM, None, "cube")
     _, plans = lightcone.gather_files(PTYPE, (0.1, 0.2))
     file_number, plan = max(enumerate(plans), key=lambda item: len(item[1].uses))

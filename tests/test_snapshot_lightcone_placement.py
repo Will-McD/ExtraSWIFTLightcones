@@ -361,7 +361,7 @@ def place_haloes_and_particles(
         HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg, **lightcone_kwargs
     )
     # get haloes for testing lightcone
-    halos = lightcone.place_halos_in_shell(halo_format, redshift_range)
+    halos = lightcone.place_halos_in_shell(redshift_range, halo_format=halo_format)
     # get particles for testing lightcone
     particles = lightcone.place_snapshot_particles_in_shell(
         redshift_range,
@@ -459,16 +459,19 @@ def test_haloes_read_in_chunks_as_whole(fake_runs, beam_vector, ang_radius_deg, 
     Test in serial and for any chunk size.
     """
     lightcone = new_lightcone(HALO_SIM, beam_vector, orientation_lock, ang_radius_deg=ang_radius_deg)
-    whole = lightcone.place_halos_in_shell(fake_runs, redshift_range)
+    whole = lightcone.place_halos_in_shell(redshift_range, halo_format=fake_runs)
     assert len(whole["Lightcone/SnapshotNumber"]) > 0
+
     for chunk_size in (333, NHALOS - 1, 10 * NHALOS):
-        chunked = lightcone.place_halos_in_shell(fake_runs, redshift_range, soap_chunk_size=chunk_size)
+        chunked = lightcone.place_halos_in_shell(redshift_range, soap_chunk_size=chunk_size, halo_format=fake_runs)
         assert set(chunked) == set(whole)
+
         for name in whole:
             assert chunked[name].units == whole[name].units, name
             np.testing.assert_array_equal(
                 chunked[name].value, whole[name].value, err_msg=f"{name}, chunks of {chunk_size}"
             )
+
         assert chunked.metadata == whole.metadata
 
 
@@ -497,10 +500,11 @@ def test_haloes_with_mpi_communicator_as_serial(fake_runs):
     """
     MPI = pytest.importorskip("mpi4py.MPI")
     lightcone = new_lightcone(HALO_SIM, None, "cube")
-    serial = lightcone.place_halos_in_shell(fake_runs, (0.1, 0.2))
-
+    serial = lightcone.place_halos_in_shell((0.1, 0.2), halo_format=fake_runs)
     for chunk_size in (None, 333):
-        with_mpi = lightcone.place_halos_in_shell(fake_runs, (0.1, 0.2), soap_chunk_size=chunk_size, comm=MPI.COMM_SELF)
+        with_mpi = lightcone.place_halos_in_shell(
+            (0.1, 0.2), soap_chunk_size=chunk_size, comm=MPI.COMM_SELF, halo_format=fake_runs
+        )
 
         # the communicator is not kept for the next call
         assert lightcone._log_rank is None
@@ -536,7 +540,7 @@ def test_angular_radius_checked(fake_runs):
 
     # test radius metadata is found for haloes
 
-    halos = beam.place_halos_in_shell(fake_runs, redshift_range)
+    halos = beam.place_halos_in_shell(redshift_range, halo_format=fake_runs)
     assert halos.metadata["ang_radius_deg"] == 10.0
 
     all_sky = new_lightcone(sim_name=HALO_SIM, beam_vector=None, orientation_lock=None)
@@ -547,7 +551,7 @@ def test_angular_radius_checked(fake_runs):
     # without the radius, by position as before
     numb_files, _ = all_sky.gather_files(PTYPE, redshift_range)
     assert numb_files > 0
-    assert len(all_sky.place_halos_in_shell(fake_runs, redshift_range)["Lightcone/SnapshotNumber"]) > 0
+    assert len(all_sky.place_halos_in_shell(redshift_range, halo_format=fake_runs)["Lightcone/SnapshotNumber"]) > 0
 
 
 def test_serial_after_mpi(fake_runs):
@@ -624,11 +628,11 @@ def test_cell_data_kept_for_the_last_shell(fake_runs):
     assert set(lightcone.last_shell.cell_data) == set(lightcone.last_shell.snapshots.tolist())
 
     # the haloes read the box and cells from one snapshot, and keep only those of their shell's snapshots
-    lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))
+    lightcone.place_halos_in_shell((0.05, 0.15), halo_format=fake_runs)
     shell = lightcone.last_shell
     assert shell.cell_snapshot in shell.cell_data
     assert set(shell.cell_data) <= set(shell.snapshots.tolist()) | {shell.cell_snapshot}
-    assert len(lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))["Lightcone/SnapshotNumber"]) > 0
+    assert len(lightcone.place_halos_in_shell((0.05, 0.15), halo_format=fake_runs)["Lightcone/SnapshotNumber"]) > 0
 
     # Snapshot2Lightcone works for any snapshot, without keeping what it reads
     kept = set(lightcone.last_shell.cell_data)
@@ -637,7 +641,7 @@ def test_cell_data_kept_for_the_last_shell(fake_runs):
 
     lightcone.clear_cache()
     assert lightcone.last_shell.cell_data == {}
-    assert len(lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))["Lightcone/SnapshotNumber"]) > 0
+    assert len(lightcone.place_halos_in_shell((0.05, 0.15), halo_format=fake_runs)["Lightcone/SnapshotNumber"]) > 0
 
 
 def test_cell_data_read_once_across_calls(fake_runs):
@@ -656,7 +660,7 @@ def test_cell_data_read_once_across_calls(fake_runs):
 
     with ReadCounter() as again:
         same = lightcone.place_snapshot_particles_in_shell((0.1, 0.2), ["ParticleIDs"], particle_types=PTYPE)[PTYPE]
-        lightcone.place_halos_in_shell(fake_runs, (0.1, 0.2))
+        lightcone.place_halos_in_shell((0.1, 0.2), halo_format=fake_runs)
 
     assert again.totals(ReadCounter.cell_datasets)["requests"] == 0
     np.testing.assert_array_equal(np.sort(same["ParticleIDs"].value), np.sort(placed["ParticleIDs"].value))
@@ -688,7 +692,7 @@ def test_particles_and_haloes_choose_the_same_snapshots(fake_runs, shell_z):
             lightcone.gather_files(PTYPE, shell_z, use_snapshots=use_snapshots)
             particles = lightcone.last_shell.snapshots.tolist()
 
-            lightcone.gather_halo_catalogues(fake_runs, shell_z, use_snapshots=use_snapshots)
+            lightcone.gather_halo_catalogues(shell_z, use_snapshots=use_snapshots, halo_format=fake_runs)
             haloes = lightcone.last_shell.snapshots.tolist()
 
         assert len(particles) > 0
@@ -711,7 +715,7 @@ def test_each_call_has_its_own_read_state(fake_runs):
     assert set(first.tile_cells) == {(piece.snap_nr, piece.tile) for piece in first.pieces}
     assert {spec.snap_nr for spec in files} <= set(first.snapshots.tolist())
 
-    lightcone.gather_halo_catalogues(fake_runs, (0.15, 0.25))
+    lightcone.gather_halo_catalogues((0.15, 0.25), halo_format=fake_runs)
 
     assert isinstance(lightcone.last_shell, snapshot_lightcone.HaloShellRead)
     assert first.shell_z == (0.05, 0.15) and first.plans == files
@@ -736,11 +740,13 @@ def test_no_haloes_without_snapshots_in_the_shell(fake_runs):
     MPI = pytest.importorskip("mpi4py.MPI")
     lightcone = new_lightcone(HALO_SIM, (0, 0, 1), None, ang_radius_deg=10.0)
     far_snapshot = SNAPSHOTS[0]  # the highest redshift, outside the shell
-    assert lightcone.gather_halo_catalogues(fake_runs, (0.0, 0.01), use_snapshots=[far_snapshot]) == []
-    assert lightcone.gather_halo_catalogues(fake_runs, (0.0, 0.01), use_snapshots=[far_snapshot]) == []
+    assert lightcone.gather_halo_catalogues((0.0, 0.01), use_snapshots=[far_snapshot], halo_format=fake_runs) == []
+    assert lightcone.gather_halo_catalogues((0.0, 0.01), use_snapshots=[far_snapshot], halo_format=fake_runs) == []
 
     for comm in (None, MPI.COMM_SELF):
-        halos = lightcone.place_halos_in_shell(fake_runs, (0.0, 0.01), use_snapshots=[far_snapshot], comm=comm)
+        halos = lightcone.place_halos_in_shell(
+            (0.0, 0.01), use_snapshots=[far_snapshot], comm=comm, halo_format=fake_runs
+        )
 
         assert all(len(values) == 0 for values in halos.values())
         assert halos["Lightcone/HaloCentre"].shape == (0, 3)
@@ -840,7 +846,7 @@ def test_missing_soap_catalogue_filled_with_a_warning(fake_run_dir, fake_runs):
         lightcone = new_lightcone(HALO_SIM, (0, 0, 1), None, ang_radius_deg=25.0)
 
         with pytest.warns(snapshot_lightcone.SnapshotGapWarning, match="SOAP catalogues of snapshots \\[77\\]"):
-            halos = lightcone.place_halos_in_shell(fake_runs, (0.0, 0.06))
+            halos = lightcone.place_halos_in_shell((0.0, 0.06), halo_format=fake_runs)
 
     assert len(halos["Lightcone/SnapshotNumber"]) > 0
     assert set(halos["Lightcone/SnapshotNumber"].value.astype(int).tolist()) == {76}
@@ -994,7 +1000,7 @@ def place_lattice(lightcone, redshift_range, kind, run_dir):
     if kind == "particles":
         return particle_rows(place_particles(lightcone, redshift_range))
 
-    haloes = lightcone.place_halos_in_shell(soap_format(run_dir, LATTICE_SIM), redshift_range)
+    haloes = lightcone.place_halos_in_shell(redshift_range, halo_format=soap_format(run_dir, LATTICE_SIM))
 
     return particle_rows(
         {
@@ -1017,8 +1023,10 @@ def lattice_in_shell(r_min, r_max, beam_vector, ang_radius_deg):
     axis = axis[np.abs(axis) <= r_max + LATTICE_SPACING]
     points = np.stack(np.meshgrid(axis, axis, axis, indexing="ij"), axis=-1).reshape(-1, 3)
     r = np.linalg.norm(points, axis=1)
+
     assert np.min(np.abs(r - r_min)) > 1e-3 and np.min(np.abs(r - r_max)) > 1e-3
     keep = (r >= r_min) & (r <= r_max)
+
     if beam_vector is not None:
         beam_vec = np.asarray(beam_vector, dtype=float) / np.linalg.norm(beam_vector)
         cos_angle = points[keep] @ beam_vec / r[keep]
@@ -1708,7 +1716,7 @@ def placed_haloes_by_tile(lightcone, halo_format, redshift_range, ang_radius_deg
     monkeypatch.setattr(lightcone, "_to_lightcone", to_lightcone_and_record_tile)
     monkeypatch.setattr(lightcone, "_SnapshotLightcone__select_particles_in_shell", select_and_record_tile)
 
-    halos = lightcone.place_halos_in_shell(halo_format, redshift_range)
+    halos = lightcone.place_halos_in_shell(redshift_range, halo_format=halo_format)
     monkeypatch.undo()
 
     snap_nr = halos["Lightcone/SnapshotNumber"].value.astype(int)
@@ -1841,7 +1849,7 @@ def expected_placements_by_tile(lightcone, sim_name, beam_vector, ang_radius_deg
         box_ids, box_pos = read_fake_snapshot(sim_name, record.snap_nr)
         coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_pos, tile=record.tile)
         r = np.linalg.norm(coords, axis=1)
-        r_in, r_out = Cosmology.COSMO.comoving_distance(list(record.z_updated)).to_value("Mpc")
+        r_in, r_out = Cosmology.COSMO.comoving_distance(list(record.z_range)).to_value("Mpc")
 
         # distance to the nearest edge of the tile's part of the shell, and of the beam
         edge_distance = np.minimum(np.abs(r - r_in), np.abs(r - r_out))
@@ -2148,7 +2156,7 @@ def test_outputs_carry_the_lightcone_settings(
         "particles placed file by file",
     )
 
-    halos = lightcone.place_halos_in_shell(fake_runs, redshift_range)
+    halos = lightcone.place_halos_in_shell(redshift_range, halo_format=fake_runs)
     assert len(halos["Lightcone/SnapshotNumber"]) > 0
 
     assert_settings(halos.metadata, "haloes placed")
@@ -2389,7 +2397,7 @@ def test_observer_position_is_set_when_the_lightcone_is_made(fake_runs):
         assert "observer_position" not in inspect.signature(getattr(lightcone, method)).parameters, method
 
     # particles and haloes of the same lightcone share its observer
-    lightcone.place_halos_in_shell(fake_runs, (0.05, 0.15))
+    lightcone.place_halos_in_shell((0.05, 0.15), halo_format=fake_runs)
     lightcone.gather_files(PTYPE, (0.05, 0.15))
 
     assert lightcone.observer_snapshot_coords == (OBSERVER, approx(OBSERVER_CORNER))
@@ -2488,7 +2496,7 @@ def test_mpi_with_an_observer_position_matches_serial(fake_run_dir, fake_runs, t
             np.concatenate([rank[name] for rank in ranks]) for name in ("snap_nr", "index", "centre")
         )
 
-        halos = lightcone.place_halos_in_shell(soap_format(fake_run_dir), redshift_range)
+        halos = lightcone.place_halos_in_shell(redshift_range, halo_format=soap_format(fake_run_dir))
 
         serial_snap = halos["Lightcone/SnapshotNumber"].value.astype(int)
         serial_index = halos["InputHalos/HaloCatalogueIndex"].value.astype(int)
@@ -2511,7 +2519,7 @@ def test_observer_written_to_the_output_files(fake_runs, tmp_path):
     from swiftlet.repeat_check import find_close_cell_repeats, write_close_repeats
 
     lightcone = new_lightcone(HALO_SIM, (1, 2, 3), "cube", ang_radius_deg=20.0, observer_position=OBSERVER)
-    haloes = lightcone.place_halos_in_shell(fake_runs, (0.05, 0.25))
+    haloes = lightcone.place_halos_in_shell((0.05, 0.25), halo_format=fake_runs)
     expected = {name: haloes.metadata[name] for name in ("observer_position", "observer_corner", "observer_cell_shift")}
 
     assert expected["observer_position"] == list(OBSERVER)

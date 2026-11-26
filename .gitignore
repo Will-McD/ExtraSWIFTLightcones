@@ -20,8 +20,10 @@ example_outputs/
 # the shell redshift files downloaded into the /data repository (not the package data in swiftlet/data)
 /data/
 swiftlet_env/
+read_counts/
 tests/snapshot_lightcone_test.py
 tests/snapshot_tracer_particle.py
+tests/compare_disk_and_remote.py
 extra_swift_lightcones
 extra_swift_lightcones/hmf.py
 examples/large_examples/

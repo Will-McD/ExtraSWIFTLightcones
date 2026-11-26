@@ -160,7 +160,7 @@ def test_plans_match_the_tile_pieces(fake_runs, beam_vector, ang_radius_deg, red
     snapshot_order = {int(n): i for i, n in enumerate(shell.snapshots)}
     assert keys == sorted(keys, key=lambda key: (snapshot_order[key[0]], key[1]))
 
-    z_ranges = {(p.snap_nr, p.tile): tuple(p.z_updated) for p in shell.pieces}
+    z_ranges = {(p.snap_nr, p.tile): tuple(p.z_range) for p in shell.pieces}
 
     for plan in plans:
         cell_data = shell.cell_data[plan.snap_nr]

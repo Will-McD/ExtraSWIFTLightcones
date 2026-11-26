@@ -2,9 +2,6 @@
 """
 Test sharing snapshot files between MPI ranks: whole files, balanced by their expected placed particles, each read once
 by one rank, with the cell metadata read on rank 0 only.
-
-The particles placed on several ranks are compared with serial in test_snapshot_lightcone_placement
-(test_mpi_matches_serial); here, what each rank reads.
 """
 
 import json

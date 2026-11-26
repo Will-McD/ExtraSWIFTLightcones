@@ -153,6 +153,7 @@ nitpick_ignore_regex = [
     # private module paths that the projects' own inventories don't list
     ("py:class", r"matplotlib\.axes\._axes\..*|astropy\.cosmology\.flrw\..*"),
     ("py:class", r"lightcone_io\..*"),
+    ("py:class", r"hdfstream\..*"),
 ]
 
 nitpick_ignore = [
