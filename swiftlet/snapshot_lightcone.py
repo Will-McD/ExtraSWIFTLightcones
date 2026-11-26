@@ -2710,6 +2710,8 @@ class SnapshotLightcone:
         self, shell, property_names, comm, max_particles_per_read=None, max_concurrent_requests=None
     ):
         """
+        Read and place the planned files over multiple MPI ranks.
+
         The snapshot files are shared between the ranks, never split: each is read by one rank, which places its
         particles in every tile that uses it. Files are shared so each rank has about the same number of particles to
         place (FilePlan.nr_placed: each cell's particles once per tile that uses it), see _assign_files_to_ranks.
