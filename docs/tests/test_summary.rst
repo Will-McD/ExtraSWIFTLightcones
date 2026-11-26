@@ -96,10 +96,10 @@ The following table summarises the test files and what they check.
         :func:`swiftlet.snapshot_orientation.check_neighbouring_tiles` finds; the example runs; the warning and the HDF5
         file.
 
-    * -  ``test_read_counts.py``
-     -  ``tests/read_counter.py`` counts each dataset read in one request for a file from a fake simulation. Check that 
-        placing particles into a lightcone reads exactly the cells planned from each file and each snapshot's cell 
-        metadata once, opens each snapshot file once per call and reads no particle row twice.
+   * - ``test_read_counts.py``
+     - ``tests/read_counter.py`` counts each dataset read in one request for a file from a fake simulation. Check that 
+       placing particles into a lightcone reads exactly the cells planned from each file and each snapshot's cell 
+       metadata once, opens each snapshot file once per call and reads no particle row twice.
 
    * -  ``test_remote_reading.py``
      -  Reading snapshots remotely with hdfstream (``swiftlet.hdf5stream_reader``), against the stand-in for the remote
