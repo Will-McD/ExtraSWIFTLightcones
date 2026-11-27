@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib
 import matplotlib.layout_engine
 import matplotlib.pyplot as plt
+import hdfstream
 from pathlib import Path
 from swiftlet.snapshot_cosmology import SnapshotCosmology
 from swiftlet.simulation_suites import Simulation
@@ -774,8 +775,11 @@ if __name__ == "__main__":
 
     # simulation to use
     box_res = "L1000N0900"
-    sim_name = "HYDRO_FIDUCIAL"
-    base_dir = "/cosma8/data/dp004/flamingo/Runs/{box_res}/{sim_name}".format(box_res=box_res, sim_name=sim_name)
+    sim_name = "L1_m9"
+
+    # use remote data
+    remote_dir = hdfstream.open("cosma", "/FLAMINGO")
+    simulation = Simulation.from_label(box_res, sim_name, remote=remote_dir)
 
     # define output directory
     output_dir = "./example_outputs/pencil_beam_examples"
@@ -806,13 +810,12 @@ if __name__ == "__main__":
     # number of snapshot files to read before combining their particles
     files_per_chunk = 8
 
-    plot_cosmo = SnapshotCosmology.from_path("{base_dir}/snapshots".format(base_dir=base_dir))
+    # the simulation's own cosmology, from its lowest redshift snapshot
+    plot_cosmo = SnapshotCosmology.from_simulation(simulation)
 
     for beam_vector in beam_vectors:
         print(f"\nbeam direction: {beam_vector}")
-        snap_beam = SnapshotBeam(
-            Simulation.from_label(box_res, sim_name), beam_vector=beam_vector, ang_radius_deg=ang_radius_deg
-        )
+        snap_beam = SnapshotBeam(simulation, beam_vector=beam_vector, ang_radius_deg=ang_radius_deg)
 
         # find every snapshot file (and box tile) needed to populate the shell, without reading any particles
         numb_files, files_to_read = snap_beam.gather_files(ptype, redshift_range)

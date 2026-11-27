@@ -35,6 +35,7 @@ def main(args):
         args["beam_vector"],
         args["orientation_lock"],
         ang_radius_deg=args["ang_radius_deg"],
+        ang_side_length_deg=args.get("ang_side_length_deg"),
         observer_position=args.get("observer_position"),
     )
     kwargs = {"comm": comm, "max_particles_per_read": args.get("max_particles_per_read")}

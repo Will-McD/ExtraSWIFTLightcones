@@ -3,11 +3,13 @@
 Build lightcones from SWIFT snapshots and halo catalogues.
 
 
-The construction of all lightcones from the snapshot or halo catlogues is carried out through
-:class:`~swiftlet.snapshot_lightcone.SnapshotBeam` and :class:`~swiftlet.snapshot_lightcone.SnapshotAllSky`, which share
-the same pipeline given by :class:`~swiftlet.snapshot_lightcone.SnapshotLightcone`.
+The construction of all lightcones from the snapshot or halo catlogues is carried out by
+:class:`~swiftlet.snapshot_lightcone.SnapshotBeam` (a circular beam),
+:class:`~swiftlet.snapshot_lightcone.SnapshotSquareBeam` (a square beam) and
+:class:`~swiftlet.snapshot_lightcone.SnapshotAllSky`, all of which share the same pipeline given by
+:class:`~swiftlet.snapshot_lightcone.SnapshotLightcone`.
 
-For example, the dark matter particles of a shell of an all-sky lightcone::
+For example, an all-sky lightcone filled with dark matter particles::
 
     from swiftlet import Simulation, SnapshotAllSky
 
@@ -461,6 +463,103 @@ if _HAVE_NUMBA:
             )
         return mask
 
+    @njit(parallel=False, fastmath=True, cache=True)
+    def _classify_pyramid_numba(coords, axis, u, v, tan_half, chi_inner, chi_outer, buffer_radius, mask):
+        """
+        Flag points inside a square pyramid about the axis that lie between two comoving distances.
+
+        The numba version of _classify_pyramid. Returns the updated mask.
+
+        :param  coords:         comoving coordinates [Mpc] relative to the observer, shape (N, 3)
+        :type   coords:         numpy.ndarray
+        :param  axis:           unit vector along the axis of the pyramid
+        :type   axis:           numpy.ndarray
+        :param  u:              unit vector along one pair of sides of the square, perpendicular to axis
+        :type   u:              numpy.ndarray
+        :param  v:              unit vector along the other pair of sides, perpendicular to axis and u
+        :type   v:              numpy.ndarray
+        :param  tan_half:       tangent of half the angular side length of the square
+        :type   tan_half:       float
+        :param  chi_inner:      inner comoving distance [Mpc] of the shell
+        :type   chi_inner:      float
+        :param  chi_outer:      outer comoving distance [Mpc] of the shell
+        :type   chi_outer:      float
+        :param  buffer_radius:  distance [Mpc] to extend the boundaries of the shell by
+        :type   buffer_radius:  float
+        :param  mask:           output boolean buffer, shape (N,)
+        :type   mask:           numpy.ndarray
+        """
+        n = coords.shape[0]
+        norm = np.sqrt(1.0 + tan_half * tan_half)
+        for i in prange(n):
+            x = coords[i, 0]
+            y = coords[i, 1]
+            z = coords[i, 2]
+
+            r = np.sqrt(x * x + y * y + z * z)
+            along = x * axis[0] + y * axis[1] + z * axis[2]
+            across = max(abs(x * u[0] + y * u[1] + z * u[2]), abs(x * v[0] + y * v[1] + z * v[2]))
+
+            mask[i] = (
+                (r > chi_inner - buffer_radius)
+                and (r <= chi_outer + buffer_radius)
+                and (along > -buffer_radius)
+                and ((tan_half * along - across) / norm >= -buffer_radius)
+            )
+        return mask
+
+
+def _classify_pyramid(coords, axis, u, v, tan_half, chi_inner, chi_outer, buffer_radius):
+    """
+    Flag points inside a square pyramid about the axis, with its apex at the observer, between two comoving distances.
+
+    A point is inside when it is on the inner side of the pyramid's four faces, the planes through the observer at
+    half the angular side length from the axis: abs(x.u) <= tan_half (x.axis) and abs(x.v) <= tan_half (x.axis). With a
+    buffer, a point is kept if it is within buffer_radius of the inner side of every face (its signed distance to each
+    face is at least -buffer_radius), which keeps every point within buffer_radius of the pyramid.
+
+    Returns a boolean array of shape (N,), True where the point is inside.
+
+    :param  coords:         comoving coordinates [Mpc] relative to the observer, shape (N, 3)
+    :type   coords:         numpy.ndarray
+    :param  axis:           unit vector along the axis of the pyramid
+    :type   axis:           numpy.ndarray
+    :param  u:              unit vector along one pair of sides of the square, perpendicular to axis
+    :type   u:              numpy.ndarray
+    :param  v:              unit vector along the other pair of sides, perpendicular to axis and u
+    :type   v:              numpy.ndarray
+    :param  tan_half:       tangent of half the angular side length of the square
+    :type   tan_half:       float
+    :param  chi_inner:      inner comoving distance [Mpc] of the shell
+    :type   chi_inner:      float
+    :param  chi_outer:      outer comoving distance [Mpc] of the shell
+    :type   chi_outer:      float
+    :param  buffer_radius:  distance [Mpc] to extend the boundaries of the shell by
+    :type   buffer_radius:  float
+    """
+    r = np.linalg.norm(coords, axis=1)
+    along = coords @ axis
+    across = np.maximum(np.abs(coords @ u), np.abs(coords @ v))
+    # signed distance to the nearest face, positive inside
+    face_distance = (tan_half * along - across) / np.sqrt(1.0 + tan_half**2)
+    return (
+        (r > chi_inner - buffer_radius)
+        & (r <= chi_outer + buffer_radius)
+        & (along > -buffer_radius)
+        & (face_distance >= -buffer_radius)
+    )
+
+
+def square_corner_radius_deg(ang_side_length_deg):
+    """
+    Returns the angular radius [deg] of the circle through the corners of a square beam: the angle from its axis to a
+    corner, arctan(sqrt(2) tan(side / 2)).
+
+    :param  ang_side_length_deg:    angular side length [deg] of the square beam
+    :type   ang_side_length_deg:    float
+    """
+    return float(np.degrees(np.arctan(np.sqrt(2.0) * np.tan(0.5 * np.deg2rad(ang_side_length_deg)))))
+
 
 # set up redshift-comoving dist interpolation grid
 def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05, n_grid=3000, method="precise"):
@@ -509,6 +608,12 @@ def define_redshift_at_comoving_distance_function(cosmo, zmin=0.0001, zmax=5.05,
 # maximum angular radius of beam, larger beams become far slower than utilising a full sky map due to searching boundary
 # conditions.
 MAX_BEAM_ANG_RADIUS_DEG = 60.01
+
+
+# largest side length of a square beam: the one whose corners are MAX_BEAM_ANG_RADIUS_DEG from its axis (about 101.5)
+MAX_SQUARE_BEAM_SIDE_DEG = float(
+    2.0 * np.degrees(np.arctan(np.tan(np.deg2rad(MAX_BEAM_ANG_RADIUS_DEG)) / np.sqrt(2.0)))
+)
 
 # random primes used for offsets of selecting rotation, reflection and periodic shifts about each axis when creating
 # new snapshot boxes
@@ -567,6 +672,8 @@ LIGHTCONE_METADATA_NAMES = (
     "orientation_table_fingerprint",  # geometry table info
     "beam_vector",
     "ang_radius_deg",
+    "ang_side_length_deg",  # a square beam's side length (its ang_radius_deg is the radius through its corners)
+    "square_rotation_deg",  # and the angle its sides are turned about its axis
     "redshift_range",  # beam info
     "observer_position",
     "observer_corner",
@@ -808,7 +915,8 @@ def check_simulation(simulation, lightcone_type="SnapshotLightcone"):
 
 class SnapshotLightcone:
     """
-    Construct lightcones from snapshots and halo catalogues, the base of the SnapshotBeam and SnapshotAllSky classes.
+    Construct lightcones from snapshots and halo catalogues, the base of the SnapshotBeam, SnapshotSquareBeam and
+    SnapshotAllSky classes.
 
     This class handles:
 
@@ -819,9 +927,13 @@ class SnapshotLightcone:
 
     What each gather step finds is kept as ``last_shell`` (a ShellRead or HaloShellRead) until the next call.
 
-    The SnapshotBeam and SnapshotAllSky sub classes define the geometry: which particles are inside the lightcone, and
-    which tiles and cells the lightcone crosses
+    The SnapshotBeam, SnapshotSquareBeam and SnapshotAllSky sub classes define the geometry: which particles are inside
+    the lightcone, and which tiles and cells the lightcone crosses
     """
+
+    # angular side length [deg] and rotation [deg] of a square beam (SnapshotSquareBeam), None for the other lightcones
+    ang_side_length_deg = None
+    square_rotation_deg = None
 
     def __init__(
         self,
@@ -982,11 +1094,7 @@ class SnapshotLightcone:
     def __summary(self):
         """Returns a one line str describing the lightcone: its simulation, geometry and box tile orientations."""
         # geometry info
-        if self.beam_vec is None:
-            geometry = "all-sky"
-        else:
-            vector = ", ".join(f"{x:.4f}" for x in np.ravel(self.beam_vec))
-            geometry = f"beam along ({vector}), {self.ang_radius_deg:g} deg radius"
+        geometry = self._describe_geometry()
 
         # table info
         table = (
@@ -1009,6 +1117,18 @@ class SnapshotLightcone:
 
         return summary
 
+    def _describe_geometry(self):
+        """Returns a short str describing the lightcone's footprint on the sky, for the summary of the lightcone."""
+        if self.beam_vec is None:
+            return "all-sky"
+        vector = ", ".join(f"{x:.4f}" for x in np.ravel(self.beam_vec))
+        return f"beam along ({vector}), {self.ang_radius_deg:g} deg radius"
+
+    @property
+    def solid_angle(self):
+        """The solid angle [sr] of the lightcone on the sky, 4 pi for an all-sky lightcone."""
+        return 4.0 * np.pi
+
     def lightcone_metadata(self, lightcone_redshift_range=None):
         """
         Returns the lightcone metadata, a dict with the names LIGHTCONE_METADATA_NAMES.
@@ -1019,9 +1139,9 @@ class SnapshotLightcone:
             - the orientation table (its file and a fingerprint of its contents) that set the orientation of every box
               tile,
             - the simulation,
-            - the beam (its vector and angular radius)
             - the redshift range.
             - the observer position, the cell corner it was put at and the periodic shift [cells] of every tile
+            - the beam (its vector and angular radius, and the side length and rotation of a square beam)
 
         Given the same settings and snapshots, the same exact lightcone can be made again.
 
@@ -1041,6 +1161,8 @@ class SnapshotLightcone:
             "orientation_table_fingerprint": self.orientation_table_fingerprint,
             "beam_vector": None if self.beam_vec is None else [float(x) for x in np.ravel(self.beam_vec)],
             "ang_radius_deg": None if self.ang_radius_deg is None else float(self.ang_radius_deg),
+            "ang_side_length_deg": None if self.ang_side_length_deg is None else float(self.ang_side_length_deg),
+            "square_rotation_deg": None if self.square_rotation_deg is None else float(self.square_rotation_deg),
             "redshift_range": None
             if lightcone_redshift_range is None
             else [float(z) for z in lightcone_redshift_range],
@@ -1998,6 +2120,7 @@ class SnapshotLightcone:
 
         Each subclass overrides this for their corresponding geometry.
         SnapshotBeam: requires a radius and places an upper bound on ang_radius_deg
+        SnapshotSquareBeam: the radius of the circle through its corners, set from its side length
         SnapshotAllSky: this doesn't need validating and ang_radius_deg is None
 
         :param  ang_radius_deg: angular radius [deg] of the beam
@@ -3727,13 +3850,13 @@ class SnapshotBeam(SnapshotLightcone):
         """
         # check beam vector and angular radius is passed, the angular radius will be checked by _validate_ang_radius_deg
         if beam_vector is None:
-            raise TypeError("SnapshotBeam needs a beam_vector, the direction of the line of sight")
+            raise TypeError(f"{type(self).__name__} needs a beam_vector, the direction of the line of sight")
         if ang_radius_deg is None:
             raise TypeError("SnapshotBeam needs an angular radius (ang_radius_deg)")
 
         # pass to SnapshotLightcone class
         super().__init__(
-            simulation=check_simulation(simulation, lightcone_type="SnapshotBeam"),
+            simulation=check_simulation(simulation, lightcone_type=type(self).__name__),
             beam_vector=beam_vector,
             ang_radius_deg=ang_radius_deg,
             orientation_seed=orientation_seed,
@@ -3910,8 +4033,6 @@ class SnapshotBeam(SnapshotLightcone):
         if coords.ndim != 2 or coords.shape[1] != 3:  # test for coords shape
             raise ValueError("coords must be a vector with shape (N, 3)")
 
-        axis = self.beam_vec
-        half_angle = np.deg2rad(self.ang_radius_deg)
         shell_inner = unyt.unyt_array.from_astropy(cosmo.comoving_distance(z_min)).to_value("Mpc")
         shell_outer = unyt.unyt_array.from_astropy(cosmo.comoving_distance(z_max)).to_value("Mpc")
 
@@ -3930,10 +4051,36 @@ class SnapshotBeam(SnapshotLightcone):
             buffer_radius = 0.0
 
         m = np.empty(coords.shape[0], dtype=np.bool_)
+        self._footprint_mask(coords, shell_inner, shell_outer, buffer_radius, m)
+
+        if return_bool:
+            return m, None
+        else:
+            return np.flatnonzero(m), np.flatnonzero(np.invert(m))
+
+    def _footprint_mask(self, coords, shell_inner, shell_outer, buffer_radius, mask):
+        """
+        Flag the points inside the beam's cone, between two comoving distances, in mask.
+
+        Returns the mask.
+
+        :param  coords:         Cartesian comoving lightcone coordinates [Mpc], shape (N, 3)
+        :type   coords:         numpy.ndarray
+        :param  shell_inner:    inner comoving distance [Mpc] of the shell
+        :type   shell_inner:    float
+        :param  shell_outer:    outer comoving distance [Mpc] of the shell
+        :type   shell_outer:    float
+        :param  buffer_radius:  distance [Mpc] to extend the boundaries of the shell by
+        :type   buffer_radius:  float
+        :param  mask:           output boolean array, shape (N,)
+        :type   mask:           numpy.ndarray
+        """
+        axis = self.beam_vec
+        half_angle = np.deg2rad(self.ang_radius_deg)
 
         if _HAVE_NUMBA:
             # use faster identification method
-            _classify_wedge_numba(coords, axis, shell_inner, shell_outer, half_angle, buffer_radius, m)
+            _classify_wedge_numba(coords, axis, shell_inner, shell_outer, half_angle, buffer_radius, mask)
 
         else:
             r = np.linalg.norm(coords, axis=1)
@@ -3949,17 +4096,14 @@ class SnapshotBeam(SnapshotLightcone):
                     np.pi,
                 )
 
-            m[:] = (
+            mask[:] = (
                 (r > shell_inner - buffer_radius)
                 & (r <= shell_outer + buffer_radius)  # dist from observer check
                 & (along_axis > -buffer_radius)  # direction check
                 & (angle_from_axis <= half_angle + angle_buffer)  # perpendicular distance check
             )
 
-        if return_bool:
-            return m, None
-        else:
-            return np.flatnonzero(m), np.flatnonzero(np.invert(m))
+        return mask
 
     def _diameter_at_redshift(self, z, cosmo=None, use_comoving_dist=False):
         """
@@ -3996,6 +4140,11 @@ class SnapshotBeam(SnapshotLightcone):
         """
         return self._diameter_at_redshift(z, cosmo=cosmo, use_comoving_dist=use_comoving_dist)
 
+    @property
+    def solid_angle(self):
+        """The solid angle [sr] of the beam on the sky, 2 pi (1 - cos(ang_radius))."""
+        return float(2.0 * np.pi * (1.0 - np.cos(np.deg2rad(self.ang_radius_deg))))
+
     def _lattice_tile(self, tile):
         """
         Transform the position of the tile from the beams coordnates (nx, ny, n_los) into the coordaintes of the regular
@@ -4028,6 +4177,252 @@ class SnapshotBeam(SnapshotLightcone):
 
         snapshot_sidelengths = np.asarray(snapshot_sidelengths, dtype=float)
         return -0.5 * snapshot_sidelengths + lattice_position * snapshot_sidelengths
+
+
+class SnapshotSquareBeam(SnapshotBeam):
+    """
+    Construct a beam lightcone with a square footprint on the sky.
+
+    The beam is a square pyramid with its apex at the observer. Its four faces are planes through the observer, each
+    half the angular side length from the beam's axis. The sides of the square are along the beam's transverse axes,
+    ``beam_transverse_e1`` and ``beam_transverse_e2`` (the axes that also label its tiles), turned about the axis
+    by ``square_rotation_deg``, and are given by ``side_axes``. ``rotation_to`` gives the rotation that puts the side
+    of the square given by ``e1`` along a chosen direction.
+
+    Everything else is the same as SnapshotBeam: the same tiles, cells, orientations and pipeline. Its
+    ``ang_radius_deg`` is the angular radius of the circle through the square's corners, which bounds the tiles and
+    cells it crosses, and the particles and haloes it places are those of a SnapshotBeam of that radius that are inside
+    the square.
+    """
+
+    def __init__(
+        self,
+        simulation,
+        beam_vector=None,
+        ang_side_length_deg=None,
+        orientation_seed=0,
+        orientation_lock=None,
+        orientation_table=None,
+        verbose=1,
+        redshift_interp_method="fast",
+        redshift_interp_grid_size=3000,
+        observer_position=None,
+        square_rotation_deg=0.0,
+    ):
+        """
+        :param  simulation:                 the Simulation (e.g. Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")),
+                                            which sets where its snapshots, SOAP catalogues and output list are.
+        :type   simulation:                 Simulation
+        :param  beam_vector:                direction vector of the line of sight as an array of 3 floats
+        :type   beam_vector:                numpy.ndarray
+        :param  ang_side_length_deg:        angular side length [deg] of the square: the angle between two opposite
+                                            faces, measured through the beam's axis. At most MAX_SQUARE_BEAM_SIDE_DEG
+                                            (about 101.5), so that its corners are at most MAX_BEAM_ANG_RADIUS_DEG from
+                                            the axis.
+        :type   ang_side_length_deg:        float
+        :param  orientation_seed:           seed used to select the rotation, reflection and periodic shift of each box
+                                            tile
+        :type   orientation_seed:           int
+        :param  orientation_lock:           how the orientations of the box tiles are shared: "none", "cube" or
+                                            "sphere", as for SnapshotBeam
+        :type   orientation_lock:           str
+        :param  orientation_table:          path of a file of orientation tables (see
+                                            snapshot_orientation.write_orientation_tables) to take the quarter turns,
+                                            reflections and cell shifts of the box tiles from. If None, use the default
+                                            tables
+        :type   orientation_table:          str
+        :param  verbose:                    amount printed. 0: nothing, only warnings. 1: a summary of each call. 2:
+                                            details of every snapshot, box tile and file
+        :type   verbose:                    int
+        :param  redshift_interp_method:     how the comoving distance to redshift interpolation is made: "fast" or
+                                            "precise" (see define_redshift_at_comoving_distance_function)
+        :type   redshift_interp_method:     str
+        :param  redshift_interp_grid_size:  number of points in the grid used to interpolate redshifts from comoving
+                                            distances
+        :type   redshift_interp_grid_size:  int
+        :param  observer_position:          (x, y, z) comoving position [Mpc] in the snapshot box to put the observer
+                                            at, as for SnapshotBeam. If None, the observer is at the centre of its tile
+        :type   observer_position:          array-like, shape (3,)
+        :param  square_rotation_deg:        angle [deg] to turn the square about its axis, from beam_transverse_e1
+                                            towards beam_transverse_e2 (right-handed about the beam vector). 0 puts its
+                                            sides along the transverse axes. Angles 90 apart give the same square, with
+                                            its side_axes swapped.
+        :type   square_rotation_deg:        float
+        """
+        if beam_vector is None:
+            raise TypeError("SnapshotSquareBeam needs a beam_vector, the direction of the line of sight")
+
+        self.ang_side_length_deg = self._checked_side_length(ang_side_length_deg)
+
+        rotation = float(square_rotation_deg)
+        if not np.isfinite(rotation):
+            raise ValueError(f"square_rotation_deg must be a finite number of degrees, not {square_rotation_deg!r}")
+        self.square_rotation_deg = rotation
+
+        super().__init__(
+            simulation,
+            beam_vector=beam_vector,
+            ang_radius_deg=square_corner_radius_deg(self.ang_side_length_deg),
+            orientation_seed=orientation_seed,
+            orientation_lock=orientation_lock,
+            orientation_table=orientation_table,
+            verbose=verbose,
+            redshift_interp_method=redshift_interp_method,
+            redshift_interp_grid_size=redshift_interp_grid_size,
+            observer_position=observer_position,
+        )
+
+    @staticmethod
+    def _checked_side_length(ang_side_length_deg):
+        """
+        Returns the angular side length [deg] as a float, after checking it.
+
+        Raise a TypeError if none is given and a ValueError if it isn't between 0 and MAX_SQUARE_BEAM_SIDE_DEG.
+
+        :param  ang_side_length_deg:    angular side length [deg] of the square beam
+        :type   ang_side_length_deg:    float
+        """
+        if ang_side_length_deg is None:
+            raise TypeError("SnapshotSquareBeam needs an angular side length (ang_side_length_deg)")
+        side = float(ang_side_length_deg)
+        if not np.isfinite(side) or side <= 0.0:
+            raise ValueError(f"ang_side_length_deg must be a positive number of degrees, not {ang_side_length_deg!r}")
+        if side > MAX_SQUARE_BEAM_SIDE_DEG:
+            raise ValueError(
+                f"angular side length ({side:g} [deg]) exceeds the maximum side length of "
+                f"{MAX_SQUARE_BEAM_SIDE_DEG:.4g} [deg] (corners {MAX_BEAM_ANG_RADIUS_DEG} [deg] from the axis)"
+            )
+        return side
+
+    def _validate_ang_radius_deg(self, ang_radius_deg):
+        """
+        The radius through the corners comes from the side length.
+
+        :param  ang_radius_deg: angular radius [deg] of the circle through the square's corners
+        :type   ang_radius_deg: float
+        """
+        if ang_radius_deg is None:
+            raise TypeError("SnapshotSquareBeam needs an angular side length (ang_side_length_deg)")
+
+    @property
+    def side_axes(self):
+        """
+        The unit vectors (u, v) along the two pairs of sides of the square, perpendicular to the beam's axis.
+
+        The beam's transverse axes turned about the axis by square_rotation_deg: u = cos(r) e1 + sin(r) e2 and
+        v = -sin(r) e1 + cos(r) e2, so that u, v and the beam vector are right-handed. Every use of the square's
+        orientation goes through this property.
+        """
+        return self.side_axes_of(self.beam_vec, self.square_rotation_deg)
+
+    @staticmethod
+    def side_axes_of(beam_vector, square_rotation_deg=0.0):
+        """
+        Returns the side axes (u, v) of a square beam along beam_vector turned by square_rotation_deg.
+
+        :param  beam_vector:            direction vector of the line of sight
+        :type   beam_vector:            array-like, shape (3,)
+        :param  square_rotation_deg:    angle [deg] the square is turned about its axis, as for SnapshotSquareBeam
+        :type   square_rotation_deg:    float
+        """
+        beam_vec = SnapshotLightcone._SnapshotLightcone__define_beam_vector(beam_vector)
+        e1, e2 = SnapshotBeam._SnapshotBeam__transverse_basis(beam_vec)
+        angle = np.deg2rad(float(square_rotation_deg))
+        return np.cos(angle) * e1 + np.sin(angle) * e2, -np.sin(angle) * e1 + np.cos(angle) * e2
+
+    @staticmethod
+    def rotation_to(beam_vector, direction):
+        """
+        Returns the square_rotation_deg [deg] that puts the first side axis of a square beam along a direction.
+
+        The direction is projected onto the plane perpendicular to the beam vector.
+
+        :param  beam_vector:    direction vector of the line of sight
+        :type   beam_vector:    array-like, shape (3,)
+        :param  direction:      direction to turn the first side axis to, not along the beam
+        :type   direction:      array-like, shape (3,)
+        """
+        beam_vec = SnapshotLightcone._SnapshotLightcone__define_beam_vector(beam_vector)
+        e1, e2 = SnapshotBeam._SnapshotBeam__transverse_basis(beam_vec)
+        direction = np.asarray(direction, dtype=float)
+        across = direction - (direction @ beam_vec) * beam_vec
+
+        if np.linalg.norm(across) <= 1e-12 * max(np.linalg.norm(direction), 1e-300):
+            raise ValueError(f"direction {tuple(direction)} is along the beam, so it sets no rotation")
+
+        return float(np.degrees(np.arctan2(across @ e2, across @ e1)))
+
+    def _describe_geometry(self):
+        """Returns a short str describing the square beam, for the summary of the lightcone."""
+        vector = ", ".join(f"{x:.4f}" for x in np.ravel(self.beam_vec))
+        rotation = f", turned {self.square_rotation_deg:g} deg" if self.square_rotation_deg else ""
+        return f"square beam along ({vector}), {self.ang_side_length_deg:g} deg side{rotation}"
+
+    def _footprint_mask(self, coords, shell_inner, shell_outer, buffer_radius, mask):
+        """
+        Flag the points inside the square pyramid of the beam, between two comoving distances, in mask.
+
+        Returns the mask.
+
+        :param  coords:         Cartesian comoving lightcone coordinates [Mpc], shape (N, 3)
+        :type   coords:         numpy.ndarray
+        :param  shell_inner:    inner comoving distance [Mpc] of the shell
+        :type   shell_inner:    float
+        :param  shell_outer:    outer comoving distance [Mpc] of the shell
+        :type   shell_outer:    float
+        :param  buffer_radius:  distance [Mpc] to extend the boundaries of the shell by
+        :type   buffer_radius:  float
+        :param  mask:           output boolean array, shape (N,)
+        :type   mask:           numpy.ndarray
+        """
+        u, v = self.side_axes
+        tan_half = float(np.tan(0.5 * np.deg2rad(self.ang_side_length_deg)))
+        if _HAVE_NUMBA:
+            _classify_pyramid_numba(
+                coords, self.beam_vec, u, v, tan_half, shell_inner, shell_outer, buffer_radius, mask
+            )
+        else:
+            mask[:] = _classify_pyramid(coords, self.beam_vec, u, v, tan_half, shell_inner, shell_outer, buffer_radius)
+        return mask
+
+    def beam_side_length(self, z, cosmo=None, use_comoving_dist=False):
+        """
+        Returns the side length [Mpc] of the square beam at a given redshift, in the plane perpendicular to its axis.
+
+        :param  z:                  redshift, or comoving distance [Mpc] along the axis if use_comoving_dist is True
+        :type   z:                  float
+        :param  cosmo:              cosmology to use. If given, it also replaces the lightcone's stored cosmology
+        :type   cosmo:              astropy.cosmology.w0waCDM, SnapshotCosmology or str
+        :param  use_comoving_dist:  if True, z is a comoving distance [Mpc] from the observer, not a redshift
+        :type   use_comoving_dist:  bool
+        """
+        if cosmo is not None:
+            self.cosmo = as_astropy_cosmology(cosmo)
+        if use_comoving_dist:
+            h = z
+        else:
+            h = unyt.unyt_array.from_astropy(self.cosmo.comoving_distance(z)).to_value("Mpc")
+        return h * np.tan(0.5 * np.deg2rad(self.ang_side_length_deg)) * 2
+
+    def beam_diameter(self, z, cosmo=None, use_comoving_dist=False):
+        """
+        Returns the diagonal [Mpc] of the square beam at a given redshift.
+
+        The diagonal is the diameter of the circle through the square's corners, in the plane perpendicular to the axis.
+
+        :param  z:                  redshift, or comoving distance [Mpc] along the axis if use_comoving_dist is True
+        :type   z:                  float
+        :param  cosmo:              cosmology to use. If given, it also replaces the lightcone's stored cosmology
+        :type   cosmo:              astropy.cosmology.w0waCDM, SnapshotCosmology or str
+        :param  use_comoving_dist:  if True, z is a comoving distance [Mpc] from the observer, not a redshift
+        :type   use_comoving_dist:  bool
+        """
+        return super().beam_diameter(z, cosmo=cosmo, use_comoving_dist=use_comoving_dist)
+
+    @property
+    def solid_angle(self):
+        """The solid angle [sr] of the square beam on the sky, 4 arcsin(sin^2(side / 2))."""
+        return float(4.0 * np.arcsin(np.sin(0.5 * np.deg2rad(self.ang_side_length_deg)) ** 2))
 
 
 class SnapshotAllSky(SnapshotLightcone):

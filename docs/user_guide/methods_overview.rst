@@ -57,7 +57,7 @@ The redshift of any point in the lightcone is computed from its comoving distanc
 
 As the lightcone grows the lattice is extended, by adding new tiles, so that the lightcone always remains within the 
 lattice. For an :term:`all-sky lightcone` (spherical) this means growing the lattice in all 
-directions, however if the lightcone is a :term:`beam` (or a cone) then the lattice extends only in the direction of the 
+directions, however if the lightcone is a :term:`beam` then the lattice extends only in the direction of the 
 beam.  
 
 The lightcone is then populated tile by tile and cell by cell with particles and haloes from the snapshots. For every 

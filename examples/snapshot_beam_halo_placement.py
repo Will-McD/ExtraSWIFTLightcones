@@ -3,11 +3,11 @@
 Example script to show the placement of haloes from the SOAP catalogues into a SnapshotBeam lightcone shell.
 """
 
-import os
 import numpy as np
 import argparse
 from pathlib import Path
 import matplotlib.pyplot as plt
+import hdfstream
 from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.simulation_suites import Simulation
 from swiftlet.soap_reader import read_soap_selected_rows, comoving
@@ -191,13 +191,7 @@ def plot_halos_in_beam_3panel(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Place SOAP haloes in a SnapshotBeam and plot them.")
     parser.add_argument("--box_res", default="L1000N1800", help="box size and resolution label")
-    parser.add_argument("--sim_name", default="HYDRO_FIDUCIAL", help="name of the simulation")
-    parser.add_argument(
-        "--remote_sim_name",
-        default="L1_m9",
-        help="name of the simulation's directory on the server (default L1_m9, for L1000N1800/HYDRO_FIDUCIAL)",
-    )
-    parser.add_argument("--remote", action="store_true", help="read from the server even if the simulation is on disk")
+    parser.add_argument("--sim_name", default="L1_m9", help="name of the simulation")
     parser.add_argument("--output_dir", default="example_outputs/snapshot_lightcone", help="output directory")
     args = parser.parse_args()
 
@@ -216,20 +210,14 @@ if __name__ == "__main__":
     beam_vector = (0, 0, 1)
     print(f"beam unit vector: ({beam_vector[0]}, {beam_vector[1]}, {beam_vector[2]})\n", flush=True)
 
-    # the simulation on disk if it is there, otherwise on the hdfstream server: the box's name on the server (L1_m9
-    # for L1000N1800) is found by either name, and the snapshot layout of the server is detected
-    simulation = Simulation.from_label(args.box_res, args.sim_name)
-    if args.remote or not os.path.isdir(simulation.directory):
-        import hdfstream
-
-        print(f"reading {args.remote_sim_name} remotely, from {REMOTE_DIR} on the {REMOTE_SERVER} server")
-        remote_dir = hdfstream.open(REMOTE_SERVER, REMOTE_DIR)
-        simulation = Simulation.from_label(args.box_res, args.remote_sim_name, remote=remote_dir)
+    # use remote data
+    remote_dir = hdfstream.open(REMOTE_SERVER, REMOTE_DIR)
+    simulation = Simulation.from_label(args.box_res, args.sim_name, remote=remote_dir)
     print(f"SOAP catalogues: {simulation.soap_format}")
 
     snap_beam = SnapshotBeam(simulation, beam_vector=beam_vector, ang_radius_deg=ang_radius_deg)
 
-    # use the simulation's own SOAP catalogues (simulation.soap_format), on disk or on the server
+    # use the simulations SOAP catalogues
     halos = snap_beam.place_halos_in_shell(lightcone_redshift_range=redshift_range)
 
     n_halos = halos["Lightcone/HaloCentre"].shape[0]

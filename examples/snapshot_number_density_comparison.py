@@ -352,7 +352,7 @@ def run_seeds(args):
         f"\n{args.box_res}/{args.sim_name}: {nr_part:.3e} DM particles\nmean numb density: {mean_density:.3e}"
         f" cMpc^-3\n{np.sum(expected):.3e} expected in the full sky for {args.zmin} < z <= {args.zmax}"
     )
-    message(comm_rank, update_str, time_date_update=True)
+    message(comm_rank, update_str, show_time_date=True)
 
     # thinner shells of equal volume, each placed on its own to limit the memory of each rank (see the docstring)
     shells = subshell_redshift_ranges(cosmo, redshift_range, args.nr_shells)
@@ -369,7 +369,7 @@ def run_seeds(args):
         message(
             comm_rank,
             f"\n=== orientation seed {seed} ({seeds.index(seed) + 1}/{len(seeds)}), lock {args.orientation_lock} === ",
-            time_date_update=True,
+            show_time_date=True,
         )
         lightcone = SnapshotAllSky(
             simulation=simulation, orientation_seed=seed, orientation_lock=args.orientation_lock, verbose=0
@@ -385,12 +385,12 @@ def run_seeds(args):
                     f"\t[shell {shell_nr + 1}/{len(shells)}], {shell_z[0]:.4f} < z <= {shell_z[1]:.4f}:"
                     f"\t{np.sum(shell_counts):.3e} particles\t(largest file: {largest_file:.3e} particles)"
                 )
-                message(comm_rank, update_str, time_date_update=True)
+                message(comm_rank, update_str, show_time_date=True)
         message(
             comm_rank,
             (
                 f"seed {seed}: {np.sum(counts)} particles, n / n_mean = {np.sum(counts) / np.sum(expected):.6f}, "
-                "bins from {np.min(counts / expected):.5f} to {np.max(counts / expected):.5f}"
+                f"bins from {np.min(counts / expected):.5f} to {np.max(counts / expected):.5f}"
             ),
         )
         rows += seed_row_vals(seed, edges, counts, expected, mean_density)
@@ -410,7 +410,7 @@ def run_seeds(args):
             f"zmax={args.zmax:g}; orientation_lock={args.orientation_lock}; "
             f"nr_bins={args.nr_bins}; nr_shells={args.nr_shells}; n in cMpc^-3",
         )
-        message(comm_rank, f"\ncounts of {len(seeds)} seeds written to {filename}", time_date_update=True)
+        message(comm_rank, f"\ncounts of {len(seeds)} seeds written to {filename}", show_time_date=True)
 
 
 if __name__ == "__main__":

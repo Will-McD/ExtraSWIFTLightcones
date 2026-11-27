@@ -21,8 +21,9 @@ from pathlib import Path
 import numpy as np
 from swiftlet.simulation_suites import Simulation
 from swiftlet.snapshot_cosmology import SnapshotCosmology
-from swiftlet.snapshot_lightcone import SnapshotAllSky, SnapshotBeam
+from swiftlet.snapshot_lightcone import SnapshotAllSky, SnapshotBeam, SnapshotSquareBeam
 from swiftlet.repeat_check import find_close_cell_repeats, CloseRepeatWarning
+from swiftlet.beam_plotting import plot_beam_on_sky
 from swiftlet.example_plot_settings import plot_settings
 import matplotlib
 
@@ -62,11 +63,14 @@ def new_lightcone(
     orientation_table=None,
     verbose=0,
     ang_radius_deg=None,
+    ang_side_length_deg=None,
+    square_rotation_deg=0.0,
 ):
     """
     Return the SnapshotLightcone object.
 
-    It is a SnapshotBeam if beam_vector is given, or a SnapshotAllSky if beam_vector is None.
+    It is a SnapshotBeam if beam_vector is given, a SnapshotSquareBeam if ang_side_length_deg is given as well, or a
+    SnapshotAllSky if beam_vector is None.
 
     :param  simulation:         the simulation
     :type   simulation:         Simulation
@@ -80,6 +84,10 @@ def new_lightcone(
     :type   orientation_table:  str
     :param  ang_radius_deg:     angular radius [deg] of the beam, None for all-sky
     :type   ang_radius_deg:     float
+    :param  ang_side_length_deg:    angular side length [deg] of a square beam, in place of ang_radius_deg
+    :type   ang_side_length_deg:    float
+    :param  square_rotation_deg:    angle [deg] the square beam is turned about its axis
+    :type   square_rotation_deg:    float
     """
     # build lightcone settings, excluding beam vector and angular radius
     settings = dict(
@@ -91,11 +99,75 @@ def new_lightcone(
     )
     if beam_vector is None:
         return SnapshotAllSky(**settings)
+    if ang_side_length_deg is not None:
+        return SnapshotSquareBeam(
+            beam_vector=beam_vector,
+            ang_side_length_deg=ang_side_length_deg,
+            square_rotation_deg=square_rotation_deg,
+            **settings,
+        )
     return SnapshotBeam(beam_vector=beam_vector, ang_radius_deg=ang_radius_deg, **settings)
 
 
+def beam_outline(beam_vector, ang_radius_deg=None, ang_side_length_deg=None, square_rotation_deg=0.0):
+    """
+    The keyword arguments of beam_plotting.plot_beam_on_sky that draw a beam: circular, or square if
+    ang_side_length_deg is given.
+
+    Returns a dict, or None if beam_vector is None (all-sky).
+
+    :param  beam_vector:            direction of the beam, or None for all-sky
+    :type   beam_vector:            tuple
+    :param  ang_radius_deg:         angular radius [deg] of a circular beam
+    :type   ang_radius_deg:         float
+    :param  ang_side_length_deg:    angular side length [deg] of a square beam, in place of ang_radius_deg
+    :type   ang_side_length_deg:    float
+    :param  square_rotation_deg:    angle [deg] the square beam is turned about its axis
+    :type   square_rotation_deg:    float
+    """
+    if beam_vector is None:
+        return None
+    if ang_side_length_deg is not None:
+        return {
+            "beam_vector": beam_vector,
+            "ang_side_length_deg": ang_side_length_deg,
+            "side_axes": SnapshotSquareBeam.side_axes_of(beam_vector, square_rotation_deg),
+        }
+    return {"beam_vector": beam_vector, "ang_radius_deg": ang_radius_deg}
+
+
+def describe_shell(beam_vector, ang_radius_deg=None, ang_side_length_deg=None, square_rotation_deg=0.0):
+    """
+    Returns a short description of the lightcone checked.
+
+    :param  beam_vector:            direction of the beam, or None for all-sky
+    :type   beam_vector:            tuple
+    :param  ang_radius_deg:         angular radius [deg] of a circular beam
+    :type   ang_radius_deg:         float
+    :param  ang_side_length_deg:    angular side length [deg] of a square beam, in place of ang_radius_deg
+    :type   ang_side_length_deg:    float
+    :param  square_rotation_deg:    angle [deg] the square beam is turned about its axis
+    :type   square_rotation_deg:    float
+    """
+    if beam_vector is None:
+        return "all-sky"
+    if ang_side_length_deg is not None:
+        turned = f", turned {square_rotation_deg:g} deg" if square_rotation_deg else ""
+        return f"square beam {tuple(beam_vector)}, {ang_side_length_deg:g} deg side{turned}"
+    return f"beam {tuple(beam_vector)}, {ang_radius_deg} deg"
+
+
 def check_cases(
-    simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_deg, output_dir, orientation_table=None
+    simulation,
+    redshift_range,
+    seeds,
+    beam_vector,
+    ang_radius_deg,
+    angle_deg,
+    output_dir,
+    orientation_table=None,
+    ang_side_length_deg=None,
+    square_rotation_deg=0.0,
 ):
     """
     Check the lightcones (each case) for close repeats with every orientation lock and seed, print a line for each
@@ -119,12 +191,23 @@ def check_cases(
     :type   output_dir:         pathlib.Path
     :param  orientation_table:  file of orientation tables, or None for the default tables
     :type   orientation_table:  str
+    :param  ang_side_length_deg:    angular side length [deg] of a square beam, in place of ang_radius_deg
+    :type   ang_side_length_deg:    float
+    :param  square_rotation_deg:    angle [deg] the square beam is turned about its axis
+    :type   square_rotation_deg:    float
     """
     reports = {}
     for lock in LOCKS:
         for seed in seeds:
             lightcone = new_lightcone(
-                simulation, beam_vector, lock, seed, orientation_table, ang_radius_deg=ang_radius_deg
+                simulation,
+                beam_vector,
+                lock,
+                seed,
+                orientation_table,
+                ang_radius_deg=ang_radius_deg,
+                ang_side_length_deg=ang_side_length_deg,
+                square_rotation_deg=square_rotation_deg,
             )
             filename = output_dir / f"close_repeats.lock_{lock}.seed_{seed}.hdf5"
 
@@ -149,7 +232,7 @@ def check_cases(
     return reports
 
 
-def plot_reports(reports, seeds, title, filename):
+def plot_reports(reports, seeds, title, filename, beam=None):
     """
     Plot the close repeats for every lock and seed.
 
@@ -164,6 +247,9 @@ def plot_reports(reports, seeds, title, filename):
     :type   title:      str
     :param  filename:   path of the figure
     :type   filename:   str or pathlib.Path
+    :param  beam:       the beam checked, drawn on each map of the sky: the keyword arguments of plot_beam_on_sky from
+                        beam_outline, or None for all-sky
+    :type   beam:       dict
     """
     fig = plt.figure(figsize=(14, 7))
     grid = fig.add_gridspec(2, 3, height_ratios=[0.5, 1.0])
@@ -228,6 +314,8 @@ def plot_reports(reports, seeds, title, filename):
                     alpha=0.8,
                     zorder=3 if marker == "x" else 2,
                 )
+        if beam is not None:
+            plot_beam_on_sky(ax, **beam, colour="grey", alpha=0.15, edge_width=1.0, zorder=1)
         ax.grid(True, color="lightgray", lw=0.5)
         ax.tick_params(labelsize=7, colors="darkslategray")
         report = reports[lock, first]
@@ -235,7 +323,7 @@ def plot_reports(reports, seeds, title, filename):
         ax.set_title(
             (
                 f"orientation_lock = {lock}, seed {first}: {report.nr_line_of_sight} line "
-                "of sight, {report.nr_touching} clashing"
+                f"of sight, {report.nr_touching} clashing"
             ),
             fontsize=9,
         )
@@ -265,7 +353,18 @@ def plot_reports(reports, seeds, title, filename):
     plt.close(fig)
 
 
-def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_deg, output_dir, orientation_table=None):
+def run(
+    simulation,
+    redshift_range,
+    seeds,
+    beam_vector,
+    ang_radius_deg,
+    angle_deg,
+    output_dir,
+    orientation_table=None,
+    ang_side_length_deg=None,
+    square_rotation_deg=0.0,
+):
     """
     Check every lock and seed, write the reports and plot them.
 
@@ -285,10 +384,17 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
     :type   output_dir:         str
     :param  orientation_table:  file of orientation tables, or None for the default tables
     :type   orientation_table:  str
+    :param  ang_side_length_deg:    angular side length [deg] of a square beam, in place of ang_radius_deg
+    :type   ang_side_length_deg:    float
+    :param  square_rotation_deg:    angle [deg] the square beam is turned about its axis
+    :type   square_rotation_deg:    float
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    shell = "all-sky" if beam_vector is None else f"beam {tuple(beam_vector)}, {ang_radius_deg} deg"
+    beam = {"ang_radius_deg": ang_radius_deg, "ang_side_length_deg": ang_side_length_deg}
+    beam["square_rotation_deg"] = square_rotation_deg
+    shell = describe_shell(beam_vector, **beam)
+
     print(
         (
             f"{simulation.box_res}/{simulation.name}: close repeats of cells in the {shell} shell "
@@ -296,6 +402,7 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
         ),
         flush=True,
     )
+
     if orientation_table == "none":
         orientation_table_filename = None
     else:
@@ -310,6 +417,8 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
         angle_deg,
         output_dir,
         orientation_table=orientation_table_filename,
+        ang_side_length_deg=ang_side_length_deg,
+        square_rotation_deg=square_rotation_deg,
     )
 
     # the lock and seed with the fewest close repeats
@@ -330,6 +439,7 @@ def run(simulation, redshift_range, seeds, beam_vector, ang_radius_deg, angle_de
             f"{redshift_range[0]} < z < {redshift_range[1]}"
         ),
         filename,
+        beam=beam_outline(beam_vector, **beam),
     )
 
     print(f"figure saved as {filename}")
@@ -360,6 +470,15 @@ if __name__ == "__main__":
     )
     parser.add_argument("--ang_radius_deg", type=float, default=None, help="angular radius [deg] of the beam")
     parser.add_argument(
+        "--ang_side_length_deg",
+        type=float,
+        default=None,
+        help="angular side length [deg] of a square beam (SnapshotSquareBeam), in place of --ang_radius_deg",
+    )
+    parser.add_argument(
+        "--square_rotation_deg", type=float, default=0.0, help="angle [deg] to turn the square beam about its axis"
+    )
+    parser.add_argument(
         "--angle_deg",
         type=float,
         default=1.0,
@@ -370,8 +489,13 @@ if __name__ == "__main__":
 
     plot_settings()  # import matplotlib settings
 
-    if (args.beam_vector is None) != (args.ang_radius_deg is None):
-        parser.error("give both --beam_vector and --ang_radius_deg for a beam, or neither for all-sky")
+    sizes = (args.ang_radius_deg is not None) + (args.ang_side_length_deg is not None)
+    if (args.beam_vector is None and sizes) or (args.beam_vector is not None and sizes != 1):
+        parser.error(
+            "give --beam_vector with --ang_radius_deg for a beam, or with --ang_side_length_deg for a square beam, "
+            "or none of them for all-sky"
+        )
+    square = {"ang_side_length_deg": args.ang_side_length_deg, "square_rotation_deg": args.square_rotation_deg}
 
     redshift_range = (args.zmin, args.zmax)
     beam_vector = None if args.beam_vector is None else tuple(args.beam_vector)
@@ -388,6 +512,7 @@ if __name__ == "__main__":
                 args.angle_deg,
                 args.output_dir,
                 args.orientation_table,
+                **square,
             )
     else:
         # use real SWIFT snapshots and SOAP catalogues
@@ -400,4 +525,5 @@ if __name__ == "__main__":
             args.angle_deg,
             args.output_dir,
             args.orientation_table,
+            **square,
         )

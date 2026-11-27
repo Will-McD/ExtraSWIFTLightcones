@@ -15,7 +15,8 @@ Project particles in a slice
 :class:`BeamProjection` makes projections of a slice through a beam of a lightcone using the 
 `swiftsimio.visualisation.projection <https://swiftsimio.readthedocs.io/en/latest/visualisation/projection.html>`_
 submodule backends. The particles can come from the FLAMINGO particle lightcones (a path, or ``lightcone_io`` particle 
-data) or from a snapshot using :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` and 
+data) or from a snapshot using :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>`,
+:class:`SnapshotSquareBeam <swiftlet.snapshot_lightcone.SnapshotSquareBeam>` and 
 :class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>`.
 
 As shown in the example below, to make a projection:

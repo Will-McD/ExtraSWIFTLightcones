@@ -8,7 +8,7 @@
 #SBATCH -o ./logs/snapshot_close_repeat_check.%j.out
 #SBATCH -p cosma8-serial
 #SBATCH -A dp004
-#SBATCH -t 02:00:00
+#SBATCH -t 01:00:00
 ########################
 
 # This example was written for use on COSMA:
@@ -21,9 +21,9 @@ module load python/3.12.4
 # virtual environment made with venv_scripts/make_cosma_env.sh
 source "/cosma/apps/dp004/${USER}/swiftlet_env/bin/activate"
 
+
 # use the cores given to the job for the numba threads
 export SWIFTLET_MAX_THREADS=${SLURM_CPUS_PER_TASK}
-
 
 # the simulations to check
 box_res="L1000N1800"
@@ -40,8 +40,9 @@ orientation_seed=3 #orientation seed to check for each table
 
 tables=("default" "cube_quarter_spacing" "sphere_quarter_spacing") # check each of these installed tables
 
-planned_beam_vector=(1.0 1.0 1.0) # direction of the planned beam to overlay onto the map
-
+planned_beam_vector=(1.0 1.0 1.0) # direction of the planned beams to overlay onto the map
+planned_ang_radius_deg=15         # planned circular beam of 15 deg radius
+planned_ang_side_length_deg=30    # planned square beam of 30 deg side length
 
 # iterate through each orientation table
 
@@ -60,6 +61,7 @@ for table_name in "${tables[@]}"; do
         --orientation_table="${table_file}" \
         --angle_deg=1.0 \
         --planned_beam_vector "${planned_beam_vector[@]}" \
-        --planned_ang_radius_deg=15 
+        --planned_ang_radius_deg=${planned_ang_radius_deg} \
+        --planned_ang_side_length_deg=${planned_ang_side_length_deg}
     
 done

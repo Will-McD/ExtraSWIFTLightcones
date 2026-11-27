@@ -324,6 +324,11 @@ def new_lightcone(sim_name, beam_vector, orientation_lock, ang_radius_deg=None, 
     """
     # suite base directory given by SWIFTLET_FLAMINGO_DIR, which points at the fake simulations
     simulation = Simulation.from_label(BOX_RES, sim_name)
+    if kwargs.get("ang_side_length_deg") is not None:
+        return snapshot_lightcone.SnapshotSquareBeam(
+            simulation, beam_vector=beam_vector, verbose=0, orientation_lock=orientation_lock, **kwargs
+        )
+    kwargs.pop("ang_side_length_deg", None)
 
     if beam_vector is None:
         return snapshot_lightcone.SnapshotAllSky(simulation, verbose=0, orientation_lock=orientation_lock, **kwargs)

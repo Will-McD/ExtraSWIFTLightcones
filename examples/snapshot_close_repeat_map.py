@@ -15,6 +15,7 @@ import sys
 import tempfile
 import warnings
 from pathlib import Path
+from matplotlib.patches import Patch
 import numpy as np
 from swiftlet.simulation_suites import Simulation
 from swiftlet.repeat_check import find_close_cell_repeats, CloseRepeatWarning
@@ -33,7 +34,7 @@ import matplotlib.patheffects as pe
 import cmasher as cmr  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents))
-from snapshot_close_repeat_check import fake_simulation, new_lightcone  # noqa: E402
+from snapshot_close_repeat_check import beam_outline, fake_simulation, new_lightcone  # noqa: E402
 
 
 def lock_colour_map(lock, darkest=0.25, lightest=0.975):
@@ -55,19 +56,20 @@ def lock_colour_map(lock, darkest=0.25, lightest=0.975):
     return cmr.get_sub_cmap(lock_colour_maps[lock], darkest, lightest).reversed()
 
 
-def plot_repeats_on_sky(reports, filename, seperation_upper_limit=1000 * unyt.Mpc, overlay_beam=None):
+def plot_repeats_on_sky(reports, filename, seperation_upper_limit=1000 * unyt.Mpc, overlay_beams=()):
     """
     Plot the close repeats of a lightcone shell, for every orientation lock, on a Mollweide map of the sky.
 
     Use a marker to indicate each pair, with colour to show both the distance and orientation lock of each pair.
-    Overlay a shaded region for the planned lightcone beam.
+    Overlay a shaded region for the planned lightcone beams.
 
     :param  reports:        the close repeats of each lock, {lock: CloseRepeatReport} from find_close_cell_repeats
     :type   reports:        dict
     :param  filename:       path of the figure
     :type   filename:       str or pathlib.Path
-    :param  overlay_beam:   the beam_vector and ang_radius_deg of the planned beam.
-    :type   overlay_beam:   dict
+    :param  overlay_beams:  the planned beams, each a tuple (keyword arguments of plot_beam_on_sky from beam_outline,
+                            colour, legend label)
+    :type   overlay_beams:  sequence of tuple
 
     """
 
@@ -164,19 +166,11 @@ def plot_repeats_on_sky(reports, filename, seperation_upper_limit=1000 * unyt.Mp
             cax.tick_params(labelsize=9)
             bar.set_label("distance between pairs [Mpc]", fontsize=11)
 
-    # overlay beam pointing
-    if overlay_beam is not None:
-        plot_beam_on_sky(
-            ax,
-            beam_vector=overlay_beam["beam_vector"],
-            ang_radius_deg=overlay_beam["ang_radius_deg"],
-            colour="grey",
-            alpha=0.2,
-            edge_width=1.0,
-            fill=True,
-            n_points=721,
-            zorder=1,
-        )
+    # overlay the planned beams, and a legend of the locks, the clashing pairs and the planned beams below the map
+    for beam, colour, label in overlay_beams:
+        plot_beam_on_sky(ax, **beam, colour=colour, alpha=0.2, edge_width=1.0, fill=True, n_points=721, zorder=1)
+        handles.append(Patch(facecolor=colour, edgecolor=colour, alpha=0.4, label=label))
+    # ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.06), ncol=2, frameon=False, fontsize=8)
 
     # print the summary of the report.
     counts = "\n".join(
@@ -207,33 +201,40 @@ def run(
     overlay_ang_radius_deg=None,
     orientation_table=None,
     max_snapshot_difference=0,
+    overlay_ang_side_length_deg=None,
+    overlay_square_rotation_deg=0.0,
 ):
     """
     Find the close repeats of one lightcone shell, for every orientation lock, and plot them on the sky.
 
-    :param  simulation:                 the simulation
-    :type   simulation:                 Simulation
-    :param  redshift_range:             minimum and maximum redshift of the shell
-    :type   redshift_range:             tuple
-    :param  orientation_seed:           seed of the box tile orientations
-    :type   orientation_seed:           int
-    :param  beam_vector:                direction of the beam, or None for all-sky
-    :type   beam_vector:                tuple
-    :param  ang_radius_deg:             angular radius [deg] of the beam, None for all-sky
-    :type   ang_radius_deg:             float
-    :param  angle_deg:                  angle [deg] on the sky within which copies are on the same line of sight
-    :type   angle_deg:                  float
-    :param  output_dir:                 directory to write the figure to
-    :type   output_dir:                 str
-    :param  overlay_beam_vector:        direction of the planned lightcone beam
-    :type   overlay_beam_vector:        tuple
-    :param  overlay_ang_radius_deg:     angular radius [deg] of the planned lightcone beam being overlaid
-    :type   overlay_ang_radius_deg:     float
-    :param  orientation_table:          file of orientation tables, or None for the default tables
-    :type   orientation_table:          str
-    :param  max_snapshot_difference:    pair copies of a cell from snapshots at most this far apart (0: the same
-                                        snapshot only)
-    :type   max_snapshot_difference:    int
+    :param  simulation:                     the simulation
+    :type   simulation:                     Simulation
+    :param  redshift_range:                 minimum and maximum redshift of the shell
+    :type   redshift_range:                 tuple
+    :param  orientation_seed:               seed of the box tile orientations
+    :type   orientation_seed:               int
+    :param  beam_vector:                    direction of the beam, or None for all-sky
+    :type   beam_vector:                    tuple
+    :param  ang_radius_deg:                 angular radius [deg] of the beam, None for all-sky
+    :type   ang_radius_deg:                 float
+    :param  angle_deg:                      angle [deg] on the sky within which copies are on the same line of sight
+    :type   angle_deg:                      float
+    :param  output_dir:                     directory to write the figure to
+    :type   output_dir:                     str
+    :param  overlay_beam_vector:            direction of the planned lightcone beam
+    :type   overlay_beam_vector:            tuple
+    :param  overlay_ang_radius_deg:         angular radius [deg] of the planned lightcone beam being overlaid
+    :type   overlay_ang_radius_deg:         float
+    :param  orientation_table:              file of orientation tables, or None for the default tables
+    :type   orientation_table:              str
+    :param  max_snapshot_difference:        pair copies of a cell from snapshots at most this far apart (0: the same
+                                            snapshot only)
+    :type   max_snapshot_difference:        int
+    :param  overlay_ang_side_length_deg:    angular side length [deg] of a planned square beam along
+                                            overlay_beam_vector, drawn as well as (or in place of) the circular one
+    :type   overlay_ang_side_length_deg:    float
+    :param  overlay_square_rotation_deg:    angle [deg] the planned square beam is turned about its axis
+    :type   overlay_square_rotation_deg:    float
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -278,17 +279,33 @@ def run(
 
     max_seperation = 500 * unyt.Mpc  # only show pairs who's separation is less than this
 
-    if (overlay_beam_vector is not None) and (overlay_ang_radius_deg is not None):
-        planned_beam = {
-            "beam_vector": overlay_beam_vector,
-            "ang_radius_deg": overlay_ang_radius_deg,
-        }
-    else:
-        planned_beam = None
+    # the planned beams along overlay_beam_vector: a circular one, a square one, or both
+    planned_beams = []
+    if overlay_beam_vector is not None and overlay_ang_radius_deg is not None:
+        planned_beams.append(
+            (
+                beam_outline(overlay_beam_vector, ang_radius_deg=overlay_ang_radius_deg),
+                "grey",
+                f"planned beam, {overlay_ang_radius_deg:g} deg radius",
+            )
+        )
+    if overlay_beam_vector is not None and overlay_ang_side_length_deg is not None:
+        turned = f", turned {overlay_square_rotation_deg:g} deg" if overlay_square_rotation_deg else ""
+        planned_beams.append(
+            (
+                beam_outline(
+                    overlay_beam_vector,
+                    ang_side_length_deg=overlay_ang_side_length_deg,
+                    square_rotation_deg=overlay_square_rotation_deg,
+                ),
+                "darkorange",
+                f"planned square beam, {overlay_ang_side_length_deg:g} deg side{turned}",
+            )
+        )
 
-    plot_repeats_on_sky(reports, filename, seperation_upper_limit=max_seperation, overlay_beam=planned_beam)
+    plot_repeats_on_sky(reports, filename, seperation_upper_limit=max_seperation, overlay_beams=planned_beams)
 
-    print(f"figure saved as {filename}")
+    print(f"figure saved as {filename}\n")
 
 
 if __name__ == "__main__":
@@ -312,6 +329,18 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--planned_ang_radius_deg", type=float, default=None, help="angular radius [deg] of the planned beam"
+    )
+    parser.add_argument(
+        "--planned_ang_side_length_deg",
+        type=float,
+        default=None,
+        help="angular side length [deg] of a planned square beam along the same vector (drawn as well)",
+    )
+    parser.add_argument(
+        "--planned_square_rotation_deg",
+        type=float,
+        default=0.0,
+        help="angle [deg] to turn the planned square beam about its axis",
     )
     parser.add_argument(
         "--angle_deg",
@@ -338,6 +367,8 @@ if __name__ == "__main__":
         max_snapshot_difference=args.max_snapshot_difference,
         overlay_beam_vector=args.planned_beam_vector,
         overlay_ang_radius_deg=args.planned_ang_radius_deg,
+        overlay_ang_side_length_deg=args.planned_ang_side_length_deg,
+        overlay_square_rotation_deg=args.planned_square_rotation_deg,
     )
 
     run(Simulation.from_label(args.box_res, args.sim_name), redshift_range, **settings)

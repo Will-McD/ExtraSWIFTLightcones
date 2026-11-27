@@ -14,8 +14,9 @@ documentation in :mod:`swiftlet.snapshot_lightcone`.
    :nosignatures:
 
    ~snapshot_lightcone.SnapshotLightcone
-   ~snapshot_lightcone.SnapshotBeam
    ~snapshot_lightcone.SnapshotAllSky
+   ~snapshot_lightcone.SnapshotBeam
+   ~snapshot_lightcone.SnapshotSquareBeam
    ~snapshot_lightcone.LightconeOutput
    ~snapshot_lightcone.ShellRead
    ~snapshot_lightcone.HaloShellRead

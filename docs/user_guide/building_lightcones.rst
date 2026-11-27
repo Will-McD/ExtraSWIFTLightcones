@@ -10,13 +10,13 @@ walkthrough of the main methods in the :class:`SnapshotLightcone` class that is 
 See :doc:`methods_overview` for an overview of the main ideas behind how lightcones are built in :mod:`swiftlet`. 
 
 All lightcones in :mod:`swiftlet` are classified as either an :term:`all-sky <all-sky lightcone>` or :term:`beam` 
-lightcone. The former are lightcones whose footprint that covers the whole sky (i.e., a solid angle of :math:`4 \pi` 
-steradians) and are built with :class:`SnapshotAllSky` class. The latter, are lightcones given by a circular beam 
-with an angular radius less than 60 degrees (or a solid angle of :math:`\leq \pi` steradians) and are 
-constructed with the :class:`SnapshotBeam` class. 
+lightcone. The former are lightcones that covers the whole sky (i.e., a solid angle of :math:`4 \pi` 
+steradians) and are built with :class:`SnapshotAllSky` class. The latter, are lightcones given by a beam that has a 
+circular or square footprint on the sky, built by the :class:`SnapshotBeam` and :class:`SnapshotSquareBeam` classes, 
+respectively. 
 
-Both :class:`SnapshotAllSky` and :class:`SnapshotBeam` are subclasses of :class:`SnapshotLightcone`, and only contain 
-information specific to the geometry of the lightcones they build. 
+:class:`SnapshotAllSky`, :class:`SnapshotBeam` and :class:`SnapshotSquareBeam` are subclasses of 
+:class:`SnapshotLightcone`, and only contain information specific to the geometry of the lightcones they build. 
 The methods used for building a lightcone are held by :class:`SnapshotLightcone` and are therefore shared by both 
 subclasses. As shown in :doc:`methods_overview`, :mod:`swiftlet` builds lightcones by taking copies of the simulations 
 snapshot box and placing them into a lattice around the observer, before then populating the lattice using slices of 
@@ -51,8 +51,10 @@ To define a lightcone it needs:
 
 *   **the simulation**: a :class:`Simulation <swiftlet.simulation_suites.Simulation>` object, passed as 
     ``simulation`` (see :doc:`new_simulations_and_suites`)
-*   **its geometry**: handled by the :class:`SnapshotLightcone` subclasses, :class:`SnapshotAllSky` and 
-    :class:`SnapshotBeam`, which needs a direction (``beam_vector``) and angular radius (``ang_radius_deg``).
+*   **its geometry**: handled by the :class:`SnapshotLightcone` subclasses, :class:`SnapshotAllSky`, 
+    :class:`SnapshotBeam`, which needs a direction (``beam_vector``) and angular radius (``ang_radius_deg``), and
+    :class:`SnapshotSquareBeam`, a square beam with an angular side length (``ang_side_length_deg``) in place of the
+    radius (see :ref:`square-beams`).
 *   **the orientation of its tiles**: the ``orientation_table`` (the default table is used if one is not specified), the
     ``orientation_lock`` (``none``, ``"cube"`` or ``"sphere"``) and the ``orientation_seed`` (see :doc:`orientation`
     and :doc:`orientation_tables`). 
@@ -63,8 +65,6 @@ To define a lightcone it needs:
 
     sim = Simulation.from_label("L0400N3008", "Thermal")   # COLIBRE L400_m7, Thermal AGN
 
-
-    
     # define a beam lightcone
     beam = SnapshotBeam(
         simulation=sim, 
@@ -92,6 +92,41 @@ lightcone as the same cone shaped subvolume within ``all_sky`` (see :ref:`beams-
    lightcone. This can be done at the cell level with 
    :func:`find_close_cell_repeats <swiftlet.repeat_check.find_close_cell_repeats>` (see :doc:`repeated_objects`).
 
+.. _square-beams:
+
+Square beams
+^^^^^^^^^^^^
+
+:class:`SnapshotBeam` build lightcones that are a circular beam (looks like a cone) with an angular radius less than 60 
+degrees (or a solid angle of :math:`\leq \pi` steradians). :class:`SnapshotSquareBeam` builds a beam with a
+:term:`square footprint <square beam>` on the sky instead of a circular footprint and it takes the same arguments as 
+:class:`SnapshotBeam`, with an angular side length (``ang_side_length_deg``) in place of the angular radius:
+
+.. code-block:: python
+
+    from swiftlet import Simulation, SnapshotSquareBeam
+
+    sim = Simulation.from_label("L1000N1800", "HYDRO_FIDUCIAL")
+    square = SnapshotSquareBeam(sim, beam_vector=(1.0, 2.0, 3.0), ang_side_length_deg=5.0, orientation_lock="cube")
+    particles = square.place_snapshot_particles_in_shell((0.05, 0.15), ["Masses"], particle_types="PartType1")
+
+The orientation or alignment of a square beams footprint on the sky is set by the beam's two transverse axes 
+(:math:`(e_1, e_2)`), which can be rotated about the axis along the beams line of sight with the ``square_rotation_deg`` 
+parameter (0 by default). The sides of the square follow the transverse axes and are a property of the lightcone 
+(``square.side_axes``). :meth:`SnapshotSquareBeam.rotation_to` returns the angle needed to rotate :math:`e_1` to point 
+along a chosen direction, e.g. west, for a square with its sides along east-west and north-south:
+
+.. code-block:: python
+
+    west = np.cross(beam_vector, (0.0, 0.0, 1.0))
+    rotation = SnapshotSquareBeam.rotation_to(beam_vector, west)
+    square = SnapshotSquareBeam(sim, beam_vector, ang_side_length_deg=5.0, square_rotation_deg=rotation)
+
+Everything else is the same as for :class:`SnapshotBeam` (i.e. the same tiles, cells, orientations, haloes, MPI and 
+remote reading). A square beam is exactly the part of the all-sky lightcone, and of the circular beam through its 
+corners, inside its square. 
+
+See :ref:`circular-and-square-beams` for further comparisons of :class:`SnapshotBeam` and :class:`SnapshotSquareBeam`.
 
 Populating a lightcone
 ----------------------
@@ -286,6 +321,9 @@ ranks at most ``max_concurrent_requests`` requests (2 by default) are allowed at
 particles and the SOAP catalogues a serial call makes one request at a time, and snapshots on disk are never capped
 (see :doc:`parallel_and_hpc`).
 
+.. note::
+    Whilst it is possible to build lightcones by accessing the data remotely, the best practice is to have the 
+    simulation data stored locally on disk. 
 
 
 The output lightcones
@@ -298,8 +336,7 @@ particles, one :class:`LightconeOutput` per particle type), with the positions r
 *   the lightcone type, the simulation (suite, label and name)
 *   the ``orientation_seed``, ``orientation_lock``, the ``orientation_table`` and the :term:`fingerprint` of its 
     contents
-*   the beam vector and angular radius, and the redshift range
-
+*   the beam vector and angular radius (for a square beam, also its side length and rotation), and the redshift range
 
 Given the same settings and snapshots, the same lightcone is made again (see :doc:`orientation_tables`).
 :func:`write_lightcone_metadata` and :func:`read_lightcone_metadata` write and read the metadata in HDF5 files, and

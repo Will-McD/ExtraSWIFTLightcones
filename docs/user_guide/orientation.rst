@@ -19,9 +19,9 @@ for all current COLIBRE and FLAMINGO simulations. By default the observer or cen
 In the lightcone each snapshot covers the range of redshifts given by the the midpoints to its neighbouring snapshots 
 (see :doc:`new_simulations_and_suites`). A snapshots data is placed in every tile whose comoving
 distance from the observer overlaps with the :term:`snapshots redshift range <snapshot redshift range>`, and in each 
-tile only the part within that range (and within the :term:`beam`, for a :class:`SnapshotBeam`) is kept. So a tile can 
-span across several snapshots, each in its own shell, and one snapshot can pass through many tiles 
-(see :ref:`example diagram <fig-cell-in-shell>`).
+tile only the part within that range (and within the :term:`beam`, for :class:`SnapshotBeam` and 
+:class:`SnapshotSquareBeam`) is kept. So a tile can span across several snapshots, each in its own shell, and one 
+snapshot can pass through many tiles (see :ref:`example diagram <fig-cell-in-shell>`).
 
 Within a tile, the snapshot's :term:`cells <cell>` are first moved as the tile's orientation says (a 
 :term:`periodic shift <cell shift>`, a reflection and a rotation, see :doc:`orientation_tables`), and then placed at the 
@@ -44,9 +44,69 @@ all-sky lightcone. Beams pointing in different directions are pieces of the one 
 
 .. important::
 
-    **A beam is exactly the part of the all-sky lightcone that lies inside its cone**, with the same orientation
-    tables, ``orientation_lock`` and ``orientation_seed``: the same particles and haloes, from the same snapshots, at
-    the same positions, for every lock and none.
+    **A beam is an exact subvolume of the all-sky lightcone that it sits inside.** The cone or square pyramid of the 
+    beam returns the same lightcone (the same particles and haloes) as for that subvolume within an all-sky lightcone 
+    for the same orientation tables, ``orientation_lock`` and ``orientation_seed``.
+
+
+.. _circular-and-square-beams:
+
+Circular and square beams
+-------------------------
+
+A beam can be circular on the sky, a :class:`SnapshotBeam`, or square, a :class:`SnapshotSquareBeam`
+(see :ref:`square-beams` for how to make one). 
+
+As both are subclasses of :class:`SnapshotLightcone` they share **the same pipeline** for gathering, reading and placing 
+particles or haloes into a lightcone. Moreover both of the beam building classes **label their tiles in the same frame**
+, ``(nx, ny, n_los)``, and have the ``orientation_lock``, ``orientation_seed`` and :term:`observer position`. So both 
+are exactly the part of the all-sky lightcone inside their footprint 
+(see :ref:`beams-are-part-of-the-all-sky-lightcone`), and a square beam is also exactly the part of the circular beam 
+through its corners that lies inside the square.
+
+**How they are different**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 39 39
+
+   * -
+     - Circular beam, :class:`SnapshotBeam`
+     - Square beam, :class:`SnapshotSquareBeam`
+   * - Shape
+     - a cone: every direction within ``ang_radius_deg`` of the axis
+     - a square pyramid: four flat faces, each half the side length from the axis
+   * - Set by
+     - ``ang_radius_deg``, the angle from the axis to the edge
+     - ``ang_side_length_deg``, the angle between opposite sides of the square, measured through the axis
+   * - Edge on the sky
+     - a small circle, the same distance from the axis all round
+     - four arcs; the corners are further from the axis than the middle of the sides
+   * - Across the beam
+     - a circle at every distance
+     - a true square in the plane perpendicular to the axis at every distance
+   * - ``ang_radius_deg``
+     - the beam's radius
+     - the radius of the circle through its corners, :math:`\arctan(\sqrt{2} \tan(s/2))` for a side length
+       :math:`s`; it bounds the tiles the beam searches
+   * - Solid angle
+     - :math:`2\pi (1 - \cos r)`
+     - :math:`4 \arcsin(\sin^2(s/2))`
+   * - Largest size
+     - ``MAX_BEAM_ANG_RADIUS_DEG``, 60 degrees
+     - ``MAX_SQUARE_BEAM_SIDE_DEG``, about 101.5 degrees, so its corners are at most 60 degrees from the axis
+   * - Size at a redshift
+     - ``beam_diameter(z)``
+     - ``beam_side_length(z)``, and ``beam_diameter(z)`` for its diagonal
+   * - Turned about its axis
+     - N/A
+     - its sides (``side_axes``) are along the beam's transverse axes rotated by ``square_rotation_deg``
+
+
+Due to the orientation of the square beam being defined by the direction of the beam and its transverse axes **the sides 
+of a square do not run north-south and east-west by default.** With ``square_rotation_deg=0`` (0 by default) the squares 
+sides are along the beam's transverse axes not by the sky's poles. Use :meth:`SnapshotSquareBeam.rotation_to` to rotate 
+the square to be aligned along a chosen direction.
 
 
 Locking the orientation of tiles
