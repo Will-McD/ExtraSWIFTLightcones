@@ -8,8 +8,8 @@ The main classes and functions can be imported from the package::
 
 or the submodule they come from::
 
-    snapshot_lightcone      SnapshotLightcone, SnapshotBeam, SnapshotAllSky, ORIENTATION_LOCK_OPTIONS,
-                            SnapshotGapWarning
+    snapshot_lightcone      SnapshotLightcone, SnapshotBeam, SnapshotSquareBeam, SnapshotAllSky,
+                            SnapshotGapWarning, ORIENTATION_LOCK_OPTIONS
     snapshot_cosmology      SnapshotCosmology
     simulation_suites       Simulation, SimulationSuite, FLAMINGO, COLIBRE, suite_for_label, output_redshifts,
                             read_output_list, write_output_list, read_suite_file, write_suite_file, add_suite
@@ -46,6 +46,7 @@ _PUBLIC_NAMES = {
     # building lightcones from snapshots
     "SnapshotLightcone": "snapshot_lightcone",
     "SnapshotBeam": "snapshot_lightcone",
+    "SnapshotSquareBeam": "snapshot_lightcone",
     "SnapshotAllSky": "snapshot_lightcone",
     "ORIENTATION_LOCK_OPTIONS": "snapshot_lightcone",
     "write_lightcone_metadata": "snapshot_lightcone",

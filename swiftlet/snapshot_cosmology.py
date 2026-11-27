@@ -245,9 +245,9 @@ class SnapshotCosmology:
         shell_redshifts = np.loadtxt(redshift_filename, delimiter=",", ndmin=2)
         return self.comoving_distance(shell_redshifts)
 
-    def lightcone_volume(self, inner, outer, use_redshift=False, half_angle=None):
+    def lightcone_volume(self, inner, outer, use_redshift=False, half_angle=None, solid_angle=None):
         """
-        Returns the comoving volume [Mpc^3] of a lightcone between two comoving radii, over the whole sky or in a cone.
+        Returns the comoving volume [Mpc^3] of a lightcone between two comoving radii.
 
         :param  inner:          inner comoving radius [Mpc], or redshift if use_redshift is True
         :type   inner:          float, numpy.ndarray or unyt.array.unyt_array
@@ -257,14 +257,21 @@ class SnapshotCosmology:
         :type   use_redshift:   bool
         :param  half_angle:     half the opening angle of the cone [rad]. If None, the whole sky
         :type   half_angle:     float
+        :param  solid_angle:    solid angle [sr] of the lightcone, in place of half_angle (e.g. of a square beam)
+        :type   solid_angle:    float
         """
+        if half_angle is not None and solid_angle is not None:
+            raise ValueError("give half_angle or solid_angle, not both")
+
         if use_redshift:
             inner, outer = self.comoving_distance(inner), self.comoving_distance(outer)
         else:
             inner = sw_units.apply_expected_units(inner, unyt.Mpc)
             outer = sw_units.apply_expected_units(outer, unyt.Mpc)
+
         # the solid angle of the sky, or of a cone: 2 pi (1 - cos(half_angle))
-        solid_angle = 4.0 * np.pi if half_angle is None else 2.0 * np.pi * (1.0 - np.cos(half_angle))
+        if solid_angle is None:
+            solid_angle = 4.0 * np.pi if half_angle is None else 2.0 * np.pi * (1.0 - np.cos(half_angle))
         return (solid_angle / 3.0 * (outer**3 - inner**3)).to("Mpc**3")
 
 

@@ -16,10 +16,8 @@ For the fiducial L1_m9 FLAMINGO simulation select haloes using the following cri
         distance of the halo.
 
 Notes
-    1.  SnapshotLightcone re-orients the coordinates of the box tiles but not the velocities, so the velocities are
-        only along the right directions in the box tile (0, 0, 0), which is not re-oriented. The haloes are chosen so
-        that every particle used is in that tile, and this is checked.
-
+    1.  The haloes are chosen so that the region around each one is inside the box tile (0, 0, 0), which is not
+        re-oriented, so each halo is placed at its own position relative to the centre of the box; this is checked.
     2. SnapshotBeam reads the snapshots and SOAP catalogues from the local FLAMINGO directories, so this needs to run
         on COSMA.
 """
@@ -67,6 +65,29 @@ MAPS = {
 
 # particle properties to read for each particle type
 PROPERTIES = {"PartType0": ["Masses", "Temperatures"]}
+
+# the beam reaches this much further than the zoom, on every side, for the particles smoothed into its edge
+SMOOTHING_MARGIN = 1.2
+
+
+def zoom_margin(r200c, zoom_r200c, depth_r200c):
+    """
+    Comoving distance [Mpc] around each halo that must be inside the box tile (0, 0, 0) for its zoom.
+
+    It reaches the furthest corner of the region a square beam covers around the halo (sqrt(2) times the half width of
+    the zoom, with the smoothing margin) and the depth of the slab.
+
+    Returns the margin of each halo [Mpc].
+
+    :param  r200c:          R200c of each halo [cMpc]
+    :type   r200c:          np.ndarray
+    :param  zoom_r200c:     half width of the zooms, in units of R200c
+    :type   zoom_r200c:     float
+    :param  depth_r200c:    half depth of the beam around each halo, in units of R200c
+    :type   depth_r200c:    float
+    """
+    across = SMOOTHING_MARGIN * np.sqrt(2.0) * zoom_r200c * r200c
+    return np.sqrt(across**2 + (depth_r200c * r200c) ** 2)
 
 
 def comoving_distance_to_redshift(cosmo, distance, z_max=3.0, n_grid=20000):
@@ -157,7 +178,7 @@ def find_candidate_haloes(soap_format, simulation, z_max, log_mass_range, z_min=
         if z_lo >= z_max or z_hi <= 0.0 or z_lo < z_min:
             continue
         if not os.path.exists(soap_format.format(snap_nr=int(snap_nr))):
-            print("\tsnapshot {snap_nr}: no SOAP catalogue, skipped")
+            print(f"\tsnapshot {snap_nr}: no SOAP catalogue, skipped")
             continue
         units = {
             "SO/200_crit/TotalMass": "Msun",
@@ -511,7 +532,7 @@ if __name__ == "__main__":
         "--pixel_size",
         type=float,
         default=0.02,
-        help="size [cMpc] of the HEALPix pixels at the halo, which sets the nside of each map",
+        help="size [cMpc] of pixels at the halo, used to set the nside of each map",
     )
     parser.add_argument(
         "--output_dir", default="./example_outputs/snapshot_beam_zoom_on_haloes", help="output directory"
@@ -522,8 +543,10 @@ if __name__ == "__main__":
     # the simulation: its paths, output redshifts, cosmology and box, read locally on COSMA
     simulation = Simulation.from_label(args.box_res, args.sim_name)
     soap_format = simulation.soap_format
+
     if args.soap_dir is not None:
         soap_format = os.path.join(args.soap_dir, os.path.basename(soap_format))
+
     cosmo = SnapshotCosmology.from_simulation(simulation).COSMO
     boxsize = snapshot_boxsize(simulation)  # [Mpc]
     box_centre = np.full(3, 0.5 * boxsize)
@@ -535,8 +558,7 @@ if __name__ == "__main__":
     )
 
     # output dir of image, update as needed
-    output_dir = "./example_outputs/snapshot_beam_zoom_on_haloes"
-    Path(output_dir).mkdir(parents=True, exist_ok=True)  # ensure output dir exists
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)  # ensure output dir exists
 
     # haloes with M200c within 0.1 dex of 10^14 Msun at z < 0.2
     target_log_M200c = args.log_mass
@@ -549,8 +571,8 @@ if __name__ == "__main__":
     zoom_r200c = 4.0
     depth_r200c = 4.0
 
-    # resolution of the maps: nside of the pixels about pixel_size across at the halo
-    pixel_size = 0.01  # [cMpc]
+    # resolution of the maps: nside of the pixels about pixel_size [cMpc] across at the halo
+    pixel_size = args.pixel_size
 
     # Find haloes near 10^14 Msun in the snapshots
     # Get ID, centre, mass and radii of candidate haloes
@@ -563,10 +585,8 @@ if __name__ == "__main__":
     # The region around each halo must stay in the box tile (0, 0, 0).
     # i.e. The beam around the halo + the zoom with the wider beam around it
     zoom_radius = zoom_r200c * candidates["R200c"]
-    margin = np.sqrt((1.2 * zoom_radius) ** 2 + (depth_r200c * candidates["R200c"]) ** 2)
-    chosen = select_haloes(
-        candidates, box_centre, boxsize, cosmo, simulation, z_max, margin, n_haloes, target_log_M200c
-    )
+    margin = zoom_margin(candidates["R200c"], zoom_r200c, depth_r200c)
+    chosen = select_haloes(candidates, box_centre, cosmo, simulation, z_max, margin, n_haloes, target_log_M200c)
 
     # Make a beam that points at each halo and then place beam onto a map
     zooms, haloes = [], []
@@ -596,27 +616,29 @@ if __name__ == "__main__":
         print(
             (
                 f"\nhalo {halo['HaloCatalogueIndex']} of snapshot {snap_nr}:"
-                "\tM200c {halo['M200c']:.4e} Msun, R200c {halo['R200c']:.3f} cMpc"
+                f"\tM200c {halo['M200c']:.4e} Msun, R200c {halo['R200c']:.3f} cMpc"
             )
         )
         # SOAP info
         print(
             (
                 f"\n\tSOAP centre ({', '.join(f'{x:.2f}' for x in halo['SOAPCentre'])}) cMpc, "
-                "relative to the box centre ({', '.join(f'{x:.2f}' for x in offset)}) cMpc"
+                f"relative to the box centre ({', '.join(f'{x:.2f}' for x in offset)}) cMpc"
             )
         )
-        # Beam info
-        beam_str = f"\n\tbeam vector ({', '.join(f'{x:.4f}' for x in beam_vector)})"  # vector
-        beam_str += f"\n\tbeam {beam_redshift_range[0]:.4f} < z <= {beam_redshift_range[1]:.4f}"  # redshift range
-        beam_str += f"{np.degrees(1.2 * zoom_angle):.3f} deg, nside {nside}"  # angular size
+        # Beam info: vector, redshift range, angular size
+        beam_str = (
+            f"\n\tbeam vector ({', '.join(f'{x:.4f}' for x in beam_vector)})"
+            f"\n\tbeam {beam_redshift_range[0]:.4f} < z <= {beam_redshift_range[1]:.4f}"
+            f", {np.degrees(SMOOTHING_MARGIN * zoom_angle):.3f} deg radius, nside {nside}"  # angular size
+        )
         print(beam_str)
 
         # create a beam for selected halo
         snap_beam = SnapshotBeam(
             simulation=simulation,
             beam_vector=beam_vector,
-            ang_radius_deg=np.degrees(1.2 * zoom_angle),  # increase angular size to allow smoothing of the particles
+            ang_radius_deg=np.degrees(SMOOTHING_MARGIN * zoom_angle),  # wider, for the particles smoothed into the edge
             orientation_seed=0,
             orientation_lock=None,
             verbose=1,
@@ -660,7 +682,7 @@ if __name__ == "__main__":
 
     # plot a row of zooms for each halo
     output_filename = (
-        f"{output_dir}/snapshot_beam_zoom_on_{len(chosen)}_haloes.{simulation.box_res}.{simulation.name}.png"
+        f"{args.output_dir}/snapshot_beam_zoom_on_{len(chosen)}_haloes.{simulation.box_res}.{simulation.name}.png"
     )
     plot_halo_zooms(zooms, haloes, output_filename)
     print(f"\nSaved as: {output_filename}")

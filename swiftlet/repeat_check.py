@@ -113,9 +113,9 @@ def _tile_label(tile):
     return tile + [-1] * (4 - len(tile))
 
 
-def _cells_in_shell(lightcone, ang_radius_deg, records, cell_data, tile_cells=None, cell_range=None):
+def _cells_in_shell(lightcone, records, cell_data, tile_cells=None, cell_range=None):
     """
-    Find overlapping cells int the lightcone shell.
+    Find overlapping cells in a lightcone.
 
     Overlap every cell centre from each tile with the last gathered pieces and then keep the cells overlapping
     with the tile's part of the lightcone .
@@ -133,8 +133,6 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, cell_data, tile_cells=No
 
     :param  lightcone:      the lightcone, after gather_files
     :type   lightcone:      SnapshotLightcone
-    :param  ang_radius_deg: angular radius [deg] of the beam, None for all-sky
-    :type   ang_radius_deg: float
     :param  records:        the pieces recorded by lightcone.last_shell.pieces
     :type   records:        list
     :param  cell_data:      the cell metadata of the shell's snapshots, {snapshot: cell metadata}
@@ -147,8 +145,6 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, cell_data, tile_cells=No
     snap_nr, cell, tiles, orientation, centres = [], [], [], [], []
     orientation_ids = {}
     cell_size = boxsize = None
-
-    beam_vec = None if ang_radius_deg is None else np.asarray(lightcone.beam_vec, dtype=float)
 
     # for record in lightcone.last_shell
     for record in records:
@@ -175,20 +171,13 @@ def _cells_in_shell(lightcone, ang_radius_deg, records, cell_data, tile_cells=No
             continue
         coords = lightcone.Snapshot2Lightcone(record.snap_nr, box_centres[candidates], tile=record.tile)
 
-        # get lightcone coords from last run
-        r = np.linalg.norm(coords, axis=1)
-        r_in, r_out = lightcone.cosmo.comoving_distance(list(record.z_range)).to_value("Mpc")
-
-        # make mask to keep cells close to the lightcones footprint
-        keep = (r >= r_in - half_diagonal) & (r <= r_out + half_diagonal)
-
-        if beam_vec is not None:
-            with np.errstate(invalid="ignore", divide="ignore"):
-                angle = np.arccos(np.clip(coords @ beam_vec / r, -1.0, 1.0))
-                buffer = np.arcsin(np.clip(half_diagonal / r, 0.0, 1.0))
-            keep &= (r <= half_diagonal) | (angle <= np.deg2rad(ang_radius_deg) + buffer)
+        # keep the cells within half a cell diagonal of the lightcone's part of the shell (its cone, square or sky)
+        keep, _ = lightcone._in_shell(
+            coords, *record.z_range, buffer_length=half_diagonal, buffer_shape="sphere", return_bool=True
+        )
 
         n = int(np.sum(keep))
+
         # add kept cells
         snap_nr.append(np.full(n, record.snap_nr, dtype=np.int64))
         cell.append(candidates[keep].astype(np.int64))
@@ -352,7 +341,7 @@ def find_close_cell_repeats(
 
     for snapshot, cell_range in blocks:
         snap_nr, cell, tiles, orientation, centres, size, box = _cells_in_shell(
-            lightcone, lightcone.ang_radius_deg, groups[snapshot], cell_data, tile_cells, cell_range
+            lightcone, groups[snapshot], cell_data, tile_cells, cell_range
         )
 
         cell_size, boxsize = (size, box) if size is not None else (cell_size, boxsize)

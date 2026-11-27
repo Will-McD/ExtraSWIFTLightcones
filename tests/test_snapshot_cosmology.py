@@ -181,13 +181,20 @@ def test_volumes_and_shells(tmp_path):
     cosmo = SnapshotCosmology(write_snapshot(tmp_path / "flamingo_0077.hdf5"))
     whole_sky = cosmo.lightcone_volume(100.0, 200.0)
     assert whole_sky.to_value("Mpc**3") == pytest.approx(4.0 / 3.0 * np.pi * (200.0**3 - 100.0**3))
+
     # a cone of half angle pi is the whole sky, of half angle pi / 2 half of it
     assert cosmo.lightcone_volume(100.0, 200.0, half_angle=np.pi) == pytest.approx(whole_sky)
     assert cosmo.lightcone_volume(100.0, 200.0, half_angle=np.pi / 2) == pytest.approx(whole_sky / 2)
+
     # from redshifts, or radii with units
     r = cosmo.comoving_distance([0.1, 0.2])
     assert cosmo.lightcone_volume(0.1, 0.2, use_redshift=True) == pytest.approx(cosmo.lightcone_volume(r[0], r[1]))
     assert cosmo.lightcone_volume(0.1 * unyt.Gpc, 0.2 * unyt.Gpc) == pytest.approx(whole_sky)
+
+    # any solid angle, e.g. a square beam's, in place of a cone's half angle
+    assert cosmo.lightcone_volume(100.0, 200.0, solid_angle=np.pi) == pytest.approx(whole_sky / 4)
+    with pytest.raises(ValueError, match="not both"):
+        cosmo.lightcone_volume(100.0, 200.0, half_angle=0.1, solid_angle=0.1)
 
     shells = tmp_path / "shells.txt"
     shells.write_text("0.0, 0.05\n0.05, 0.1\n")

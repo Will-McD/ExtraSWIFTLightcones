@@ -28,26 +28,29 @@ from swiftlet.snapshot_lightcone import SnapshotBeam
 from swiftlet.example_plot_settings import plot_settings
 
 
-def diagram_beam(beam_vector):
+def diagram_beam(beam_vector, ang_radius_deg):
     """
-    A SnapshotBeam with only the attributes its tile and cell selection need (the beam direction and tile frame),
-    so the diagram can use SnapshotBeam's own selection methods without a simulation on disk.
+    A SnapshotBeam with only the attributes its tile and cell selection need (the beam direction, angular radius and
+    tile frame), so the diagram can use SnapshotBeam's own selection methods without a simulation on disk.
 
     Returns the SnapshotBeam.
 
     :param  beam_vector:    direction of the beam
     :type   beam_vector:    array-like, shape (3,)
+    :param  ang_radius_deg: angular radius [deg] of the beam
+    :type   ang_radius_deg: float
     """
 
     beam = SnapshotBeam.__new__(SnapshotBeam)
     beam.beam_vec = np.asarray(beam_vector, dtype=float) / np.linalg.norm(beam_vector)
+    beam.ang_radius_deg = float(ang_radius_deg)
     beam.beam_transverse_e1, beam.beam_transverse_e2 = SnapshotBeam._SnapshotBeam__transverse_basis(beam.beam_vec)
     beam._SnapshotBeam__init_tile_frame()
 
     return beam
 
 
-def select_tiles_and_cells(beam, L, n_cells, r_max, half_angle_deg, cosmo):
+def select_tiles_and_cells(beam, L, n_cells, r_max, cosmo):
     """
     Select the tiles the beam crosses and the cells kept in each tile.
 
@@ -61,8 +64,6 @@ def select_tiles_and_cells(beam, L, n_cells, r_max, half_angle_deg, cosmo):
     :type   n_cells:        int
     :param  r_max:          maximum comoving distance [Mpc] of the beam
     :type   r_max:          float
-    :param  half_angle_deg: angular radius [deg] of the beam
-    :type   half_angle_deg: float
     :param  cosmo:          cosmology converting distances to redshifts
     :type   cosmo:          astropy.cosmology.FLRW
     """
@@ -77,13 +78,12 @@ def select_tiles_and_cells(beam, L, n_cells, r_max, half_angle_deg, cosmo):
     cell_offsets = np.stack([cx.ravel(), cy.ravel(), cz.ravel()], axis=-1)
 
     selected = {}
-    for tile in beam._tiles_intersecting_shell(0.0, r_max, L, ang_radius_deg=half_angle_deg):
+    for tile in beam._tiles_intersecting_shell(0.0, r_max, L):
         corner = beam.get_snapshot_reposition_coords(tile, np.full(3, L))
         kept, __ = beam._in_shell(
             corner + cell_offsets,
             z_min=0.0,
             z_max=z_max,
-            ang_radius_deg=half_angle_deg,
             buffer_length=cell,
             buffer_shape="cube",
             return_bool=True,
@@ -218,8 +218,8 @@ def plot_beam_cell_selection(
 
     # get approx cosmology to draw the correct distances of the cross-section
     cosmo = FlatLambdaCDM(H0=68.1, Om0=0.306)
-    beam = diagram_beam((1, 0, 0))
-    selected = select_tiles_and_cells(beam, L, n_cells, r_max_L * L, half_angle_deg, cosmo)
+    beam = diagram_beam((1, 0, 0), half_angle_deg)
+    selected = select_tiles_and_cells(beam, L, n_cells, r_max_L * L, cosmo)
     half_angle = np.deg2rad(half_angle_deg)
     x_max = n_along
     transverse = range(-n_transverse, n_transverse + 1)

@@ -8,7 +8,7 @@
 #SBATCH -o ./logs/snapshot_close_repeat_check.%j.out
 #SBATCH -p cosma8-serial
 #SBATCH -A dp004
-#SBATCH -t 12:00:00
+#SBATCH -t 01:00:00
 ########################
 
 # This example was written for use on COSMA:
@@ -23,7 +23,6 @@ source "/cosma/apps/dp004/${USER}/swiftlet_env/bin/activate"
 
 # use the cores given to the job for the numba threads
 export SWIFTLET_MAX_THREADS=${SLURM_CPUS_PER_TASK}
-
 
 # the simulations to check, as "box_res sim_name zmax", and the shell
 # set zmax so the comoving volume of the lightcone is approx 5 times larger than a snapshot box.

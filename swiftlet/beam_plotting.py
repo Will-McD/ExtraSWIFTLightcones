@@ -1285,6 +1285,22 @@ def sky_coordinates(positions):
     return longitude, latitude
 
 
+def _square_side_axes(axis, side_axes):
+    """
+    Returns the two unit vectors along the sides of a square beam, checked to be perpendicular to its axis and each
+    other.
+
+    :param  axis:       unit vector along the beam's axis
+    :type   axis:       numpy.ndarray
+    :param  side_axes:  the two vectors along the square's sides
+    :type   side_axes:  tuple
+    """
+    u, v = (np.asarray(a, dtype=float) / np.linalg.norm(a) for a in side_axes)
+    if max(abs(u @ axis), abs(v @ axis), abs(u @ v)) > 1e-6:
+        raise ValueError("side_axes must be perpendicular to the beam's axis and to each other")
+    return u, v
+
+
 def beam_sky_outline(beam_vector, ang_radius_deg, n_points=721):
     """
     The edge of a beam on the sky: the directions at its angular radius from its axis.
@@ -1332,10 +1348,48 @@ def beam_sky_outline(beam_vector, ang_radius_deg, n_points=721):
     return np.unwrap(longitude), latitude
 
 
+def square_beam_sky_outline(beam_vector, ang_side_length_deg, side_axes, n_points=721):
+    """
+    The edge of a square beam on the sky.
+
+    Returns the longitude and latitude [rad] of n_points along the edge (a quarter along each side), the first and last
+    the same.
+
+    :param  beam_vector:            direction of the beam's axis, from the observer
+    :type   beam_vector:            array-like, shape (3,)
+    :param  ang_side_length_deg:    angular side length [deg] of the square, between 0 and 180
+    :type   ang_side_length_deg:    float
+    :param  side_axes:              the two unit vectors along the square's sides, perpendicular to the axis (a
+                                    SnapshotSquareBeam's side_axes)
+    :type   side_axes:              tuple
+    :param  n_points:               number of points along the edge
+    :type   n_points:               int
+    """
+    if not 0.0 < ang_side_length_deg < 180.0:
+        raise ValueError(f"ang_side_length_deg must be between 0 and 180, not {ang_side_length_deg}")
+
+    axis = np.asarray(beam_vector, dtype=float)
+    axis = axis / np.linalg.norm(axis)
+    u, v = _square_side_axes(axis, side_axes)
+
+    # walk round the square in the plane at unit distance along the axis, from corner to corner
+    t = np.tan(0.5 * np.deg2rad(ang_side_length_deg))
+    corners = t * np.array([[1.0, 1.0], [-1.0, 1.0], [-1.0, -1.0], [1.0, -1.0], [1.0, 1.0]])
+    walk = np.linspace(0.0, 4.0, n_points)
+    side = np.minimum(walk.astype(int), 3)
+    step = (walk - side)[:, None]
+    across = corners[side] + step * (corners[side + 1] - corners[side])
+
+    edge = axis[None, :] + across[:, :1] * u[None, :] + across[:, 1:] * v[None, :]
+    longitude, latitude = sky_coordinates(edge)
+
+    return np.unwrap(longitude), latitude
+
+
 def plot_beam_on_sky(
     ax,
     beam_vector,
-    ang_radius_deg,
+    ang_radius_deg=None,
     colour="dodgerblue",
     alpha=0.2,
     edge_width=1.5,
@@ -1343,6 +1397,8 @@ def plot_beam_on_sky(
     label=None,
     n_points=721,
     zorder=1,
+    ang_side_length_deg=None,
+    side_axes=None,
 ):
     """
     Draw the footprint of a beam on a Mollweide map of the sky.
@@ -1352,40 +1408,63 @@ def plot_beam_on_sky(
 
     Returns the list of the patches and lines drawn.
 
-    :param  ax:             axes with the "mollweide" projection
-    :type   ax:             matplotlib.axes.Axes
-    :param  beam_vector:    direction of the beam's axis, from the observer (e.g. SnapshotBeam's beam_vector)
-    :type   beam_vector:    array-like, shape (3,)
-    :param  ang_radius_deg: angular radius [deg] of the beam
-    :type   ang_radius_deg: float
-    :param  colour:         colour of the beam
-    :type   colour:         str
-    :param  alpha:          opacity of the filled area
-    :type   alpha:          float
-    :param  edge_width:     line width of the edge, 0 for none
-    :type   edge_width:     float
-    :param  fill:           If True, fill the area of the beam
-    :type   fill:           bool
-    :param  label:          legend label of the beam
-    :type   label:          str
-    :param  n_points:       number of points along the edge
-    :type   n_points:       int
-    :param  zorder:         drawing order
-    :type   zorder:         float
+    :param  ax:                     axes with the "mollweide" projection
+    :type   ax:                     matplotlib.axes.Axes
+    :param  beam_vector:            direction of the beam
+    :type   beam_vector:            array-like, shape (3,)
+    :param  ang_radius_deg:         angular radius [deg] of a circular beam
+    :type   ang_radius_deg:         float
+    :param  colour:                 colour of the beam
+    :type   colour:                 str
+    :param  alpha:                  opacity of the filled area
+    :type   alpha:                  float
+    :param  edge_width:             line width of the edge, 0 for none
+    :type   edge_width:             float
+    :param  fill:                   If True, fill the area of the beam
+    :type   fill:                   bool
+    :param  label:                  legend label of the beam
+    :type   label:                  str
+    :param  n_points:               number of points along the edge
+    :type   n_points:               int
+    :param  zorder:                 drawing order
+    :type   zorder:                 float
+    :param  ang_side_length_deg:    angular side length [deg] of a square beam, in place of ang_radius_deg
+    :type   ang_side_length_deg:    float
+    :param  side_axes:              for a square beam, the two unit vectors along its sides (SnapshotSquareBeam's
+                                    side_axes)
+    :type   side_axes:              tuple
     """
-    # get outline in on-sky coords
-    longitude, latitude = beam_sky_outline(beam_vector, ang_radius_deg, n_points=n_points)
+    if (ang_radius_deg is None) == (ang_side_length_deg is None):
+        raise ValueError("give ang_radius_deg for a circular beam, or ang_side_length_deg for a square one")
 
     # convert beam vector to axis coords
     axis = np.asarray(beam_vector, dtype=float)
     axis = axis / np.linalg.norm(axis)
 
+    # get outline in on-sky coords
+    if ang_side_length_deg is None:
+        longitude, latitude = beam_sky_outline(beam_vector, ang_radius_deg, n_points=n_points)
+
+        def inside(direction):
+            return np.arccos(np.clip(direction @ axis, -1.0, 1.0)) < np.deg2rad(ang_radius_deg)
+
+    else:
+        if side_axes is None:
+            raise ValueError("a square beam needs its side_axes, e.g. a SnapshotSquareBeam's side_axes")
+        longitude, latitude = square_beam_sky_outline(beam_vector, ang_side_length_deg, side_axes, n_points=n_points)
+        u, v = _square_side_axes(axis, side_axes)
+        t = np.tan(0.5 * np.deg2rad(ang_side_length_deg))
+
+        def inside(direction):
+            along = direction @ axis
+            return along > 0 and max(abs(direction @ u), abs(direction @ v)) < t * along
+
     # get beam area
     area = np.column_stack([longitude, latitude])
 
     # need a beam on a pole to only go around it once, so its unwrapped edge spans 2 pi in longitude
-    holds_north = np.arccos(np.clip(axis[2], -1.0, 1.0)) < np.deg2rad(ang_radius_deg)  # circle the north pole
-    holds_south = np.arccos(np.clip(-axis[2], -1.0, 1.0)) < np.deg2rad(ang_radius_deg)  # circle the south pole
+    holds_north = inside(np.array([0.0, 0.0, 1.0]))  # around the north pole
+    holds_south = inside(np.array([0.0, 0.0, -1.0]))  # around the south pole
 
     # flag if a pole
     if holds_north or holds_south:
