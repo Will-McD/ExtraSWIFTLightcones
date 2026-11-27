@@ -19,7 +19,7 @@ Defining the lightcone
 ----------------------
 
 A lightcone is built from the snapshots with one of the 
-:class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`subclasses, which differ only in their 
+:class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>` subclasses, which differ only in their 
 geometry: :class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>` for a 
 :term:`whole sky <all-sky lightcone>` (celestial sphere), 
 :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` for a :term:`beam`, 
