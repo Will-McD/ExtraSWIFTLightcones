@@ -48,8 +48,8 @@ Lightcones from snapshots
 
    * - ``snapshot_beam_halo_placement.py`` / ``.sh``
      - places the haloes from SOAP catalogues in a :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>`
-       lightcone for a set redshift shell, reading FLAMINGO from disk or, if it isn't there (or with ``--remote``),
-       from the hdfstream server (see :ref:`reading-remotely`)
+       and :class:`SnapshotSquareBeam <swiftlet.snapshot_lightcone.SnapshotSquareBeam>` lightcone for a set redshift 
+       shell, reading FLAMINGO from the hdfstream server (see :ref:`reading-remotely`)
 
    * - ``make_colibre_halo_lightcone.py`` / ``.sh``
      - builds an all-sky halo lightcone of COLIBRE L400_m7 (``L0400N3008/Thermal``) for :math:`0.001 < z < 0.1`, with
@@ -60,7 +60,8 @@ Lightcones from snapshots
        through them (see :doc:`../user_guide/projections`)
 
    * - ``snapshot_beam_zoom_on_haloes.py`` / ``.sh``
-     - zooms in on haloes of a :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` lightcone
+     - zooms in on haloes within :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` and 
+       :class:`SnapshotSquareBeam <swiftlet.snapshot_lightcone.SnapshotSquareBeam>` (see :ref:`square-beams`) lightcones
 
    * - ``snapshot_smoothed_map.py`` / ``.sh``
      - makes an all-sky HEALPix map of the smoothed gas mass for :math:`0.05 < z < 0.1` from snapshot lightcones of

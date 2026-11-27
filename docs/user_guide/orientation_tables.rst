@@ -415,7 +415,8 @@ table as ``orientation_table``:
                                 orientation_lock="cube", orientation_table="orientation_tables.yaml")
 
 
-This works exactly the same way for :class:`swiftlet.snapshot_lightcone.SnapshotBeam`.
+This works exactly the same way for :class:`swiftlet.snapshot_lightcone.SnapshotBeam` and 
+:class:`swiftlet.snapshot_lightcone.SnapshotSquareBeam`.
 
 Reproducing a lightcone
 ^^^^^^^^^^^^^^^^^^^^^^^

@@ -111,6 +111,11 @@ The following table summarises the test files and what they check.
         at most are making requests to read the remote data at once and the ranks place exactly the same particles as 
         if this was done in serial. Repeat the same checks for SOAP catalogues. 
 
+   * -  ``test_square_beam.py``
+     -  The square beam, :class:`swiftlet.snapshot_lightcone.SnapshotSquareBeam`, is exactly the part of the all-sky
+        lightcone inside its square pyramid (for beams on and off the box axes, every lock), holds the circular beam
+        inside it and repeat all tests for the circular beam. 
+
 .. note::
     All contributions to SWIFTLET need to pass the whole automated ``pytest`` suite (see :doc:`developers`).
 

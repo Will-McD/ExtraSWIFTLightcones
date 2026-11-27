@@ -13,11 +13,13 @@ detail.
       thin redshift :term:`shells <shell>` (see :doc:`user_guide/building_lightcones`).
 
    beam
-      Also referred to as a **lightcone beam** or a **beam lightcone**: A cone within the all-sky lightcone around a 
-      direction (the ``beam_vector``), with an angular radius ``ang_radius_deg``, built with 
-      :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>`. A beam is exactly the part of the 
-      :term:`all-sky lightcone` with the same :term:`orientation table`, :term:`orientation lock` and
-      :term:`orientation seed` inside its cone (see :ref:`beams-are-part-of-the-all-sky-lightcone`).
+      Also referred to as a **lightcone beam** or a **beam lightcone**: A cone or a square pyramid (see 
+      :term:`square beam`) within the all-sky lightcone around a direction (the ``beam_vector``), built with
+      :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` or  
+      :class:`SnapshotSquareBeam <swiftlet.snapshot_lightcone.SnapshotSquareBeam>`. 
+      A beam is exactly the part of the :term:`all-sky lightcone` with the same :term:`orientation table`,
+      :term:`orientation lock` and :term:`orientation seed` inside its cone or pyramid (see
+      :ref:`beams-are-part-of-the-all-sky-lightcone` and :ref:`circular-and-square-beams`).
 
    beam frame
       The axes a :term:`beam` labels its :term:`tiles <tile>` with, ``(nx, ny, n_los)``: ``n_los`` along the lattice
@@ -226,6 +228,12 @@ detail.
    SOAPIndex
       ``InputHalos/SOAPIndex``: the row of a halo of the lightcone in its snapshot's :term:`SOAP catalogue`, used with
       ``Lightcone/SnapshotNumber`` to read any of its other properties (see :doc:`user_guide/halo_lightcones`).
+
+   square beam
+      A :term:`beam` with a square footprint on the sky, built with
+      :class:`SnapshotSquareBeam <swiftlet.snapshot_lightcone.SnapshotSquareBeam>`: a square pyramid about the
+      ``beam_vector`` with its apex at the observer, its angular side length ``ang_side_length_deg`` the angle between
+      opposite faces, and its sides along the beam's transverse axes (see :ref:`square-beams`).
 
    tile
       A copy of the snapshot box in the lightcone, re-oriented and placed at its :term:`lattice position` around the

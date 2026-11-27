@@ -18,14 +18,16 @@ them, respectively.
 Defining the lightcone 
 ----------------------
 
-A lightcone is built from the snapshots with one of the two subclasses of
-:class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`, which differ only in their geometry:
-:class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>` for the :term:`whole sky <all-sky lightcone>` 
-(celestial sphere), and :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` for a :term:`beam` (or cone), 
-which we will use in this pages. Unlike the a :class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` requires 
-both the direction and angular radius (``ang_radius_deg`` in degrees) of the beam. The direction of the beam is given by 
-a vector (``beam_vector``), here :math:`\mathbf{v}_{\mathrm{beam}}=(0,0,1)`, to point the beam along the z-axis of the 
-simulations box. 
+A lightcone is built from the snapshots with one of the 
+:class:`SnapshotLightcone <swiftlet.snapshot_lightcone.SnapshotLightcone>`subclasses, which differ only in their 
+geometry: :class:`SnapshotAllSky <swiftlet.snapshot_lightcone.SnapshotAllSky>` for a 
+:term:`whole sky <all-sky lightcone>` (celestial sphere), 
+:class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` for a :term:`beam`, 
+which we will use in this pages and :class:`SnapshotSquareBeam <swiftlet.snapshot_lightcone.SnapshotSquareBeam>` for
++a :term:`square beam` (see :ref:`square-beams`). 
+:class:`SnapshotBeam <swiftlet.snapshot_lightcone.SnapshotBeam>` requires both the direction and angular radius 
+(``ang_radius_deg`` in degrees) of the beam. The direction of the beam is given by a vector (``beam_vector``), here 
+:math:`\mathbf{v}_{\mathrm{beam}}=(0,0,1)`, to point the beam along the z-axis of the simulations box. 
 
 In addition to the direction and angular radius of the beam , the lightcone needs to know which simulation it is 
 being built from. All the information on where to find a simultions snapshots, :term:`SOAP catalogues <SOAP catalogue>` 
